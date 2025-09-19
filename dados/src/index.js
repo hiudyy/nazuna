@@ -5,7 +5,7 @@
   Revisão: 31/08/2025
 ═════════════════════════════
 */
-import { downloadContentFromMessage, generateWAMessageFromContent, generateWAMessage, isJidNewsletter, getContentType, proto } from '@cognima/walib';
+import { downloadContentFromMessage, generateWAMessageFromContent, generateWAMessage, isJidNewsletter, getContentType } from '@cognima/walib';
 import { exec, execSync } from 'child_process';
 import { parseHTML } from 'linkedom';
 import axios from 'axios';
@@ -324,6 +324,21 @@ const deleteCustomReact = (id) => {
   const filtered = reacts.filter(r => r.id !== id);
   if (filtered.length === reacts.length) return { success: false, message: 'React não encontrado.' };
   return saveCustomReacts(filtered) ? { success: true, message: 'React removido com sucesso!' } : { success: false, message: 'Erro ao salvar.' };
+};
+
+const loadDivulgacao = () => {
+  return loadJsonFile(DIVULGACAO_FILE, { savedMessage: "" });
+};
+
+const saveDivulgacao = (data) => {
+  try {
+    ensureDirectoryExists(DONO_DIR);
+    fs.writeFileSync(DIVULGACAO_FILE, JSON.stringify(data, null, 2));
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao salvar divulgação.json:', error);
+    return false;
+  }
 };
 
 const SUBDONOS_FILE = pathz.join(DONO_DIR, 'subdonos.json');
@@ -8701,73 +8716,75 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
 
 case 'setdiv':
         try {
-          if (!isOwner) return reply("Apenas o dono do bot pode configurar a mensagem de divulgação.");
-          
-          if (!q) {
-            ensureJsonFileExists(DIVULGACAO_FILE, { savedMessage: "" });
-            const config = JSON.parse(fs.readFileSync(DIVULGACAO_FILE, 'utf-8'));
-            const currentMessage = config.savedMessage || "Nenhuma mensagem de divulgação foi salva ainda.";
-            return reply(`Nenhuma nova mensagem foi definida.\n\n*Mensagem atual:*\n${currentMessage}`);
-          }
-
-          const config = { savedMessage: q };
-          fs.writeFileSync(DIVULGACAO_FILE, JSON.stringify(config, null, 2));
-
-          await reply(`✅ Mensagem de divulgação salva com sucesso!`);
-
-        } catch (e) {
-          console.error('Erro no comando setdiv:', e);
-          await reply("💔 Ocorreu um erro ao salvar a mensagem.");
-        }
-        break;
-
-case 'divulgar':
-        try {
-          if (!isGroup) return reply("Este comando só pode ser usado em grupos.");
           if (!isOwner) return reply("Apenas o dono do bot pode usar este comando.");
 
-          const args = q.trim().split(' ');
-          const maxCount = 50;
-
-          const markAll = args[args.length - 1]?.toLowerCase() === 'all';
-          if (markAll) args.pop();
-
-          const count = parseInt(args.pop());
-          const messageText = args.join(' ').trim() || JSON.parse(fs.readFileSync(DIVULGACAO_FILE, 'utf-8')).savedMessage;
-
-          if (!messageText) {
-            return reply(
-              `❌ Nenhuma mensagem para divulgar.\n\n`+
-              `*Formatos de uso:*\n`+
-              `• \`${prefix}divulgar <msg> <qtd> [all]\`\n` +
-              `• \`${prefix}divulgar <qtd> [all]\` (usa msg salva)\n\n`+
-              `ℹ️ Adicione \`all\` no final para marcar todos os membros do grupo.`
-            );
+          if (!q) {
+            const config = loadDivulgacao();
+            const currentMessage = config.savedMessage || "Nenhuma mensagem salva.";
+            return reply(`*Mensagem de divulgação atual:*\n${currentMessage}`);
           }
 
-          if (isNaN(count) || count <= 0 || count > maxCount) {
-            return reply(`Quantidade inválida. Forneça um número entre 1 e ${maxCount}.`);
+          if (saveDivulgacao({ savedMessage: q })) {
+            await reply(`✅ Mensagem de divulgação salva:\n\n${q}`);
+          } else {
+            await reply("💔 Ocorreu um erro ao salvar a mensagem.");
           }
-
-          const contextInfo = markAll ? { contextInfo: { mentionedJid: AllgroupMembers } } : {};
-
-          for (let i = 0; i < count; i++) {
-            const paymentObject = {
-              requestPaymentMessage: {
-                currencyCodeIso4217: 'BRL', amount1000: '0', requestFrom: sender,
-                noteMessage: { extendedTextMessage: { text: messageText, ...contextInfo } },
-                amount: { value: '0', offset: 1000, currencyCode: 'BRL' },
-                expiryTimestamp: Math.floor(Date.now() / 1000) + 86400
-              }
-            };
-            const generatedMessage = await generateWAMessageFromContent(from, proto.Message.fromObject(paymentObject), { userJid: nazu?.user?.id });
-            await nazu.relayMessage(from, generatedMessage.message, { messageId: generatedMessage.key.id });
-          }
-
         } catch (e) {
-          await reply("💔 Ocorreu um erro ao tentar enviar a divulgação.");
+          console.error('Erro no comando setdiv:', e);
+          await reply("💔 Ocorreu um erro geral ao processar o comando.");
         }
         break;
+
+case 'div':
+case 'divulgar':
+    try {
+        if (!isGroup) return reply("Este comando só pode ser usado em grupos.");
+        if (!isOwner) return reply("Apenas o dono do bot pode usar este comando.");
+
+        const delay = 500;
+        const maxCount = 50;
+        const args = q.trim().split(' ');
+        const markAll = args[args.length - 1]?.toLowerCase() === 'all';
+        if (markAll) args.pop();
+        const count = parseInt(args.pop());
+        let messageText = args.join(' ').trim();
+
+        if (!messageText) messageText = loadDivulgacao().savedMessage;
+        
+        if (!messageText) return reply(`❌ Nenhuma mensagem para divulgar.`);
+        if (isNaN(count) || count <= 0 || count > maxCount) return reply(`❌ Quantidade inválida.`);
+
+        const contextInfo = markAll ? { contextInfo: { mentionedJid: AllgroupMembers } } : {};
+
+        const processarProxima = async (index, falhas) => {
+            if (index >= count) {
+                if (falhas > 0) await reply(`- Falhas: ${falhas}`);
+                return;
+            }
+            try {
+                const paymentObject = {
+                    requestPaymentMessage: {
+                        currencyCodeIso4217: 'BRL', amount1000: '0', requestFrom: sender,
+                        noteMessage: { extendedTextMessage: { text: messageText, ...contextInfo } },
+                        amount: { value: '0', offset: 1000, currencyCode: 'BRL' },
+                        expiryTimestamp: Math.floor(Date.now() / 1000) + 86400
+                    }
+                };
+                const msg = await generateWAMessageFromContent(from, paymentObject, { userJid: nazu?.user?.id });
+                await nazu.relayMessage(from, msg.message, { messageId: msg.key.id });
+            } catch (e) {
+                console.error(`Falha ao enviar mensagem ${index + 1}:`, e);
+                falhas++;
+            }
+            setTimeout(() => processarProxima(index + 1, falhas), delay);
+        };
+
+        processarProxima(0, 0);
+    } catch (e) {
+        console.error("Erro no comando 'divulgar':", e);
+        await reply("💔 Ocorreu um erro ao iniciar a divulgação.");
+    }
+    break;
 
       case 'antibotao':
       case 'antibtn':
