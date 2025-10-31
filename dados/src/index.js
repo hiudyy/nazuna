@@ -9,6 +9,7 @@ const os = require('os');
 const https = require('https');
 const crypto = require('crypto');
 const PerformanceOptimizer = require('./utils/performanceOptimizer');
+const ia = require('./funcs/private/ia');
 const { formatUptime, normalizar, isGroupId, isUserId, isValidLid, isValidJid, getUserName, getLidFromJid, buildUserId, getBotId, ensureDirectoryExists, ensureJsonFileExists, loadJsonFile } = require('./utils/helpers');
 const { loadMsgPrefix, saveMsgPrefix, loadCmdNotFoundConfig, saveCmdNotFoundConfig, validateMessageTemplate, formatMessageWithFallback, loadCustomReacts, saveCustomReacts, loadReminders, saveReminders, addCustomReact, deleteCustomReact, loadDivulgacao, saveDivulgacao, loadSubdonos, saveSubdonos, isSubdono, addSubdono, removeSubdono, getSubdonos, loadRentalData, saveRentalData, isRentalModeActive, setRentalMode, getGroupRentalStatus, setGroupRental, loadActivationCodes, saveActivationCodes, generateActivationCode, validateActivationCode, useActivationCode, extendGroupRental, isModoLiteActive, loadParceriasData, saveParceriasData, calculateNextLevelXp, getPatent, loadEconomy, saveEconomy, getEcoUser, parseAmount, fmt, timeLeft, applyShopBonuses, PICKAXE_TIER_MULT, PICKAXE_TIER_ORDER, getActivePickaxe, ensureEconomyDefaults, giveMaterial, generateDailyChallenge, ensureUserChallenge, updateChallenge, isChallengeCompleted, SKILL_LIST, ensureUserSkills, skillXpForNext, addSkillXP, getSkillBonus, endOfWeekTimestamp, endOfMonthTimestamp, generateWeeklyChallenge, generateMonthlyChallenge, ensureUserPeriodChallenges, updatePeriodChallenge, isPeriodCompleted, checkLevelUp, checkLevelDown, loadCustomAutoResponses, saveCustomAutoResponses, loadGroupAutoResponses, saveGroupAutoResponses, addAutoResponse, deleteAutoResponse, processAutoResponse, sendAutoResponse, loadNoPrefixCommands, saveNoPrefixCommands, loadCommandAliases, saveCommandAliases, loadGlobalBlacklist, saveGlobalBlacklist, addGlobalBlacklist, removeGlobalBlacklist, getGlobalBlacklist, loadMenuDesign, saveMenuDesign, getMenuDesignWithDefaults } = require('./utils/database');
 const API_KEY_REQUIRED_MESSAGE = 'Este comando precisa de API key para funcionar. Meu dono já foi notificado! 😺';
@@ -379,31 +380,21 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       groupMetadata.participants?.filter(p => p.admin).map(extractParticipantId).filter(Boolean) || [];
 
     // Robust bot ID extraction with multiple fallback mechanisms
-    const getBotNumber = (nazu) => {
+    const getBotNumber = async (nazu) => {
       try {
-        // Primary: Try LID format first (most common)
         if (nazu.user?.lid) {
           const botId = nazu.user.lid.split(':')[0];
           return botId ? `${botId}@lid` : null;
         }
-
-        // Secondary: Try user.id format
         if (nazu.user?.id) {
-          const botId = nazu.user.id.split(':')[0];
-          // Check if it's already in LID format
-          if (botId.includes('@lid')) {
-            return botId;
-          }
-          // Convert to LID format for consistency
-          return botId ? `${botId}@lid` : null;
+          const botId = (await nazu.onWhatsApp(nazu.user.id.split(':')[0])).lid;
+          return botId ? `${botId}` : null;
         }
 
-        // Tertiary: Use existing getBotId function if available
         if (typeof getBotId === 'function') {
           return getBotId(nazu);
         }
 
-        // Final fallback: construct from available data
         if (nazu.user?.id?.split) {
           const botId = nazu.user.id.split(':')[0];
           return `${botId}@s.whatsapp.net`;
@@ -417,7 +408,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       }
     };
 
-    const botNumber = getBotNumber(nazu);
+    const botNumber = await getBotNumber(nazu);
     const isBotAdmin = !isGroup || !botNumber ? false : groupAdmins.includes(botNumber);
     let isGroupAdmin = false;
     if (isGroup) {
@@ -1837,7 +1828,13 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
           const minDelay = 10 * 1000;
           if (at - Date.now() < minDelay) return reply('⏳ Escolha um horário pelo menos 10 segundos à frente.');
           const newReminder = {
-            id: crypto.randomBytes(6).toString('hex'),
+            id: (() => {
+              try {
+                return crypto.randomBytes(6).toString('hex');
+              } catch (error) {
+                return Math.random().toString(16).substring(2, 14);
+              }
+            })(),
             userId: sender,
             chatId: from,
             createdByName: pushname || '',
@@ -2767,7 +2764,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         try {
           let styleKey = command === 'genrealism' ? 'default' : command.slice(3);
           if (!KeyCog) {
-            await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           if (!q) return reply(`🎨 *Gerador de Imagens AI*\n\n💡 *Como usar:*\n• Forneça uma descrição detalhada do que deseja\n• Ex: ${prefix}${command} Black Cat\n• Ex: ${prefix}${command} paisagem montanha pôr do sol realista`);
@@ -2802,7 +2799,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'gemma':
         if (!q) return reply(`🤔 Qual sua dúvida para o Gemma? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -2824,7 +2821,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'phi3':
         if (!q) return reply(`🤔 Qual sua dúvida para o Phi? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -2845,7 +2842,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'qwen2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Qwen2? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -2867,7 +2864,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'qwen3':
         if (!q) return reply(`🤔 Qual sua dúvida para o Qwen? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -2889,7 +2886,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'llama3':
         if (!q) return reply(`🤔 Qual sua dúvida para o Llama? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -2911,7 +2908,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'baichuan2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Baichuan? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -2932,7 +2929,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'marin':
         if (!q) return reply(`🤔 Qual sua dúvida para o Marin? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -2954,7 +2951,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'kimik2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Kimi? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -2975,7 +2972,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'mistral':
         if (!q) return reply(`🤔 Qual sua dúvida para o Mistral? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -2996,7 +2993,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'magistral':
         if (!q) return reply(`🤔 Qual sua dúvida para o Magistral? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3018,7 +3015,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'rocket':
         if (!q) return reply(`🤔 Qual sua dúvida para o RakutenAI? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3039,7 +3036,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'yi':
         if (!q) return reply(`🤔 Qual sua dúvida para o Yi? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3060,7 +3057,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'gemma2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Gemma2? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3081,7 +3078,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'swallow':
         if (!q) return reply(`🤔 Qual sua dúvida para o Swallow? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3102,7 +3099,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'falcon':
         if (!q) return reply(`🤔 Qual sua dúvida para o Falcon? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3123,7 +3120,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'qwencoder':
         if (!q) return reply(`🤔 Qual sua dúvida para o Qwencoder? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3144,7 +3141,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'codegemma':
         if (!q) return reply(`🤔 Qual sua dúvida para o CodeGemma? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3165,7 +3162,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'resumir':
         if (!q) return reply(`📝 *Resumidor de Texto*\n\n💡 *Como usar:*\n• Envie o texto que deseja resumir após o comando\n• Ex: ${prefix}resumir [seu texto aqui]\n\n✨ O texto será resumido de forma clara e objetiva!`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3187,7 +3184,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'resumirurl':
         if (!q) return reply(`🌐 Quer resumir uma página? Envie a URL após o comando ${prefix}resumirurl! Exemplo: ${prefix}resumirurl https://exemplo.com/artigo 😊`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3231,7 +3228,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'ideia':
         if (!q) return reply(`💡 Quer ideias criativas? Diga o tema após o comando ${prefix}ideias! Exemplo: ${prefix}ideias nomes para um aplicativo de receitas 😊`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3254,7 +3251,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'explique':
         if (!q) return reply(`🤓 Quer entender algo? Diga o que deseja explicar após o comando ${prefix}explicar! Exemplo: ${prefix}explicar o que é inteligência artificial 😊`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3277,7 +3274,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'correcao':
         if (!q) return reply(`✍️ Quer corrigir um texto? Envie o texto após o comando ${prefix}corrigir! Exemplo: ${prefix}corrigir Eu foi no mercado e comprei frutas. 😊`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3293,7 +3290,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       case 'cog':
         if (!q) return reply(`📢 Ei, falta a pergunta! Me diga o que quer saber após o comando ${prefix}cog! 😴`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3310,7 +3307,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         if (!q) return reply(`🌍 Quer traduzir algo? Me diga o idioma e o texto assim: ${prefix}${command} idioma | texto
 Exemplo: ${prefix}tradutor inglês | Bom dia! 😊`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -3435,7 +3432,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'dictionary':
         if (!q) return reply(`📔 Qual palavra você quer procurar no dicionário? Me diga após o comando ${prefix}${command}! 😊`);
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply("📔 Procurando no dicionário... Aguarde um pouquinho! ⏳");
@@ -4577,7 +4574,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         break;
       case 'shazam':
         if (!KeyCog) {
-          await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -4647,7 +4644,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
 
           // Verificar se tem API key
           if (!KeyCog) {
-            await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
 
@@ -4765,7 +4762,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           
           // Verificar se tem API key
           if (!KeyCog) {
-            await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
 
@@ -4892,7 +4889,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           
           // Verificar se tem API key
           if (!KeyCog) {
-            await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
 
@@ -4942,7 +4939,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           
           // Verificar se tem API key
           if (!KeyCog) {
-            await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
 
@@ -9108,7 +9105,7 @@ Exemplos:
       case 'assistent':
         try {
           if (!KeyCog) {
-            await sendApiKeyWarning(nazu, nmrdn, prefix, command);
+            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const pathz = require('path');
+const crypto = require('crypto');
 const { ensureDirectoryExists, ensureJsonFileExists, loadJsonFile, normalizar, getUserName, isGroupId, isUserId, isValidLid, isValidJid, buildUserId } = require('./helpers');
 
 const DATABASE_DIR = __dirname + '/../../database';
@@ -607,7 +608,13 @@ const generateActivationCode = (durationDays, targetGroupId = null) => {
   let code = '';
   let codesData = loadActivationCodes();
   do {
-    code = crypto.randomBytes(4).toString('hex').toUpperCase();
+    // Try crypto.randomBytes first, fallback to Math.random if not available
+    try {
+      code = crypto.randomBytes(4).toString('hex').toUpperCase();
+    } catch (error) {
+      // Fallback for environments where crypto.randomBytes is not available
+      code = Math.random().toString(16).substring(2, 10).toUpperCase();
+    }
   } while (codesData.codes[code]);
   if (durationDays !== 'permanent' && (typeof durationDays !== 'number' || durationDays <= 0)) {
     return {

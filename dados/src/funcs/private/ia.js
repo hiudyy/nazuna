@@ -629,7 +629,13 @@ function validateMessage(msg) {
       mensagem_marcada: msg.mensagem_marcada || null,
       id_enviou_marcada: msg.id_enviou_marcada || null,
       tem_midia_marcada: Boolean(msg.tem_midia_marcada),
-      id_mensagem: msg.id_mensagem || crypto.randomBytes(8).toString('hex')
+      id_mensagem: msg.id_mensagem || (() => {
+        try {
+          return crypto.randomBytes(8).toString('hex');
+        } catch (error) {
+          return Math.random().toString(16).substring(2, 18);
+        }
+      })()
     };
   }
 
@@ -652,7 +658,13 @@ function validateMessage(msg) {
       mensagem_marcada: parts[10] || null,
       id_enviou_marcada: parts[11] || null,
       tem_midia_marcada: parts[12] === 'true',
-      id_mensagem: parts[13] || crypto.randomBytes(8).toString('hex')
+      id_mensagem: parts[13] || (() => {
+        try {
+          return crypto.randomBytes(8).toString('hex');
+        } catch (error) {
+          return Math.random().toString(16).substring(2, 18);
+        }
+      })()
     };
   }
 
@@ -1005,7 +1017,13 @@ async function processUserMessages(data, indexPath, key, nazu = null, ownerNumbe
     // Adicionar resposta de despedida contextual se for a última mensagem
     if (respostas.length > 0 && shouldAddFarewell(mensagensValidadas[mensagensValidadas.length - 1])) {
       respostas.push({
-        id: crypto.randomBytes(8).toString('hex'),
+        id: (() => {
+          try {
+            return crypto.randomBytes(8).toString('hex');
+          } catch (error) {
+            return Math.random().toString(16).substring(2, 18);
+          }
+        })(),
         resp: getNazunaFarewell(isNightTime),
         react: '🌙'
       });
@@ -1429,7 +1447,13 @@ async function Shazam(buffer, api_token, filename = "audio.mp3") {
   if (!api_token) {
     return { error: true, message: "API token do Shazam (audd.io) não fornecido." };
   }
-  const boundary = "----AudDBoundary" + crypto.randomBytes(16).toString("hex");
+  const boundary = "----AudDBoundary" + (() => {
+    try {
+      return crypto.randomBytes(16).toString("hex");
+    } catch (error) {
+      return Math.random().toString(16).substring(2, 34);
+    }
+  })();
   const CRLF = "\r\n";
 
   const payloadParts = [];

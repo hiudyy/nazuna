@@ -225,3 +225,12 @@ const makeMove = (...args) => manager.makeMove(...args);
 const endGame = (...args) => manager.endGame(...args);
 const hasActiveGame = (...args) => manager.hasActiveGame(...args);
 const hasPendingInvitation = (...args) => manager.hasPendingInvitation(...args);
+
+module.exports = {
+  invitePlayer,
+  processInvitationResponse,
+  makeMove,
+  endGame,
+  hasActiveGame,
+  hasPendingInvitation
+};

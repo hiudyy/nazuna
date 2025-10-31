@@ -44,7 +44,13 @@ class MessageQueue {
                 resolve,
                 reject,
                 timestamp: Date.now(),
-                id: crypto.randomUUID()
+                id: (() => {
+                  try {
+                    return crypto.randomUUID();
+                  } catch (error) {
+                    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                  }
+                })()
             });
             
             this.stats.currentQueueLength = this.queue.length;
