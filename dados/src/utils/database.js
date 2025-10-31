@@ -2,42 +2,53 @@ const fs = require('fs');
 const pathz = require('path');
 const crypto = require('crypto');
 const { ensureDirectoryExists, ensureJsonFileExists, loadJsonFile, normalizar, getUserName, isGroupId, isUserId, isValidLid, isValidJid, buildUserId } = require('./helpers');
-
-const DATABASE_DIR = __dirname + '/../../database';
-const GRUPOS_DIR = DATABASE_DIR + '/grupos';
-const USERS_DIR = DATABASE_DIR + '/users';
-const DONO_DIR = DATABASE_DIR + '/dono';
-const PARCERIAS_DIR = pathz.join(DATABASE_DIR, 'parcerias');
-const LEVELING_FILE = pathz.join(DATABASE_DIR, 'leveling.json');
-const CUSTOM_AUTORESPONSES_FILE = pathz.join(DATABASE_DIR, 'customAutoResponses.json');
-const DIVULGACAO_FILE = pathz.join(DONO_DIR, 'divulgacao.json');
-const NO_PREFIX_COMMANDS_FILE = pathz.join(DATABASE_DIR, 'noPrefixCommands.json');
-const COMMAND_ALIASES_FILE = pathz.join(DATABASE_DIR, 'commandAliases.json');
-const GLOBAL_BLACKLIST_FILE = pathz.join(DONO_DIR, 'globalBlacklist.json');
-const MENU_DESIGN_FILE = pathz.join(DONO_DIR, 'menuDesign.json');
-const ECONOMY_FILE = pathz.join(DATABASE_DIR, 'economy.json');
-const MSGPREFIX_FILE = pathz.join(DONO_DIR, 'msgprefix.json');
-const CUSTOM_REACTS_FILE = pathz.join(DATABASE_DIR, 'customReacts.json');
-const REMINDERS_FILE = pathz.join(DATABASE_DIR, 'reminders.json');
-const CMD_NOT_FOUND_FILE = pathz.join(DONO_DIR, 'cmdNotFound.json');
-const SUBDONOS_FILE = pathz.join(DONO_DIR, 'subdonos.json');
-const ALUGUEIS_FILE = pathz.join(DONO_DIR, 'alugueis.json');
-const CODIGOS_ALUGUEL_FILE = pathz.join(DONO_DIR, 'codigos_aluguel.json');
+const {
+  DATABASE_DIR,
+  GRUPOS_DIR,
+  USERS_DIR,
+  DONO_DIR,
+  PARCERIAS_DIR,
+  TMP_DIR,
+  LEVELING_FILE,
+  CUSTOM_AUTORESPONSES_FILE,
+  DIVULGACAO_FILE,
+  NO_PREFIX_COMMANDS_FILE,
+  COMMAND_ALIASES_FILE,
+  GLOBAL_BLACKLIST_FILE,
+  MENU_DESIGN_FILE,
+  ECONOMY_FILE,
+  MSGPREFIX_FILE,
+  CUSTOM_REACTS_FILE,
+  REMINDERS_FILE,
+  CMD_NOT_FOUND_FILE,
+  ANTIFLOOD_FILE,
+  ANTIPV_FILE,
+  GLOBAL_BLOCKS_FILE,
+  CMD_LIMIT_FILE,
+  CMD_USER_LIMITS_FILE,
+  ANTISPAM_FILE,
+  BOT_STATE_FILE,
+  AUTO_HORARIOS_FILE,
+  MODO_LITE_FILE,
+  SUBDONOS_FILE,
+  ALUGUEIS_FILE,
+  CODIGOS_ALUGUEL_FILE
+} = require('./paths');
 
 ensureDirectoryExists(GRUPOS_DIR);
 ensureDirectoryExists(USERS_DIR);
 ensureDirectoryExists(DONO_DIR);
 ensureDirectoryExists(PARCERIAS_DIR);
-ensureJsonFileExists(DATABASE_DIR + '/antiflood.json');
-ensureJsonFileExists(DATABASE_DIR + '/cmdlimit.json', {
+ensureJsonFileExists(ANTIFLOOD_FILE);
+ensureJsonFileExists(CMD_LIMIT_FILE, {
   commands: {},
   users: {}
 });
-ensureJsonFileExists(DATABASE_DIR + '/cmduserlimits.json', {
+ensureJsonFileExists(CMD_USER_LIMITS_FILE, {
   commands: {},
   users: {}
 });
-ensureJsonFileExists(DATABASE_DIR + '/antispam.json', {
+ensureJsonFileExists(ANTISPAM_FILE, {
   enabled: false,
   limit: 5,
   interval: 10,
@@ -45,19 +56,23 @@ ensureJsonFileExists(DATABASE_DIR + '/antispam.json', {
   users: {},
   blocks: {}
 });
-ensureJsonFileExists(DATABASE_DIR + '/antipv.json', {
+ensureJsonFileExists(ANTIPV_FILE, {
   mode: 'off',
   message: '🚫 Este comando só funciona em grupos!'
 });
 ensureJsonFileExists(DONO_DIR + '/premium.json');
 ensureJsonFileExists(DONO_DIR + '/bangp.json');
-ensureJsonFileExists(DATABASE_DIR + '/globalBlocks.json', {
+ensureJsonFileExists(GLOBAL_BLOCKS_FILE, {
   commands: {},
   users: {}
 });
-ensureJsonFileExists(DATABASE_DIR + '/botState.json', {
+ensureJsonFileExists(BOT_STATE_FILE, {
   status: 'on'
 });
+ensureJsonFileExists(MODO_LITE_FILE, {
+  status: false
+});
+ensureDirectoryExists(TMP_DIR);
 ensureJsonFileExists(CUSTOM_AUTORESPONSES_FILE, {
   responses: []
 });
@@ -210,6 +225,109 @@ ensureJsonFileExists(ALUGUEIS_FILE, {
 ensureJsonFileExists(CODIGOS_ALUGUEL_FILE, {
   codes: {}
 });
+
+const databaseSelfTests = [{
+  name: 'economy.json',
+  path: ECONOMY_FILE,
+  validate: (data) => {
+    const issues = [];
+    if (!data || typeof data !== 'object') {
+      issues.push('Arquivo não pôde ser carregado como objeto.');
+      return issues;
+    }
+    if (typeof data.users !== 'object') issues.push('Campo "users" ausente ou inválido.');
+    if (typeof data.shop !== 'object') issues.push('Campo "shop" ausente ou inválido.');
+    if (typeof data.materialsPrices !== 'object') issues.push('Campo "materialsPrices" ausente ou inválido.');
+    return issues;
+  }
+}, {
+  name: 'leveling.json',
+  path: LEVELING_FILE,
+  validate: (data) => {
+    const issues = [];
+    if (!data || typeof data !== 'object') {
+      issues.push('Arquivo não pôde ser carregado como objeto.');
+      return issues;
+    }
+    if (!Array.isArray(data.patents)) issues.push('Campo "patents" ausente ou não é um array.');
+    if (typeof data.users !== 'object') issues.push('Campo "users" ausente ou inválido.');
+    return issues;
+  }
+}, {
+  name: 'commandAliases.json',
+  path: COMMAND_ALIASES_FILE,
+  validate: (data) => {
+    const issues = [];
+    if (!data || typeof data !== 'object') {
+      issues.push('Arquivo não pôde ser carregado como objeto.');
+      return issues;
+    }
+    if (!Array.isArray(data.aliases)) issues.push('Campo "aliases" ausente ou inválido.');
+    return issues;
+  }
+}, {
+  name: 'customAutoResponses.json',
+  path: CUSTOM_AUTORESPONSES_FILE,
+  validate: (data) => {
+    const issues = [];
+    if (!data || typeof data !== 'object') {
+      issues.push('Arquivo não pôde ser carregado como objeto.');
+      return issues;
+    }
+    if (!Array.isArray(data.responses)) issues.push('Campo "responses" ausente ou inválido.');
+    return issues;
+  }
+}, {
+  name: 'cmdNotFound.json',
+  path: CMD_NOT_FOUND_FILE,
+  validate: (data) => {
+    const issues = [];
+    if (!data || typeof data !== 'object') {
+      issues.push('Arquivo não pôde ser carregado como objeto.');
+      return issues;
+    }
+    if (typeof data.enabled !== 'boolean') issues.push('Campo "enabled" ausente ou inválido.');
+    if (typeof data.message !== 'string') issues.push('Campo "message" ausente ou inválido.');
+    return issues;
+  }
+}];
+
+const runDatabaseSelfTest = ({ log = false } = {}) => {
+  const results = databaseSelfTests.map(test => {
+    try {
+      const content = loadJsonFile(test.path, null);
+      const issues = test.validate(content) || [];
+      return {
+        name: test.name,
+        path: test.path,
+        ok: issues.length === 0,
+        issues
+      };
+    } catch (error) {
+      return {
+        name: test.name,
+        path: test.path,
+        ok: false,
+        issues: [`Erro ao carregar: ${error.message || error}`]
+      };
+    }
+  });
+
+  if (log) {
+    results.forEach(result => {
+      if (result.ok) {
+        console.log(`✅ [DB Test] ${result.name} pronto.`);
+      } else {
+        console.warn(`⚠️ [DB Test] Problemas detectados em ${result.name}:\n- ${result.issues.join('\n- ')}`);
+      }
+    });
+  }
+
+  return {
+    ok: results.every(result => result.ok),
+    results
+  };
+};
 
 const loadMsgPrefix = () => {
   return loadJsonFile(MSGPREFIX_FILE, { message: false }).message;
@@ -1677,6 +1795,7 @@ const formatTimeLeft = (milliseconds) => {
 };
 
 module.exports = {
+  runDatabaseSelfTest,
   loadMsgPrefix,
   saveMsgPrefix,
   loadCmdNotFoundConfig,

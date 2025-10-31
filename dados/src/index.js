@@ -11,67 +11,239 @@ const crypto = require('crypto');
 const PerformanceOptimizer = require('./utils/performanceOptimizer');
 const ia = require('./funcs/private/ia');
 const { formatUptime, normalizar, isGroupId, isUserId, isValidLid, isValidJid, getUserName, getLidFromJid, buildUserId, getBotId, ensureDirectoryExists, ensureJsonFileExists, loadJsonFile } = require('./utils/helpers');
-const { loadMsgPrefix, saveMsgPrefix, loadCmdNotFoundConfig, saveCmdNotFoundConfig, validateMessageTemplate, formatMessageWithFallback, loadCustomReacts, saveCustomReacts, loadReminders, saveReminders, addCustomReact, deleteCustomReact, loadDivulgacao, saveDivulgacao, loadSubdonos, saveSubdonos, isSubdono, addSubdono, removeSubdono, getSubdonos, loadRentalData, saveRentalData, isRentalModeActive, setRentalMode, getGroupRentalStatus, setGroupRental, loadActivationCodes, saveActivationCodes, generateActivationCode, validateActivationCode, useActivationCode, extendGroupRental, isModoLiteActive, loadParceriasData, saveParceriasData, calculateNextLevelXp, getPatent, loadEconomy, saveEconomy, getEcoUser, parseAmount, fmt, timeLeft, applyShopBonuses, PICKAXE_TIER_MULT, PICKAXE_TIER_ORDER, getActivePickaxe, ensureEconomyDefaults, giveMaterial, generateDailyChallenge, ensureUserChallenge, updateChallenge, isChallengeCompleted, SKILL_LIST, ensureUserSkills, skillXpForNext, addSkillXP, getSkillBonus, endOfWeekTimestamp, endOfMonthTimestamp, generateWeeklyChallenge, generateMonthlyChallenge, ensureUserPeriodChallenges, updatePeriodChallenge, isPeriodCompleted, checkLevelUp, checkLevelDown, loadCustomAutoResponses, saveCustomAutoResponses, loadGroupAutoResponses, saveGroupAutoResponses, addAutoResponse, deleteAutoResponse, processAutoResponse, sendAutoResponse, loadNoPrefixCommands, saveNoPrefixCommands, loadCommandAliases, saveCommandAliases, loadGlobalBlacklist, saveGlobalBlacklist, addGlobalBlacklist, removeGlobalBlacklist, getGlobalBlacklist, loadMenuDesign, saveMenuDesign, getMenuDesignWithDefaults, loadCommandLimits, saveCommandLimits, addCommandLimit, removeCommandLimit, getCommandLimits, checkCommandLimit, formatTimeLeft } = require('./utils/database');
+const {
+  loadMsgPrefix,
+  saveMsgPrefix,
+  loadCmdNotFoundConfig,
+  saveCmdNotFoundConfig,
+  validateMessageTemplate,
+  formatMessageWithFallback,
+  loadCustomReacts,
+  saveCustomReacts,
+  loadReminders,
+  saveReminders,
+  addCustomReact,
+  deleteCustomReact,
+  loadDivulgacao,
+  saveDivulgacao,
+  loadSubdonos,
+  saveSubdonos,
+  isSubdono,
+  addSubdono,
+  removeSubdono,
+  getSubdonos,
+  loadRentalData,
+  saveRentalData,
+  isRentalModeActive,
+  setRentalMode,
+  getGroupRentalStatus,
+  setGroupRental,
+  loadActivationCodes,
+  saveActivationCodes,
+  generateActivationCode,
+  validateActivationCode,
+  useActivationCode,
+  extendGroupRental,
+  isModoLiteActive,
+  loadParceriasData,
+  saveParceriasData,
+  calculateNextLevelXp,
+  getPatent,
+  loadEconomy,
+  saveEconomy,
+  getEcoUser,
+  parseAmount,
+  fmt,
+  timeLeft,
+  applyShopBonuses,
+  PICKAXE_TIER_MULT,
+  PICKAXE_TIER_ORDER,
+  getActivePickaxe,
+  ensureEconomyDefaults,
+  giveMaterial,
+  generateDailyChallenge,
+  ensureUserChallenge,
+  updateChallenge,
+  isChallengeCompleted,
+  SKILL_LIST,
+  ensureUserSkills,
+  skillXpForNext,
+  addSkillXP,
+  getSkillBonus,
+  endOfWeekTimestamp,
+  endOfMonthTimestamp,
+  generateWeeklyChallenge,
+  generateMonthlyChallenge,
+  ensureUserPeriodChallenges,
+  updatePeriodChallenge,
+  isPeriodCompleted,
+  checkLevelUp,
+  checkLevelDown,
+  loadCustomAutoResponses,
+  saveCustomAutoResponses,
+  loadGroupAutoResponses,
+  saveGroupAutoResponses,
+  addAutoResponse,
+  deleteAutoResponse,
+  processAutoResponse,
+  sendAutoResponse,
+  loadNoPrefixCommands,
+  saveNoPrefixCommands,
+  loadCommandAliases,
+  saveCommandAliases,
+  loadGlobalBlacklist,
+  saveGlobalBlacklist,
+  addGlobalBlacklist,
+  removeGlobalBlacklist,
+  getGlobalBlacklist,
+  loadMenuDesign,
+  saveMenuDesign,
+  getMenuDesignWithDefaults,
+  loadCommandLimits,
+  saveCommandLimits,
+  addCommandLimit,
+  removeCommandLimit,
+  getCommandLimits,
+  checkCommandLimit,
+  formatTimeLeft,
+  runDatabaseSelfTest
+} = require('./utils/database');
+const {
+  PACKAGE_JSON_PATH,
+  CONFIG_FILE,
+  DATABASE_DIR,
+  GRUPOS_DIR,
+  USERS_DIR,
+  DONO_DIR,
+  PARCERIAS_DIR,
+  TMP_DIR,
+  LEVELING_FILE,
+  CUSTOM_AUTORESPONSES_FILE,
+  DIVULGACAO_FILE,
+  NO_PREFIX_COMMANDS_FILE,
+  COMMAND_ALIASES_FILE,
+  GLOBAL_BLACKLIST_FILE,
+  MENU_DESIGN_FILE,
+  ECONOMY_FILE,
+  MSGPREFIX_FILE,
+  CUSTOM_REACTS_FILE,
+  REMINDERS_FILE,
+  CMD_NOT_FOUND_FILE,
+  ANTIFLOOD_FILE,
+  ANTIPV_FILE,
+  GLOBAL_BLOCKS_FILE,
+  CMD_LIMIT_FILE,
+  CMD_USER_LIMITS_FILE,
+  ANTISPAM_FILE,
+  BOT_STATE_FILE,
+  AUTO_HORARIOS_FILE,
+  MODO_LITE_FILE
+} = require('./utils/paths');
 const API_KEY_REQUIRED_MESSAGE = 'Este comando precisa de API key para funcionar. Meu dono já foi notificado! 😺';
 const OWNER_ONLY_MESSAGE = '🚫 Este comando é apenas para o dono do bot!';
 
+const writeJsonFile = (filePath, data) => {
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+};
+
+let performanceOptimizerInstance = null;
+let performanceOptimizerInitPromise = null;
+
+async function initializePerformanceOptimizer() {
+  if (performanceOptimizerInstance) {
+    return performanceOptimizerInstance;
+  }
+
+  if (!performanceOptimizerInitPromise) {
+    performanceOptimizerInitPromise = (async () => {
+      try {
+        const instance = new PerformanceOptimizer();
+        await instance.initialize();
+        performanceOptimizerInstance = instance;
+        return instance;
+      } catch (error) {
+        console.error('Falha ao inicializar PerformanceOptimizer:', error.message || error);
+        performanceOptimizerInstance = null;
+        return null;
+      }
+    })();
+  }
+
+  const instance = await performanceOptimizerInitPromise;
+  if (!instance) {
+    performanceOptimizerInitPromise = null;
+  }
+  return instance;
+}
+
+initializePerformanceOptimizer().catch(err => {
+  console.error('Erro inesperado ao iniciar PerformanceOptimizer:', err.message || err);
+});
+
+let databaseSelfTestResult = null;
+const ensureDatabaseIntegrity = ({ log = false, force = false } = {}) => {
+  if (force || log || !databaseSelfTestResult) {
+    databaseSelfTestResult = runDatabaseSelfTest({ log });
+  }
+
+  if (log && databaseSelfTestResult && !databaseSelfTestResult.ok) {
+    const summary = databaseSelfTestResult.results
+      .filter(result => !result.ok)
+      .map(result => `${result.name}: ${result.issues.join('; ')}`)
+      .join(' | ');
+
+    if (summary) {
+      console.warn(`⚠️ Inconsistências em arquivos de banco de dados: ${summary}`);
+    }
+  }
+
+  return databaseSelfTestResult;
+};
+
+ensureDatabaseIntegrity();
+
+const buildGroupFilePath = (groupId) => pathz.join(GRUPOS_DIR, `${groupId}.json`);
 
 
-
-const packageJson = JSON.parse(fs.readFileSync(pathz.join(__dirname, '..', '..', 'package.json'), 'utf-8'));
+let packageJson = {};
+try {
+  packageJson = JSON.parse(fs.readFileSync(PACKAGE_JSON_PATH, 'utf-8'));
+} catch (e) {
+  console.error('Erro ao ler package.json:', e.message);
+}
 const botVersion = packageJson.version;
-const DATABASE_DIR = __dirname + '/../database';
-const GRUPOS_DIR = DATABASE_DIR + '/grupos';
-const USERS_DIR = DATABASE_DIR + '/users';
-const DONO_DIR = DATABASE_DIR + '/dono';
-const PARCERIAS_DIR = pathz.join(DATABASE_DIR, 'parcerias');
-const LEVELING_FILE = pathz.join(DATABASE_DIR, 'leveling.json');
-const CUSTOM_AUTORESPONSES_FILE = pathz.join(DATABASE_DIR, 'customAutoResponses.json');
-const DIVULGACAO_FILE = pathz.join(DONO_DIR, 'divulgacao.json');
-const NO_PREFIX_COMMANDS_FILE = pathz.join(DATABASE_DIR, 'noPrefixCommands.json');
-const COMMAND_ALIASES_FILE = pathz.join(DATABASE_DIR, 'commandAliases.json');
-const GLOBAL_BLACKLIST_FILE = pathz.join(DONO_DIR, 'globalBlacklist.json');
-const MENU_DESIGN_FILE = pathz.join(DONO_DIR, 'menuDesign.json');
-const ECONOMY_FILE = pathz.join(DATABASE_DIR, 'economy.json');
-const MSGPREFIX_FILE = pathz.join(DONO_DIR, 'msgprefix.json');
-const CUSTOM_REACTS_FILE = pathz.join(DATABASE_DIR, 'customReacts.json');
-const REMINDERS_FILE = pathz.join(DATABASE_DIR, 'reminders.json');
-const CMD_NOT_FOUND_FILE = pathz.join(DONO_DIR, 'cmdNotFound.json');
-
-
-(async () => {
-  const performanceOptimizer = new PerformanceOptimizer();
-  await performanceOptimizer.initialize();
-})();
   
 async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirationManager = null) {
-  var config = JSON.parse(fs.readFileSync(__dirname + '/config.json'));
+  let config = loadJsonFile(CONFIG_FILE, {});
+  ensureDatabaseIntegrity({ log: Boolean(config?.debug) });
   
   async function getCachedGroupMetadata(groupId) {
     try {
-      const cached = await performanceOptimizer.modules.cacheManager.getIndexGroupMeta(groupId);
-      if (cached) {
-        return cached;
+      const optimizer = await initializePerformanceOptimizer();
+      if (optimizer?.modules?.cacheManager) {
+        const cached = await optimizer.modules.cacheManager.getIndexGroupMeta(groupId);
+        if (cached) {
+          return cached;
+        }
+
+        const freshData = await nazu.groupMetadata(groupId).catch(() => ({}));
+        await optimizer.modules.cacheManager.setIndexGroupMeta(groupId, freshData);
+        return freshData;
       }
-      
-      const freshData = await nazu.groupMetadata(groupId).catch(() => ({}));
-      
-      await performanceOptimizer.modules.cacheManager.setIndexGroupMeta(groupId, freshData);
-      
-      return freshData;
+
+      return await nazu.groupMetadata(groupId).catch(() => ({}));
     } catch (error) {
       return await nazu.groupMetadata(groupId).catch(() => ({}));
     }
   }
-  var {
-    numerodono,
-    nomedono,
-    nomebot,
-    prefixo,
-    debug,
-    lidowner
-  } = config;
-  var KeyCog = config.apikey || '';
+
+  const numerodono = config.numerodono;
+  const nomedono = config.nomedono;
+  const nomebot = config.nomebot;
+  const prefixo = config.prefixo;
+  const debug = config.debug;
+  const lidowner = config.lidowner;
+  let KeyCog = config.apikey || '';
 
   function isValidApiKey(key) {
     if (!key || typeof key !== 'string') return false;
@@ -170,8 +342,8 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
   menuTopCmd,
   menuGold
   } = menus;
-  var prefix = prefixo;
-  var numerodono = String(numerodono);
+  const prefix = prefixo;
+  const numerodonoStr = String(numerodono);
   const modules = require('./funcs/exports.js');
   const {
     youtube,
@@ -220,10 +392,12 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     status: false
   });
   if (!fs.existsSync(modoLiteFile)) {
-    fs.writeFileSync(modoLiteFile, JSON.stringify(modoLiteGlobal, null, 2));
+    writeJsonFile(modoLiteFile, modoLiteGlobal);
   };
   
-  global.autoStickerMode = global.autoStickerMode || 'default';
+  if (typeof global.autoStickerMode === 'undefined') {
+    global.autoStickerMode = 'default';
+  }
   try {
     var r;
     const from = info.key.remoteJid;
@@ -303,17 +477,17 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const menc_jid2 = info.message?.extendedTextMessage?.contextInfo?.mentionedJid;
     const menc_os2 = (menc_jid2 && menc_jid2.length > 0) ? menc_jid2[0] : menc_prt;
     const sender_ou_n = (menc_jid2 && menc_jid2.length > 0) ? menc_jid2[0] : menc_prt || sender;
-    const groupFile = pathz.join(__dirname, '..', 'database', 'grupos', `${from}.json`);
+  const groupFile = buildGroupFilePath(from);
     let groupData = {};
     const groupMetadata = !isGroup ? {} : await getCachedGroupMetadata(from).catch(() => ({}));
     const groupName = groupMetadata?.subject || '';
     if (isGroup) {
       if (!fs.existsSync(groupFile)) {
-        fs.writeFileSync(groupFile, JSON.stringify({
+        writeJsonFile(groupFile, {
           mark: {},
           createdAt: new Date().toISOString(),
           groupName: groupName
-        }, null, 2));
+        });
       }
       try {
         groupData = JSON.parse(fs.readFileSync(groupFile));
@@ -332,7 +506,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       groupData.levelingEnabled = groupData.levelingEnabled || false;
       if (groupName && groupData.groupName !== groupName) {
         groupData.groupName = groupName;
-        fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+  writeJsonFile(groupFile, groupData);
       };
     };
     let parceriasData = {};
@@ -538,11 +712,11 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         if (arr.length > limit) {
           const blockMs = Math.max(1, parseInt(cfg.blockTime || 600)) * 1000;
           cfg.blocks[sender] = { until: now + blockMs, at: new Date().toISOString(), count: arr.length };
-          fs.writeFileSync(DATABASE_DIR + '/antispam.json', JSON.stringify(cfg, null, 2));
+          writeJsonFile(DATABASE_DIR + '/antispam.json', cfg);
           return reply(`🚫 Anti-spam: você excedeu o limite de ${limit} comandos em ${cfg.interval}s.
 🔒 Bloqueado por ${Math.floor(blockMs/60000)} min.`);
         }
-        fs.writeFileSync(DATABASE_DIR + '/antispam.json', JSON.stringify(cfg, null, 2));
+        writeJsonFile(DATABASE_DIR + '/antispam.json', cfg);
       } catch (e) {
         console.error('Erro no AntiSpam Global:', e);
       }
@@ -554,7 +728,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
           timeZone: 'America/Sao_Paulo'
         });
         delete groupData.afkUsers[sender];
-        fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+    writeJsonFile(groupFile, groupData);
         await reply(`👋 *Bem-vindo(a) de volta!*\nSeu status AFK foi removido.\nVocê estava ausente desde: ${afkSince}`);
       } catch (error) {
         console.error("Erro ao processar remoção de AFK:", error);
@@ -582,7 +756,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
           await reply("⚠️ Não posso remover o usuário porque não sou administrador.");
         }
         delete groupData.mutedUsers[sender];
-        fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+    writeJsonFile(groupFile, groupData);
         return;
       } catch (error) {
         console.error("Erro ao processar usuário mutado:", error);
@@ -643,8 +817,8 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
             firstSeen: new Date().toISOString(),
             lastActivity: new Date().toISOString()
           });
-        }
-        fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+    }
+    writeJsonFile(groupFile, groupData);
       } catch (error) {
         console.error("Erro no sistema de contagem de mensagens:", error);
       }
@@ -666,8 +840,8 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       } else {
         userData.xp += 5;
       }
-      checkLevelUp(sender, userData, levelingData, nazu, from);
-      fs.writeFileSync(LEVELING_FILE, JSON.stringify(levelingData, null, 2));
+  checkLevelUp(sender, userData, levelingData, nazu, from);
+  writeJsonFile(LEVELING_FILE, levelingData);
     }
     async function reply(text, options = {}) {
       try {
@@ -974,7 +1148,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
                     schedule.lastRun = schedule.lastRun || {};
                     schedule.lastRun.open = today;
                     data.schedule = schedule;
-                    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+                    writeJsonFile(filePath, data);
                   } catch (e) {
                     console.error(`[Schedule Error] Failed to open group ${groupId}:`, e);
                   }
@@ -991,7 +1165,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
                     schedule.lastRun = schedule.lastRun || {};
                     schedule.lastRun.close = today;
                     data.schedule = schedule;
-                    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+                    writeJsonFile(filePath, data);
                   } catch (e) {
                     console.error(`[Schedule Error] Failed to close group ${groupId}:`, e);
                   }
@@ -1113,7 +1287,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
             }
             
             try {
-              fs.writeFileSync(autoSchedulesPath, JSON.stringify(autoSchedules, null, 2));
+              writeJsonFile(autoSchedulesPath, autoSchedules);
             } catch (e) {
               console.error('Erro ao salvar auto schedules:', e);
             }
@@ -1306,7 +1480,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       antifloodData[from].users[sender] = {
         lastCmd: now
       };
-      fs.writeFileSync(__dirname + '/../database/antiflood.json', JSON.stringify(antifloodData, null, 2));
+      writeJsonFile(pathz.join(DATABASE_DIR, 'antiflood.json'), antifloodData);
     }
     if (isGroup && groupData.antidoc && !isGroupAdmin && (type === 'documentMessage' || type === 'documentWithCaptionMessage')) {
       await nazu.sendMessage(from, {
@@ -1500,7 +1674,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         console.error("Erro no sistema antilink de grupos:", error);
       }
     }
-    const botStateFile = __dirname + '/../database/botState.json';
+  const botStateFile = pathz.join(DATABASE_DIR, 'botState.json');
     if (botState.status === 'off' && !isOwner) return;
     if (botState.viewMessages) nazu.readMessages([info.key]);
     try {
@@ -1719,7 +1893,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
             }
           }
         }
-        fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+  writeJsonFile(groupFile, groupData);
       } catch (e) {
         console.error("Erro no sistema de limite de mensagens:", e);
       }
@@ -1778,7 +1952,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
           text: warnMessage,
           mentions: [sender]
         });
-        fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+  writeJsonFile(groupFile, groupData);
       } catch (error) {
         console.error("Erro no sistema antifig:", error);
         await reply(`⚠️ Erro ao processar antifig para @${getUserName(sender)}. Administradores, verifiquem!`, {
@@ -1887,7 +2061,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         if (!isGroup) return reply('Este comando só funciona em grupos.');
         if (!isGroupAdmin) return reply('Apenas administradores podem usar este comando.');
         groupData.modogold = !groupData.modogold;
-        fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+  writeJsonFile(groupFile, groupData);
         await reply(`💰 Modo Gold ${groupData.modogold ? 'ATIVADO' : 'DESATIVADO'} neste grupo.`);
         break;
       }
@@ -3625,11 +3799,11 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           });
           if (q.toLowerCase() === 'on') {
             botState.viewMessages = true;
-            fs.writeFileSync(botStateFile, JSON.stringify(botState, null, 2));
+            writeJsonFile(botStateFile, botState);
             await reply('✅ Visualização de mensagens ativada!');
           } else if (q.toLowerCase() === 'off') {
             botState.viewMessages = false;
-            fs.writeFileSync(botStateFile, JSON.stringify(botState, null, 2));
+            writeJsonFile(botStateFile, botState);
             await reply('✅ Visualização de mensagens desativada!');
           } else {
             return reply('🤔 Use "on" para ativar ou "off" para desativar.');
@@ -3725,7 +3899,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         if (!isGroup) return reply("Este comando só funciona em grupos.");
         if (!isGroupAdmin) return reply("Apenas administradores podem usar este comando.");
         groupData.levelingEnabled = !groupData.levelingEnabled;
-        fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+    writeJsonFile(groupFile, groupData);
         await reply(`🎚️ Sistema de leveling ${groupData.levelingEnabled ? 'ativado' : 'desativado'}!`);
         break;
       case 'level':
@@ -3756,7 +3930,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         };
         userDataAdd.xp += xpToAdd;
         checkLevelUp(menc_os2, userDataAdd, levelingDataAdd, nazu, from);
-        fs.writeFileSync(LEVELING_FILE, JSON.stringify(levelingDataAdd, null, 2));
+  writeJsonFile(LEVELING_FILE, levelingDataAdd);
         await reply(`✅ Adicionado ${xpToAdd} XP para @${getUserName(menc_os2)}`, {
           mentions: [menc_os2]
         });
@@ -3776,7 +3950,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         };
         userDataDel.xp = Math.max(0, userDataDel.xp - xpToRemove);
         checkLevelDown(menc_os2, userDataDel, levelingDataDel);
-        fs.writeFileSync(LEVELING_FILE, JSON.stringify(levelingDataDel, null, 2));
+  writeJsonFile(LEVELING_FILE, levelingDataDel);
         await reply(`✅ Removido ${xpToRemove} XP de @${getUserName(menc_os2)}`, {
           mentions: [menc_os2]
         });
@@ -5330,7 +5504,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
           antipvData.mode = antipvData.mode === 'antipv3' ? null : 'antipv3';
-          fs.writeFileSync(__dirname + '/../database/antipv.json', JSON.stringify(antipvData, null, 2));
+          writeJsonFile(ANTIPV_FILE, antipvData);
           await reply(`✅ Antipv3 ${antipvData.mode ? 'ativado' : 'desativado'}! O bot agora ${antipvData.mode ? 'bloqueia usuários que usam comandos no privado' : 'responde normalmente no privado'}.`);
         } catch (e) {
           console.error(e);
@@ -5341,7 +5515,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
           antipvData.mode = antipvData.mode === 'antipv2' ? null : 'antipv2';
-          fs.writeFileSync(__dirname + '/../database/antipv.json', JSON.stringify(antipvData, null, 2));
+          writeJsonFile(ANTIPV_FILE, antipvData);
           await reply(`✅ Antipv2 ${antipvData.mode ? 'ativado' : 'desativado'}! O bot agora ${antipvData.mode ? 'avisa que comandos só funcionam em grupos no privado' : 'responde normalmente no privado'}.`);
         } catch (e) {
           console.error(e);
@@ -5352,7 +5526,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
           antipvData.mode = antipvData.mode === 'antipv4' ? null : 'antipv4';
-          fs.writeFileSync(__dirname + '/../database/antipv.json', JSON.stringify(antipvData, null, 2));
+          writeJsonFile(ANTIPV_FILE, antipvData);
           await reply(`✅ Antipv4 ${antipvData.mode ? 'ativado' : 'desativado'}! O bot agora ${antipvData.mode ? 'avisa que o bot so funciona em grupos' : 'responde normalmente no privado'}.`);
         } catch (e) {
           console.error(e);
@@ -5370,7 +5544,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             message: '🚫 Este comando só funciona em grupos!'
           });
           antipvData.message = q.trim();
-          fs.writeFileSync(antipvFile, JSON.stringify(antipvData, null, 2));
+          writeJsonFile(antipvFile, antipvData);
           await reply(`✅ Mensagem do antipv atualizada para: "${antipvData.message}"`);
         } catch (e) {
           console.error('Erro no comando setantipvmensagem:', e);
@@ -5381,7 +5555,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
           antipvData.mode = antipvData.mode === 'antipv' ? null : 'antipv';
-          fs.writeFileSync(__dirname + '/../database/antipv.json', JSON.stringify(antipvData, null, 2));
+          writeJsonFile(ANTIPV_FILE, antipvData);
           await reply(`✅ Antipv ${antipvData.mode ? 'ativado' : 'desativado'}! O bot agora ${antipvData.mode ? 'ignora mensagens no privado' : 'responde normalmente no privado'}.`);
         } catch (e) {
           console.error(e);
@@ -5529,7 +5703,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'botoff':
         if (!isOwner) return reply("Este comando é apenas para o meu dono");
         try {
-          const botStateFile = __dirname + '/../database/botState.json';
+          const botStateFile = pathz.join(DATABASE_DIR, 'botState.json');
           const isOn = botState.status === 'on';
           if (command === 'boton' && isOn) {
             return reply('🌟 O bot já está ativado!');
@@ -5538,7 +5712,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             return reply('🌙 O bot já está desativado!');
           }
           botState.status = command === 'boton' ? 'on' : 'off';
-          fs.writeFileSync(botStateFile, JSON.stringify(botState, null, 2));
+          writeJsonFile(botStateFile, botState);
           const message = command === 'boton' ? '✅ *Bot ativado!* Agora todos podem usar os comandos.' : '✅ *Bot desativado!* Apenas o dono pode usar comandos.';
           await reply(message);
         } catch (e) {
@@ -5552,13 +5726,13 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const cmdToBlock = q?.toLowerCase().split(' ')[0];
           const reason = q?.split(' ').slice(1).join(' ') || 'Sem motivo informado';
           if (!cmdToBlock) return reply('❌ Informe o comando a bloquear! Ex.: ' + prefix + 'blockcmd sticker');
-          const blockFile = __dirname + '/../database/globalBlocks.json';
+          const blockFile = pathz.join(DATABASE_DIR, 'globalBlocks.json');
           globalBlocks.commands = globalBlocks.commands || {};
           globalBlocks.commands[cmdToBlock] = {
             reason,
             timestamp: Date.now()
           };
-          fs.writeFileSync(blockFile, JSON.stringify(globalBlocks, null, 2));
+          writeJsonFile(blockFile, globalBlocks);
           await reply(`✅ Comando *${cmdToBlock}* bloqueado globalmente!\nMotivo: ${reason}`);
         } catch (e) {
           console.error(e);
@@ -5570,12 +5744,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           const cmdToUnblock = q?.toLowerCase().split(' ')[0];
           if (!cmdToUnblock) return reply('❌ Informe o comando a desbloquear! Ex.: ' + prefix + 'unblockcmd sticker');
-          const blockFile = __dirname + '/../database/globalBlocks.json';
+          const blockFile = pathz.join(DATABASE_DIR, 'globalBlocks.json');
           if (!globalBlocks.commands || !globalBlocks.commands[cmdToUnblock]) {
             return reply(`❌ O comando *${cmdToUnblock}* não está bloqueado!`);
           }
           delete globalBlocks.commands[cmdToUnblock];
-          fs.writeFileSync(blockFile, JSON.stringify(globalBlocks, null, 2));
+          writeJsonFile(blockFile, globalBlocks);
           await reply(`✅ Comando *${cmdToUnblock}* desbloqueado globalmente!`);
         } catch (e) {
           console.error(e);
@@ -5591,13 +5765,13 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           var menc_os3;
           menc_os3 = (menc_os2 && menc_os2.includes(' ')) ? menc_os2.split(' ')[0] : menc_os2;
           if (!menc_os3) return reply("Erro ao processar usuário mencionado");
-          const blockFile = __dirname + '/../database/globalBlocks.json';
+          const blockFile = pathz.join(DATABASE_DIR, 'globalBlocks.json');
           globalBlocks.users = globalBlocks.users || {};
           globalBlocks.users[menc_os3] = {
             reason,
             timestamp: Date.now()
           };
-          fs.writeFileSync(blockFile, JSON.stringify(globalBlocks, null, 2));
+          writeJsonFile(blockFile, globalBlocks);
           await reply(`✅ Usuário @${getUserName(menc_os3)} bloqueado globalmente!\nMotivo: ${reason}`, {
             mentions: [menc_os3]
           });
@@ -5610,7 +5784,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         if (!isOwner) return reply("Este comando é apenas para o meu dono");
         try {
           if (!menc_os2) return reply("Marque alguém 🙄");
-          const blockFile = __dirname + '/../database/globalBlocks.json';
+          const blockFile = pathz.join(DATABASE_DIR, 'globalBlocks.json');
           if (!globalBlocks.users) {
             return reply(`ℹ️ Não há usuários bloqueados globalmente.`);
           }
@@ -5622,7 +5796,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             });
           }
           delete globalBlocks.users[userToUnblock];
-          fs.writeFileSync(blockFile, JSON.stringify(globalBlocks, null, 2));
+          writeJsonFile(blockFile, globalBlocks);
           await reply(`✅ Usuário @${getUserName(menc_os2)} desbloqueado globalmente!`, {
             mentions: [menc_os2]
           });
@@ -5634,7 +5808,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'listblocks':
         if (!isOwner) return reply("Este comando é apenas para o meu dono");
         try {
-          const blockFile = __dirname + '/../database/globalBlocks.json';
+          const blockFile = pathz.join(DATABASE_DIR, 'globalBlocks.json');
           const blockedCommands = globalBlocks.commands ? Object.entries(globalBlocks.commands).map(([cmd, data]) => `🔧 *${cmd}* - Motivo: ${data.reason}`).join('\n') : 'Nenhum comando bloqueado.';
           const blockedUsers = globalBlocks.users ? Object.entries(globalBlocks.users).map(([user, data]) => {
             return `👤 *${getUserName(user)}* - Motivo: ${data.reason}`;
@@ -5669,9 +5843,9 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           if (!isOwner) return reply("Este comando é exclusivo para o meu dono!");
           if (!q) return reply(`⚙️ *Configuração de Prefixo*\n\n📝 *Como usar:*\n• Digite o novo prefixo após o comando\n• Ex: ${prefix}${command} /\n• Ex: ${prefix}${command} !\n\n✅ O prefixo do bot será atualizado para o valor especificado!`);
-          let config = JSON.parse(fs.readFileSync(__dirname + '/config.json'));
+          let config = JSON.parse(fs.readFileSync(CONFIG_FILE));
           config.prefixo = q;
-          fs.writeFileSync(__dirname + '/config.json', JSON.stringify(config, null, 2));
+          writeJsonFile(CONFIG_FILE, config);
           await reply(`Prefixo alterado com sucesso para "${q}"!`);
         } catch (e) {
           console.error(e);
@@ -5683,9 +5857,9 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           if (!isOwner) return reply("Este comando é exclusivo para o meu dono!");
           if (!q) return reply(`Por favor, digite o novo número do dono.\nExemplo: ${prefix}${command} +553399285117`);
-          let config = JSON.parse(fs.readFileSync(__dirname + '/config.json'));
+          let config = JSON.parse(fs.readFileSync(CONFIG_FILE));
           config.numerodono = q;
-          fs.writeFileSync(__dirname + '/config.json', JSON.stringify(config, null, 2));
+          writeJsonFile(CONFIG_FILE, config);
           await reply(`Número do dono alterado com sucesso para "${q}"!`);
         } catch (e) {
           console.error(e);
@@ -5697,9 +5871,9 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           if (!isOwner) return reply("Este comando é exclusivo para o meu dono!");
           if (!q) return reply(`Por favor, digite o novo nome do dono.\nExemplo: ${prefix}${command} Hiudy`);
-          let config = JSON.parse(fs.readFileSync(__dirname + '/config.json'));
+          let config = JSON.parse(fs.readFileSync(CONFIG_FILE));
           config.nomedono = q;
-          fs.writeFileSync(__dirname + '/config.json', JSON.stringify(config, null, 2));
+          writeJsonFile(CONFIG_FILE, config);
           await reply(`Nome do dono alterado com sucesso para "${q}"!`);
         } catch (e) {
           console.error(e);
@@ -5712,9 +5886,9 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           if (!isOwner) return reply("Este comando é exclusivo para o meu dono!");
           if (!q) return reply(`Por favor, digite o novo nome do bot.\nExemplo: ${prefix}${command} Nazuna`);
-          let config = JSON.parse(fs.readFileSync(__dirname + '/config.json'));
+          let config = JSON.parse(fs.readFileSync(CONFIG_FILE));
           config.nomebot = q;
-          fs.writeFileSync(__dirname + '/config.json', JSON.stringify(config, null, 2));
+          writeJsonFile(CONFIG_FILE, config);
           await reply(`Nome do bot alterado com sucesso para "${q}"!`);
         } catch (e) {
           console.error(e);
@@ -5726,9 +5900,9 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           if (!isOwner) return reply("Este comando é exclusivo para o meu dono!");
           if (!q) return reply(`Por favor, digite a nova API key.\nExemplo: ${prefix}${command} abc123xyz`);
-          let config = JSON.parse(fs.readFileSync(__dirname + '/config.json'));
+          let config = JSON.parse(fs.readFileSync(CONFIG_FILE));
           config.apikey = q;
-          fs.writeFileSync(__dirname + '/config.json', JSON.stringify(config, null, 2));
+          writeJsonFile(CONFIG_FILE, config);
           await reply(`API key alterada com sucesso para "${q}"!`);
         } catch (e) {
           console.error(e);
@@ -6244,7 +6418,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           });
           
           // Save the updated data
-          fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+    writeJsonFile(groupFile, groupData);
           
           // Prepare response message
           let responseMessage = `🧹 Limpeza do rank de atividade concluída!\n\n`;
@@ -6567,10 +6741,10 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           let totalMessages = 0;
           let totalCommands = 0;
           let totalStickers = 0;
-          const groupFiles = fs.readdirSync(__dirname + '/../database/grupos').filter(file => file.endsWith('.json'));
+          const groupFiles = fs.readdirSync(GRUPOS_DIR).filter(file => file.endsWith('.json'));
           for (const file of groupFiles) {
             try {
-              const groupData = JSON.parse(fs.readFileSync(__dirname + `/../database/grupos/${file}`));
+              const groupData = JSON.parse(fs.readFileSync(pathz.join(GRUPOS_DIR, file)));
               if (groupData.contador && Array.isArray(groupData.contador)) {
                 const userData = groupData.contador.find(u => u.id === sender);
                 if (userData) {
@@ -7414,7 +7588,7 @@ case 'roubar':
     if (!pack) {
       return reply(`Formato errado, utilize:\n${prefix}${command} Autor/Pack\nEx: ${prefix}${command} By:/Hiudy`);
     }
-    const filePath = __dirname + '/../database/users/take.json';
+  const filePath = pathz.join(USERS_DIR, 'take.json');
     const dataTake = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf-8')) : {};
     dataTake[sender] = { author, pack };
     fs.writeFileSync(filePath, JSON.stringify(dataTake, null, 2), 'utf-8');
@@ -7427,7 +7601,7 @@ case 'roubar':
       case 'take':
         try {
           if (!isQuotedSticker) return reply('Você usou de forma errada... Marque uma figurinha.');
-          const filePath = __dirname + '/../database/users/take.json';
+          const filePath = pathz.join(USERS_DIR, 'take.json');
           if (!fs.existsSync(filePath)) return reply('Nenhum autor e pacote salvos. Use o comando *rgtake* primeiro.');
           const dataTake = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
           if (!dataTake[sender]) return reply('Você não tem autor e pacote salvos. Use o comando *rgtake* primeiro.');
@@ -7522,7 +7696,7 @@ case 'roubar':
               groupData.mark = {};
             }
             groupData.mark[sender] = q.toLowerCase();
-            fs.writeFileSync(__dirname + `/../database/grupos/${from}.json`, JSON.stringify(groupData, null, 2));
+            fs.writeFileSync(buildGroupFilePath(from), JSON.stringify(groupData, null, 2));
             return reply(`*${options[q.toLowerCase()]}*`);
           }
           reply(`❌ Opção inválida! Use *${prefix}mention* para ver as opções.`);
@@ -7714,7 +7888,7 @@ case 'roubar':
         if (!isGroupAdmin) return reply("Comando restrito a Administradores ou Moderadores com permissão. 💔");
         if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
         try {
-          let path = __dirname + '/../database/grupos/' + from + '.json';
+          let path = pathz.join(GRUPOS_DIR, `${from}.json`);
           let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {
             mark: {}
           };
@@ -7766,7 +7940,7 @@ case 'roubar':
           if (arg === 'off' || arg === 'desativar' || arg === 'remove' || arg === 'rm') {
             delete data.schedule.openTime;
             if (data.schedule?.lastRun) delete data.schedule.lastRun.open;
-            fs.writeFileSync(groupFilePath, JSON.stringify(data, null, 2));
+            writeJsonFile(groupFilePath, data);
             return reply('✅ Agendamento diário para ABRIR o grupo foi removido.');
           }
           
@@ -7778,7 +7952,7 @@ case 'roubar':
           
           // Save the schedule
           data.schedule.openTime = arg;
-          fs.writeFileSync(groupFilePath, JSON.stringify(data, null, 2));
+          writeJsonFile(groupFilePath, data);
           
           let msg = `✅ Agendamento salvo! O grupo será ABERTO todos os dias às ${arg} (horário de São Paulo).`;
           if (!isBotAdmin) msg += '\n⚠️ Observação: Eu preciso ser administrador para efetivar a abertura no horário.';
@@ -7802,7 +7976,7 @@ case 'roubar':
           if (arg === 'off' || arg === 'desativar' || arg === 'remove' || arg === 'rm') {
             delete data.schedule.closeTime;
             if (data.schedule?.lastRun) delete data.schedule.lastRun.close;
-            fs.writeFileSync(groupFilePath, JSON.stringify(data, null, 2));
+            writeJsonFile(groupFilePath, data);
             return reply('✅ Agendamento diário para FECHAR o grupo foi removido.');
           }
           
@@ -7814,7 +7988,7 @@ case 'roubar':
           
           // Save the schedule
           data.schedule.closeTime = arg;
-          fs.writeFileSync(groupFilePath, JSON.stringify(data, null, 2));
+          writeJsonFile(groupFilePath, data);
           
           let msg = `✅ Agendamento salvo! O grupo será FECHADO todos os dias às ${arg} (horário de São Paulo).`;
           if (!isBotAdmin) msg += '\n⚠️ Observação: Eu preciso ser administrador para efetivar o fechamento no horário.';
@@ -7943,7 +8117,7 @@ case 'roubar':
         try {
           if (!isGroup) return reply("Este comando só pode ser usado em grupos 💔");
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
-          let path = __dirname + '/../database/grupos/' + from + '.json';
+          let path = pathz.join(GRUPOS_DIR, `${from}.json`);
           let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {
             mark: {}
           };
@@ -7986,7 +8160,7 @@ case 'roubar':
           var figu_d4 = isQuotedSticker ? rsm4.stickerMessage : "";
           var red4 = isQuotedMsg && !aud_d4 && !figu_d4 && !pink4 && !blue4 && !purple4 && !yellow4 ? rsm4.conversation : info.message?.conversation;
           var green4 = rsm4?.extendedTextMessage?.text || info?.message?.extendedTextMessage?.text;
-          let path = __dirname + '/../database/grupos/' + from + '.json';
+          let path = pathz.join(GRUPOS_DIR, `${from}.json`);
           let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {
             mark: {}
           };
@@ -8342,7 +8516,7 @@ case 'divulgar':
             antifloodData[from].enabled = true;
             antifloodData[from].interval = interval;
           }
-          fs.writeFileSync(__dirname + '/../database/antiflood.json', JSON.stringify(antifloodData, null, 2));
+          fs.writeFileSync(pathz.join(DATABASE_DIR, 'antiflood.json'), JSON.stringify(antifloodData, null, 2));
           await reply(`✅ Antiflood ${antifloodData[from].enabled ? `ativado com intervalo de ${antifloodData[from].interval} segundos` : 'desativado'}!`);
         } catch (e) {
           console.error(e);
@@ -8376,7 +8550,7 @@ Exemplos:
           }
           if (sub === 'off') {
             cfg.enabled = false;
-            fs.writeFileSync(filePath, JSON.stringify(cfg, null, 2));
+            writeJsonFile(filePath, cfg);
             return reply('✅ AntiSpam Global desativado.');
           }
           if (sub === 'on') {
@@ -8392,7 +8566,7 @@ Exemplos:
             cfg.blockTime = block;
             cfg.users = cfg.users || {};
             cfg.blocks = cfg.blocks || {};
-            fs.writeFileSync(filePath, JSON.stringify(cfg, null, 2));
+            writeJsonFile(filePath, cfg);
             return reply(`✅ AntiSpam Global ativado!
 • Limite: ${limit} cmds em ${interval}s
 • Bloqueio: ${Math.floor(block/60)} min`);
@@ -8410,7 +8584,7 @@ Exemplos:
           if (!isBotAdmin) return reply("Eu preciso ser adm para isso 💔");
           
           groupData.antiloc = !groupData.antiloc;
-          fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+          writeJsonFile(groupFile, groupData);
           await reply(`✅ Antiloc ${groupData.antiloc ? 'ativado' : 'desativado'}! Localizações enviadas resultarão em banimento.`);
         } catch (e) {
           console.error(e);
@@ -8424,7 +8598,7 @@ Exemplos:
         try {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("você precisa ser adm 💔");
-          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          const groupFilePath = buildGroupFilePath(from);
           if (!groupData.modobrincadeira || groupData.modobrincadeira === undefined) {
             
             groupData.modobrincadeira = true;
@@ -8432,7 +8606,7 @@ Exemplos:
             
             groupData.modobrincadeira = !groupData.modobrincadeira;
           }
-          fs.writeFileSync(groupFilePath, JSON.stringify(groupData));
+          writeJsonFile(groupFilePath, groupData);
           if (groupData.modobrincadeira) {
             await reply('🎉 *Modo de Brincadeiras ativado!* Agora o grupo está no modo de brincadeiras. Divirta-se!');
           } else {
@@ -8450,7 +8624,7 @@ Exemplos:
         try {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("você precisa ser adm 💔");
-          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          const groupFilePath = buildGroupFilePath(from);
           if (!groupData.bemvindo || groupData.bemvindo === undefined) {
             
             groupData.bemvindo = true;
@@ -8458,7 +8632,7 @@ Exemplos:
             
             groupData.bemvindo = !groupData.bemvindo;
           }
-          fs.writeFileSync(groupFilePath, JSON.stringify(groupData));
+          writeJsonFile(groupFilePath, groupData);
           if (groupData.bemvindo) {
             await reply(`✅ *Boas-vindas ativadas!* Agora, novos membros serão recebidos com uma mensagem personalizada.\n📝 Para configurar a mensagem, use: *${prefixo}legendabv*`);
           } else {
@@ -8516,7 +8690,7 @@ Exemplos:
               }
               
               groupData.welcome.image = uploadResult;
-              fs.writeFileSync(__dirname + `/../database/grupos/${from}.json`, JSON.stringify(groupData, null, 2));
+                writeJsonFile(buildGroupFilePath(from), groupData);
               await reply('✅ Foto de boas-vindas configurada com sucesso!');
             } else if (q.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === 'banner') {
               if (!groupData.welcome) {
@@ -8524,8 +8698,8 @@ Exemplos:
                 groupData.welcome = {};
               }
               
-              groupData.welcome.image = 'banner';
-              fs.writeFileSync(__dirname + `/../database/grupos/${from}.json`, JSON.stringify(groupData, null, 2));
+                groupData.welcome.image = 'banner';
+                writeJsonFile(buildGroupFilePath(from), groupData);
               await reply('✅ Foto de boas-vindas configurada com sucesso!');
             } else {
               await reply(`❌ Marque uma imagem ou envie uma imagem com o comando.`);
@@ -8554,7 +8728,7 @@ Exemplos:
             }
             
             groupData.exit.image = uploadResult;
-            fs.writeFileSync(__dirname + `/../database/grupos/${from}.json`, JSON.stringify(groupData, null, 2));
+            writeJsonFile(buildGroupFilePath(from), groupData);
             await reply('✅ Foto de saída configurada com sucesso!');
           } catch (error) {
             console.error(error);
@@ -8583,7 +8757,7 @@ Exemplos:
         try {
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Você precisa ser administrador 💔");
-          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          const groupFilePath = buildGroupFilePath(from);
           let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
             welcome: {}
           };
@@ -8603,7 +8777,7 @@ Exemplos:
         try {
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Você precisa ser administrador 💔");
-          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          const groupFilePath = buildGroupFilePath(from);
           let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
             exit: {}
           };
@@ -8633,7 +8807,7 @@ Exemplos:
             groupData.exit.enabled = true;
             
             groupData.exit.text = q;
-            fs.writeFileSync(__dirname + `/../database/grupos/${from}.json`, JSON.stringify(groupData, null, 2));
+            fs.writeFileSync(buildGroupFilePath(from), JSON.stringify(groupData, null, 2));
             await reply('✅ Mensagem de saída configurada com sucesso!\n\n📝 Mensagem definida como:\n' + q);
           } catch (error) {
             console.error(error);
@@ -8653,7 +8827,7 @@ Exemplos:
             }
             
             groupData.exit.enabled = !groupData.exit.enabled;
-            fs.writeFileSync(__dirname + `/../database/grupos/${from}.json`, JSON.stringify(groupData, null, 2));
+            fs.writeFileSync(buildGroupFilePath(from), JSON.stringify(groupData, null, 2));
             await reply(groupData.exit.enabled ? '✅ Mensagens de saída ativadas!' : '❌ Mensagens de saída desativadas!');
           } catch (error) {
             console.error(error);
@@ -8789,7 +8963,7 @@ Exemplos:
           if (!isGroupAdmin) return reply("Você precisa ser administrador 💔");
           if (!menc_os2) return reply("Marque um usuário 🙄");
           const reason = q.includes(' ') ? q.split(' ').slice(1).join(' ') : "Motivo não informado";
-          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          const groupFilePath = buildGroupFilePath(from);
           let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
             blacklist: {}
           };
@@ -8816,7 +8990,7 @@ Exemplos:
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Você precisa ser administrador 💔");
           if (!menc_os2) return reply("Marque um usuário 🙄");
-          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          const groupFilePath = buildGroupFilePath(from);
           let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
             blacklist: {}
           };
@@ -8837,7 +9011,7 @@ Exemplos:
         try {
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Você precisa ser administrador 💔");
-          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          const groupFilePath = buildGroupFilePath(from);
           let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
             blacklist: {}
           };
@@ -8865,7 +9039,7 @@ Exemplos:
           if (!menc_os2) return reply("Marque um usuário 🙄");
           if (menc_os2 === botNumber) return reply("❌ Não posso advertir a mim mesma!");
           const reason = q.includes(' ') ? q.split(' ').slice(1).join(' ') : "Motivo não informado";
-          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          const groupFilePath = buildGroupFilePath(from);
           let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
             warnings: {}
           };
@@ -8904,7 +9078,7 @@ Exemplos:
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Você precisa ser administrador 💔");
           if (!menc_os2) return reply("Marque um usuário 🙄");
-          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          const groupFilePath = buildGroupFilePath(from);
           let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
             warnings: {}
           };
@@ -8927,7 +9101,7 @@ Exemplos:
         try {
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Você precisa ser administrador 💔");
-          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          const groupFilePath = buildGroupFilePath(from);
           let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
             warnings: {}
           };
@@ -8962,7 +9136,7 @@ Exemplos:
         try {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("você precisa ser adm 💔");
-          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          const groupFilePath = buildGroupFilePath(from);
           if (!groupData.soadm || groupData.soadm === undefined) {
             
             groupData.soadm = true;
@@ -8986,7 +9160,7 @@ Exemplos:
         try {
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Você precisa ser administrador 💔");
-          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          const groupFilePath = buildGroupFilePath(from);
           if (!groupData.modolite) {
             
             groupData.modolite = true;
@@ -9017,7 +9191,7 @@ Exemplos:
       case 'modoliteglobal':
         try {
           if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
-          const modoLiteFile = __dirname + '/../database/modolite.json';
+          const modoLiteFile = MODO_LITE_FILE;
           modoLiteGlobal.status = !modoLiteGlobal.status;
           if (!modoLiteGlobal.status) {
             modoLiteGlobal.forceOff = true;
@@ -9338,7 +9512,7 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
           if (!isModoBn) return reply('❌ O modo brincadeira não está ativo nesse grupo.');
           if (AllgroupMembers.length < 2) return reply('❌ Preciso de pelo menos 2 membros no grupo!');
-          let path = __dirname + '/../database/grupos/' + from + '.json';
+          let path = buildGroupFilePath(from);
           let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {
             mark: {}
           };
@@ -9373,7 +9547,7 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
           if (!isModoBn) return reply('❌ O modo brincadeira não está ativo nesse grupo.');
           if (!menc_os2) return reply('Marque alguém para eu encontrar um par! Exemplo: ' + prefix + 'shipo @fulano');
           if (AllgroupMembers.length < 2) return reply('❌ Preciso de pelo menos 2 membros no grupo!');
-          let path = __dirname + '/../database/grupos/' + from + '.json';
+          let path = buildGroupFilePath(from);
           let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {
             mark: {}
           };
@@ -9643,7 +9817,7 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
           emojis2 = emojiskk[Math.floor(Math.random() * emojiskk.length)];
           var frasekk;
           frasekk = [`tá querendo relações sexuais a ${q}, topa?`, `quer que *${q}* pessoas venham de *chicote, algema e corda de alpinista*.`, `quer que ${q} pessoas der tapa na cara, lhe chame de cachorra e fud3r bem gostosinho...`];
-          let path = __dirname + '/../database/grupos/' + from + '.json';
+          let path = buildGroupFilePath(from);
           let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {
             mark: {}
           };
@@ -10104,7 +10278,7 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
           });
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           if (!isModoBn) return reply('❌ O modo brincadeira não está ativo nesse grupo.');
-          let path = __dirname + '/../database/grupos/' + from + '.json';
+          let path = buildGroupFilePath(from);
           let gamesData = fs.existsSync(__dirname + '/funcs/json/games.json') ? JSON.parse(fs.readFileSync(__dirname + '/funcs/json/games.json')) : {
             ranks: {}
           };
@@ -10200,7 +10374,7 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
           });
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           if (!isModoBn) return reply('❌ O modo brincadeira não está ativo nesse grupo.');
-          let path = __dirname + '/../database/grupos/' + from + '.json';
+          let path = buildGroupFilePath(from);
           let gamesData = fs.existsSync(__dirname + '/funcs/json/games.json') ? JSON.parse(fs.readFileSync(__dirname + '/funcs/json/games.json')) : {
             ranks: {}
           };
