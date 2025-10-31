@@ -29,7 +29,14 @@ ensureDirectoryExists(USERS_DIR);
 ensureDirectoryExists(DONO_DIR);
 ensureDirectoryExists(PARCERIAS_DIR);
 ensureJsonFileExists(DATABASE_DIR + '/antiflood.json');
-ensureJsonFileExists(DATABASE_DIR + '/cmdlimit.json');
+ensureJsonFileExists(DATABASE_DIR + '/cmdlimit.json', {
+  commands: {},
+  users: {}
+});
+ensureJsonFileExists(DATABASE_DIR + '/cmduserlimits.json', {
+  commands: {},
+  users: {}
+});
 ensureJsonFileExists(DATABASE_DIR + '/antispam.json', {
   enabled: false,
   limit: 5,
@@ -1430,6 +1437,245 @@ const getMenuDesignWithDefaults = (botName, userName) => {
   return processedDesign;
 };
 
+// ===== Per-User Command Limiting System =====
+const CMD_LIMIT_FILE = pathz.join(DATABASE_DIR, 'cmduserlimits.json');
+
+const loadCommandLimits = () => {
+  return loadJsonFile(CMD_LIMIT_FILE, {
+    commands: {},
+    users: {}
+  });
+};
+
+const saveCommandLimits = (data) => {
+  try {
+    ensureDirectoryExists(DATABASE_DIR);
+    fs.writeFileSync(CMD_LIMIT_FILE, JSON.stringify(data, null, 2));
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao salvar limites de comandos:', error);
+    return false;
+  }
+};
+
+const addCommandLimit = (commandName, maxUses, timeFrame) => {
+  try {
+    const limitsData = loadCommandLimits();
+    
+    // Validate inputs
+    if (!commandName || typeof commandName !== 'string') {
+      return {
+        success: false,
+        message: '❌ Nome do comando inválido!'
+      };
+    }
+    
+    const cmdName = commandName.toLowerCase().trim();
+    
+    if (!maxUses || maxUses <= 0 || !Number.isInteger(maxUses)) {
+      return {
+        success: false,
+        message: '❌ Número de usos deve ser um inteiro positivo!'
+      };
+    }
+    
+    if (!timeFrame || typeof timeFrame !== 'string') {
+      return {
+        success: false,
+        message: '❌ Período de tempo inválido!'
+      };
+    }
+    
+    // Validate timeFrame format (e.g., "1h", "30m", "1d")
+    const timeFrameRegex = /^(\d+)([smhd])$/i;
+    if (!timeFrameRegex.test(timeFrame)) {
+      return {
+        success: false,
+        message: '❌ Formato de tempo inválido! Use formatos como: 30m (30 minutos), 1h (1 hora), 1d (1 dia)'
+      };
+    }
+    
+    // Check if command already has a limit
+    if (limitsData.commands[cmdName]) {
+      return {
+        success: false,
+        message: `❌ O comando ${cmdName} já possui um limite configurado!`
+      };
+    }
+    
+    limitsData.commands[cmdName] = {
+      maxUses: maxUses,
+      timeFrame: timeFrame,
+      createdAt: new Date().toISOString()
+    };
+    
+    if (saveCommandLimits(limitsData)) {
+      return {
+        success: true,
+        message: `✅ Limite adicionado para o comando ${cmdName}!\n📊 Máximo: ${maxUses} usos por ${timeFrame} por usuário`
+      };
+    } else {
+      return {
+        success: false,
+        message: '❌ Erro ao salvar o limite do comando!'
+      };
+    }
+  } catch (error) {
+    console.error('❌ Erro ao adicionar limite de comando:', error);
+    return {
+      success: false,
+      message: '❌ Erro interno ao adicionar limite!'
+    };
+  }
+};
+
+const removeCommandLimit = (commandName) => {
+  try {
+    const limitsData = loadCommandLimits();
+    
+    if (!commandName || typeof commandName !== 'string') {
+      return {
+        success: false,
+        message: '❌ Nome do comando inválido!'
+      };
+    }
+    
+    const cmdName = commandName.toLowerCase().trim();
+    
+    if (!limitsData.commands[cmdName]) {
+      return {
+        success: false,
+        message: `❌ O comando ${cmdName} não possui limite configurado!`
+      };
+    }
+    
+    delete limitsData.commands[cmdName];
+    
+    if (saveCommandLimits(limitsData)) {
+      return {
+        success: true,
+        message: `✅ Limite removido do comando ${cmdName}!`
+      };
+    } else {
+      return {
+        success: false,
+        message: '❌ Erro ao remover o limite do comando!'
+      };
+    }
+  } catch (error) {
+    console.error('❌ Erro ao remover limite de comando:', error);
+    return {
+      success: false,
+      message: '❌ Erro interno ao remover limite!'
+    };
+  }
+};
+
+const getCommandLimits = () => {
+  try {
+    const limitsData = loadCommandLimits();
+    return limitsData.commands || {};
+  } catch (error) {
+    console.error('❌ Erro ao carregar limites de comandos:', error);
+    return {};
+  }
+};
+
+const checkCommandLimit = (commandName, userId) => {
+  try {
+    const limitsData = loadCommandLimits();
+    const cmdName = commandName.toLowerCase().trim();
+    const commandLimit = limitsData.commands[cmdName];
+    
+    if (!commandLimit) {
+      return {
+        limited: false,
+        message: null
+      };
+    }
+    
+    // Initialize users tracking for this command if not exists
+    limitsData.users[cmdName] = limitsData.users[cmdName] || {};
+    const userUsage = limitsData.users[cmdName][userId] || { uses: 0, resetTime: 0 };
+    
+    const now = Date.now();
+    
+    // Reset counter if time frame has passed
+    if (now >= userUsage.resetTime) {
+      userUsage.uses = 0;
+      userUsage.resetTime = now + parseTimeFrame(commandLimit.timeFrame);
+    }
+    
+    if (userUsage.uses >= commandLimit.maxUses) {
+      const timeLeft = userUsage.resetTime - now;
+      return {
+        limited: true,
+        message: `🚫 Comando ${cmdName} bloqueado! Tente novamente em ${formatTimeLeft(timeLeft)}.`,
+        resetTime: userUsage.resetTime
+      };
+    }
+    
+    // Increment usage count for this user
+    userUsage.uses++;
+    userUsage.lastUsed = now;
+    limitsData.users[cmdName][userId] = userUsage;
+    
+    saveCommandLimits(limitsData);
+    
+    return {
+      limited: false,
+      message: null,
+      remainingUses: commandLimit.maxUses - userUsage.uses
+    };
+  } catch (error) {
+    console.error('❌ Erro ao verificar limite de comando:', error);
+    return {
+      limited: false,
+      message: null
+    };
+  }
+};
+
+// Helper function to parse time frame (e.g., "1h" -> 3600000 milliseconds)
+const parseTimeFrame = (timeFrame) => {
+  const match = timeFrame.match(/^(\d+)([smhd])$/i);
+  if (!match) return 0;
+  
+  const value = parseInt(match[1]);
+  const unit = match[2].toLowerCase();
+  
+  switch (unit) {
+    case 's': return value * 1000;        // seconds
+    case 'm': return value * 60 * 1000;   // minutes
+    case 'h': return value * 60 * 60 * 1000; // hours
+    case 'd': return value * 24 * 60 * 60 * 1000; // days
+    default: return 0;
+  }
+};
+
+// Helper function to format time left
+const formatTimeLeft = (milliseconds) => {
+  if (milliseconds <= 0) return '0s';
+  
+  const seconds = Math.ceil(milliseconds / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  
+  if (days > 0) {
+    const remainingHours = hours % 24;
+    return `${days}d ${remainingHours}h`;
+  } else if (hours > 0) {
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
+  } else if (minutes > 0) {
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s`;
+  } else {
+    return `${seconds}s`;
+  }
+};
+
 module.exports = {
   loadMsgPrefix,
   saveMsgPrefix,
@@ -1517,5 +1763,14 @@ module.exports = {
   getGlobalBlacklist,
   loadMenuDesign,
   saveMenuDesign,
-  getMenuDesignWithDefaults
+  getMenuDesignWithDefaults,
+  // Command limiting functions
+  loadCommandLimits,
+  saveCommandLimits,
+  addCommandLimit,
+  removeCommandLimit,
+  getCommandLimits,
+  checkCommandLimit,
+  parseTimeFrame,
+  formatTimeLeft
 };

@@ -11,7 +11,7 @@ const crypto = require('crypto');
 const PerformanceOptimizer = require('./utils/performanceOptimizer');
 const ia = require('./funcs/private/ia');
 const { formatUptime, normalizar, isGroupId, isUserId, isValidLid, isValidJid, getUserName, getLidFromJid, buildUserId, getBotId, ensureDirectoryExists, ensureJsonFileExists, loadJsonFile } = require('./utils/helpers');
-const { loadMsgPrefix, saveMsgPrefix, loadCmdNotFoundConfig, saveCmdNotFoundConfig, validateMessageTemplate, formatMessageWithFallback, loadCustomReacts, saveCustomReacts, loadReminders, saveReminders, addCustomReact, deleteCustomReact, loadDivulgacao, saveDivulgacao, loadSubdonos, saveSubdonos, isSubdono, addSubdono, removeSubdono, getSubdonos, loadRentalData, saveRentalData, isRentalModeActive, setRentalMode, getGroupRentalStatus, setGroupRental, loadActivationCodes, saveActivationCodes, generateActivationCode, validateActivationCode, useActivationCode, extendGroupRental, isModoLiteActive, loadParceriasData, saveParceriasData, calculateNextLevelXp, getPatent, loadEconomy, saveEconomy, getEcoUser, parseAmount, fmt, timeLeft, applyShopBonuses, PICKAXE_TIER_MULT, PICKAXE_TIER_ORDER, getActivePickaxe, ensureEconomyDefaults, giveMaterial, generateDailyChallenge, ensureUserChallenge, updateChallenge, isChallengeCompleted, SKILL_LIST, ensureUserSkills, skillXpForNext, addSkillXP, getSkillBonus, endOfWeekTimestamp, endOfMonthTimestamp, generateWeeklyChallenge, generateMonthlyChallenge, ensureUserPeriodChallenges, updatePeriodChallenge, isPeriodCompleted, checkLevelUp, checkLevelDown, loadCustomAutoResponses, saveCustomAutoResponses, loadGroupAutoResponses, saveGroupAutoResponses, addAutoResponse, deleteAutoResponse, processAutoResponse, sendAutoResponse, loadNoPrefixCommands, saveNoPrefixCommands, loadCommandAliases, saveCommandAliases, loadGlobalBlacklist, saveGlobalBlacklist, addGlobalBlacklist, removeGlobalBlacklist, getGlobalBlacklist, loadMenuDesign, saveMenuDesign, getMenuDesignWithDefaults } = require('./utils/database');
+const { loadMsgPrefix, saveMsgPrefix, loadCmdNotFoundConfig, saveCmdNotFoundConfig, validateMessageTemplate, formatMessageWithFallback, loadCustomReacts, saveCustomReacts, loadReminders, saveReminders, addCustomReact, deleteCustomReact, loadDivulgacao, saveDivulgacao, loadSubdonos, saveSubdonos, isSubdono, addSubdono, removeSubdono, getSubdonos, loadRentalData, saveRentalData, isRentalModeActive, setRentalMode, getGroupRentalStatus, setGroupRental, loadActivationCodes, saveActivationCodes, generateActivationCode, validateActivationCode, useActivationCode, extendGroupRental, isModoLiteActive, loadParceriasData, saveParceriasData, calculateNextLevelXp, getPatent, loadEconomy, saveEconomy, getEcoUser, parseAmount, fmt, timeLeft, applyShopBonuses, PICKAXE_TIER_MULT, PICKAXE_TIER_ORDER, getActivePickaxe, ensureEconomyDefaults, giveMaterial, generateDailyChallenge, ensureUserChallenge, updateChallenge, isChallengeCompleted, SKILL_LIST, ensureUserSkills, skillXpForNext, addSkillXP, getSkillBonus, endOfWeekTimestamp, endOfMonthTimestamp, generateWeeklyChallenge, generateMonthlyChallenge, ensureUserPeriodChallenges, updatePeriodChallenge, isPeriodCompleted, checkLevelUp, checkLevelDown, loadCustomAutoResponses, saveCustomAutoResponses, loadGroupAutoResponses, saveGroupAutoResponses, addAutoResponse, deleteAutoResponse, processAutoResponse, sendAutoResponse, loadNoPrefixCommands, saveNoPrefixCommands, loadCommandAliases, saveCommandAliases, loadGlobalBlacklist, saveGlobalBlacklist, addGlobalBlacklist, removeGlobalBlacklist, getGlobalBlacklist, loadMenuDesign, saveMenuDesign, getMenuDesignWithDefaults, loadCommandLimits, saveCommandLimits, addCommandLimit, removeCommandLimit, getCommandLimits, checkCommandLimit, formatTimeLeft } = require('./utils/database');
 const API_KEY_REQUIRED_MESSAGE = 'Este comando precisa de API key para funcionar. Meu dono já foi notificado! 😺';
 const OWNER_ONLY_MESSAGE = '🚫 Este comando é apenas para o dono do bot!';
 
@@ -199,7 +199,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
   const premiumListaZinha = loadJsonFile(DONO_DIR + '/premium.json');
   const banGpIds = loadJsonFile(DONO_DIR + '/bangp.json');
   const antifloodData = loadJsonFile(DATABASE_DIR + '/antiflood.json');
-  const cmdLimitData = loadJsonFile(DATABASE_DIR + '/cmdlimit.json');
+  
   const antiSpamGlobal = loadJsonFile(DATABASE_DIR + '/antispam.json', {
     enabled: false,
     limit: 5,
@@ -1322,25 +1322,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         mentions: [sender]
       });
     }
-    if (isGroup && cmdLimitData[from]?.enabled && isCmd && !isGroupAdmin) {
-      cmdLimitData[from].users = cmdLimitData[from].users || {};
-      const today = new Date().toISOString().split('T')[0];
-      cmdLimitData[from].users[sender] = cmdLimitData[from].users[sender] || {
-        date: today,
-        count: 0
-      };
-      if (cmdLimitData[from].users[sender].date !== today) {
-        cmdLimitData[from].users[sender] = {
-          date: today,
-          count: 0
-        };
-      }
-      if (cmdLimitData[from].users[sender].count >= cmdLimitData[from].limit) {
-        return reply(`🚫 Você atingiu o limite de ${cmdLimitData[from].limit} comandos diários. Tente novamente amanhã.`);
-      }
-      cmdLimitData[from].users[sender].count++;
-      fs.writeFileSync(__dirname + '/../database/cmdlimit.json', JSON.stringify(cmdLimitData, null, 2));
-    }
+    
     if (isGroup && groupData.autodl && budy2.includes('http') && !isCmd) {
       const urlMatch = body.match(/(https?:\/\/[^\s]+)/g);
       if (urlMatch) {
@@ -1812,6 +1794,14 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         var isCmd = true;
       }
     }
+
+    if (isCmd && !['cmdlimitar', 'cmdlimit', 'limitarcmd', 'cmddeslimitar', 'cmdremovelimit', 'rmcmdlimit', 'cmdlimites', 'cmdlimits', 'listcmdlimites'].includes(command)) {
+      const globalLimitCheck = checkCommandLimit(command, sender);
+      if (globalLimitCheck.limited) {
+        return reply(globalLimitCheck.message);
+      }
+    }
+
     switch (command) {
       case 'menugold': {
         await sendMenuWithMedia('menugold', menuGold);
@@ -3587,6 +3577,43 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           await reply("❌ Ocorreu um erro inesperado ao tentar listar os subdonos.");
         }
         break;
+
+      case 'cmdlimitar':
+      case 'cmdlimit':
+      case 'limitarcmd':
+        try {
+          const { cmdLimitAdd } = require('./funcs/utils/cmdlimit.js');
+          await cmdLimitAdd(nazu, from, q, reply, prefix, isOwnerOrSub);
+        } catch (error) {
+          console.error('Error in cmdlimitar:', error);
+          await reply('❌ Erro interno!');
+        }
+        break;
+
+      case 'cmddeslimitar':
+      case 'cmdremovelimit':
+      case 'rmcmdlimit':
+        try {
+          const { cmdLimitRemove } = require('./funcs/utils/cmdlimit.js');
+          await cmdLimitRemove(nazu, from, q, reply, prefix, isOwnerOrSub);
+        } catch (error) {
+          console.error('Error in cmddeslimitar:', error);
+          await reply('❌ Erro interno!');
+        }
+        break;
+
+      case 'cmdlimites':
+      case 'cmdlimits':
+      case 'listcmdlimites':
+        try {
+          const { cmdLimitList } = require('./funcs/utils/cmdlimit.js');
+          await cmdLimitList(nazu, from, q, reply, prefix, isOwnerOrSub);
+        } catch (error) {
+          console.error('Error in cmdlimites:', error);
+          await reply('❌ Erro interno!');
+        }
+        break;
+        
       case 'viewmsg':
         try {
           if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
@@ -8180,30 +8207,6 @@ case 'divulgar':
           groupData.autodl = !groupData.autodl;
           fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
           await reply(`✅ Autodl ${groupData.autodl ? 'ativado' : 'desativado'}! Links suportados serão baixados automaticamente.`);
-        } catch (e) {
-          console.error(e);
-          await reply("Ocorreu um erro 💔");
-        }
-        break;
-      case 'cmdlimit':
-        try {
-          if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
-          if (!isGroupAdmin) return reply("Você precisa ser adm 💔");
-          if (!q) return reply(`Digite o limite de comandos por dia ou "off" para desativar.\nExemplo: ` + prefix + `cmdlimit 10`);
-          cmdLimitData[from] = cmdLimitData[from] || {
-            users: {}
-          };
-          if (q.toLowerCase() === 'off') {
-            cmdLimitData[from].enabled = false;
-            delete cmdLimitData[from].limit;
-          } else {
-            const limit = parseInt(q);
-            if (isNaN(limit) || limit < 1) return reply('Limite inválido! Use um número maior que 0 ou "off".');
-            cmdLimitData[from].enabled = true;
-            cmdLimitData[from].limit = limit;
-          }
-          fs.writeFileSync(__dirname + '/../database/cmdlimit.json', JSON.stringify(cmdLimitData, null, 2));
-          await reply(`✅ Limite de comandos ${cmdLimitData[from].enabled ? `definido para ${cmdLimitData[from].limit} por dia` : 'desativado'}!`);
         } catch (e) {
           console.error(e);
           await reply("Ocorreu um erro 💔");

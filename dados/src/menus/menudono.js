@@ -10,6 +10,7 @@ async function menuDono(prefix, botName = "MeuBot", userName = "Usuário", {
     menuDesignMenuTitle = "🎨 DESIGN & APARÊNCIA",
     automationMenuTitle = "⚙️ SISTEMA & AUTOMAÇÃO",
     commandCustomMenuTitle = "🛠️ PERSONALIZAÇÃO DE COMANDOS",
+    commandLimitingMenuTitle = "🚫 LIMITAÇÃO DE COMANDOS",
     userManagementMenuTitle = "👥 GERENCIAMENTO DE USUÁRIOS",
     rentalSystemMenuTitle = "💰 SISTEMA DE ALUGUEL",
     botControlMenuTitle = "⚡ CONTROLE & MANUTENÇÃO",
@@ -68,6 +69,13 @@ ${middleBorder}${menuItemIcon}${prefix}delalias
 ${middleBorder}${menuItemIcon}${prefix}addblackglobal
 ${middleBorder}${menuItemIcon}${prefix}listblackglobal
 ${middleBorder}${menuItemIcon}${prefix}rmblackglobal
+${bottomBorder}
+
+${menuTopBorder}${separatorIcon} *${commandLimitingMenuTitle}*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}cmdlimitar
+${middleBorder}${menuItemIcon}${prefix}cmddeslimitar
+${middleBorder}${menuItemIcon}${prefix}cmdlimites
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${userManagementMenuTitle}*
