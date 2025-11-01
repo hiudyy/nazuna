@@ -34,6 +34,7 @@ const MODO_LITE_FILE = path.join(DATABASE_DIR, 'modolite.json');
 const SUBDONOS_FILE = path.join(DONO_DIR, 'subdonos.json');
 const ALUGUEIS_FILE = path.join(DONO_DIR, 'alugueis.json');
 const CODIGOS_ALUGUEL_FILE = path.join(DONO_DIR, 'codigos_aluguel.json');
+const RELATIONSHIPS_FILE = path.join(DATABASE_DIR, 'relationships.json');
 const CONFIG_FILE = path.join(SRC_DIR, 'config.json');
 const PACKAGE_JSON_PATH = path.join(ROOT_DIR, '..', 'package.json');
 
@@ -71,6 +72,7 @@ module.exports = {
   SUBDONOS_FILE,
   ALUGUEIS_FILE,
   CODIGOS_ALUGUEL_FILE,
+  RELATIONSHIPS_FILE,
   CONFIG_FILE,
   PACKAGE_JSON_PATH
 };

@@ -52,6 +52,7 @@ const localModulePaths = {
     tictactoe: "./utils/tictactoe.js",
     stickerModule: "./utils/sticker.js",
     commandStats: "./utils/commandStats.js",
+    relationshipManager: "./utils/relationships.js",
 
     // --- private ---
     ia: "./private/ia.js",

@@ -33,6 +33,7 @@ const {
   SUBDONOS_FILE,
   ALUGUEIS_FILE,
   CODIGOS_ALUGUEL_FILE,
+  RELATIONSHIPS_FILE,
   CUSTOM_COMMANDS_FILE
 } = require('./paths');
 
@@ -229,6 +230,9 @@ ensureJsonFileExists(ALUGUEIS_FILE, {
 ensureJsonFileExists(CODIGOS_ALUGUEL_FILE, {
   codes: {}
 });
+ensureJsonFileExists(RELATIONSHIPS_FILE, {
+  pairs: {}
+});
 
 const databaseSelfTests = [{
   name: 'economy.json',
@@ -361,6 +365,25 @@ const loadCmdNotFoundConfig = () => {
       userName: '{userName}'
     }
   });
+};
+
+const loadRelationships = () => {
+  return loadJsonFile(RELATIONSHIPS_FILE, {
+    pairs: {}
+  });
+};
+
+const saveRelationships = (data = {
+  pairs: {}
+}) => {
+  try {
+    ensureDirectoryExists(DATABASE_DIR);
+    fs.writeFileSync(RELATIONSHIPS_FILE, JSON.stringify(data, null, 2));
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao salvar dados de relacionamento:', error);
+    return false;
+  }
 };
 
 const saveCmdNotFoundConfig = (config, action = 'update') => {
@@ -1945,6 +1968,8 @@ module.exports = {
   loadMenuDesign,
   saveMenuDesign,
   getMenuDesignWithDefaults,
+  loadRelationships,
+  saveRelationships,
   // Command limiting functions
   loadCommandLimits,
   saveCommandLimits,

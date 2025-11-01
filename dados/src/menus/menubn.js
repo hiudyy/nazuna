@@ -8,6 +8,7 @@ async function menubn(prefix, botName = "MeuBot", userName = "Usuário", isLiteM
     middleBorder = "┊",
     gamesMenuTitle = "🎮 JOGOS & DIVERSÃO 🎲",
     interactionsMenuTitle = "💬 INTERAÇÕES SOCIAIS 🤝",
+    relationshipMenuTitle = "💞 RELACIONAMENTOS ❤️",
     hotInteractionsMenuTitle = '🔥 INTERAÇÕES "PICANTES" 😏',
     maleFunMenuTitle = "🎯 BRINCADEIRAS MASCULINAS 🔥",
     femaleFunMenuTitle = "💅 BRINCADEIRAS FEMININAS 👸",
@@ -84,6 +85,14 @@ ${middleBorder}${menuItemIcon}${prefix}rico
 ${middleBorder}${menuItemIcon}${prefix}pobre${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}pirocudo${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}nazista`}${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}ladrao`}`}
 ${middleBorder}${menuItemIcon}${prefix}safado
 ${middleBorder}${menuItemIcon}${prefix}vesgo
+
+${menuTopBorder}${separatorIcon} *${relationshipMenuTitle}*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}brincadeira
+${middleBorder}${menuItemIcon}${prefix}namoro
+${middleBorder}${menuItemIcon}${prefix}casamento
+${middleBorder}${menuItemIcon}${prefix}relacionamento
+${bottomBorder}
 ${middleBorder}${menuItemIcon}${prefix}bebado${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}machista${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}homofobico${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}racista`}`}`}
 ${middleBorder}${menuItemIcon}${prefix}chato
 ${middleBorder}${menuItemIcon}${prefix}sortudo

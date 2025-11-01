@@ -375,7 +375,8 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     commandStats,
     ia,
     VerifyUpdate,
-    temuScammer
+    temuScammer,
+    relationshipManager
   } = modules;
   const antipvData = loadJsonFile(DATABASE_DIR + '/antipv.json');
   const premiumListaZinha = loadJsonFile(DONO_DIR + '/premium.json');
@@ -1955,6 +1956,19 @@ Código: *${roleCode}*`,
     }
     if (isGroup) {
       try {
+        if (relationshipManager.hasPendingRequest(from) && body) {
+          const relResponse = relationshipManager.processResponse(from, sender, body);
+          if (relResponse) {
+            if (relResponse.success && relResponse.message) {
+              await nazu.sendMessage(from, {
+                text: relResponse.message,
+                mentions: relResponse.mentions || []
+              });
+            } else if (relResponse.reason === 'invalid_response' && relResponse.message) {
+              await reply(relResponse.message);
+            }
+          }
+        }
         if (tictactoe.hasPendingInvitation(from) && budy2) {
           const normalizedResponse = budy2.toLowerCase().trim();
           const result = tictactoe.processInvitationResponse(from, sender, normalizedResponse);
@@ -10928,6 +10942,123 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
           await reply("🔮 Minha máquina do tempo pifou! Tenta de novo! ⏰�");
         }
         break;
+      case 'brincadeira': {
+        if (!isGroup) {
+          await reply('⚠️ Esse pedido só pode ser feito em grupos.');
+          break;
+        }
+        if (!isModoBn) {
+          await reply('❌ O modo brincadeira está desligado neste grupo.');
+          break;
+        }
+        if (!menc_os2) {
+          await reply('❌ Marque a pessoa que você quer chamar para uma brincadeira.');
+          break;
+        }
+        if (menc_os2 === sender) {
+          await reply('❌ Você não pode enviar um pedido para você mesmo.');
+          break;
+        }
+        const requestResult = relationshipManager.createRequest('brincadeira', from, sender, menc_os2);
+        if (!requestResult.success) {
+          await reply(requestResult.message);
+          break;
+        }
+        await nazu.sendMessage(from, {
+          text: requestResult.message,
+          mentions: requestResult.mentions || [sender, menc_os2]
+        });
+        break;
+      }
+      case 'namoro': {
+        if (!isGroup) {
+          await reply('⚠️ Esse pedido só pode ser feito em grupos.');
+          break;
+        }
+        if (!isModoBn) {
+          await reply('❌ O modo brincadeira está desligado neste grupo.');
+          break;
+        }
+        if (!menc_os2) {
+          await reply('❌ Marque a pessoa que você quer pedir em namoro.');
+          break;
+        }
+        if (menc_os2 === sender) {
+          await reply('❌ Você não pode enviar um pedido para você mesmo.');
+          break;
+        }
+        const requestResult = relationshipManager.createRequest('namoro', from, sender, menc_os2);
+        if (!requestResult.success) {
+          await reply(requestResult.message);
+          break;
+        }
+        await nazu.sendMessage(from, {
+          text: requestResult.message,
+          mentions: requestResult.mentions || [sender, menc_os2]
+        });
+        break;
+      }
+      case 'casamento':
+      case 'casar': {
+        if (!isGroup) {
+          await reply('⚠️ Esse pedido só pode ser feito em grupos.');
+          break;
+        }
+        if (!isModoBn) {
+          await reply('❌ O modo brincadeira está desligado neste grupo.');
+          break;
+        }
+        if (!menc_os2) {
+          await reply('❌ Marque a pessoa que você quer pedir em casamento.');
+          break;
+        }
+        if (menc_os2 === sender) {
+          await reply('❌ Você não pode enviar um pedido para você mesmo.');
+          break;
+        }
+        const requestResult = relationshipManager.createRequest('casamento', from, sender, menc_os2);
+        if (!requestResult.success) {
+          await reply(requestResult.message);
+          break;
+        }
+        await nazu.sendMessage(from, {
+          text: requestResult.message,
+          mentions: requestResult.mentions || [sender, menc_os2]
+        });
+        break;
+      }
+      case 'relacionamento': {
+        const mentionedList = Array.isArray(menc_jid2) ? menc_jid2 : [];
+        let userOne = null;
+        let userTwo = null;
+
+        if (mentionedList.length >= 2) {
+          [userOne, userTwo] = mentionedList;
+        } else if (menc_os2) {
+          userOne = sender;
+          userTwo = menc_os2;
+        }
+
+        if (!userOne || !userTwo) {
+          await reply('ℹ️ Marque uma pessoa (ou duas) para ver os dados do relacionamento.');
+          break;
+        }
+        if (userOne === userTwo) {
+          await reply('❌ Selecione pessoas diferentes para consultar.');
+          break;
+        }
+
+        const summary = relationshipManager.getRelationshipSummary(userOne, userTwo);
+        if (!summary.success) {
+          await reply(summary.message);
+          break;
+        }
+
+        await reply(summary.message, {
+          mentions: summary.mentions || [userOne, userTwo]
+        });
+        break;
+      }
       case 'casal':
         try {
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
