@@ -6572,29 +6572,41 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'pin':
         try {
           if (!q) return reply('Digite o termo para pesquisar no Pinterest. Exemplo: ' + prefix + 'pinterest gatinhos /3');
-          const [searchTerm, limitStr] = q.split('/').map(s => s.trim());
+
+          // Detecta se é URL de Pinterest antes de qualquer split
+          const PIN_URL_REGEX = /^(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)?pinterest\.\w{2,6}(?:\.\w{2})?\/pin\/([0-9a-zA-Z]+)|^https?:\/\/pin\.it\/[a-zA-Z0-9]+/i;
           let maxImages = 5;
-          if (limitStr && !isNaN(parseInt(limitStr))) {
-            maxImages = Math.max(1, Math.min(parseInt(limitStr), 10));
+          let searchTerm = q.trim();
+
+          // Só extrai limite \/N se NÃO for URL
+          if (!PIN_URL_REGEX.test(searchTerm)) {
+            const limitMatch = searchTerm.match(/\s\/\s*(\d{1,2})\s*$/);
+            if (limitMatch) {
+              const parsed = parseInt(limitMatch[1]);
+              maxImages = Math.max(1, Math.min(parsed, 10));
+              searchTerm = searchTerm.replace(/\s\/\s*\d{1,2}\s*$/, '').trim();
+            }
+          } else {
+            // Para URL, baixa 1 mídia (padrão)
+            maxImages = 1;
           }
-          const datinha = await (/^https?:\/\/(?:[a-zA-Z0-9-]+\.)?pinterest\.\w{2,6}(?:\.\w{2})?\/pin\/\d+|https?:\/\/pin\.it\/[a-zA-Z0-9]+/.test(searchTerm) ? pinterest.dl(searchTerm) : pinterest.search(searchTerm));
+
+          const isPinUrl = PIN_URL_REGEX.test(searchTerm);
+          const datinha = await (isPinUrl ? pinterest.dl(searchTerm) : pinterest.search(searchTerm));
           if (!datinha.ok || !datinha.urls || datinha.urls.length === 0) {
-            return reply('Nenhuma imagem encontrada para o termo pesquisado. 😕');
+            return reply(isPinUrl ? 'Não foi possível baixar este link do Pinterest. 😕' : 'Nenhuma imagem encontrada para o termo pesquisado. 😕');
           }
-          const imagesToSend = datinha.urls.slice(0, maxImages);
-          for (const url of imagesToSend) {
-            await nazu.sendMessage(from, {
-              image: {
-                url
-              },
-              caption: `📌 Resultado da pesquisa por "${searchTerm}"`
-            }, {
-              quoted: info
-            });
+
+          const itemsToSend = datinha.urls.slice(0, maxImages);
+          for (const url of itemsToSend) {
+            const message = isPinUrl && datinha.type === 'video'
+              ? { video: { url }, caption: '📌 Download do Pinterest' }
+              : { image: { url }, caption: isPinUrl ? '📌 Download do Pinterest' : `📌 Resultado da pesquisa por "${searchTerm}"` };
+            await nazu.sendMessage(from, message, { quoted: info });
           }
         } catch (e) {
           console.error('Erro no comando pinterest:', e);
-          await reply("Ocorreu um erro ao pesquisar no Pinterest 💔");
+          await reply("Ocorreu um erro ao processar o Pinterest 💔");
         }
         break;
       case 'menu':
