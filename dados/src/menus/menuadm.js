@@ -69,6 +69,7 @@ ${middleBorder}${menuItemIcon}${prefix}resenha.pagar
 ${middleBorder}${menuItemIcon}${prefix}resenha.todos
 ${middleBorder}${menuItemIcon}${prefix}resenha.link
 ${middleBorder}${menuItemIcon}${prefix}resenha.pagos
+${middleBorder}${menuItemIcon}${prefix}resenha.excluir
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *⚙️ GRUPO & PERMISSÕES*

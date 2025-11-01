@@ -2918,6 +2918,60 @@ Código: *${roleCode}*`,
         break;
       }
 
+      case 'resenha.excluir':
+      case 'resenha.deletar':
+      case 'resenha.apagar': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+        if (!isGroupAdmin) {
+          await reply('🚫 Apenas administradores podem excluir a resenha.');
+          break;
+        }
+
+        const resenhaData = ensureResenhaData();
+        if (!resenhaData.active && resenhaData.items.length === 0) {
+          await reply('ℹ️ Não há nenhuma resenha para excluir.');
+          break;
+        }
+
+        try {
+          const dirPath = buildResenhaDir();
+          if (fs.existsSync(dirPath)) {
+            const files = fs.readdirSync(dirPath);
+            for (const file of files) {
+              try {
+                fs.unlinkSync(pathz.join(dirPath, file));
+              } catch (unlinkErr) {
+                console.warn(`Não consegui remover arquivo ${file}:`, unlinkErr.message);
+              }
+            }
+            try {
+              fs.rmdirSync(dirPath);
+            } catch (rmdirErr) {
+              console.warn('Não consegui remover diretório da resenha:', rmdirErr.message);
+            }
+          }
+        } catch (cleanupError) {
+          console.error('Erro ao limpar mídias da resenha:', cleanupError);
+        }
+
+        groupData.resenha = {
+          active: false,
+          createdAt: null,
+          createdBy: null,
+          link: '',
+          items: [],
+          payments: {},
+          lastItemId: 0
+        };
+        persistGroupData();
+
+        await reply('🗑️ Resenha excluída com sucesso! Todos os dados, pagamentos e mídias foram removidos.');
+        break;
+      }
+
       case 'menugold': {
         await sendMenuWithMedia('menugold', menuGold);
         break;
