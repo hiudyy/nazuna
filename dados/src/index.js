@@ -438,10 +438,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const isNotGoingEmoji = (emoji) => typeof emoji === 'string' && emoji.includes(ROLE_NOT_GOING_BASE);
     const isButtonMessage = info.message.interactiveMessage || info.message.templateButtonReplyMessage || info.message.buttonsMessage || info.message.interactiveResponseMessage || info.message.listResponseMessage || info.message.buttonsResponseMessage ? true : false;
     const isStatusMention = JSON.stringify(info.message).includes('groupStatusMentionMessage');
-    if (type === 'reactionMessage') {
-      await processReactionMessage();
-      return;
-    }
     const getMessageText = message => {
       if (!message) return '';
       
@@ -642,6 +638,11 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const isAutoRepo = groupData.autorepo;
     const isAssistente = groupData.assistente;
     const isModoLite = isGroup && isModoLiteActive(groupData, modoLiteGlobal);
+    
+    if (type === 'reactionMessage') {
+      await processReactionMessage();
+      return;
+    }
     
     if (isGroup && groupData.minMessage && (isImage || isVideo || isVisuU || isVisuU2) && !isGroupAdmin && !isOwner) {
   let caption = '';
