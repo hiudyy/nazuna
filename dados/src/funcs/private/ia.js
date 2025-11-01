@@ -789,7 +789,7 @@ async function makeCognimaRequest(modelo, texto, systemPrompt = null, key, histo
             'Content-Type': 'application/json',
             'X-API-Key': key
           },
-          timeout: 30000
+          timeout: 120000
         }
       );
 
