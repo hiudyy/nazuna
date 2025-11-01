@@ -413,32 +413,7 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
             }
             case 'promote':
             case 'demote': {
-                // Check if anti-arquivamento is enabled
-                if (groupSettings.antiarqv) {
-                    // Check if the author is a group owner
-                    const isOwner = groupSettings.groupOwners?.includes(inf.author);
-                    
-                    if (!isOwner) {
-                        // Prevent the action if not a group owner
-                        const action = inf.action === 'promote' ? 'promoção' : 'rebaixamento';
-                        
-                        // Revert the action by promoting/demoting back
-                        for (const participant of inf.participants) {
-                            try {
-                                await NazunaSock.groupParticipantsUpdate(from, [participant], inf.action === 'promote' ? 'demote' : 'promote');
-                                await NazunaSock.sendMessage(from, {
-                                    text: `🛡️ @${inf.author.split('@')[0]}, você não tem permissão para ${action} membros! Apenas donos do grupo podem promover/rebaixar quando o anti-arquivamento está ativo. Ação revertida.`,
-                                    mentions: [inf.author, participant],
-                                });
-                            } catch (revertError) {
-                                console.error(`[ANTI-ARQUIVAMENTO] Erro ao reverter ${action} de ${participant}: ${revertError.message}`);
-                            }
-                        }
-                        break; // Exit the switch statement
-                    }
-                }
-                
-                // X9 notification (only if anti-arquivamento didn't block)
+                // Notificação X9 (sem bloqueio de ação)
                 if (groupSettings.x9) {
                     for (const participant of inf.participants) {
                         const action = inf.action === 'promote' ? 'promovido a ADM' : 'rebaixado de ADM';

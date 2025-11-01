@@ -102,7 +102,6 @@ ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *🔒 SEGURANÇA & PROTEÇÃO*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}antinuke
 ${middleBorder}${menuItemIcon}${prefix}antiflood
 ${middleBorder}${menuItemIcon}${prefix}antidoc
 ${middleBorder}${menuItemIcon}${prefix}antiloc
@@ -112,9 +111,6 @@ ${middleBorder}${menuItemIcon}${prefix}antilinkgp
 ${middleBorder}${menuItemIcon}${prefix}antilinkhard
 ${middleBorder}${menuItemIcon}${prefix}antiporn
 ${middleBorder}${menuItemIcon}${prefix}antistatus
-${middleBorder}${menuItemIcon}${prefix}donogp
-${middleBorder}${menuItemIcon}${prefix}rmdonogp
-${middleBorder}${menuItemIcon}${prefix}donosgp
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${settingsMenuTitle}*
