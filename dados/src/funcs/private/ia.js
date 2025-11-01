@@ -5,6 +5,24 @@ const path = require('path');
 const { fileURLToPath } = require('url');
 const userContextDB = require('../../utils/userContextDB');
 
+// Função para obter data/hora no fuso horário do Brasil (GMT-3)
+function getBrazilDateTime() {
+  const now = new Date();
+  // Converter para horário do Brasil (UTC-3)
+  const brazilTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  return brazilTime.toISOString();
+}
+
+// Função para obter data/hora formatada em PT-BR
+function getFormattedBrazilDateTime() {
+  const now = new Date();
+  return now.toLocaleString('pt-BR', { 
+    timeZone: 'America/Sao_Paulo',
+    dateStyle: 'full',
+    timeStyle: 'medium'
+  });
+}
+
 // Sistema de cache para controlar avisos diários de API key
 const dailyNotifications = {
   count: 0,
@@ -314,30 +332,77 @@ Você recebe informações detalhadas sobre cada pessoa que conversa com você:
 
 Quando você identificar algo importante para aprender, inclua no JSON de resposta:
 
-\`\`\`json
+\\\`\\\`\\\`json
 {
   "resp": [{"id": "...", "resp": "sua resposta", "react": "emoji"}],
   "aprender": {
-    "tipo": "gosto | nao_gosto | hobby | assunto_favorito | nota_importante | memoria_especial | info_pessoal",
+    "tipo": "tipo_de_aprendizado",
     "valor": "o que você aprendeu",
-    "contexto": "breve explicação (opcional)"
+    "contexto": "informação adicional (opcional)"
   }
 }
-\`\`\`
+\\\`\\\`\\\`
+
+**Tipos de Aprendizado Suportados:**
+
+1. **Preferências e Gostos:**
+   - gosto / gostos - Coisas que a pessoa gosta
+   - nao_gosto / não_gosto - Coisas que a pessoa não gosta
+   - hobby / hobbies - Hobbies e atividades
+   - assunto_favorito / topico - Temas de interesse
+
+2. **Informações Pessoais:**
+   - nome - Nome da pessoa
+   - apelido / apelidos - Como gosta de ser chamado
+   - idade - Quantos anos tem
+   - localizacao / cidade - Onde mora
+   - profissao / trabalho - O que faz
+   - relacionamento / status - Status de relacionamento
+   - familia / família - Membros da família
+
+3. **Contexto e Memórias:**
+   - nota_importante / lembrete - Informações importantes
+   - memoria_especial / momento_especial - Momentos marcantes
+   - sentimento / humor - Estado emocional
+   - estilo_conversa - Como a pessoa gosta de conversar
 
 **Exemplos de Aprendizado:**
 
 - Usuário diz "Adoro pizza!":
-  \`"aprender": {"tipo": "gosto", "valor": "pizza"}\`
+  "aprender": {"tipo": "gosto", "valor": "pizza"}
+
+- Usuário diz "Me chama de Zé":
+  "aprender": {"tipo": "apelido", "valor": "Zé"}
 
 - Usuário diz "Jogo muito Valorant":
-  \`"aprender": {"tipo": "hobby", "valor": "jogar Valorant"}\`
+  "aprender": {"tipo": "hobby", "valor": "jogar Valorant"}
+
+- Usuário diz "Tenho 25 anos":
+  "aprender": {"tipo": "idade", "valor": "25"}
+
+- Usuário diz "Moro em São Paulo":
+  "aprender": {"tipo": "localizacao", "valor": "São Paulo"}
 
 - Usuário conta algo pessoal importante:
-  \`"aprender": {"tipo": "nota_importante", "valor": "está passando por um momento difícil no trabalho"}\`
+  "aprender": {"tipo": "nota_importante", "valor": "está passando por um momento difícil no trabalho"}
 
 - Momento especial juntos:
-  \`"aprender": {"tipo": "memoria_especial", "valor": "primeira conversa profunda sobre sonhos e aspirações"}\`
+  "aprender": {"tipo": "memoria_especial", "valor": "primeira conversa profunda sobre sonhos e aspirações"}
+
+**FLEXIBILIDADE TOTAL:**
+- Você pode criar seus próprios tipos personalizados!
+- Exemplos: "cor_favorita", "comida_preferida", "time_futebol", "aniversario", "pet", etc.
+- O sistema vai categorizar automaticamente ou salvar como nota
+- Use nomes descritivos em português para os tipos personalizados
+
+**Exemplos de tipos personalizados:**
+- "aprender": {"tipo": "cor_favorita", "valor": "azul"}
+- "aprender": {"tipo": "comida_preferida", "valor": "lasanha"}
+- "aprender": {"tipo": "time_futebol", "valor": "Flamengo"}
+- "aprender": {"tipo": "aniversario", "valor": "15 de março"}
+- "aprender": {"tipo": "pet", "valor": "cachorro chamado Rex"}
+
+**IMPORTANTE:** Se você não tiver certeza do tipo, use "nota_importante" - o sistema sempre vai salvar!
 
 ---
 
@@ -687,8 +752,8 @@ function extractJSON(content) {
 function validateMessage(msg) {
   if (typeof msg === 'object' && msg !== null) {
     return {
-      data_atual: msg.data_atual || new Date().toISOString(),
-      data_mensagem: msg.data_mensagem || new Date().toISOString(),
+      data_atual: msg.data_atual || getBrazilDateTime(),
+      data_mensagem: msg.data_mensagem || getBrazilDateTime(),
       texto: String(msg.texto || '').trim(),
       id_enviou: String(msg.id_enviou || ''),
       nome_enviou: String(msg.nome_enviou || ''),
@@ -716,8 +781,8 @@ function validateMessage(msg) {
       throw new Error('Formato de mensagem inválido - poucos campos');
     }
     return {
-      data_atual: parts[0] || new Date().toISOString(),
-      data_mensagem: parts[1] || new Date().toISOString(),
+      data_atual: parts[0] || getBrazilDateTime(),
+      data_mensagem: parts[1] || getBrazilDateTime(),
       texto: String(parts[2] || '').trim(),
       id_enviou: String(parts[3] || ''),
       nome_enviou: String(parts[4] || ''),
@@ -750,7 +815,7 @@ function updateHistorico(grupoUserId, role, content, nome = null) {
   const entry = {
     role,
     content: cleanWhatsAppFormatting(content),
-    timestamp: new Date().toISOString()
+    timestamp: getBrazilDateTime()
   };
   
   if (nome) {
@@ -1085,58 +1150,208 @@ function processLearning(grupoUserId, aprender, mensagemOriginal) {
     const { tipo, valor, contexto } = aprender;
     
     if (!tipo || !valor) {
-      console.warn('Aprendizado inválido:', aprender);
+      console.warn('⚠️ Aprendizado inválido (faltam campos):', aprender);
       return;
     }
     
-    switch (tipo) {
+    // Normalizar o tipo para lowercase para evitar problemas de case
+    const tipoNormalizado = tipo.toLowerCase().trim();
+    
+    switch (tipoNormalizado) {
       case 'gosto':
+      case 'gostos':
         userContextDB.addUserPreference(grupoUserId, 'gostos', valor);
         console.log(`✅ Nazuna aprendeu: ${grupoUserId} gosta de "${valor}"`);
         break;
         
       case 'nao_gosto':
+      case 'nao_gostos':
+      case 'não_gosto':
+      case 'não_gostos':
         userContextDB.addUserPreference(grupoUserId, 'nao_gostos', valor);
         console.log(`✅ Nazuna aprendeu: ${grupoUserId} não gosta de "${valor}"`);
         break;
         
       case 'hobby':
+      case 'hobbies':
         userContextDB.addUserPreference(grupoUserId, 'hobbies', valor);
         console.log(`✅ Nazuna aprendeu: hobby de ${grupoUserId}: "${valor}"`);
         break;
         
       case 'assunto_favorito':
+      case 'assuntos_favoritos':
+      case 'assunto':
+      case 'topico':
+      case 'tópico':
         userContextDB.addUserPreference(grupoUserId, 'assuntos_favoritos', valor);
         userContextDB.addRecentTopic(grupoUserId, valor);
         console.log(`✅ Nazuna aprendeu: assunto favorito de ${grupoUserId}: "${valor}"`);
         break;
         
       case 'nota_importante':
+      case 'nota':
+      case 'informacao_importante':
+      case 'informação_importante':
+      case 'lembrete':
         userContextDB.addImportantNote(grupoUserId, valor);
         console.log(`✅ Nazuna anotou: "${valor}" sobre ${grupoUserId}`);
         break;
         
       case 'memoria_especial':
+      case 'memoria':
+      case 'memória_especial':
+      case 'memória':
+      case 'momento_especial':
         userContextDB.addSpecialMemory(grupoUserId, valor);
         console.log(`✅ Nazuna guardou memória especial: "${valor}" com ${grupoUserId}`);
         break;
         
-      case 'info_pessoal':
-        // Tentar identificar o campo correto
-        const camposValidos = ['idade', 'localizacao', 'profissao', 'relacionamento'];
-        const campo = contexto || 'outros';
+      case 'nome':
+        // Atualizar o nome do usuário
+        userContextDB.updateUserInfo(grupoUserId, valor, null);
+        console.log(`✅ Nazuna aprendeu o nome: ${grupoUserId} se chama "${valor}"`);
+        break;
         
-        if (camposValidos.includes(campo)) {
-          userContextDB.updatePersonalInfo(grupoUserId, campo, valor);
-          console.log(`✅ Nazuna aprendeu info pessoal de ${grupoUserId}: ${campo} = "${valor}"`);
+      case 'apelido':
+      case 'apelidos':
+      case 'nickname':
+        // Adicionar apelido
+        userContextDB.updateUserInfo(grupoUserId, null, valor);
+        console.log(`✅ Nazuna aprendeu apelido: ${grupoUserId} gosta de ser chamado de "${valor}"`);
+        break;
+        
+      case 'idade':
+        userContextDB.updatePersonalInfo(grupoUserId, 'idade', valor);
+        console.log(`✅ Nazuna aprendeu: ${grupoUserId} tem ${valor} anos`);
+        break;
+        
+      case 'localizacao':
+      case 'localização':
+      case 'local':
+      case 'cidade':
+      case 'lugar':
+        userContextDB.updatePersonalInfo(grupoUserId, 'localizacao', valor);
+        console.log(`✅ Nazuna aprendeu: ${grupoUserId} mora em "${valor}"`);
+        break;
+        
+      case 'profissao':
+      case 'profissão':
+      case 'trabalho':
+      case 'emprego':
+      case 'ocupacao':
+      case 'ocupação':
+        userContextDB.updatePersonalInfo(grupoUserId, 'profissao', valor);
+        console.log(`✅ Nazuna aprendeu: ${grupoUserId} trabalha como "${valor}"`);
+        break;
+        
+      case 'relacionamento':
+      case 'status_relacionamento':
+      case 'status':
+        userContextDB.updatePersonalInfo(grupoUserId, 'relacionamento', valor);
+        console.log(`✅ Nazuna aprendeu: status de relacionamento de ${grupoUserId}: "${valor}"`);
+        break;
+        
+      case 'familia':
+      case 'família':
+      case 'parente':
+      case 'parentes':
+        // Adicionar membro da família
+        const contextoAtual = userContextDB.getUserContext(grupoUserId);
+        if (!contextoAtual.informacoes_pessoais.familia.includes(valor)) {
+          contextoAtual.informacoes_pessoais.familia.push(valor);
+          userContextDB.data[grupoUserId] = contextoAtual;
+          userContextDB.saveDatabase();
+          console.log(`✅ Nazuna aprendeu sobre família de ${grupoUserId}: "${valor}"`);
         }
         break;
         
+      case 'info_pessoal':
+      case 'informacao_pessoal':
+      case 'informação_pessoal':
+        // Tentar identificar o campo correto baseado no contexto
+        const camposValidos = ['idade', 'localizacao', 'profissao', 'relacionamento'];
+        const campo = contexto ? contexto.toLowerCase() : null;
+        
+        if (campo && camposValidos.includes(campo)) {
+          userContextDB.updatePersonalInfo(grupoUserId, campo, valor);
+          console.log(`✅ Nazuna aprendeu info pessoal de ${grupoUserId}: ${campo} = "${valor}"`);
+        } else {
+          // Se não souber o campo, adicionar como nota importante
+          userContextDB.addImportantNote(grupoUserId, valor);
+          console.log(`✅ Nazuna anotou info pessoal: "${valor}" sobre ${grupoUserId}`);
+        }
+        break;
+        
+      case 'sentimento':
+      case 'humor':
+      case 'mood':
+      case 'estado_emocional':
+        // Atualizar humor comum do usuário
+        const userContext = userContextDB.getUserContext(grupoUserId);
+        userContext.padroes_comportamento.humor_comum = valor;
+        userContextDB.data[grupoUserId] = userContext;
+        userContextDB.saveDatabase();
+        console.log(`✅ Nazuna percebeu o humor de ${grupoUserId}: "${valor}"`);
+        break;
+        
+      case 'estilo_conversa':
+      case 'estilo':
+      case 'jeito':
+        // Atualizar estilo de conversa
+        const userCtx = userContextDB.getUserContext(grupoUserId);
+        userCtx.preferencias.estilo_conversa = valor;
+        userContextDB.data[grupoUserId] = userCtx;
+        userContextDB.saveDatabase();
+        console.log(`✅ Nazuna identificou estilo de conversa de ${grupoUserId}: "${valor}"`);
+        break;
+        
       default:
-        console.warn(`Tipo de aprendizado desconhecido: ${tipo}`);
+        // Sistema inteligente para tipos não pré-definidos
+        console.warn(`⚠️ Tipo de aprendizado não reconhecido: "${tipo}"`);
+        
+        // Tentar categorizar automaticamente baseado no tipo
+        const tipoLower = tipoNormalizado;
+        
+        // Tentar identificar se é uma preferência (contém palavras-chave)
+        if (tipoLower.includes('gost') || tipoLower.includes('adora') || tipoLower.includes('ama') || 
+            tipoLower.includes('prefere') || tipoLower.includes('curte')) {
+          userContextDB.addUserPreference(grupoUserId, 'gostos', `[${tipo}] ${valor}`);
+          console.log(`📝 Nazuna categorizou como GOSTO: "${tipo}: ${valor}"`);
+        }
+        // Tentar identificar se é algo que não gosta
+        else if (tipoLower.includes('odeia') || tipoLower.includes('detesta') || 
+                 tipoLower.includes('nao_gosta') || tipoLower.includes('desgosto')) {
+          userContextDB.addUserPreference(grupoUserId, 'nao_gostos', `[${tipo}] ${valor}`);
+          console.log(`📝 Nazuna categorizou como NÃO GOSTA: "${tipo}: ${valor}"`);
+        }
+        // Tentar identificar se é uma atividade/hobby
+        else if (tipoLower.includes('atividade') || tipoLower.includes('faz') || 
+                 tipoLower.includes('pratica') || tipoLower.includes('joga')) {
+          userContextDB.addUserPreference(grupoUserId, 'hobbies', `[${tipo}] ${valor}`);
+          console.log(`📝 Nazuna categorizou como HOBBY: "${tipo}: ${valor}"`);
+        }
+        // Tentar identificar se é informação pessoal
+        else if (tipoLower.includes('pessoal') || tipoLower.includes('info') || 
+                 tipoLower.includes('dado') || tipoLower.includes('caracteristica')) {
+          // Criar um campo personalizado nas informações pessoais
+          const userCtx = userContextDB.getUserContext(grupoUserId);
+          if (!userCtx.informacoes_pessoais.outros) {
+            userCtx.informacoes_pessoais.outros = {};
+          }
+          userCtx.informacoes_pessoais.outros[tipo] = valor;
+          userContextDB.data[grupoUserId] = userCtx;
+          userContextDB.saveDatabase();
+          console.log(`📝 Nazuna salvou INFO PERSONALIZADA: "${tipo}: ${valor}"`);
+        }
+        // Se não conseguir categorizar, salvar como nota importante com o tipo original
+        else {
+          userContextDB.addImportantNote(grupoUserId, `[${tipo}] ${valor}`);
+          console.log(`📝 Nazuna anotou (tipo personalizado): "${tipo}: ${valor}" sobre ${grupoUserId}`);
+        }
     }
   } catch (error) {
-    console.error('Erro ao processar aprendizado:', error);
+    console.error('❌ Erro ao processar aprendizado:', error);
+    console.error('Dados do aprendizado:', aprender);
   }
 }
 

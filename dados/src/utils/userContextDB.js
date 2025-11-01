@@ -4,6 +4,14 @@ const path = require('path');
 // Caminho do arquivo de banco de dados
 const DB_PATH = path.join(__dirname, '../../database/userContext.json');
 
+// Função para obter data/hora no fuso horário do Brasil (GMT-3)
+function getBrazilDateTime() {
+  const now = new Date();
+  // Converter para horário do Brasil (UTC-3)
+  const brazilTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  return brazilTime.toISOString();
+}
+
 /**
  * Classe para gerenciar o contexto de usuários
  * Armazena informações importantes sobre cada usuário para personalizar conversas
@@ -99,8 +107,8 @@ class UserContextDB {
       },
       historico_conversa: {
         total_mensagens: 0,
-        primeira_conversa: new Date().toISOString(),
-        ultima_conversa: new Date().toISOString(),
+        primeira_conversa: getBrazilDateTime(),
+        ultima_conversa: getBrazilDateTime(),
         frequencia_interacao: 'baixa',
         topicos_recentes: []
       },
@@ -123,7 +131,7 @@ class UserContextDB {
         sentimento: 'neutro'
       },
       notas_importantes: [],
-      ultima_atualizacao: new Date().toISOString()
+      ultima_atualizacao: getBrazilDateTime()
     };
   }
 
@@ -144,7 +152,7 @@ class UserContextDB {
       }
     }
     
-    context.ultima_atualizacao = new Date().toISOString();
+    context.ultima_atualizacao = getBrazilDateTime();
     this.saveDatabase();
   }
 
@@ -170,7 +178,7 @@ class UserContextDB {
       }
     }
     
-    context.ultima_atualizacao = new Date().toISOString();
+    context.ultima_atualizacao = getBrazilDateTime();
     this.saveDatabase();
   }
 
@@ -182,7 +190,7 @@ class UserContextDB {
     
     if (context.informacoes_pessoais.hasOwnProperty(campo)) {
       context.informacoes_pessoais[campo] = valor;
-      context.ultima_atualizacao = new Date().toISOString();
+      context.ultima_atualizacao = getBrazilDateTime();
       this.saveDatabase();
     }
   }
@@ -195,7 +203,7 @@ class UserContextDB {
     
     const novaNota = {
       texto: nota,
-      data: new Date().toISOString(),
+      data: getBrazilDateTime(),
       relevancia: 'alta'
     };
     
@@ -206,7 +214,7 @@ class UserContextDB {
       context.notas_importantes = context.notas_importantes.slice(-50);
     }
     
-    context.ultima_atualizacao = new Date().toISOString();
+    context.ultima_atualizacao = getBrazilDateTime();
     this.saveDatabase();
   }
 
@@ -218,7 +226,7 @@ class UserContextDB {
     
     // Atualizar contadores
     context.historico_conversa.total_mensagens++;
-    context.historico_conversa.ultima_conversa = new Date().toISOString();
+    context.historico_conversa.ultima_conversa = getBrazilDateTime();
     
     // Atualizar tipo de mensagens
     if (context.padroes_comportamento.tipo_mensagens[tipo] !== undefined) {
@@ -252,7 +260,7 @@ class UserContextDB {
       context.historico_conversa.frequencia_interacao = 'muito_baixa';
     }
     
-    context.ultima_atualizacao = new Date().toISOString();
+    context.ultima_atualizacao = getBrazilDateTime();
     this.saveDatabase();
   }
 
@@ -271,7 +279,7 @@ class UserContextDB {
       }
     }
     
-    context.ultima_atualizacao = new Date().toISOString();
+    context.ultima_atualizacao = getBrazilDateTime();
     this.saveDatabase();
   }
 
@@ -283,7 +291,7 @@ class UserContextDB {
     
     if (context.relacionamento_nazuna.hasOwnProperty(campo)) {
       context.relacionamento_nazuna[campo] = valor;
-      context.ultima_atualizacao = new Date().toISOString();
+      context.ultima_atualizacao = getBrazilDateTime();
       this.saveDatabase();
     }
   }
@@ -296,7 +304,7 @@ class UserContextDB {
     
     const novaMemoria = {
       texto: memoria,
-      data: new Date().toISOString(),
+      data: getBrazilDateTime(),
       importancia: 'alta'
     };
     
@@ -308,7 +316,7 @@ class UserContextDB {
         context.relacionamento_nazuna.memorias_especiais.slice(-30);
     }
     
-    context.ultima_atualizacao = new Date().toISOString();
+    context.ultima_atualizacao = getBrazilDateTime();
     this.saveDatabase();
   }
 
