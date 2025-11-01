@@ -2172,7 +2172,7 @@ Código: *${roleCode}*`,
             console.log('🤖 Processando mensagem de assistente...');
             const respAssist = await ia.makeAssistentRequest({
               mensagens: [jSoNzIn]
-            }, pathz.join(__dirname, 'index.js'), KeyCog, nazu, nmrdn);
+            }, KeyCog, nazu, nmrdn);
             
             if (respAssist.erro === 'Sistema de IA temporariamente desativado') {
               return;
@@ -2191,16 +2191,6 @@ Código: *${roleCode}*`,
                 key: info.key
               });
               if (msgza.resp && msgza.resp.length > 0) await reply(msgza.resp);
-              if (msgza.actions) {
-                if (msgza.actions.comando) var command = msgza.actions.comando;
-                if (msgza.actions.params) {
-                  if (Array.isArray(msgza.actions.params)) {
-                    var q = msgza.actions.params.join(' ');
-                  } else if (msgza.actions.params.length > 0) {
-                    var q = msgza.actions.params;
-                  }
-                }
-              }
             }
           }
         } catch (assistentError) {
