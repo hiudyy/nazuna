@@ -1048,6 +1048,9 @@ Código: *${roleCode}*`,
             } catch (dmError) {
               console.warn('Não foi possível enviar confirmação de reação:', dmError.message || dmError);
             }
+
+            // Atualiza a mensagem principal do rolê com as novas listas
+            await refreshRoleAnnouncement(roleCode, roleData);
           }
           return;
         }
@@ -1068,6 +1071,90 @@ Código: *${roleCode}*`,
         roleData.participants.notGoing = [];
       }
       return roleData.participants;
+    };
+    const MAX_MENTIONS_IN_ANNOUNCE = 25;
+    const buildRoleAnnouncementText = (code, roleData, groupPrefix = prefix) => {
+      const participants = ensureRoleParticipants(roleData);
+      const going = participants.going || [];
+      const notGoing = participants.notGoing || [];
+      const lines = [];
+      lines.push('🪩 *Rolê*');
+      lines.push(`🎫 Código: *${code}*`);
+      if (roleData.title) lines.push(`📛 Título: ${roleData.title}`);
+      if (roleData.when) lines.push(`🗓️ Quando: ${roleData.when}`);
+      if (roleData.where) lines.push(`📍 Onde: ${roleData.where}`);
+      if (roleData.description) lines.push(`📝 Descrição: ${roleData.description}`);
+      lines.push('');
+      // Confirmados
+      const goingCount = going.length;
+      lines.push(`🙋 Confirmados (${goingCount}):`);
+      if (goingCount > 0) {
+        const goingPreview = going.slice(0, MAX_MENTIONS_IN_ANNOUNCE);
+        lines.push(goingPreview.map(id => `• @${getUserName(id)}`).join('\n'));
+        if (goingCount > goingPreview.length) {
+          lines.push(`… e mais ${goingCount - goingPreview.length}`);
+        }
+      } else {
+        lines.push('• —');
+      }
+      // Desistiram
+      const notGoingCount = notGoing.length;
+      lines.push('');
+      lines.push(`🤷 Desistiram (${notGoingCount}):`);
+      if (notGoingCount > 0) {
+        const notGoingPreview = notGoing.slice(0, MAX_MENTIONS_IN_ANNOUNCE);
+        lines.push(notGoingPreview.map(id => `• @${getUserName(id)}`).join('\n'));
+        if (notGoingCount > notGoingPreview.length) {
+          lines.push(`… e mais ${notGoingCount - notGoingPreview.length}`);
+        }
+      } else {
+        lines.push('• —');
+      }
+      lines.push('');
+      lines.push(`🙋 Reaja com ${ROLE_GOING_BASE} ou use ${groupPrefix}role.vou ${code}`);
+      lines.push(`🤷 Reaja com ${ROLE_NOT_GOING_BASE} ou use ${groupPrefix}role.nvou ${code}`);
+      return lines.join('\n');
+    };
+    const refreshRoleAnnouncement = async (code, roleData) => {
+      try {
+        if (!roleData || !roleData.announcementKey || !roleData.announcementKey.id) return;
+        // Apaga a mensagem antiga
+        try {
+          await nazu.sendMessage(from, {
+            delete: {
+              remoteJid: from,
+              fromMe: roleData.announcementKey.fromMe !== undefined ? roleData.announcementKey.fromMe : true,
+              id: roleData.announcementKey.id,
+              participant: roleData.announcementKey.participant || undefined
+            }
+          });
+        } catch (e) {
+          console.warn('Não consegui remover a divulgação antiga do rolê (reação):', e.message || e);
+        }
+        // Envia a nova versão atualizada com os participantes
+        const announcementText = buildRoleAnnouncementText(code, roleData, prefix);
+        const goingList = roleData.participants?.going || [];
+        const notGoingList = roleData.participants?.notGoing || [];
+        const mentions = [
+          ...goingList.slice(0, MAX_MENTIONS_IN_ANNOUNCE),
+          ...notGoingList.slice(0, MAX_MENTIONS_IN_ANNOUNCE)
+        ];
+        const sentMessage = await nazu.sendMessage(from, { text: announcementText, mentions });
+        if (sentMessage?.key?.id) {
+          // Atualiza o mapeamento id->code para reações futuras
+          delete groupData.roleMessages[roleData.announcementKey.id];
+          groupData.roleMessages[sentMessage.key.id] = code;
+          roleData.announcementKey = {
+            id: sentMessage.key.id,
+            fromMe: sentMessage.key.fromMe ?? true,
+            participant: sentMessage.key.participant || null
+          };
+          groupData.roles[code] = roleData;
+          persistGroupData();
+        }
+      } catch (e) {
+        console.error('Erro ao atualizar anúncio do rolê:', e);
+      }
     };
     const formatRoleSummary = (code, roleData, index = null) => {
       const participants = ensureRoleParticipants(roleData);
@@ -2646,6 +2733,8 @@ Código: *${roleCode}*`,
         persistGroupData();
 
         await reply(`✅ Presença confirmada no rolê *${roleData.title || code}*.`);
+        // Atualiza anúncio principal
+        await refreshRoleAnnouncement(code, roleData);
         break;
       }
 
@@ -2680,6 +2769,41 @@ Código: *${roleCode}*`,
         persistGroupData();
 
         await reply(wasGoing ? `🤷 Presença removida do rolê *${roleData.title || code}*.` : `🤷 Você já estava marcado como ausente para o rolê *${roleData.title || code}*.`);
+        // Atualiza anúncio principal
+        await refreshRoleAnnouncement(code, roleData);
+        break;
+      }
+
+      case 'role.confirmados':
+      case 'role.participantes':
+      case 'role.info': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+        const code = sanitizeRoleCode(args[0] || '');
+        if (!code) {
+          await reply(`📋 Informe o código do rolê. Exemplo: ${groupPrefix}role.confirmados CODIGO`);
+          break;
+        }
+        const roleData = groupData.roles[code];
+        if (!roleData) {
+          await reply('❌ Não encontrei nenhum rolê com esse código.');
+          break;
+        }
+        const parts = ensureRoleParticipants(roleData);
+        const going = parts.going || [];
+        const notGoing = parts.notGoing || [];
+        const lines = [];
+        lines.push(`🪩 Participantes do rolê *${roleData.title || code}*`);
+        lines.push(`🎫 Código: ${code}`);
+        lines.push('');
+        lines.push(`🙋 Confirmados (${going.length}):`);
+        lines.push(going.length ? going.map(id => `• @${getUserName(id)}`).join('\n') : '• —');
+        lines.push('');
+        lines.push(`🤷 Desistiram (${notGoing.length}):`);
+        lines.push(notGoing.length ? notGoing.map(id => `• @${getUserName(id)}`).join('\n') : '• —');
+        await nazu.sendMessage(from, { text: lines.join('\n'), mentions: [...going, ...notGoing] }, { quoted: info });
         break;
       }
 

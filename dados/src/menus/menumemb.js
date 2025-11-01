@@ -42,6 +42,7 @@ ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}roles
 ${middleBorder}${menuItemIcon}${prefix}role.vou
 ${middleBorder}${menuItemIcon}${prefix}role.nvou
+${middleBorder}${menuItemIcon}${prefix}role.confirmados
 ${middleBorder}${menuItemIcon}${prefix}resenha.pagos
 ${bottomBorder}
 
