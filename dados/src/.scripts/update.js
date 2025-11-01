@@ -295,7 +295,8 @@ async function downloadUpdate() {
   }
 }
 
-async function cleanOldFiles() {
+async function cleanOldFiles(options = {}) {
+  const { removeNodeModules = true, removePackageLock = true } = options;
   printMessage('🧹 Limpando arquivos antigos...');
 
   try {
@@ -303,10 +304,20 @@ async function cleanOldFiles() {
       { path: path.join(process.cwd(), '.git'), type: 'dir', name: '.git' },
       { path: path.join(process.cwd(), '.github'), type: 'dir', name: '.github' },
       { path: path.join(process.cwd(), '.npm'), type: 'dir', name: '.npm' },
-      { path: path.join(process.cwd(), 'node_modules'), type: 'dir', name: 'node_modules' },
-      { path: path.join(process.cwd(), 'package-lock.json'), type: 'file', name: 'package-lock.json' },
       { path: path.join(process.cwd(), 'README.md'), type: 'file', name: 'README.md' },
     ];
+
+    if (removeNodeModules) {
+      itemsToDelete.push({ path: path.join(process.cwd(), 'node_modules'), type: 'dir', name: 'node_modules' });
+    } else {
+      printDetail('🛠️ Mantendo node_modules existente.');
+    }
+
+    if (removePackageLock) {
+      itemsToDelete.push({ path: path.join(process.cwd(), 'package-lock.json'), type: 'file', name: 'package-lock.json' });
+    } else {
+      printDetail('🛠️ Mantendo package-lock.json existente.');
+    }
 
     for (const item of itemsToDelete) {
       if (fsSync.existsSync(item.path)) {
@@ -467,8 +478,8 @@ function satisfiesNodeVersion(currentVersion, requiredVersion) {
   return true; // Versions are equal or current satisfies requirement
 }
 
-async function installDependencies() {
-  const checkResult = await checkDependencyChanges();
+async function installDependencies(precomputedResult) {
+  const checkResult = precomputedResult ?? await checkDependencyChanges();
   if (checkResult === 'NO_CHANGES') {
     printMessage('⚡ Dependências já estão atualizadas, pulando instalação');
     return;
@@ -525,6 +536,7 @@ async function main() {
   let backupCreated = false;
   let downloadSuccessful = false;
   let updateApplied = false;
+  let dependencyCheckResult = null;
   
   try {
     setupGracefulShutdown();
@@ -538,13 +550,18 @@ async function main() {
     await downloadUpdate();
     downloadSuccessful = true;
     if (!fsSync.existsSync(TEMP_DIR)) throw new Error('Falha ao baixar atualização');
-    await cleanOldFiles();
+    dependencyCheckResult = await checkDependencyChanges();
+    const shouldRemoveModules = dependencyCheckResult !== 'NO_CHANGES';
+    await cleanOldFiles({
+      removeNodeModules: shouldRemoveModules,
+      removePackageLock: shouldRemoveModules,
+    });
     await applyUpdate();
     updateApplied = true;
     const newPackageJson = path.join(process.cwd(), 'package.json');
     if (!fsSync.existsSync(newPackageJson)) throw new Error('Falha ao aplicar atualização - package.json ausente');
     await restoreBackup();
-    await installDependencies();
+    await installDependencies(dependencyCheckResult);
     await cleanup();
     printMessage('🔄 Buscando informações do último commit...');
     const response = await fetch('https://api.github.com/repos/hiudyy/nazuna/commits?per_page=1', {
