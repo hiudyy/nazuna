@@ -494,6 +494,104 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const sender_ou_n = (menc_jid2 && menc_jid2.length > 0) ? menc_jid2[0] : menc_prt || sender;
   const groupFile = buildGroupFilePath(from);
     let groupData = {};
+
+    // ==== Helpers de Rolê (definidos fora de blocos para uso global dentro da função) ====
+    function ensureRoleParticipants(roleData) {
+      if (!roleData.participants || typeof roleData.participants !== 'object') {
+        roleData.participants = {};
+      }
+      if (!Array.isArray(roleData.participants.going)) {
+        roleData.participants.going = [];
+      }
+      if (!Array.isArray(roleData.participants.notGoing)) {
+        roleData.participants.notGoing = [];
+      }
+      return roleData.participants;
+    }
+
+    const MAX_MENTIONS_IN_ANNOUNCE = 25;
+
+    function buildRoleAnnouncementText(code, roleData, groupPrefix = prefix) {
+      const participants = ensureRoleParticipants(roleData);
+      const going = participants.going || [];
+      const notGoing = participants.notGoing || [];
+      const lines = [];
+      lines.push('🪩 *Rolê*');
+      lines.push(`🎫 Código: *${code}*`);
+      if (roleData.title) lines.push(`📛 Título: ${roleData.title}`);
+      if (roleData.when) lines.push(`🗓️ Quando: ${roleData.when}`);
+      if (roleData.where) lines.push(`📍 Onde: ${roleData.where}`);
+      if (roleData.description) lines.push(`📝 Descrição: ${roleData.description}`);
+      lines.push('');
+      const goingCount = going.length;
+      lines.push(`🙋 Confirmados (${goingCount}):`);
+      if (goingCount > 0) {
+        const goingPreview = going.slice(0, MAX_MENTIONS_IN_ANNOUNCE);
+        lines.push(goingPreview.map(id => `• @${getUserName(id)}`).join('\n'));
+        if (goingCount > goingPreview.length) lines.push(`… e mais ${goingCount - goingPreview.length}`);
+      } else {
+        lines.push('• —');
+      }
+      const notGoingCount = notGoing.length;
+      lines.push('');
+      lines.push(`🤷 Desistiram (${notGoingCount}):`);
+      if (notGoingCount > 0) {
+        const notGoingPreview = notGoing.slice(0, MAX_MENTIONS_IN_ANNOUNCE);
+        lines.push(notGoingPreview.map(id => `• @${getUserName(id)}`).join('\n'));
+        if (notGoingCount > notGoingPreview.length) lines.push(`… e mais ${notGoingCount - notGoingPreview.length}`);
+      } else {
+        lines.push('• —');
+      }
+      lines.push('');
+      lines.push(`🙋 Reaja com ${ROLE_GOING_BASE} ou use ${groupPrefix}role.vou ${code}`);
+      lines.push(`🤷 Reaja com ${ROLE_NOT_GOING_BASE} ou use ${groupPrefix}role.nvou ${code}`);
+      return lines.join('\n');
+    }
+
+    async function refreshRoleAnnouncement(code, roleData) {
+      try {
+        if (!roleData || !roleData.announcementKey || !roleData.announcementKey.id) return;
+        try {
+          await nazu.sendMessage(from, {
+            delete: {
+              remoteJid: from,
+              fromMe: roleData.announcementKey.fromMe !== undefined ? roleData.announcementKey.fromMe : true,
+              id: roleData.announcementKey.id,
+              participant: roleData.announcementKey.participant || undefined
+            }
+          });
+        } catch (e) {
+          console.warn('Não consegui remover a divulgação antiga do rolê (reação):', e.message || e);
+        }
+        const announcementText = buildRoleAnnouncementText(code, roleData, prefix);
+        const goingList = roleData.participants?.going || [];
+        const notGoingList = roleData.participants?.notGoing || [];
+        const mentions = [
+          ...goingList.slice(0, MAX_MENTIONS_IN_ANNOUNCE),
+          ...notGoingList.slice(0, MAX_MENTIONS_IN_ANNOUNCE)
+        ];
+        const sentMessage = await nazu.sendMessage(from, { text: announcementText, mentions });
+        if (sentMessage?.key?.id) {
+          if (!groupData.roleMessages || typeof groupData.roleMessages !== 'object') {
+            groupData.roleMessages = {};
+          }
+          delete groupData.roleMessages[roleData.announcementKey.id];
+          groupData.roleMessages[sentMessage.key.id] = code;
+          roleData.announcementKey = {
+            id: sentMessage.key.id,
+            fromMe: sentMessage.key.fromMe ?? true,
+            participant: sentMessage.key.participant || null
+          };
+          if (!groupData.roles || typeof groupData.roles !== 'object') {
+            groupData.roles = {};
+          }
+          groupData.roles[code] = roleData;
+          persistGroupData();
+        }
+      } catch (e) {
+        console.error('Erro ao atualizar anúncio do rolê:', e);
+      }
+    }
     const groupMetadata = !isGroup ? {} : await getCachedGroupMetadata(from).catch(() => ({}));
     const groupName = groupMetadata?.subject || '';
     if (isGroup) {
@@ -526,97 +624,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         groupData.roleMessages = {};
       }
 
-      // ==== Helpers de Rolê (definidos cedo para evitar TDZ com const/let) ====
-      function ensureRoleParticipants(roleData) {
-        if (!roleData.participants || typeof roleData.participants !== 'object') {
-          roleData.participants = {};
-        }
-        if (!Array.isArray(roleData.participants.going)) {
-          roleData.participants.going = [];
-        }
-        if (!Array.isArray(roleData.participants.notGoing)) {
-          roleData.participants.notGoing = [];
-        }
-        return roleData.participants;
-      }
-
-      const MAX_MENTIONS_IN_ANNOUNCE = 25;
-
-      function buildRoleAnnouncementText(code, roleData, groupPrefix = prefix) {
-        const participants = ensureRoleParticipants(roleData);
-        const going = participants.going || [];
-        const notGoing = participants.notGoing || [];
-        const lines = [];
-        lines.push('🪩 *Rolê*');
-        lines.push(`🎫 Código: *${code}*`);
-        if (roleData.title) lines.push(`📛 Título: ${roleData.title}`);
-        if (roleData.when) lines.push(`🗓️ Quando: ${roleData.when}`);
-        if (roleData.where) lines.push(`📍 Onde: ${roleData.where}`);
-        if (roleData.description) lines.push(`📝 Descrição: ${roleData.description}`);
-        lines.push('');
-        const goingCount = going.length;
-        lines.push(`🙋 Confirmados (${goingCount}):`);
-        if (goingCount > 0) {
-          const goingPreview = going.slice(0, MAX_MENTIONS_IN_ANNOUNCE);
-          lines.push(goingPreview.map(id => `• @${getUserName(id)}`).join('\n'));
-          if (goingCount > goingPreview.length) lines.push(`… e mais ${goingCount - goingPreview.length}`);
-        } else {
-          lines.push('• —');
-        }
-        const notGoingCount = notGoing.length;
-        lines.push('');
-        lines.push(`🤷 Desistiram (${notGoingCount}):`);
-        if (notGoingCount > 0) {
-          const notGoingPreview = notGoing.slice(0, MAX_MENTIONS_IN_ANNOUNCE);
-          lines.push(notGoingPreview.map(id => `• @${getUserName(id)}`).join('\n'));
-          if (notGoingCount > notGoingPreview.length) lines.push(`… e mais ${notGoingCount - notGoingPreview.length}`);
-        } else {
-          lines.push('• —');
-        }
-        lines.push('');
-        lines.push(`🙋 Reaja com ${ROLE_GOING_BASE} ou use ${groupPrefix}role.vou ${code}`);
-        lines.push(`🤷 Reaja com ${ROLE_NOT_GOING_BASE} ou use ${groupPrefix}role.nvou ${code}`);
-        return lines.join('\n');
-      }
-
-      async function refreshRoleAnnouncement(code, roleData) {
-        try {
-          if (!roleData || !roleData.announcementKey || !roleData.announcementKey.id) return;
-          try {
-            await nazu.sendMessage(from, {
-              delete: {
-                remoteJid: from,
-                fromMe: roleData.announcementKey.fromMe !== undefined ? roleData.announcementKey.fromMe : true,
-                id: roleData.announcementKey.id,
-                participant: roleData.announcementKey.participant || undefined
-              }
-            });
-          } catch (e) {
-            console.warn('Não consegui remover a divulgação antiga do rolê (reação):', e.message || e);
-          }
-          const announcementText = buildRoleAnnouncementText(code, roleData, prefix);
-          const goingList = roleData.participants?.going || [];
-          const notGoingList = roleData.participants?.notGoing || [];
-          const mentions = [
-            ...goingList.slice(0, MAX_MENTIONS_IN_ANNOUNCE),
-            ...notGoingList.slice(0, MAX_MENTIONS_IN_ANNOUNCE)
-          ];
-          const sentMessage = await nazu.sendMessage(from, { text: announcementText, mentions });
-          if (sentMessage?.key?.id) {
-            delete groupData.roleMessages[roleData.announcementKey.id];
-            groupData.roleMessages[sentMessage.key.id] = code;
-            roleData.announcementKey = {
-              id: sentMessage.key.id,
-              fromMe: sentMessage.key.fromMe ?? true,
-              participant: sentMessage.key.participant || null
-            };
-            groupData.roles[code] = roleData;
-            persistGroupData();
-          }
-        } catch (e) {
-          console.error('Erro ao atualizar anúncio do rolê:', e);
-        }
-      }
       if (!groupData.resenha || typeof groupData.resenha !== 'object') {
         groupData.resenha = {
           active: false,
