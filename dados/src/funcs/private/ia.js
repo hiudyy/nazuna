@@ -636,43 +636,52 @@ function extractJSON(content) {
   // Remover blocos de código markdown de forma mais robusta
   let cleanContent = content.trim();
   
-  // Remover ```json no início e ``` no final
-  cleanContent = cleanContent.replace(/^```json\s*/gi, '');
-  cleanContent = cleanContent.replace(/^```\s*/gi, '');
-  cleanContent = cleanContent.replace(/```\s*$/gi, '');
+  // Remover todos os tipos de marcadores de código markdown
+  cleanContent = cleanContent.replace(/^```json\s*/gim, '');
+  cleanContent = cleanContent.replace(/^```javascript\s*/gim, '');
+  cleanContent = cleanContent.replace(/^```\s*/gm, '');
+  cleanContent = cleanContent.replace(/```\s*$/gm, '');
   cleanContent = cleanContent.trim();
 
   // Tentar extrair JSON diretamente
   try {
     const parsed = JSON.parse(cleanContent);
+    console.log('✅ JSON extraído com sucesso (parse direto)');
     return parsed;
   } catch (e) {
-    // Se falhar, tentar encontrar JSON no conteúdo
+    // Se falhar, tentar corrigir problemas comuns
   }
 
-  // Padrões para encontrar JSON no texto
-  const jsonPatterns = [
-    /{[\s\S]*}/,
-    /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/,
-    /^\s*\{[\s\S]*\}\s*$/m
-  ];
-
-  for (const pattern of jsonPatterns) {
-    const match = cleanContent.match(pattern);
-    if (match) {
-      try {
-        const parsed = JSON.parse(match[0]);
-        console.log('✅ JSON extraído com sucesso');
-        return parsed;
-      } catch (e) {
-        console.warn('Tentativa de parse falhou:', e.message);
-        continue;
-      }
+  // Tentar encontrar o JSON dentro do texto usando regex mais específico
+  const jsonMatch = cleanContent.match(/\{(?:[^{}]|(\{(?:[^{}]|\{[^{}]*\})*\}))*\}/s);
+  
+  if (jsonMatch) {
+    let jsonString = jsonMatch[0];
+    
+    // Tentar corrigir quebras de linha dentro de strings JSON
+    // Isso substitui quebras de linha literais por \n, mas apenas dentro de strings
+    try {
+      // Primeiro, vamos tentar um parse relaxado usando eval (cuidado!)
+      // Substituir quebras de linha literais dentro de strings
+      const fixedJson = jsonString.replace(/"([^"]*?)"/gs, (match, content) => {
+        // Substituir quebras de linha dentro da string por \\n
+        const fixed = content.replace(/\r?\n/g, '\\n');
+        return `"${fixed}"`;
+      });
+      
+      const parsed = JSON.parse(fixedJson);
+      console.log('✅ JSON extraído com sucesso (com correção de quebras de linha)');
+      return parsed;
+    } catch (e) {
+      console.warn('Falha ao fazer parse do JSON encontrado:', e.message);
     }
   }
 
-  console.error('❌ Não foi possível extrair JSON válido da resposta. Conteúdo:', content);
-  return { resp: [{ resp: cleanWhatsAppFormatting(content) || "Não entendi a resposta, pode tentar de novo?" }] };
+  console.error('❌ Não foi possível extrair JSON válido da resposta.');
+  console.error('Conteúdo recebido (primeiros 200 chars):', content.substring(0, 200) + '...');
+  
+  // Retornar o conteúdo limpo como resposta de fallback
+  return { resp: [{ resp: cleanWhatsAppFormatting(cleanContent) || "Não entendi a resposta, pode tentar de novo?" }] };
 }
 
 function validateMessage(msg) {
