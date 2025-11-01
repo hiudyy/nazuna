@@ -1974,8 +1974,8 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     }
 
     // Verificar comandos personalizados do dono
-    if (!isCmd && body) {
-      const normalizedTrigger = normalizar(body.split(' ')[0] || '').replace(/\s+/g, '');
+    if (isCmd && command) {
+      const normalizedTrigger = normalizar(command);
       const customCmd = findCustomCommand(normalizedTrigger);
       if (customCmd) {
         try {
