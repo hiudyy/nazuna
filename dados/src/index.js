@@ -147,7 +147,13 @@ const API_KEY_REQUIRED_MESSAGE = 'Este comando precisa de API key para funcionar
 const OWNER_ONLY_MESSAGE = '🚫 Este comando é apenas para o dono do bot!';
 
 const writeJsonFile = (filePath, data) => {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  try {
+    ensureDirectoryExists(pathz.dirname(filePath));
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error(`Erro ao escrever JSON em ${filePath}:`, error);
+    throw error;
+  }
 };
 
 let performanceOptimizerInstance = null;
@@ -1157,6 +1163,49 @@ Código: *${roleCode}*`,
       
       return { valid: true, timeStr };
     };
+    const normalizeScheduleTime = (timeStr) => {
+      if (typeof timeStr !== 'string') return null;
+      const trimmed = timeStr.trim();
+      const match = trimmed.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+      if (!match) return null;
+      const hours = String(parseInt(match[1], 10)).padStart(2, '0');
+      const minutes = match[2];
+      return `${hours}:${minutes}`;
+    };
+    const hasRunForScheduleToday = (entry, today, targetTime) => {
+      if (!entry) return false;
+      if (typeof entry === 'string') {
+        return entry === today;
+      }
+      if (typeof entry === 'object') {
+        const { date, time } = entry;
+        if (!date || date !== today) return false;
+        if (!targetTime) return true;
+        if (!time) return true;
+        return time === targetTime;
+      }
+      return false;
+    };
+    const recordScheduleRun = (schedule, key, today, targetTime) => {
+      if (!schedule || typeof schedule !== 'object') return;
+      schedule.lastRun = typeof schedule.lastRun === 'object' && schedule.lastRun !== null ? schedule.lastRun : {};
+      schedule.lastRun[key] = {
+        date: today,
+        time: targetTime
+      };
+    };
+    const formatScheduleLastRun = (entry) => {
+      if (!entry) return '—';
+      if (typeof entry === 'string') return entry;
+      if (typeof entry === 'object') {
+        const date = entry.date || '—';
+        if (entry.time) {
+          return `${date} ${entry.time}`;
+        }
+        return date;
+      }
+      return '—';
+    };
     const getNowMinutes = () => {
       // Use Brazil/Sao_Paulo timezone for accurate time comparisons
       const now = new Date();
@@ -1297,15 +1346,16 @@ Código: *${roleCode}*`,
         global.gpScheduleWorkerStarted = true;
         setInterval(async () => {
           try {
+            if (!ensureDirectoryExists(GRUPOS_DIR)) return;
             const files = fs.readdirSync(GRUPOS_DIR).filter(f => f.endsWith('.json'));
             if (!files.length) return;
-            
+
             const nowMin = getNowMinutes();
             const today = getTodayStr();
-            
-            
+
             for (const f of files) {
               const groupId = f.replace(/\.json$/, '');
+              if (!groupId.endsWith('@g.us')) continue;
               const filePath = pathz.join(GRUPOS_DIR, f);
               let data;
               try {
@@ -1314,43 +1364,61 @@ Código: *${roleCode}*`,
                 console.error(`[Schedule Worker] Error reading group file ${f}:`, e);
                 continue;
               }
-              
-              const schedule = data.schedule || {};
-              const lastRun = schedule.lastRun || {};
-              
-              
-              // Handle opening schedule
-              if (schedule.openTime) {
-                const t = parseTimeToMinutes(schedule.openTime);
-                if (t !== null && t === nowMin && lastRun.open !== today) {
-                  try {
-                    await nazuInstance.groupSettingUpdate(groupId, 'not_announcement');
-                    await nazuInstance.sendMessage(groupId, { text: '🔓 Grupo aberto automaticamente pelo agendamento diário.' });
-                    schedule.lastRun = schedule.lastRun || {};
-                    schedule.lastRun.open = today;
-                    data.schedule = schedule;
-                    writeJsonFile(filePath, data);
-                  } catch (e) {
-                    console.error(`[Schedule Error] Failed to open group ${groupId}:`, e);
-                  }
+
+              const schedule = data.schedule && typeof data.schedule === 'object' ? data.schedule : {};
+              let scheduleChanged = false;
+              let schedulePersisted = false;
+
+              if (schedule.lastRun && typeof schedule.lastRun !== 'object') {
+                schedule.lastRun = {};
+                scheduleChanged = true;
+              }
+
+              const openTimeRaw = typeof schedule.openTime === 'string' ? schedule.openTime : '';
+              const openTime = normalizeScheduleTime(openTimeRaw);
+              if (openTime && openTime !== openTimeRaw) {
+                schedule.openTime = openTime;
+                scheduleChanged = true;
+              }
+              const openMinutes = openTime ? parseTimeToMinutes(openTime) : null;
+
+              if (openMinutes !== null && openMinutes === nowMin && !hasRunForScheduleToday(schedule.lastRun?.open, today, openTime)) {
+                try {
+                  await nazuInstance.groupSettingUpdate(groupId, 'not_announcement');
+                  await nazuInstance.sendMessage(groupId, { text: '🔓 Grupo aberto automaticamente pelo agendamento diário.' });
+                  recordScheduleRun(schedule, 'open', today, openTime);
+                  data.schedule = schedule;
+                  writeJsonFile(filePath, data);
+                  schedulePersisted = true;
+                } catch (e) {
+                  console.error(`[Schedule Error] Failed to open group ${groupId}:`, e);
                 }
               }
-              
-              // Handle closing schedule
-              if (schedule.closeTime) {
-                const t = parseTimeToMinutes(schedule.closeTime);
-                if (t !== null && t === nowMin && lastRun.close !== today) {
-                  try {
-                    await nazuInstance.groupSettingUpdate(groupId, 'announcement');
-                    await nazuInstance.sendMessage(groupId, { text: '🔒 Grupo fechado automaticamente pelo agendamento diário.' });
-                    schedule.lastRun = schedule.lastRun || {};
-                    schedule.lastRun.close = today;
-                    data.schedule = schedule;
-                    writeJsonFile(filePath, data);
-                  } catch (e) {
-                    console.error(`[Schedule Error] Failed to close group ${groupId}:`, e);
-                  }
+
+              const closeTimeRaw = typeof schedule.closeTime === 'string' ? schedule.closeTime : '';
+              const closeTime = normalizeScheduleTime(closeTimeRaw);
+              if (closeTime && closeTime !== closeTimeRaw) {
+                schedule.closeTime = closeTime;
+                scheduleChanged = true;
+              }
+              const closeMinutes = closeTime ? parseTimeToMinutes(closeTime) : null;
+
+              if (closeMinutes !== null && closeMinutes === nowMin && !hasRunForScheduleToday(schedule.lastRun?.close, today, closeTime)) {
+                try {
+                  await nazuInstance.groupSettingUpdate(groupId, 'announcement');
+                  await nazuInstance.sendMessage(groupId, { text: '🔒 Grupo fechado automaticamente pelo agendamento diário.' });
+                  recordScheduleRun(schedule, 'close', today, closeTime);
+                  data.schedule = schedule;
+                  writeJsonFile(filePath, data);
+                  schedulePersisted = true;
+                } catch (e) {
+                  console.error(`[Schedule Error] Failed to close group ${groupId}:`, e);
                 }
+              }
+
+              if (!schedulePersisted && scheduleChanged) {
+                data.schedule = schedule;
+                writeJsonFile(filePath, data);
               }
             }
           } catch (err) {
@@ -8514,8 +8582,8 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const schedule = groupData.schedule || {};
           const openTime = schedule.openTime ? schedule.openTime : '—';
           const closeTime = schedule.closeTime ? schedule.closeTime : '—';
-          const lastOpen = schedule.lastRun?.open ? schedule.lastRun.open : '—';
-          const lastClose = schedule.lastRun?.close ? schedule.lastRun.close : '—';
+          const lastOpen = formatScheduleLastRun(schedule.lastRun?.open);
+          const lastClose = formatScheduleLastRun(schedule.lastRun?.close);
           const linesHeader = [
             "╭───📊 STATUS DO GRUPO ───╮",
             `┊ 📝 Nome: ${subject}`,
@@ -9250,30 +9318,46 @@ case 'roubar':
           if (!isGroup) return reply('Este comando só pode ser usado em grupos 💔');
           if (!isGroupAdmin) return reply('Apenas administradores podem usar este comando 💔');
           if (!q) return reply(`Uso: ${groupPrefix}${command} HH:MM (24h)\nExemplos: ${groupPrefix}${command} 07:00 | ${groupPrefix}${command} off`);
-          const arg = q.trim().toLowerCase();
+          const rawArg = q.trim();
+          const argLower = rawArg.toLowerCase();
           const groupFilePath = pathz.join(GRUPOS_DIR, `${from}.json`);
           let data = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath, 'utf-8')) : {};
           data.schedule = data.schedule || {};
           
           // Handle disabling the schedule
-          if (arg === 'off' || arg === 'desativar' || arg === 'remove' || arg === 'rm') {
+          if (argLower === 'off' || argLower === 'desativar' || argLower === 'remove' || argLower === 'rm') {
             delete data.schedule.openTime;
-            if (data.schedule?.lastRun) delete data.schedule.lastRun.open;
+            if (data.schedule?.lastRun) {
+              delete data.schedule.lastRun.open;
+              if (Object.keys(data.schedule.lastRun).length === 0) {
+                delete data.schedule.lastRun;
+              }
+            }
             writeJsonFile(groupFilePath, data);
             return reply('✅ Agendamento diário para ABRIR o grupo foi removido.');
           }
           
           // Validate time format with enhanced validation
-          const timeValidation = validateTimeFormat(arg);
+          const timeValidation = validateTimeFormat(rawArg);
           if (!timeValidation.valid) {
             return reply(`⏰ ${timeValidation.error}\nExemplo: ${prefix}opengp 07:30`);
           }
+          const normalizedTime = normalizeScheduleTime(rawArg);
+          if (!normalizedTime) {
+            return reply(`⏰ Não consegui entender o horário informado. Use o formato HH:MM, por exemplo ${prefix}opengp 07:30`);
+          }
           
           // Save the schedule
-          data.schedule.openTime = arg;
+          data.schedule.openTime = normalizedTime;
+          if (data.schedule.lastRun && typeof data.schedule.lastRun === 'object') {
+            delete data.schedule.lastRun.open;
+            if (Object.keys(data.schedule.lastRun).length === 0) {
+              delete data.schedule.lastRun;
+            }
+          }
           writeJsonFile(groupFilePath, data);
           
-          let msg = `✅ Agendamento salvo! O grupo será ABERTO todos os dias às ${arg} (horário de São Paulo).`;
+          let msg = `✅ Agendamento salvo! O grupo será ABERTO todos os dias às ${normalizedTime} (horário de São Paulo).`;
           if (!isBotAdmin) msg += '\n⚠️ Observação: Eu preciso ser administrador para efetivar a abertura no horário.';
           await reply(msg);
         } catch (e) {
@@ -9286,30 +9370,46 @@ case 'roubar':
           if (!isGroup) return reply('Este comando só pode ser usado em grupos 💔');
           if (!isGroupAdmin) return reply('Apenas administradores podem usar este comando 💔');
           if (!q) return reply(`Uso: ${groupPrefix}${command} HH:MM (24h)\nExemplos: ${groupPrefix}${command} 22:30 | ${groupPrefix}${command} off`);
-          const arg = q.trim().toLowerCase();
+          const rawArg = q.trim();
+          const argLower = rawArg.toLowerCase();
           const groupFilePath = pathz.join(GRUPOS_DIR, `${from}.json`);
           let data = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath, 'utf-8')) : {};
           data.schedule = data.schedule || {};
           
           // Handle disabling the schedule
-          if (arg === 'off' || arg === 'desativar' || arg === 'remove' || arg === 'rm') {
+          if (argLower === 'off' || argLower === 'desativar' || argLower === 'remove' || argLower === 'rm') {
             delete data.schedule.closeTime;
-            if (data.schedule?.lastRun) delete data.schedule.lastRun.close;
+            if (data.schedule?.lastRun) {
+              delete data.schedule.lastRun.close;
+              if (Object.keys(data.schedule.lastRun).length === 0) {
+                delete data.schedule.lastRun;
+              }
+            }
             writeJsonFile(groupFilePath, data);
             return reply('✅ Agendamento diário para FECHAR o grupo foi removido.');
           }
           
           // Validate time format with enhanced validation
-          const timeValidation = validateTimeFormat(arg);
+          const timeValidation = validateTimeFormat(rawArg);
           if (!timeValidation.valid) {
             return reply(`⏰ ${timeValidation.error}\nExemplo: ${prefix}closegp 22:30`);
           }
+          const normalizedTime = normalizeScheduleTime(rawArg);
+          if (!normalizedTime) {
+            return reply(`⏰ Não consegui entender o horário informado. Use o formato HH:MM, por exemplo ${prefix}closegp 22:30`);
+          }
           
           // Save the schedule
-          data.schedule.closeTime = arg;
+          data.schedule.closeTime = normalizedTime;
+          if (data.schedule.lastRun && typeof data.schedule.lastRun === 'object') {
+            delete data.schedule.lastRun.close;
+            if (Object.keys(data.schedule.lastRun).length === 0) {
+              delete data.schedule.lastRun;
+            }
+          }
           writeJsonFile(groupFilePath, data);
           
-          let msg = `✅ Agendamento salvo! O grupo será FECHADO todos os dias às ${arg} (horário de São Paulo).`;
+          let msg = `✅ Agendamento salvo! O grupo será FECHADO todos os dias às ${normalizedTime} (horário de São Paulo).`;
           if (!isBotAdmin) msg += '\n⚠️ Observação: Eu preciso ser administrador para efetivar o fechamento no horário.';
           await reply(msg);
         } catch (e) {
