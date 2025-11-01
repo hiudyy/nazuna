@@ -1609,10 +1609,18 @@ const getMenuDesignWithDefaults = (botName, userName) => {
 
 // ===== Per-User Command Limiting System =====
 const loadCommandLimits = () => {
-  return loadJsonFile(CMD_LIMIT_FILE, {
+  const data = loadJsonFile(CMD_LIMIT_FILE, {
     commands: {},
     users: {}
   });
+  if (!data || typeof data !== 'object') {
+    return { commands: {}, users: {} };
+  }
+  return {
+    ...data,
+    commands: data.commands && typeof data.commands === 'object' ? data.commands : {},
+    users: data.users && typeof data.users === 'object' ? data.users : {}
+  };
 };
 
 const saveCommandLimits = (data) => {
