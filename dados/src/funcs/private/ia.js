@@ -1247,9 +1247,10 @@ async function processUserMessages(data, key, nazu = null, ownerNumber = null) {
 
     const respostas = [];
     
-    // Contexto temporal
+    // Contexto temporal - usando horário do Brasil
     const now = new Date();
-    const hour = now.getHours();
+    const brazilTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const hour = brazilTime.getHours();
     const isNightTime = hour >= 18 || hour < 6;
     
     for (const msgValidada of mensagensValidadas) {
@@ -1273,8 +1274,8 @@ async function processUserMessages(data, key, nazu = null, ownerNumber = null) {
         contexto_temporal: {
           horario: hour,
           noite: isNightTime,
-          data: now.toLocaleDateString('pt-BR'),
-          diaSemana: now.toLocaleDateString('pt-BR', { weekday: 'long' })
+          data: brazilTime.toLocaleDateString('pt-BR'),
+          diaSemana: brazilTime.toLocaleDateString('pt-BR', { weekday: 'long' })
         }
       };
 
@@ -1806,9 +1807,11 @@ function processLearning(grupoUserId, aprender, mensagemOriginal) {
 
 // Funções auxiliares para personalização Nazuna
 function getNazunaGreeting(isNightTime, now) {
-  const hour = now.getHours();
-  const dayOfWeek = now.toLocaleDateString('pt-BR', { weekday: 'long' });
-  const date = now.toLocaleDateString('pt-BR');
+  // Garantir que usa horário do Brasil
+  const brazilTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const hour = brazilTime.getHours();
+  const dayOfWeek = brazilTime.toLocaleDateString('pt-BR', { weekday: 'long' });
+  const date = brazilTime.toLocaleDateString('pt-BR');
   
   if (isNightTime) {
     return `N-Noite... meu horário favorito! 🌙✨ É ${date}, ${dayOfWeek}.`;
@@ -1820,9 +1823,11 @@ function getNazunaGreeting(isNightTime, now) {
 }
 
 function getNazunaSeasonalGreeting() {
+  // Garantir que usa horário do Brasil
   const now = new Date();
-  const month = now.getMonth();
-  const day = now.getDate();
+  const brazilTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const month = brazilTime.getMonth();
+  const day = brazilTime.getDate();
   
   // Aniversário Nazuna (assumindo 25 de dezembro)
   if (month === 11 && day === 25) {
