@@ -633,8 +633,24 @@ function extractJSON(content) {
     return { resp: [{ resp: content }] };
   }
 
-  let cleanContent = content.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
+  // Remover blocos de código markdown de forma mais robusta
+  let cleanContent = content.trim();
+  
+  // Remover ```json no início e ``` no final
+  cleanContent = cleanContent.replace(/^```json\s*/gi, '');
+  cleanContent = cleanContent.replace(/^```\s*/gi, '');
+  cleanContent = cleanContent.replace(/```\s*$/gi, '');
+  cleanContent = cleanContent.trim();
 
+  // Tentar extrair JSON diretamente
+  try {
+    const parsed = JSON.parse(cleanContent);
+    return parsed;
+  } catch (e) {
+    // Se falhar, tentar encontrar JSON no conteúdo
+  }
+
+  // Padrões para encontrar JSON no texto
   const jsonPatterns = [
     /{[\s\S]*}/,
     /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/,
@@ -645,14 +661,17 @@ function extractJSON(content) {
     const match = cleanContent.match(pattern);
     if (match) {
       try {
-        return JSON.parse(match[0]);
+        const parsed = JSON.parse(match[0]);
+        console.log('✅ JSON extraído com sucesso');
+        return parsed;
       } catch (e) {
+        console.warn('Tentativa de parse falhou:', e.message);
         continue;
       }
     }
   }
 
-  console.error('Não foi possível extrair JSON válido da resposta. Conteúdo:', content);
+  console.error('❌ Não foi possível extrair JSON válido da resposta. Conteúdo:', content);
   return { resp: [{ resp: cleanWhatsAppFormatting(content) || "Não entendi a resposta, pode tentar de novo?" }] };
 }
 
