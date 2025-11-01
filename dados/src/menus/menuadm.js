@@ -55,6 +55,20 @@ ${middleBorder}${menuItemIcon}${prefix}setname
 ${middleBorder}${menuItemIcon}${prefix}setdesc
 ${middleBorder}${menuItemIcon}${prefix}addregra
 ${middleBorder}${menuItemIcon}${prefix}delregra
+${middleBorder}${menuItemIcon}${prefix}role.criar
+${middleBorder}${menuItemIcon}${prefix}role.alterar
+${middleBorder}${menuItemIcon}${prefix}role.excluir
+${bottomBorder}
+
+${menuTopBorder}${separatorIcon} *🎊 GESTÃO DE RESENHAS*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}resenha.nova
+${middleBorder}${menuItemIcon}${prefix}resenha.adicionar
+${middleBorder}${menuItemIcon}${prefix}resenha.alterar
+${middleBorder}${menuItemIcon}${prefix}resenha.pagar
+${middleBorder}${menuItemIcon}${prefix}resenha.todos
+${middleBorder}${menuItemIcon}${prefix}resenha.link
+${middleBorder}${menuItemIcon}${prefix}resenha.pagos
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *⚙️ GRUPO & PERMISSÕES*

@@ -37,6 +37,14 @@ ${middleBorder}${menuItemIcon}${prefix}afk
 ${middleBorder}${menuItemIcon}${prefix}voltei
 ${bottomBorder}
 
+${menuTopBorder}${separatorIcon} *👬 INTERAÇÃO SOCIAL*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}roles
+${middleBorder}${menuItemIcon}${prefix}role.vou
+${middleBorder}${menuItemIcon}${prefix}role.nvou
+${middleBorder}${menuItemIcon}${prefix}resenha.pagos
+${bottomBorder}
+
 ${menuTopBorder}${separatorIcon} *${rankMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}rankativo

@@ -432,8 +432,16 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const isVideo = type === 'videoMessage';
     const isVisuU2 = type === 'viewOnceMessageV2';
     const isVisuU = type === 'viewOnceMessage';
+    const ROLE_GOING_BASE = '🙋';
+    const ROLE_NOT_GOING_BASE = '🤷';
+    const isGoingEmoji = (emoji) => typeof emoji === 'string' && emoji.includes(ROLE_GOING_BASE);
+    const isNotGoingEmoji = (emoji) => typeof emoji === 'string' && emoji.includes(ROLE_NOT_GOING_BASE);
     const isButtonMessage = info.message.interactiveMessage || info.message.templateButtonReplyMessage || info.message.buttonsMessage || info.message.interactiveResponseMessage || info.message.listResponseMessage || info.message.buttonsResponseMessage ? true : false;
     const isStatusMention = JSON.stringify(info.message).includes('groupStatusMentionMessage');
+    if (type === 'reactionMessage') {
+      await processReactionMessage();
+      return;
+    }
     const getMessageText = message => {
       if (!message) return '';
       
@@ -508,6 +516,31 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       groupData.allowedModCommands = groupData.allowedModCommands || [];
       groupData.mutedUsers = groupData.mutedUsers || {};
       groupData.levelingEnabled = groupData.levelingEnabled || false;
+      if (!groupData.roles || typeof groupData.roles !== 'object') {
+        groupData.roles = {};
+      }
+      if (!groupData.roleMessages || typeof groupData.roleMessages !== 'object') {
+        groupData.roleMessages = {};
+      }
+      if (!groupData.resenha || typeof groupData.resenha !== 'object') {
+        groupData.resenha = {
+          active: false,
+          createdAt: null,
+          createdBy: null,
+          link: '',
+          items: [],
+          payments: {},
+          lastItemId: 0
+        };
+      } else {
+        groupData.resenha.active = Boolean(groupData.resenha.active);
+        groupData.resenha.createdAt = groupData.resenha.createdAt || null;
+        groupData.resenha.createdBy = groupData.resenha.createdBy || null;
+        groupData.resenha.link = groupData.resenha.link || '';
+        groupData.resenha.items = Array.isArray(groupData.resenha.items) ? groupData.resenha.items : [];
+        groupData.resenha.payments = groupData.resenha.payments && typeof groupData.resenha.payments === 'object' ? groupData.resenha.payments : {};
+        groupData.resenha.lastItemId = typeof groupData.resenha.lastItemId === 'number' ? groupData.resenha.lastItemId : 0;
+      }
       if (groupName && groupData.groupName !== groupName) {
         groupData.groupName = groupName;
   writeJsonFile(groupFile, groupData);
@@ -516,6 +549,11 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     let parceriasData = {};
     if (isGroup) {
       parceriasData = loadParceriasData(from);
+    };
+    const persistGroupData = () => {
+      if (isGroup) {
+        writeJsonFile(groupFile, groupData);
+      }
     };
     const groupPrefix = groupData.customPrefix || prefixo;
     var isCmd = body.trim().startsWith(groupPrefix);
@@ -931,6 +969,144 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       }
     };
     nazu.react = reagir;
+    async function processReactionMessage() {
+      try {
+        if (!isGroup) {
+          return;
+        }
+
+        const reaction = info.message?.reactionMessage;
+        if (!reaction || !reaction.key || !reaction.key.id) {
+          return;
+        }
+
+        const targetMessageId = reaction.key.id;
+        const emoji = reaction.text || '';
+        const actorId = sender;
+
+        if (!actorId) {
+          return;
+        }
+
+        const roleCode = groupData.roleMessages?.[targetMessageId];
+        if (roleCode && groupData.roles && groupData.roles[roleCode]) {
+          const roleData = groupData.roles[roleCode];
+          roleData.participants = roleData.participants && typeof roleData.participants === 'object' ? roleData.participants : {};
+          const goingSet = new Set(Array.isArray(roleData.participants.going) ? roleData.participants.going : []);
+          const notGoingSet = new Set(Array.isArray(roleData.participants.notGoing) ? roleData.participants.notGoing : []);
+          let changed = false;
+
+          if (!emoji) {
+            if (goingSet.delete(actorId) || notGoingSet.delete(actorId)) {
+              changed = true;
+            }
+          } else if (isGoingEmoji(emoji)) {
+            if (!goingSet.has(actorId)) {
+              changed = true;
+            }
+            goingSet.add(actorId);
+            if (notGoingSet.delete(actorId)) {
+              changed = true;
+            }
+          } else if (isNotGoingEmoji(emoji)) {
+            if (!notGoingSet.has(actorId)) {
+              changed = true;
+            }
+            notGoingSet.add(actorId);
+            if (goingSet.delete(actorId)) {
+              changed = true;
+            }
+          } else {
+            return;
+          }
+
+          if (changed) {
+            roleData.participants.going = Array.from(goingSet);
+            roleData.participants.notGoing = Array.from(notGoingSet);
+            roleData.participants.updatedAt = new Date().toISOString();
+            persistGroupData();
+
+            try {
+              if (emoji) {
+                const confirmationText = isGoingEmoji(emoji)
+                  ? `🙋 Presença confirmada no rolê *${roleData.title || roleCode}*.`
+                  : `🤷 Você sinalizou que não vai mais no rolê *${roleData.title || roleCode}*.`;
+                await nazu.sendMessage(actorId, {
+                  text: `${confirmationText}
+Código: *${roleCode}*`,
+                  mentions: [actorId]
+                });
+              }
+            } catch (dmError) {
+              console.warn('Não foi possível enviar confirmação de reação:', dmError.message || dmError);
+            }
+          }
+          return;
+        }
+      } catch (reactionError) {
+        console.error('Erro ao processar reação de rolê/resenha:', reactionError);
+      }
+    }
+    const parsePipeArgs = (input) => (input || '').split('|').map(part => part.trim()).filter(Boolean);
+    const sanitizeRoleCode = (code) => normalizar(code || '', true).replace(/[^0-9a-z]/gi, '').toUpperCase();
+    const ensureRoleParticipants = (roleData) => {
+      if (!roleData.participants || typeof roleData.participants !== 'object') {
+        roleData.participants = {};
+      }
+      if (!Array.isArray(roleData.participants.going)) {
+        roleData.participants.going = [];
+      }
+      if (!Array.isArray(roleData.participants.notGoing)) {
+        roleData.participants.notGoing = [];
+      }
+      return roleData.participants;
+    };
+    const formatRoleSummary = (code, roleData, index = null) => {
+      const participants = ensureRoleParticipants(roleData);
+      const goingCount = participants.going.length;
+      const notGoingCount = participants.notGoing.length;
+      const lines = [];
+      if (index !== null) {
+        lines.push(`*${index + 1}.*`);
+      }
+      lines.push(`🎫 *Código:* ${code}`);
+      if (roleData.title) {
+        lines.push(`📛 *Título:* ${roleData.title}`);
+      }
+      if (roleData.when) {
+        lines.push(`🗓️ *Quando:* ${roleData.when}`);
+      }
+      if (roleData.where) {
+        lines.push(`📍 *Onde:* ${roleData.where}`);
+      }
+      if (roleData.description) {
+        lines.push(`📝 *Descrição:* ${roleData.description}`);
+      }
+      lines.push(`🙋 *Confirmados:* ${goingCount}`);
+      lines.push(`🤷 *Desistências:* ${notGoingCount}`);
+      return lines.join('\n');
+    };
+    const ensureResenhaData = () => {
+      if (!groupData.resenha || typeof groupData.resenha !== 'object') {
+        groupData.resenha = {
+          active: false,
+          createdAt: null,
+          createdBy: null,
+          link: '',
+          items: [],
+          payments: {},
+          lastItemId: 0
+        };
+      }
+      const data = groupData.resenha;
+      data.items = Array.isArray(data.items) ? data.items : [];
+      data.payments = data.payments && typeof data.payments === 'object' ? data.payments : {};
+      data.link = data.link || '';
+      data.lastItemId = typeof data.lastItemId === 'number' ? data.lastItemId : 0;
+      return data;
+    };
+    const buildResenhaDir = () => pathz.join(__dirname, '..', 'midias', 'resenha', from);
+    const formatMentionList = (ids) => ids.map(id => `@${getUserName(id)}`).join(' ');
     const parseTimeToMinutes = (timeStr) => {
       if (typeof timeStr !== 'string') return null;
       
@@ -2060,6 +2236,687 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     }
 
     switch (command) {
+      case 'roles':
+      case 'role.lista':
+      case 'listaroles': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+
+        const roleEntries = Object.entries(groupData.roles || {});
+        if (!roleEntries.length) {
+          await reply('🪩 Nenhum rolê ativo no momento.');
+          break;
+        }
+
+        const wantsPv = normalizar(args[0] || '') === 'pv';
+        const sendInPv = !isGroupAdmin || wantsPv;
+        const sendTarget = sendInPv ? sender : from;
+        const listLines = roleEntries.map(([roleCode, roleData], index) => formatRoleSummary(roleCode, roleData, roleEntries.length > 1 ? index : null));
+        const listText = `🪩 *Rolês ativos*\n\n${listLines.join('\n\n')}\n\n🙋 Reaja com ${ROLE_GOING_BASE} ou use ${groupPrefix}role.vou CODIGO\n🤷 Reaja com ${ROLE_NOT_GOING_BASE} ou use ${groupPrefix}role.nvou CODIGO`;
+
+        try {
+          await nazu.sendMessage(sendTarget, { text: listText });
+          if (sendInPv && sendTarget !== from) {
+            await reply('📬 Enviei a lista de rolês no seu privado!', { mentions: [sender] });
+          }
+        } catch (listError) {
+          console.error('Erro ao enviar lista de rolês:', listError);
+          await reply('❌ Não consegui enviar a lista de rolês agora. Tente novamente mais tarde.');
+        }
+        break;
+      }
+
+      case 'role.criar': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+        if (!isGroupAdmin) {
+          await reply('🚫 Apenas administradores podem criar rolês.');
+          break;
+        }
+
+        const parts = parsePipeArgs(q);
+        if (parts.length < 2) {
+          await reply(`📋 Formato esperado:\n${groupPrefix}role.criar CODIGO | Título | Data/Horário | Local | Observações (opcional)`);
+          break;
+        }
+
+        const code = sanitizeRoleCode(parts.shift());
+        if (!code) {
+          await reply('❌ Informe um código alfanumérico para o rolê.');
+          break;
+        }
+        if (groupData.roles[code]) {
+          await reply('❌ Já existe um rolê cadastrado com esse código.');
+          break;
+        }
+
+        const title = parts[0] || '';
+        const when = parts[1] || '';
+        const where = parts[2] || '';
+        const description = parts.slice(3).join(' | ') || '';
+
+        const roleData = {
+          code,
+          title,
+          when,
+          where,
+          description,
+          createdAt: new Date().toISOString(),
+          createdBy: sender,
+          participants: {
+            going: [],
+            notGoing: []
+          }
+        };
+        ensureRoleParticipants(roleData);
+
+        const lines = [
+          '🪩 *Novo rolê confirmado!*',
+          `🎫 Código: *${code}*`
+        ];
+        if (title) lines.push(`📛 Título: ${title}`);
+        if (when) lines.push(`🗓️ Quando: ${when}`);
+        if (where) lines.push(`📍 Onde: ${where}`);
+        if (description) lines.push(`📝 Descrição: ${description}`);
+        lines.push('');
+        lines.push(`🙋 Reaja com ${ROLE_GOING_BASE} ou use ${groupPrefix}role.vou ${code}`);
+        lines.push(`🤷 Reaja com ${ROLE_NOT_GOING_BASE} ou use ${groupPrefix}role.nvou ${code}`);
+        const announcementText = lines.join('\n');
+
+        let sentMessage = null;
+        try {
+          const mediaInfo = getMediaInfo(info.message);
+          if (mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video')) {
+            const buffer = await getFileBuffer(mediaInfo.media, mediaInfo.type);
+            const payload = {
+              caption: announcementText
+            };
+            if (mediaInfo.type === 'image') {
+              payload.image = buffer;
+              payload.mimetype = mediaInfo.media.mimetype || 'image/jpeg';
+            } else {
+              payload.video = buffer;
+              payload.mimetype = mediaInfo.media.mimetype || 'video/mp4';
+              if (mediaInfo.media.gifPlayback) {
+                payload.gifPlayback = true;
+              }
+            }
+            sentMessage = await nazu.sendMessage(from, payload);
+          } else {
+            sentMessage = await nazu.sendMessage(from, { text: announcementText });
+          }
+        } catch (sendError) {
+          console.error('Erro ao divulgar rolê:', sendError);
+        }
+
+        if (sentMessage?.key?.id) {
+          roleData.announcementKey = {
+            id: sentMessage.key.id,
+            fromMe: sentMessage.key.fromMe ?? true,
+            participant: sentMessage.key.participant || null
+          };
+          groupData.roleMessages[sentMessage.key.id] = code;
+        } else {
+          roleData.announcementKey = null;
+        }
+
+        groupData.roles[code] = roleData;
+        persistGroupData();
+
+        await reply(sentMessage ? `✅ Rolê *${code}* cadastrado e divulgado!` : `⚠️ Rolê *${code}* salvo, mas não consegui enviar a divulgação automaticamente. Use ${groupPrefix}roles para compartilhar.`);
+        break;
+      }
+
+      case 'role.alterar': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+        if (!isGroupAdmin) {
+          await reply('🚫 Apenas administradores podem alterar rolês.');
+          break;
+        }
+
+        const parts = parsePipeArgs(q);
+        if (!parts.length) {
+          await reply(`📋 Formato esperado:\n${groupPrefix}role.alterar CODIGO | Novo título | Novo horário | Novo local | Nova descrição`);
+          break;
+        }
+
+        const code = sanitizeRoleCode(parts.shift());
+        if (!code) {
+          await reply('❌ Informe um código válido para o rolê.');
+          break;
+        }
+
+        const roleData = groupData.roles[code];
+        if (!roleData) {
+          await reply('❌ Não encontrei nenhum rolê com esse código.');
+          break;
+        }
+
+        const mediaInfo = getMediaInfo(info.message);
+        if (!parts.length && !mediaInfo) {
+          await reply('ℹ️ Informe pelo menos um campo para atualização ou envie uma nova mídia.');
+          break;
+        }
+
+        if (parts[0]) roleData.title = parts[0];
+        if (parts[1]) roleData.when = parts[1];
+        if (parts[2]) roleData.where = parts[2];
+        if (parts.length > 3) {
+          roleData.description = parts.slice(3).join(' | ');
+        }
+
+        roleData.updatedAt = new Date().toISOString();
+        roleData.updatedBy = sender;
+        ensureRoleParticipants(roleData);
+
+        if (roleData.announcementKey?.id) {
+          delete groupData.roleMessages[roleData.announcementKey.id];
+          try {
+            await nazu.sendMessage(from, {
+              delete: {
+                remoteJid: from,
+                fromMe: roleData.announcementKey.fromMe !== undefined ? roleData.announcementKey.fromMe : true,
+                id: roleData.announcementKey.id,
+                participant: roleData.announcementKey.participant || undefined
+              }
+            });
+          } catch (deleteErr) {
+            console.warn('Não consegui remover a divulgação antiga do rolê:', deleteErr.message || deleteErr);
+          }
+        }
+
+        const lines = [
+          '🛠️ *Rolê atualizado!*',
+          `🎫 Código: *${code}*`
+        ];
+        if (roleData.title) lines.push(`📛 Título: ${roleData.title}`);
+        if (roleData.when) lines.push(`🗓️ Quando: ${roleData.when}`);
+        if (roleData.where) lines.push(`📍 Onde: ${roleData.where}`);
+        if (roleData.description) lines.push(`📝 Descrição: ${roleData.description}`);
+        lines.push('');
+        lines.push(`🙋 Reaja com ${ROLE_GOING_BASE} ou use ${groupPrefix}role.vou ${code}`);
+        lines.push(`🤷 Reaja com ${ROLE_NOT_GOING_BASE} ou use ${groupPrefix}role.nvou ${code}`);
+        const announcementText = lines.join('\n');
+
+        let sentMessage = null;
+        try {
+          if (mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video')) {
+            const buffer = await getFileBuffer(mediaInfo.media, mediaInfo.type);
+            const payload = {
+              caption: announcementText
+            };
+            if (mediaInfo.type === 'image') {
+              payload.image = buffer;
+              payload.mimetype = mediaInfo.media.mimetype || 'image/jpeg';
+            } else {
+              payload.video = buffer;
+              payload.mimetype = mediaInfo.media.mimetype || 'video/mp4';
+              if (mediaInfo.media.gifPlayback) {
+                payload.gifPlayback = true;
+              }
+            }
+            sentMessage = await nazu.sendMessage(from, payload);
+          } else {
+            sentMessage = await nazu.sendMessage(from, { text: announcementText });
+          }
+        } catch (updateErr) {
+          console.error('Erro ao reenviar divulgação do rolê:', updateErr);
+        }
+
+        if (sentMessage?.key?.id) {
+          roleData.announcementKey = {
+            id: sentMessage.key.id,
+            fromMe: sentMessage.key.fromMe ?? true,
+            participant: sentMessage.key.participant || null
+          };
+          groupData.roleMessages[sentMessage.key.id] = code;
+        } else {
+          roleData.announcementKey = null;
+        }
+
+        groupData.roles[code] = roleData;
+        persistGroupData();
+        await reply(`✅ Rolê *${code}* atualizado.`);
+        break;
+      }
+
+      case 'role.excluir': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+        if (!isGroupAdmin) {
+          await reply('🚫 Apenas administradores podem excluir rolês.');
+          break;
+        }
+
+        const code = sanitizeRoleCode(q || args[0] || '');
+        if (!code) {
+          await reply(`📋 Informe o código do rolê. Exemplo: ${groupPrefix}role.excluir CODIGO`);
+          break;
+        }
+
+        const roleData = groupData.roles[code];
+        if (!roleData) {
+          await reply('❌ Não encontrei nenhum rolê com esse código.');
+          break;
+        }
+
+        if (roleData.announcementKey?.id) {
+          delete groupData.roleMessages[roleData.announcementKey.id];
+          try {
+            await nazu.sendMessage(from, {
+              delete: {
+                remoteJid: from,
+                fromMe: roleData.announcementKey.fromMe !== undefined ? roleData.announcementKey.fromMe : true,
+                id: roleData.announcementKey.id,
+                participant: roleData.announcementKey.participant || undefined
+              }
+            });
+          } catch (deleteErr) {
+            console.warn('Não consegui remover a divulgação do rolê:', deleteErr.message || deleteErr);
+          }
+        }
+
+        delete groupData.roles[code];
+        persistGroupData();
+        await reply(`🗑️ Rolê *${code}* removido.`);
+        break;
+      }
+
+      case 'role.vou': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+
+        const code = sanitizeRoleCode(args[0] || '');
+        if (!code) {
+          await reply(`📋 Informe o código do rolê. Exemplo: ${groupPrefix}role.vou CODIGO`);
+          break;
+        }
+
+        const roleData = groupData.roles[code];
+        if (!roleData) {
+          await reply('❌ Não encontrei nenhum rolê com esse código.');
+          break;
+        }
+
+        const participants = ensureRoleParticipants(roleData);
+        if (participants.going.includes(sender)) {
+          await reply(`🙋 Você já confirmou presença no rolê *${roleData.title || code}*.`);
+          break;
+        }
+
+        participants.going.push(sender);
+        participants.notGoing = participants.notGoing.filter(id => id !== sender);
+        participants.updatedAt = new Date().toISOString();
+
+        groupData.roles[code] = roleData;
+        persistGroupData();
+
+        await reply(`✅ Presença confirmada no rolê *${roleData.title || code}*.`);
+        break;
+      }
+
+      case 'role.nvou': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+
+        const code = sanitizeRoleCode(args[0] || '');
+        if (!code) {
+          await reply(`📋 Informe o código do rolê. Exemplo: ${groupPrefix}role.nvou CODIGO`);
+          break;
+        }
+
+        const roleData = groupData.roles[code];
+        if (!roleData) {
+          await reply('❌ Não encontrei nenhum rolê com esse código.');
+          break;
+        }
+
+        const participants = ensureRoleParticipants(roleData);
+        const wasGoing = participants.going.includes(sender);
+
+        participants.going = participants.going.filter(id => id !== sender);
+        if (!participants.notGoing.includes(sender)) {
+          participants.notGoing.push(sender);
+        }
+        participants.updatedAt = new Date().toISOString();
+
+        groupData.roles[code] = roleData;
+        persistGroupData();
+
+        await reply(wasGoing ? `🤷 Presença removida do rolê *${roleData.title || code}*.` : `🤷 Você já estava marcado como ausente para o rolê *${roleData.title || code}*.`);
+        break;
+      }
+
+      case 'resenha.nova': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+        if (!isGroupAdmin) {
+          await reply('🚫 Apenas administradores podem iniciar uma nova resenha.');
+          break;
+        }
+
+        groupData.resenha = {
+          active: true,
+          createdAt: new Date().toISOString(),
+          createdBy: sender,
+          link: '',
+          items: [],
+          payments: {},
+          lastItemId: 0
+        };
+        persistGroupData();
+
+        await reply('🎊 Nova resenha iniciada! Use os comandos de resenha para adicionar conteúdo e controlar pagamentos.');
+        break;
+      }
+
+      case 'resenha.adicionar': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+        if (!isGroupAdmin) {
+          await reply('🚫 Apenas administradores podem adicionar conteúdo à resenha.');
+          break;
+        }
+
+        const resenhaData = ensureResenhaData();
+        if (!resenhaData.active) {
+          await reply('ℹ️ Nenhuma resenha ativa. Use resenha.nova para começar.');
+          break;
+        }
+
+        const mediaInfo = getMediaInfo(info.message);
+        if (!q && !(mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video'))) {
+          await reply('❌ Envie um texto ou uma mídia junto com o comando.');
+          break;
+        }
+
+        resenhaData.lastItemId += 1;
+        const itemId = resenhaData.lastItemId;
+        const item = {
+          id: itemId,
+          type: 'text',
+          addedAt: new Date().toISOString(),
+          addedBy: sender
+        };
+
+        try {
+          if (mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video')) {
+            const buffer = await getFileBuffer(mediaInfo.media, mediaInfo.type);
+            const dirPath = buildResenhaDir();
+            ensureDirectoryExists(dirPath);
+            const extension = mediaInfo.type === 'image' ? '.jpg' : '.mp4';
+            const fileName = `${itemId}_${Date.now()}${extension}`;
+            fs.writeFileSync(pathz.join(dirPath, fileName), buffer);
+            item.type = mediaInfo.type;
+            item.mediaFile = fileName;
+            item.caption = q || '';
+          } else {
+            item.text = q;
+          }
+        } catch (mediaError) {
+          console.error('Erro ao salvar mídia da resenha:', mediaError);
+          await reply('❌ Não foi possível salvar a mídia. Tente novamente.');
+          resenhaData.lastItemId -= 1;
+          break;
+        }
+
+        resenhaData.items.push(item);
+        resenhaData.active = true;
+        persistGroupData();
+
+        await reply(`✅ Item ${itemId} adicionado à resenha.`);
+        break;
+      }
+
+      case 'resenha.alterar': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+        if (!isGroupAdmin) {
+          await reply('🚫 Apenas administradores podem alterar itens da resenha.');
+          break;
+        }
+
+        const resenhaData = ensureResenhaData();
+        if (!resenhaData.active) {
+          await reply('ℹ️ Nenhuma resenha ativa. Use resenha.nova para começar.');
+          break;
+        }
+
+        const parts = parsePipeArgs(q);
+        if (parts.length < 2 && !getMediaInfo(info.message)) {
+          await reply(`📋 Formato esperado:\n${groupPrefix}resenha.alterar ID | Novo texto (ou envie nova mídia junto do comando)`);
+          break;
+        }
+
+        const itemId = parseInt(parts.shift(), 10);
+        if (Number.isNaN(itemId)) {
+          await reply('❌ ID inválido. Informe um número.');
+          break;
+        }
+
+        const item = resenhaData.items.find(entry => entry.id === itemId);
+        if (!item) {
+          await reply('❌ Não encontrei um item com esse ID.');
+          break;
+        }
+
+        const mediaInfo = getMediaInfo(info.message);
+        const newText = parts.join(' | ');
+
+        if (!newText && !(mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video'))) {
+          await reply('ℹ️ Informe um novo texto ou envie uma nova mídia para atualizar o item.');
+          break;
+        }
+
+        if (mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video')) {
+          try {
+            if (item.mediaFile) {
+              try {
+                fs.unlinkSync(pathz.join(buildResenhaDir(), item.mediaFile));
+              } catch (unlinkErr) {
+                console.warn('Não consegui remover a mídia anterior da resenha:', unlinkErr.message || unlinkErr);
+              }
+            }
+            const buffer = await getFileBuffer(mediaInfo.media, mediaInfo.type);
+            const dirPath = buildResenhaDir();
+            ensureDirectoryExists(dirPath);
+            const extension = mediaInfo.type === 'image' ? '.jpg' : '.mp4';
+            const fileName = `${itemId}_${Date.now()}${extension}`;
+            fs.writeFileSync(pathz.join(dirPath, fileName), buffer);
+            item.type = mediaInfo.type;
+            item.mediaFile = fileName;
+            item.caption = newText || item.caption || '';
+          } catch (updateMediaError) {
+            console.error('Erro ao atualizar mídia da resenha:', updateMediaError);
+            await reply('❌ Não consegui atualizar a mídia. Tente novamente.');
+            break;
+          }
+        } else if (item.type === 'text') {
+          item.text = newText;
+        } else {
+          item.caption = newText;
+        }
+
+        item.editedAt = new Date().toISOString();
+        item.editedBy = sender;
+
+        persistGroupData();
+        await reply(`✏️ Item ${itemId} atualizado.`);
+        break;
+      }
+
+      case 'resenha.pagar': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+        if (!isGroupAdmin) {
+          await reply('🚫 Apenas administradores podem gerenciar pagamentos da resenha.');
+          break;
+        }
+
+        const resenhaData = ensureResenhaData();
+        if (!resenhaData.active) {
+          await reply('ℹ️ Nenhuma resenha ativa. Use resenha.nova para começar.');
+          break;
+        }
+
+        const mentioned = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+        const numericTargets = args
+          .map(token => token.replace(/[^0-9]/g, ''))
+          .filter(token => token.length >= 5)
+          .map(token => `${token}@s.whatsapp.net`);
+        const targets = [...new Set([...mentioned, ...numericTargets].filter(Boolean))];
+
+        if (!targets.length) {
+          await reply('ℹ️ Marque quem você deseja confirmar ou remover do pagamento, ou informe o número com DDD.');
+          break;
+        }
+
+        const added = [];
+        const removed = [];
+        for (const target of targets) {
+          if (resenhaData.payments[target]) {
+            delete resenhaData.payments[target];
+            removed.push(target);
+          } else {
+            resenhaData.payments[target] = {
+              confirmedBy: sender,
+              confirmedAt: new Date().toISOString()
+            };
+            added.push(target);
+            if (resenhaData.link) {
+              try {
+                await nazu.sendMessage(target, {
+                  text: `🍻 Pagamento confirmado!\n🔗 Link da resenha: ${resenhaData.link}`
+                });
+              } catch (dmError) {
+                console.warn('Não consegui enviar o link da resenha para o participante:', dmError.message || dmError);
+              }
+            }
+          }
+        }
+
+        persistGroupData();
+
+        if (!added.length && !removed.length) {
+          await reply('ℹ️ Nenhuma alteração realizada.');
+          break;
+        }
+
+        const responseLines = [];
+        const mentions = [];
+        if (added.length) {
+          responseLines.push(`✅ Pagamento confirmado para: ${formatMentionList(added)}`);
+          mentions.push(...added);
+        }
+        if (removed.length) {
+          responseLines.push(`♻️ Pagamento removido de: ${formatMentionList(removed)}`);
+          mentions.push(...removed);
+        }
+
+        await reply(responseLines.join('\n'), { mentions });
+        break;
+      }
+
+      case 'resenha.pagos': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+
+        const resenhaData = ensureResenhaData();
+        const paidIds = Object.keys(resenhaData.payments || {});
+        if (!paidIds.length) {
+          await reply('💸 Nenhum pagamento confirmado ainda.');
+          break;
+        }
+
+        const lines = paidIds.map((id, index) => {
+          const infoPago = resenhaData.payments[id] || {};
+          const dateStr = infoPago.confirmedAt ? new Date(infoPago.confirmedAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '';
+          return `${index + 1}. @${getUserName(id)}${dateStr ? ` • ${dateStr}` : ''}`;
+        });
+
+        await reply(`💸 *Pagamentos confirmados (${paidIds.length})*\n\n${lines.join('\n')}`, { mentions: paidIds });
+        break;
+      }
+
+      case 'resenha.todos': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+        if (!isGroupAdmin) {
+          await reply('🚫 Apenas administradores podem usar este comando.');
+          break;
+        }
+
+        const resenhaData = ensureResenhaData();
+        const paidSet = new Set(Object.keys(resenhaData.payments || {}));
+        const toMention = AllgroupMembers.filter(memberId => memberId && memberId !== botNumber && !paidSet.has(memberId));
+
+        if (!toMention.length) {
+          await reply('🙌 Todos os participantes já estão com o pagamento confirmado ou não há membros a marcar.');
+          break;
+        }
+
+        const mentionText = `🔔 ${formatMentionList(toMention)}`;
+        await nazu.sendMessage(from, { text: mentionText, mentions: toMention });
+        break;
+      }
+
+      case 'resenha.link': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+        if (!isGroupAdmin) {
+          await reply('🚫 Apenas administradores podem configurar o link da resenha.');
+          break;
+        }
+
+        const resenhaData = ensureResenhaData();
+        if (!q) {
+          if (resenhaData.link) {
+            await reply(`🔗 Link atual da resenha: ${resenhaData.link}`);
+          } else {
+            await reply('ℹ️ Nenhum link configurado no momento.');
+          }
+          break;
+        }
+
+        const link = q.trim();
+        if (!/^https?:\/\//i.test(link)) {
+          await reply('❌ Informe um link válido começando com http ou https.');
+          break;
+        }
+
+        resenhaData.link = link;
+        persistGroupData();
+        await reply('🔗 Link da resenha atualizado com sucesso!');
+        break;
+      }
+
       case 'menugold': {
         await sendMenuWithMedia('menugold', menuGold);
         break;
