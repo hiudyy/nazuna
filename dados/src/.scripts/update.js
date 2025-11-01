@@ -561,26 +561,6 @@ async function main() {
     printMessage('🎉 Atualização concluída com sucesso!');
     printMessage('🚀 Inicie o bot com: npm start');
     printSeparator();
-
-    printMessage('🔄 Buscando informações do último commit...');
-    const response = await fetch('https://api.github.com/repos/hiudyy/nazuna/commits?per_page=1', {
-      headers: { Accept: 'application/vnd.github+json' },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erro ao buscar commits: ${response.status} ${response.statusText}`);
-    }
-
-    const linkHeader = response.headers.get('link');
-    const NumberUp = linkHeader?.match(/page=(\d+)>;\s*rel="last"/)?.[1];
-
-    const jsonUp = { total: Number(NumberUp) || 0 };
-    await fs.writeFile(path.join(process.cwd(), 'dados', 'database', 'updateSave.json'), JSON.stringify(jsonUp));
-
-    printSeparator();
-    printMessage('🎉 Atualização concluída com sucesso!');
-    printMessage('🚀 Inicie o bot com: npm start');
-    printSeparator();
   } catch (error) {
     printSeparator();
     printWarning(`❌ Erro durante a atualização: ${error.message}`);
