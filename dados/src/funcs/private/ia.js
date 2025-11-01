@@ -359,11 +359,12 @@ Você recebe informações detalhadas sobre cada pessoa que conversa com você:
 
 Quando você identificar algo importante para aprender/editar/excluir, inclua no JSON de resposta:
 
+**Para UMA informação:**
 \\\`\\\`\\\`json
 {
   "resp": [{"id": "...", "resp": "sua resposta", "react": "emoji"}],
   "aprender": {
-    "acao": "adicionar",  // ou "editar" ou "excluir"
+    "acao": "adicionar",
     "tipo": "tipo_de_aprendizado",
     "valor": "o que você aprendeu",
     "valor_antigo": "valor anterior (apenas para editar)",
@@ -371,6 +372,21 @@ Quando você identificar algo importante para aprender/editar/excluir, inclua no
   }
 }
 \\\`\\\`\\\`
+
+**Para MÚLTIPLAS informações de uma vez (RECOMENDADO):**
+\\\`\\\`\\\`json
+{
+  "resp": [{"id": "...", "resp": "sua resposta", "react": "emoji"}],
+  "aprender": [
+    {"acao": "adicionar", "tipo": "nome", "valor": "João"},
+    {"acao": "adicionar", "tipo": "idade", "valor": "25"},
+    {"acao": "adicionar", "tipo": "gosto", "valor": "pizza"},
+    {"acao": "adicionar", "tipo": "hobby", "valor": "jogar videogame"}
+  ]
+}
+\\\`\\\`\\\`
+
+**⚠️ IMPORTANTE:** Sempre que o usuário mencionar MÚLTIPLAS informações na mesma mensagem, use o formato de ARRAY para salvar todas de uma vez! Não deixe nenhuma informação importante escapar.
 
 **Ações de Aprendizado:**
 
@@ -454,7 +470,7 @@ Quando você identificar algo importante para aprender/editar/excluir, inclua no
 
 **Exemplos Práticos:**
 
-🆕 **Adicionar nova informação:**
+🆕 **Adicionar UMA informação:**
 - Usuário: "Adoro pizza!"
   "aprender": {"acao": "adicionar", "tipo": "gosto", "valor": "pizza"}
 
@@ -463,6 +479,30 @@ Quando você identificar algo importante para aprender/editar/excluir, inclua no
 
 - Usuário: "Meu sonho é viajar pro Japão"
   "aprender": {"acao": "adicionar", "tipo": "sonho", "valor": "viajar pro Japão"}
+
+🎯 **Adicionar MÚLTIPLAS informações de uma vez (USE SEMPRE QUE POSSÍVEL!):**
+- Usuário: "Oi! Me chamo João, tenho 25 anos, moro em São Paulo e trabalho como programador"
+  "aprender": [
+    {"acao": "adicionar", "tipo": "nome", "valor": "João"},
+    {"acao": "adicionar", "tipo": "idade", "valor": "25"},
+    {"acao": "adicionar", "tipo": "localizacao", "valor": "São Paulo"},
+    {"acao": "adicionar", "tipo": "profissao", "valor": "programador"}
+  ]
+
+- Usuário: "Gosto de pizza, hambúrguer e chocolate, mas odeio cebola"
+  "aprender": [
+    {"acao": "adicionar", "tipo": "gosto", "valor": "pizza"},
+    {"acao": "adicionar", "tipo": "gosto", "valor": "hambúrguer"},
+    {"acao": "adicionar", "tipo": "gosto", "valor": "chocolate"},
+    {"acao": "adicionar", "tipo": "nao_gosto", "valor": "cebola"}
+  ]
+
+- Usuário: "Nas horas livres gosto de jogar videogame, assistir anime e tocar violão"
+  "aprender": [
+    {"acao": "adicionar", "tipo": "hobby", "valor": "jogar videogame"},
+    {"acao": "adicionar", "tipo": "hobby", "valor": "assistir anime"},
+    {"acao": "adicionar", "tipo": "hobby", "valor": "tocar violão"}
+  ]
 
 ✏️ **Editar informação existente:**
 - Usuário: "Eu tinha dito que tenho 24, mas na verdade tenho 25"
@@ -478,17 +518,39 @@ Quando você identificar algo importante para aprender/editar/excluir, inclua no
 - Usuário: "Meu gato faleceu..."
   "aprender": {"acao": "excluir", "tipo": "pet", "valor": "gato chamado Miau"}
 
+🔄 **Misturando ações (adicionar, editar e excluir juntos):**
+- Usuário: "Não tenho mais 24, tenho 25 agora. Ah, e adotei um cachorro chamado Rex! Também não gosto mais de sorvete"
+  "aprender": [
+    {"acao": "editar", "tipo": "idade", "valor_antigo": "24", "valor": "25"},
+    {"acao": "adicionar", "tipo": "pet", "valor": "cachorro chamado Rex"},
+    {"acao": "excluir", "tipo": "gosto", "valor": "sorvete"}
+  ]
+
 **FLEXIBILIDADE TOTAL:**
 - Você pode criar seus próprios tipos personalizados!
 - Exemplos de tipos personalizados: "time_coracao", "perfume_favorito", "filme_infancia"
 - O sistema vai categorizar automaticamente ou salvar como nota
 - Use nomes descritivos em português para os tipos personalizados
 
-**IMPORTANTE:** 
+**IMPORTANTE - Quando usar ARRAY de aprendizados:** 
+✅ **USE ARRAY quando:** O usuário mencionar 2+ informações na mesma mensagem
+✅ **Exemplos que DEVEM usar array:**
+   - "Me chamo João, tenho 25 anos e moro em SP" → 3 informações = ARRAY!
+   - "Gosto de pizza e hambúrguer, mas odeio cebola" → 3 informações = ARRAY!
+   - "Jogo videogame e assisto anime" → 2 informações = ARRAY!
+   
+❌ **USE OBJETO ÚNICO quando:** Apenas 1 informação nova/editada/excluída
+❌ **Exemplos que usam objeto único:**
+   - "Me chamo João" → 1 informação = objeto único
+   - "Adoro pizza" → 1 informação = objeto único
+   - "Minha idade agora é 26" → 1 informação = objeto único
+
+**REGRAS GERAIS:**
 - Use "adicionar" quando for nova informação
 - Use "editar" quando a pessoa corrigir algo que você já sabia
 - Use "excluir" quando algo não for mais verdade
 - Se não tiver certeza, use "nota_importante" com acao "adicionar"
+- **SEMPRE capture TODAS as informações mencionadas - não deixe nenhuma escapar!**
 
 ---
 
@@ -1234,9 +1296,17 @@ async function processUserMessages(data, key, nazu = null, ownerNumber = null) {
         const content = response.choices[0].message.content;
         result = extractJSON(content);
 
-        // Processar aprendizado se houver
+        // Processar aprendizado se houver (suporta objeto único ou array)
         if (result.aprender) {
-          processLearning(grupoUserId, result.aprender, msgValidada.texto);
+          if (Array.isArray(result.aprender)) {
+            // Múltiplos aprendizados de uma vez
+            result.aprender.forEach(aprend => {
+              processLearning(grupoUserId, aprend, msgValidada.texto);
+            });
+          } else {
+            // Aprendizado único
+            processLearning(grupoUserId, result.aprender, msgValidada.texto);
+          }
         }
 
         // Processar respostas
