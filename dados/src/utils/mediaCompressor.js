@@ -85,8 +85,7 @@ class MediaCompressor {
      */
     async checkDependencies() {
         const dependencies = [
-            { cmd: 'ffmpeg -version', name: 'FFmpeg' },
-            { cmd: 'convert -version', name: 'ImageMagick' }
+            { cmd: 'ffmpeg -version', name: 'FFmpeg' }
         ];
 
         for (const dep of dependencies) {
@@ -221,18 +220,25 @@ class MediaCompressor {
         }
 
         // Verifica se a compressão foi efetiva
+        const producedPath = result.outputPath || outputPath;
         const compressionRatio = 1 - (result.newSize / originalSize);
         if (compressionRatio < (options.compressionRatio || this.settings.general.compressionRatio)) {
             // Compressão não foi efetiva, remove arquivo comprimido
-            await fs.unlink(outputPath);
+            if (producedPath) {
+                await fs.unlink(producedPath).catch(() => {});
+            }
             throw new Error('Compressão não atingiu redução mínima');
         }
 
         // Substitui arquivo original se configurado
         if (!this.settings.general.keepOriginal) {
-            await fs.unlink(filePath);
-            await fs.rename(outputPath, filePath);
+            if (producedPath !== filePath) {
+                await fs.unlink(filePath);
+                await fs.rename(producedPath, filePath);
+            }
             result.outputPath = filePath;
+        } else {
+            result.outputPath = producedPath;
         }
 
         return {
@@ -247,42 +253,22 @@ class MediaCompressor {
      */
     async compressImage(inputPath, outputPath, options) {
         try {
-            const { quality, maxWidth, maxHeight, format, stripMetadata, progressive } = options;
-            
-            // Tenta usar ImageMagick primeiro
-            try {
-                let cmd = `convert "${inputPath}"`;
-                
-                if (stripMetadata) {
-                    cmd += ' -strip';
-                }
-                
-                cmd += ` -resize ${maxWidth}x${maxHeight}>`;
-                cmd += ` -quality ${quality}`;
-                
-                if (format !== 'auto') {
-                    cmd += ` -format ${format}`;
-                }
-                
-                if (progressive && format === 'jpg') {
-                    cmd += ' -interlace Plane';
-                }
-                
-                cmd += ` "${outputPath}"`;
-                
-                await execAsync(cmd, { timeout: 30000 });
-            } catch (imageMagickError) {
-                // Fallback para FFmpeg
-                let cmd = `ffmpeg -i "${inputPath}"`;
-                cmd += ` -vf "scale=min(${maxWidth}\\,iw):min(${maxHeight}\\,ih):force_original_aspect_ratio=decrease"`;
-                cmd += ` -q:v ${Math.round(quality / 10)}`;
-                if (format !== 'auto') {
-                    cmd += ` -f ${format}`;
-                }
-                cmd += ` -y "${outputPath}"`;
-                
-                await execAsync(cmd, { timeout: 30000 });
+            const { quality, maxWidth, maxHeight, format, stripMetadata } = options;
+            const ffmpegQuality = Math.min(31, Math.max(1, Math.round(quality / 10)));
+            const formatNormalized = format !== 'auto' ? format.replace(/^\./, '') : null;
+
+            let cmd = `ffmpeg -hide_banner -loglevel error -i "${inputPath}"`;
+            cmd += ` -vf "scale=min(${maxWidth}\\,iw):min(${maxHeight}\\,ih):force_original_aspect_ratio=decrease"`;
+            cmd += ` -q:v ${ffmpegQuality}`;
+            if (stripMetadata) {
+                cmd += ' -map_metadata -1';
             }
+            if (formatNormalized) {
+                cmd += ` -f ${formatNormalized}`;
+            }
+            cmd += ` -y "${outputPath}"`;
+
+            await execAsync(cmd, { timeout: 30000 });
 
             const stats = await fs.stat(outputPath);
             return {
