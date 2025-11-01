@@ -231,7 +231,8 @@ ensureJsonFileExists(CODIGOS_ALUGUEL_FILE, {
   codes: {}
 });
 ensureJsonFileExists(RELATIONSHIPS_FILE, {
-  pairs: {}
+  pairs: {},
+  archived: []
 });
 
 const databaseSelfTests = [{

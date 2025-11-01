@@ -92,6 +92,7 @@ ${middleBorder}${menuItemIcon}${prefix}brincadeira
 ${middleBorder}${menuItemIcon}${prefix}namoro
 ${middleBorder}${menuItemIcon}${prefix}casamento
 ${middleBorder}${menuItemIcon}${prefix}relacionamento
+${middleBorder}${menuItemIcon}${prefix}terminar
 ${bottomBorder}
 ${middleBorder}${menuItemIcon}${prefix}bebado${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}machista${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}homofobico${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}racista`}`}`}
 ${middleBorder}${menuItemIcon}${prefix}chato

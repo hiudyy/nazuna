@@ -11040,8 +11040,13 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
         }
 
         if (!userOne || !userTwo) {
-          await reply('ℹ️ Marque uma pessoa (ou duas) para ver os dados do relacionamento.');
-          break;
+          const activePair = relationshipManager.getActivePairForUser(sender);
+          if (!activePair) {
+            await reply('❌ Você não marcou ninguém e não possui relacionamento ativo no momento.');
+            break;
+          }
+          userOne = sender;
+          userTwo = activePair.partnerId;
         }
         if (userOne === userTwo) {
           await reply('❌ Selecione pessoas diferentes para consultar.');
@@ -11056,6 +11061,62 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
 
         await reply(summary.message, {
           mentions: summary.mentions || [userOne, userTwo]
+        });
+        break;
+      }
+      case 'terminar':
+      case 'termino':
+      case 'terminarelacionamento': {
+        if (!isGroup) {
+          await reply('⚠️ Esse comando só pode ser usado em grupos.');
+          break;
+        }
+
+        const mentionedList = Array.isArray(menc_jid2) ? menc_jid2 : [];
+        let userOne = null;
+        let userTwo = null;
+
+        if (mentionedList.length >= 2) {
+          [userOne, userTwo] = mentionedList;
+        } else if (menc_os2) {
+          userOne = sender;
+          userTwo = menc_os2;
+        } else {
+          const activePair = relationshipManager.getActivePairForUser(sender);
+          if (!activePair) {
+            await reply('❌ Você não marcou ninguém e não possui relacionamento ativo para encerrar.');
+            break;
+          }
+          userOne = sender;
+          userTwo = activePair.partnerId;
+        }
+
+        if (!userOne || !userTwo) {
+          await reply('❌ Informe o casal que deseja encerrar.');
+          break;
+        }
+
+        if (userOne === userTwo) {
+          await reply('❌ Selecione pessoas diferentes para encerrar o relacionamento.');
+          break;
+        }
+
+        const participants = [userOne, userTwo];
+        const isParticipant = participants.includes(sender);
+        if (!isParticipant && !isGroupAdmin && !isOwner) {
+          await reply('🚫 Apenas os envolvidos ou um administrador podem encerrar o relacionamento de terceiros.');
+          break;
+        }
+
+        const endResult = relationshipManager.endRelationship(userOne, userTwo, sender);
+        if (!endResult.success) {
+          await reply(endResult.message);
+          break;
+        }
+
+        await nazu.sendMessage(from, {
+          text: endResult.message,
+          mentions: endResult.mentions || participants
         });
         break;
       }

@@ -62,10 +62,13 @@ class RelationshipManager {
   _loadData() {
     const data = loadRelationships();
     if (!data || typeof data !== 'object') {
-      return { pairs: {} };
+      return { pairs: {}, archived: [] };
     }
     if (!data.pairs || typeof data.pairs !== 'object') {
       data.pairs = {};
+    }
+    if (!Array.isArray(data.archived)) {
+      data.archived = [];
     }
     return data;
   }
@@ -386,6 +389,9 @@ class RelationshipManager {
 
     pair.users = [this._normalizeId(request.requesterRaw), this._normalizeId(request.targetRaw)];
     pair.updatedAt = stageEntry.since;
+  pair.terminatedAt = null;
+  pair.terminatedBy = null;
+  pair.lastStatus = pair.status;
 
     data.pairs[key] = pair;
     this._saveData(data);
@@ -496,6 +502,107 @@ class RelationshipManager {
       success: true,
       message: lines.join('\n'),
       mentions: [userA, userB]
+    };
+  }
+
+  getActivePairForUser(userId) {
+    const normalized = this._normalizeId(userId);
+    if (!normalized) return null;
+
+    const data = this._loadData();
+    for (const [key, pair] of Object.entries(data.pairs)) {
+      if (!pair || !Array.isArray(pair.users) || !pair.status || !TYPE_CONFIG[pair.status]) continue;
+      const users = pair.users.map(u => this._normalizeId(u));
+      const index = users.indexOf(normalized);
+      if (index === -1) continue;
+
+      const partnerIndex = index === 0 ? 1 : 0;
+      const partnerId = pair.users[partnerIndex];
+      if (!partnerId) continue;
+
+      return {
+        key,
+        pair,
+        partnerId,
+        userId: pair.users[index]
+      };
+    }
+
+    return null;
+  }
+
+  endRelationship(userA, userB, triggeredBy) {
+    const key = this._getPairKey(userA, userB);
+    if (!key) {
+      return {
+        success: false,
+        message: '❌ Não foi possível identificar essa dupla.'
+      };
+    }
+
+    const data = this._loadData();
+    const pair = data.pairs[key];
+    if (!pair || !pair.status || !TYPE_CONFIG[pair.status]) {
+      return {
+        success: false,
+        message: '❌ Não existe um relacionamento ativo entre essas pessoas.'
+      };
+    }
+
+    const status = pair.status;
+    const config = TYPE_CONFIG[status];
+    const stageInfo = pair.stages?.[status];
+    const since = stageInfo?.since ? Date.parse(stageInfo.since) : null;
+    const duration = since && !Number.isNaN(since) ? this._formatDuration(Date.now() - since) : null;
+    const sinceFormatted = stageInfo?.since ? this._formatDate(stageInfo.since) : null;
+    const endedAt = new Date().toISOString();
+
+    if (!Array.isArray(pair.history)) {
+      pair.history = [];
+    }
+    pair.history.push({
+      type: 'termino',
+      previousStatus: status,
+      triggeredBy,
+      endedAt
+    });
+
+    const archivedPair = JSON.parse(JSON.stringify(pair));
+    archivedPair.terminatedAt = endedAt;
+    archivedPair.terminatedBy = triggeredBy;
+    archivedPair.finalStatus = status;
+    archivedPair.status = 'terminado';
+    if (!Array.isArray(data.archived)) {
+      data.archived = [];
+    }
+    data.archived.push(archivedPair);
+
+    delete data.pairs[key];
+    this._saveData(data);
+
+    const triggerName = getUserName(triggeredBy);
+    const userOneName = getUserName(userA);
+    const userTwoName = getUserName(userB);
+    const lines = [
+      '💔 *Relacionamento encerrado!*',
+      '',
+      `${config.emoji} Status anterior: ${config.label}`
+    ];
+
+    if (sinceFormatted) {
+      lines.push(`📆 Iniciado em: ${sinceFormatted}`);
+    }
+    if (duration) {
+      lines.push(`⏳ Duração: ${duration}`);
+    }
+
+    lines.push('', `👤 Quem encerrou: @${triggerName}`);
+    lines.push('', `👥 Casal: @${userOneName} & @${userTwoName}`);
+
+    return {
+      success: true,
+      message: lines.join('\n'),
+      mentions: Array.from(new Set([userA, userB, triggeredBy].filter(Boolean)))
     };
   }
 
