@@ -63,9 +63,16 @@ ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${commandCustomMenuTitle}*
 ${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}addcmd
+${middleBorder}${menuItemIcon}${prefix}addcmdmidia
+${middleBorder}${menuItemIcon}${prefix}listcmd
+${middleBorder}${menuItemIcon}${prefix}delcmd
+${middleBorder}${menuItemIcon}${prefix}testcmd
+${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}addalias
 ${middleBorder}${menuItemIcon}${prefix}listalias
 ${middleBorder}${menuItemIcon}${prefix}delalias
+${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}addblackglobal
 ${middleBorder}${menuItemIcon}${prefix}listblackglobal
 ${middleBorder}${menuItemIcon}${prefix}rmblackglobal

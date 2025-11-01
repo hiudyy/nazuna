@@ -87,6 +87,10 @@ const {
   deleteAutoResponse,
   processAutoResponse,
   sendAutoResponse,
+  loadCustomCommands,
+  saveCustomCommands,
+  removeCustomCommand,
+  findCustomCommand,
   loadNoPrefixCommands,
   saveNoPrefixCommands,
   loadCommandAliases,
@@ -1966,6 +1970,85 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       if (matchedCommand) {
         var command = matchedCommand.command;
         var isCmd = true;
+      }
+    }
+
+    // Verificar comandos personalizados do dono
+    if (!isCmd && body) {
+      const normalizedTrigger = normalizar(body.split(' ')[0] || '').replace(/\s+/g, '');
+      const customCmd = findCustomCommand(normalizedTrigger);
+      if (customCmd) {
+        try {
+          const responseData = customCmd.response;
+          
+          // Substituir parâmetros
+          let processedResponse = responseData;
+          if (typeof processedResponse === 'string') {
+            processedResponse = processedResponse
+              .replace(/{prefixo}/gi, groupPrefix)
+              .replace(/{prefix}/gi, groupPrefix)
+              .replace(/{nomedono}/gi, nomedono)
+              .replace(/{numerodono}/gi, numerodono)
+              .replace(/{nomebot}/gi, nomebot)
+              .replace(/{user}/gi, pushname || 'Usuário')
+              .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
+          } else if (processedResponse && typeof processedResponse === 'object') {
+            if (processedResponse.caption) {
+              processedResponse.caption = processedResponse.caption
+                .replace(/{prefixo}/gi, groupPrefix)
+                .replace(/{prefix}/gi, groupPrefix)
+                .replace(/{nomedono}/gi, nomedono)
+                .replace(/{numerodono}/gi, numerodono)
+                .replace(/{nomebot}/gi, nomebot)
+                .replace(/{user}/gi, pushname || 'Usuário')
+                .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
+            }
+          }
+          
+          // Enviar resposta
+          if (typeof processedResponse === 'string') {
+            await reply(processedResponse);
+          } else if (processedResponse.type === 'text') {
+            await reply(processedResponse.content || 'Resposta personalizada');
+          } else if (processedResponse.type === 'image') {
+            const imageBuffer = processedResponse.buffer ? Buffer.from(processedResponse.buffer, 'base64') : null;
+            if (imageBuffer) {
+              await nazu.sendMessage(from, {
+                image: imageBuffer,
+                caption: processedResponse.caption || ''
+              }, { quoted: info });
+            }
+          } else if (processedResponse.type === 'video') {
+            const videoBuffer = processedResponse.buffer ? Buffer.from(processedResponse.buffer, 'base64') : null;
+            if (videoBuffer) {
+              await nazu.sendMessage(from, {
+                video: videoBuffer,
+                caption: processedResponse.caption || ''
+              }, { quoted: info });
+            }
+          } else if (processedResponse.type === 'audio') {
+            const audioBuffer = processedResponse.buffer ? Buffer.from(processedResponse.buffer, 'base64') : null;
+            if (audioBuffer) {
+              await nazu.sendMessage(from, {
+                audio: audioBuffer,
+                mimetype: 'audio/mp4',
+                ptt: processedResponse.ptt || false
+              }, { quoted: info });
+            }
+          } else if (processedResponse.type === 'sticker') {
+            const stickerBuffer = processedResponse.buffer ? Buffer.from(processedResponse.buffer, 'base64') : null;
+            if (stickerBuffer) {
+              await nazu.sendMessage(from, {
+                sticker: stickerBuffer
+              }, { quoted: info });
+            }
+          }
+          
+          return; // Comando personalizado executado, não continuar
+        } catch (error) {
+          console.error('Erro ao executar comando personalizado:', error);
+          await reply('❌ Erro ao executar comando personalizado.');
+        }
       }
     }
 
@@ -4607,6 +4690,330 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           await reply("Ocorreu um erro ao remover apelido 💔");
         }
         break;
+
+      case 'addcmd':
+      case 'adicionarcmd':
+        try {
+          if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
+          
+          const args = q.trim().split(' ');
+          const trigger = args[0];
+          const responseText = args.slice(1).join(' ');
+          
+          if (!trigger) {
+            return reply(`📝 *Como usar o comando addcmd:*\n\n*Adicionar texto:*\n${groupPrefix}addcmd <comando> <resposta>\n\n*Adicionar mídia:*\n${groupPrefix}addcmdmidia <comando> (respondendo uma mídia)\n\n*Parâmetros disponíveis:*\n• {prefixo} - Prefixo do bot\n• {nomedono} - Nome do dono\n• {numerodono} - Número do dono\n• {nomebot} - Nome do bot\n• {user} - Nome do usuário\n• {grupo} - Nome do grupo\n\n*Exemplo:*\n${groupPrefix}addcmd oi Olá {user}! Seja bem-vindo ao {grupo}!`);
+          }
+          
+          if (!responseText && !quotedMessageContent) {
+            return reply(`❌ Forneça uma resposta em texto ou responda uma mídia.\n\nExemplo: ${groupPrefix}addcmd bemvindo Seja bem-vindo ao grupo!`);
+          }
+          
+          const normalizedTrigger = normalizar(trigger).replace(/\s+/g, '');
+          
+          // Verificar se já existe
+          const existingCmd = findCustomCommand(normalizedTrigger);
+          if (existingCmd) {
+            return reply(`❌ Já existe um comando com o gatilho "${trigger}".\nUse ${groupPrefix}delcmd ${trigger} para removê-lo primeiro.`);
+          }
+          
+          const commands = loadCustomCommands();
+          commands.push({
+            id: Date.now().toString(),
+            trigger: normalizedTrigger,
+            response: responseText,
+            createdAt: new Date().toISOString(),
+            createdBy: sender
+          });
+          
+          if (saveCustomCommands(commands)) {
+            await reply(`✅ Comando personalizado criado!\n\n*Gatilho:* ${trigger}\n*Resposta:* ${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}\n\n_Digite "${trigger}" para testar!_`);
+          } else {
+            await reply('❌ Erro ao salvar o comando personalizado.');
+          }
+        } catch (e) {
+          console.error('Erro no comando addcmd:', e);
+          await reply("❌ Ocorreu um erro ao adicionar comando personalizado.");
+        }
+        break;
+
+      case 'addcmdmidia':
+      case 'addcmdmedia':
+        try {
+          if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
+          
+          if (!q) {
+            return reply(`📝 *Como usar o comando addcmdmidia:*\n\n1️⃣ Responda uma mídia (imagem, vídeo, áudio ou figurinha)\n2️⃣ Use: ${groupPrefix}addcmdmidia <comando> <legenda opcional>\n\n*Parâmetros disponíveis na legenda:*\n• {prefixo} - Prefixo do bot\n• {nomedono} - Nome do dono\n• {numerodono} - Número do dono\n• {nomebot} - Nome do bot\n• {user} - Nome do usuário\n• {grupo} - Nome do grupo\n\n*Exemplo:*\n${groupPrefix}addcmdmidia logo (respondendo uma imagem)`);
+          }
+          
+          const args = q.trim().split(' ');
+          const trigger = args[0];
+          const caption = args.slice(1).join(' ') || '';
+          
+          if (!trigger) {
+            return reply(`❌ Forneça um nome para o comando.\n\nExemplo: ${groupPrefix}addcmdmidia logo`);
+          }
+          
+          const normalizedTrigger = normalizar(trigger).replace(/\s+/g, '');
+          
+          // Verificar se já existe
+          const existingCmd = findCustomCommand(normalizedTrigger);
+          if (existingCmd) {
+            return reply(`❌ Já existe um comando com o gatilho "${trigger}".\nUse ${groupPrefix}delcmd ${trigger} para removê-lo primeiro.`);
+          }
+          
+          let responseData = null;
+          
+          // Verificar se respondeu uma mídia
+          if (quotedMessageContent) {
+            if (isQuotedImage) {
+              const imageBuffer = await getFileBuffer(quotedMessageContent.imageMessage, 'image');
+              responseData = {
+                type: 'image',
+                buffer: imageBuffer.toString('base64'),
+                caption: caption
+              };
+            } else if (isQuotedVideo) {
+              const videoBuffer = await getFileBuffer(quotedMessageContent.videoMessage, 'video');
+              responseData = {
+                type: 'video',
+                buffer: videoBuffer.toString('base64'),
+                caption: caption
+              };
+            } else if (isQuotedAudio) {
+              const audioBuffer = await getFileBuffer(quotedMessageContent.audioMessage, 'audio');
+              responseData = {
+                type: 'audio',
+                buffer: audioBuffer.toString('base64'),
+                ptt: quotedMessageContent.audioMessage.ptt || false
+              };
+            } else if (isQuotedSticker) {
+              const stickerBuffer = await getFileBuffer(quotedMessageContent.stickerMessage, 'sticker');
+              responseData = {
+                type: 'sticker',
+                buffer: stickerBuffer.toString('base64')
+              };
+            } else {
+              return reply('❌ Por favor, responda a uma mídia válida (imagem, vídeo, áudio ou sticker)!');
+            }
+          } else {
+            return reply('❌ Por favor, responda a uma mídia para adicionar como comando!');
+          }
+          
+          const commands = loadCustomCommands();
+          commands.push({
+            id: Date.now().toString(),
+            trigger: normalizedTrigger,
+            response: responseData,
+            createdAt: new Date().toISOString(),
+            createdBy: sender
+          });
+          
+          if (saveCustomCommands(commands)) {
+            await reply(`✅ Comando personalizado com mídia criado!\n\n*Gatilho:* ${trigger}\n*Tipo:* ${responseData.type}\n${caption ? `*Legenda:* ${caption}\n` : ''}\n_Digite "${trigger}" para testar!_`);
+          } else {
+            await reply('❌ Erro ao salvar o comando personalizado.');
+          }
+        } catch (e) {
+          console.error('Erro no comando addcmdmidia:', e);
+          await reply("❌ Ocorreu um erro ao adicionar comando personalizado com mídia.");
+        }
+        break;
+
+      case 'listcmd':
+      case 'listarcmd':
+      case 'comandospersonalizados':
+        try {
+          if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
+          
+          const commands = loadCustomCommands();
+          if (commands.length === 0) {
+            return reply(`📜 *Nenhum comando personalizado criado.*\n\nUse ${groupPrefix}addcmd para criar um!`);
+          }
+          
+          let responseText = `📜 *Comandos Personalizados (${commands.length})*\n\n`;
+          
+          commands.forEach((cmd, index) => {
+            const responseInfo = cmd.response;
+            const displayTrigger = cmd.trigger;
+            
+            if (typeof responseInfo === 'string') {
+              const preview = responseInfo.length > 50 ? responseInfo.substring(0, 50) + '...' : responseInfo;
+              responseText += `${index + 1}. 📝 *${displayTrigger}*\n   ↳ ${preview}\n\n`;
+            } else if (responseInfo && typeof responseInfo === 'object') {
+              const typeEmoji = {
+                text: '📝',
+                image: '🖼️',
+                video: '🎥',
+                audio: '🎵',
+                sticker: '🎭'
+              };
+              responseText += `${index + 1}. ${typeEmoji[responseInfo.type] || '📝'} *${displayTrigger}*\n   ↳ Tipo: ${responseInfo.type}`;
+              if (responseInfo.caption) {
+                responseText += `\n   ↳ Legenda: ${responseInfo.caption.substring(0, 40)}${responseInfo.caption.length > 40 ? '...' : ''}`;
+              }
+              responseText += `\n\n`;
+            }
+          });
+          
+          responseText += `\n🔧 *Comandos disponíveis:*\n`;
+          responseText += `• ${groupPrefix}addcmd <cmd> <resposta>\n`;
+          responseText += `• ${groupPrefix}addcmdmidia <cmd> (com mídia)\n`;
+          responseText += `• ${groupPrefix}delcmd <número>\n`;
+          responseText += `• ${groupPrefix}testcmd <cmd>`;
+          
+          await reply(responseText);
+        } catch (e) {
+          console.error('Erro no comando listcmd:', e);
+          await reply("❌ Ocorreu um erro ao listar comandos personalizados.");
+        }
+        break;
+
+      case 'delcmd':
+      case 'removercmd':
+        try {
+          if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
+          
+          if (!q) {
+            return reply(`❌ Forneça o número ou nome do comando.\n\nExemplo:\n• ${groupPrefix}delcmd 1\n• ${groupPrefix}delcmd bemvindo`);
+          }
+          
+          const arg = q.trim();
+          let result;
+          
+          // Tentar por número primeiro
+          if (!isNaN(parseInt(arg))) {
+            const index = parseInt(arg) - 1;
+            const commands = loadCustomCommands();
+            
+            if (index < 0 || index >= commands.length) {
+              return reply(`❌ Número inválido. Use ${groupPrefix}listcmd para ver a lista.`);
+            }
+            
+            const removed = commands[index];
+            result = removeCustomCommand(cmd => cmd.id === removed.id);
+            
+            if (result.removed) {
+              await reply(`🗑️ *Comando removido!*\n\n*Gatilho:* ${removed.trigger}\n*Tipo:* ${typeof removed.response === 'string' ? 'texto' : removed.response.type}`);
+            } else {
+              await reply('❌ Erro ao remover o comando.');
+            }
+          } else {
+            // Remover por nome
+            const normalizedTrigger = normalizar(arg).replace(/\s+/g, '');
+            const cmd = findCustomCommand(normalizedTrigger);
+            
+            if (!cmd) {
+              return reply(`❌ Comando "${arg}" não encontrado.\n\nUse ${groupPrefix}listcmd para ver todos os comandos.`);
+            }
+            
+            result = removeCustomCommand(c => c.id === cmd.id);
+            
+            if (result.removed) {
+              await reply(`🗑️ *Comando removido!*\n\n*Gatilho:* ${cmd.trigger}\n*Tipo:* ${typeof cmd.response === 'string' ? 'texto' : cmd.response.type}`);
+            } else {
+              await reply('❌ Erro ao remover o comando.');
+            }
+          }
+        } catch (e) {
+          console.error('Erro no comando delcmd:', e);
+          await reply("❌ Ocorreu um erro ao remover comando personalizado.");
+        }
+        break;
+
+      case 'testcmd':
+      case 'testarcmd':
+        try {
+          if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
+          
+          if (!q) {
+            return reply(`❌ Forneça o nome do comando para testar.\n\nExemplo: ${groupPrefix}testcmd bemvindo`);
+          }
+          
+          const normalizedTrigger = normalizar(q.trim()).replace(/\s+/g, '');
+          const cmd = findCustomCommand(normalizedTrigger);
+          
+          if (!cmd) {
+            return reply(`❌ Comando "${q}" não encontrado.\n\nUse ${groupPrefix}listcmd para ver todos os comandos.`);
+          }
+          
+          await reply(`🧪 *Testando comando: ${cmd.trigger}*\n\n_Executando..._`);
+          
+          // Simular execução
+          const responseData = cmd.response;
+          let processedResponse = responseData;
+          
+          if (typeof processedResponse === 'string') {
+            processedResponse = processedResponse
+              .replace(/{prefixo}/gi, groupPrefix)
+              .replace(/{prefix}/gi, groupPrefix)
+              .replace(/{nomedono}/gi, nomedono)
+              .replace(/{numerodono}/gi, numerodono)
+              .replace(/{nomebot}/gi, nomebot)
+              .replace(/{user}/gi, pushname || 'Usuário')
+              .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
+            
+            await reply(processedResponse);
+          } else if (processedResponse.type === 'text') {
+            await reply(processedResponse.content || 'Resposta personalizada');
+          } else if (processedResponse.type === 'image') {
+            const imageBuffer = processedResponse.buffer ? Buffer.from(processedResponse.buffer, 'base64') : null;
+            if (imageBuffer) {
+              let caption = processedResponse.caption || '';
+              caption = caption
+                .replace(/{prefixo}/gi, groupPrefix)
+                .replace(/{prefix}/gi, groupPrefix)
+                .replace(/{nomedono}/gi, nomedono)
+                .replace(/{numerodono}/gi, numerodono)
+                .replace(/{nomebot}/gi, nomebot)
+                .replace(/{user}/gi, pushname || 'Usuário')
+                .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
+              
+              await nazu.sendMessage(from, {
+                image: imageBuffer,
+                caption: caption
+              }, { quoted: info });
+            }
+          } else if (processedResponse.type === 'video') {
+            const videoBuffer = processedResponse.buffer ? Buffer.from(processedResponse.buffer, 'base64') : null;
+            if (videoBuffer) {
+              let caption = processedResponse.caption || '';
+              caption = caption
+                .replace(/{prefixo}/gi, groupPrefix)
+                .replace(/{prefix}/gi, groupPrefix)
+                .replace(/{nomedono}/gi, nomedono)
+                .replace(/{numerodono}/gi, numerodono)
+                .replace(/{nomebot}/gi, nomebot)
+                .replace(/{user}/gi, pushname || 'Usuário')
+                .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
+              
+              await nazu.sendMessage(from, {
+                video: videoBuffer,
+                caption: caption
+              }, { quoted: info });
+            }
+          } else if (processedResponse.type === 'audio') {
+            const audioBuffer = processedResponse.buffer ? Buffer.from(processedResponse.buffer, 'base64') : null;
+            if (audioBuffer) {
+              await nazu.sendMessage(from, {
+                audio: audioBuffer,
+                mimetype: 'audio/mp4',
+                ptt: processedResponse.ptt || false
+              }, { quoted: info });
+            }
+          } else if (processedResponse.type === 'sticker') {
+            const stickerBuffer = processedResponse.buffer ? Buffer.from(processedResponse.buffer, 'base64') : null;
+            if (stickerBuffer) {
+              await nazu.sendMessage(from, {
+                sticker: stickerBuffer
+              }, { quoted: info });
+            }
+          }
+        } catch (e) {
+          console.error('Erro no comando testcmd:', e);
+          await reply("❌ Ocorreu um erro ao testar o comando personalizado.");
+        }
+        break;
+
       case 'addblackglobal':
         try {
           if (!isOwner) return reply("Apenas o dono pode adicionar usuários à blacklist global.");

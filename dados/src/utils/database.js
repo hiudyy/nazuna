@@ -32,7 +32,8 @@ const {
   MODO_LITE_FILE,
   SUBDONOS_FILE,
   ALUGUEIS_FILE,
-  CODIGOS_ALUGUEL_FILE
+  CODIGOS_ALUGUEL_FILE,
+  CUSTOM_COMMANDS_FILE
 } = require('./paths');
 
 ensureDirectoryExists(GRUPOS_DIR);
@@ -81,6 +82,9 @@ ensureJsonFileExists(NO_PREFIX_COMMANDS_FILE, {
 });
 ensureJsonFileExists(COMMAND_ALIASES_FILE, {
   aliases: []
+});
+ensureJsonFileExists(CUSTOM_COMMANDS_FILE, {
+  commands: []
 });
 ensureJsonFileExists(GLOBAL_BLACKLIST_FILE, {
   users: {},
@@ -1213,6 +1217,54 @@ const saveCustomAutoResponses = responses => {
   }
 };
 
+const loadCustomCommands = () => {
+  try {
+    const data = loadJsonFile(CUSTOM_COMMANDS_FILE, { commands: [] });
+    return Array.isArray(data.commands) ? data.commands : [];
+  } catch (error) {
+    console.error('❌ Erro ao carregar comandos personalizados:', error);
+    return [];
+  }
+};
+
+const saveCustomCommands = (commands) => {
+  try {
+    ensureDirectoryExists(DONO_DIR);
+    fs.writeFileSync(CUSTOM_COMMANDS_FILE, JSON.stringify({ commands }, null, 2));
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao salvar comandos personalizados:', error);
+    return false;
+  }
+};
+
+const removeCustomCommand = (predicate) => {
+  try {
+    const commands = loadCustomCommands();
+    const filtered = commands.filter(cmd => !predicate(cmd));
+    if (filtered.length === commands.length) {
+      return { removed: false, commands };
+    }
+    const success = saveCustomCommands(filtered);
+    return { removed: success, commands: filtered };
+  } catch (error) {
+    console.error('❌ Erro ao remover comando personalizado:', error);
+    return { removed: false, commands: [] };
+  }
+};
+
+const findCustomCommand = (trigger) => {
+  try {
+    const normalized = normalizar(trigger || '').replace(/\s+/g, '');
+    if (!normalized) return null;
+    const commands = loadCustomCommands();
+    return commands.find(cmd => cmd.trigger === normalized) || null;
+  } catch (error) {
+    console.error('❌ Erro ao buscar comando personalizado:', error);
+    return null;
+  }
+};
+
 // Funções para auto-respostas com suporte a mídia
 const loadGroupAutoResponses = (groupId) => {
   const groupFile = pathz.join(GRUPOS_DIR, `${groupId}.json`);
@@ -1871,6 +1923,10 @@ module.exports = {
   deleteAutoResponse,
   processAutoResponse,
   sendAutoResponse,
+  loadCustomCommands,
+  saveCustomCommands,
+  removeCustomCommand,
+  findCustomCommand,
   loadNoPrefixCommands,
   saveNoPrefixCommands,
   loadCommandAliases,

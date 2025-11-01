@@ -21,6 +21,7 @@ const MSGPREFIX_FILE = path.join(DONO_DIR, 'msgprefix.json');
 const CUSTOM_REACTS_FILE = path.join(DATABASE_DIR, 'customReacts.json');
 const REMINDERS_FILE = path.join(DATABASE_DIR, 'reminders.json');
 const CMD_NOT_FOUND_FILE = path.join(DONO_DIR, 'cmdNotFound.json');
+const CUSTOM_COMMANDS_FILE = path.join(DONO_DIR, 'customCommands.json');
 const ANTIFLOOD_FILE = path.join(DATABASE_DIR, 'antiflood.json');
 const ANTIPV_FILE = path.join(DATABASE_DIR, 'antipv.json');
 const GLOBAL_BLOCKS_FILE = path.join(DATABASE_DIR, 'globalBlocks.json');
@@ -57,6 +58,7 @@ module.exports = {
   CUSTOM_REACTS_FILE,
   REMINDERS_FILE,
   CMD_NOT_FOUND_FILE,
+  CUSTOM_COMMANDS_FILE,
   ANTIFLOOD_FILE,
   ANTIPV_FILE,
   GLOBAL_BLOCKS_FILE,
