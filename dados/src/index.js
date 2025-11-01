@@ -1423,7 +1423,7 @@ Código: *${roleCode}*`,
             }
           } catch (err) {
           }
-        }, 60 * 1000); // Check every minute for precise timing
+        }, 60 * 1000);
       } catch (e) {
       }
     };
@@ -9314,6 +9314,7 @@ case 'roubar':
         }
         break;
       case 'opengp':
+      case  'abrirgp':
         try {
           if (!isGroup) return reply('Este comando só pode ser usado em grupos 💔');
           if (!isGroupAdmin) return reply('Apenas administradores podem usar este comando 💔');
@@ -9366,6 +9367,7 @@ case 'roubar':
         }
         break;
       case 'closegp':
+      case 'fechargp':
         try {
           if (!isGroup) return reply('Este comando só pode ser usado em grupos 💔');
           if (!isGroupAdmin) return reply('Apenas administradores podem usar este comando 💔');
