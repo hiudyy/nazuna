@@ -1608,8 +1608,6 @@ const getMenuDesignWithDefaults = (botName, userName) => {
 };
 
 // ===== Per-User Command Limiting System =====
-const CMD_LIMIT_FILE = pathz.join(DATABASE_DIR, 'cmduserlimits.json');
-
 const loadCommandLimits = () => {
   return loadJsonFile(CMD_LIMIT_FILE, {
     commands: {},
