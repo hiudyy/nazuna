@@ -321,6 +321,239 @@ class UserContextDB {
   }
 
   /**
+   * Atualiza/edita uma informação existente do usuário
+   */
+  updateMemory(userId, tipo, valorAntigo, valorNovo) {
+    const context = this.getUserContext(userId);
+    let atualizado = false;
+    
+    const tipoNormalizado = tipo.toLowerCase().trim();
+    
+    switch (tipoNormalizado) {
+      case 'gosto':
+      case 'gostos':
+        const indexGosto = context.preferencias.gostos.indexOf(valorAntigo);
+        if (indexGosto !== -1) {
+          context.preferencias.gostos[indexGosto] = valorNovo;
+          atualizado = true;
+        }
+        break;
+        
+      case 'nao_gosto':
+      case 'não_gosto':
+      case 'nao_gostos':
+        const indexNaoGosto = context.preferencias.nao_gostos.indexOf(valorAntigo);
+        if (indexNaoGosto !== -1) {
+          context.preferencias.nao_gostos[indexNaoGosto] = valorNovo;
+          atualizado = true;
+        }
+        break;
+        
+      case 'hobby':
+      case 'hobbies':
+        const indexHobby = context.preferencias.hobbies.indexOf(valorAntigo);
+        if (indexHobby !== -1) {
+          context.preferencias.hobbies[indexHobby] = valorNovo;
+          atualizado = true;
+        }
+        break;
+        
+      case 'assunto_favorito':
+      case 'assuntos_favoritos':
+        const indexAssunto = context.preferencias.assuntos_favoritos.indexOf(valorAntigo);
+        if (indexAssunto !== -1) {
+          context.preferencias.assuntos_favoritos[indexAssunto] = valorNovo;
+          atualizado = true;
+        }
+        break;
+        
+      case 'nome':
+        if (context.nome === valorAntigo) {
+          context.nome = valorNovo;
+          atualizado = true;
+        }
+        break;
+        
+      case 'apelido':
+      case 'apelidos':
+        const indexApelido = context.apelidos.indexOf(valorAntigo);
+        if (indexApelido !== -1) {
+          context.apelidos[indexApelido] = valorNovo;
+          atualizado = true;
+        }
+        break;
+        
+      case 'idade':
+      case 'localizacao':
+      case 'localização':
+      case 'profissao':
+      case 'profissão':
+      case 'relacionamento':
+        if (context.informacoes_pessoais[tipoNormalizado] === valorAntigo || 
+            context.informacoes_pessoais[tipo] === valorAntigo) {
+          const campo = context.informacoes_pessoais.hasOwnProperty(tipoNormalizado) ? 
+                       tipoNormalizado : tipo;
+          context.informacoes_pessoais[campo] = valorNovo;
+          atualizado = true;
+        }
+        break;
+        
+      case 'nota_importante':
+      case 'nota':
+        const indexNota = context.notas_importantes.findIndex(n => n.texto === valorAntigo);
+        if (indexNota !== -1) {
+          context.notas_importantes[indexNota].texto = valorNovo;
+          context.notas_importantes[indexNota].data = getBrazilDateTime();
+          atualizado = true;
+        }
+        break;
+        
+      case 'memoria_especial':
+      case 'memória':
+        const indexMemoria = context.relacionamento_nazuna.memorias_especiais.findIndex(
+          m => m.texto === valorAntigo
+        );
+        if (indexMemoria !== -1) {
+          context.relacionamento_nazuna.memorias_especiais[indexMemoria].texto = valorNovo;
+          context.relacionamento_nazuna.memorias_especiais[indexMemoria].data = getBrazilDateTime();
+          atualizado = true;
+        }
+        break;
+        
+      default:
+        // Tentar atualizar em outros campos personalizados
+        if (context.informacoes_pessoais.outros && 
+            context.informacoes_pessoais.outros[tipo] === valorAntigo) {
+          context.informacoes_pessoais.outros[tipo] = valorNovo;
+          atualizado = true;
+        }
+    }
+    
+    if (atualizado) {
+      context.ultima_atualizacao = getBrazilDateTime();
+      this.saveDatabase();
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Remove/exclui uma informação do usuário
+   */
+  deleteMemory(userId, tipo, valor) {
+    const context = this.getUserContext(userId);
+    let removido = false;
+    
+    const tipoNormalizado = tipo.toLowerCase().trim();
+    
+    switch (tipoNormalizado) {
+      case 'gosto':
+      case 'gostos':
+        const indexGosto = context.preferencias.gostos.indexOf(valor);
+        if (indexGosto !== -1) {
+          context.preferencias.gostos.splice(indexGosto, 1);
+          removido = true;
+        }
+        break;
+        
+      case 'nao_gosto':
+      case 'não_gosto':
+      case 'nao_gostos':
+        const indexNaoGosto = context.preferencias.nao_gostos.indexOf(valor);
+        if (indexNaoGosto !== -1) {
+          context.preferencias.nao_gostos.splice(indexNaoGosto, 1);
+          removido = true;
+        }
+        break;
+        
+      case 'hobby':
+      case 'hobbies':
+        const indexHobby = context.preferencias.hobbies.indexOf(valor);
+        if (indexHobby !== -1) {
+          context.preferencias.hobbies.splice(indexHobby, 1);
+          removido = true;
+        }
+        break;
+        
+      case 'assunto_favorito':
+      case 'assuntos_favoritos':
+        const indexAssunto = context.preferencias.assuntos_favoritos.indexOf(valor);
+        if (indexAssunto !== -1) {
+          context.preferencias.assuntos_favoritos.splice(indexAssunto, 1);
+          removido = true;
+        }
+        break;
+        
+      case 'apelido':
+      case 'apelidos':
+        const indexApelido = context.apelidos.indexOf(valor);
+        if (indexApelido !== -1) {
+          context.apelidos.splice(indexApelido, 1);
+          removido = true;
+        }
+        break;
+        
+      case 'idade':
+      case 'localizacao':
+      case 'localização':
+      case 'profissao':
+      case 'profissão':
+      case 'relacionamento':
+        const campo = context.informacoes_pessoais.hasOwnProperty(tipoNormalizado) ? 
+                     tipoNormalizado : tipo;
+        if (context.informacoes_pessoais[campo]) {
+          context.informacoes_pessoais[campo] = null;
+          removido = true;
+        }
+        break;
+        
+      case 'nome':
+        if (context.nome) {
+          context.nome = null;
+          removido = true;
+        }
+        break;
+        
+      case 'nota_importante':
+      case 'nota':
+        const indexNota = context.notas_importantes.findIndex(n => n.texto === valor);
+        if (indexNota !== -1) {
+          context.notas_importantes.splice(indexNota, 1);
+          removido = true;
+        }
+        break;
+        
+      case 'memoria_especial':
+      case 'memória':
+        const indexMemoria = context.relacionamento_nazuna.memorias_especiais.findIndex(
+          m => m.texto === valor
+        );
+        if (indexMemoria !== -1) {
+          context.relacionamento_nazuna.memorias_especiais.splice(indexMemoria, 1);
+          removido = true;
+        }
+        break;
+        
+      default:
+        // Tentar remover de campos personalizados
+        if (context.informacoes_pessoais.outros && 
+            context.informacoes_pessoais.outros[tipo]) {
+          delete context.informacoes_pessoais.outros[tipo];
+          removido = true;
+        }
+    }
+    
+    if (removido) {
+      context.ultima_atualizacao = getBrazilDateTime();
+      this.saveDatabase();
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
    * Obtém um resumo formatado do contexto do usuário
    */
   getUserContextSummary(userId) {
