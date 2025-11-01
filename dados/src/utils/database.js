@@ -34,7 +34,8 @@ const {
   ALUGUEIS_FILE,
   CODIGOS_ALUGUEL_FILE,
   RELATIONSHIPS_FILE,
-  CUSTOM_COMMANDS_FILE
+  CUSTOM_COMMANDS_FILE,
+  CONFIG_FILE
 } = require('./paths');
 
 ensureDirectoryExists(GRUPOS_DIR);
@@ -570,6 +571,8 @@ const addSubdono = (userId, numerodono) => {
       message: '✨ Este usuário já é um subdono!'
     };
   }
+  // Carrega config localmente para não depender de variável global
+  const config = loadJsonFile(CONFIG_FILE, {});
   const nmrdn_check = buildUserId(numerodono, config);
   const ownerJid = `${numerodono}@s.whatsapp.net`;
   if (userId === nmrdn_check || userId === ownerJid || (config.lidowner && userId === config.lidowner)) {
