@@ -9138,56 +9138,72 @@ case 'roubar':
       case 'stickerpack':
       case 'packfig':
         try {
-          if (!q) return reply(`🎨 *Criador de Pack de Figurinhas*\n\n🔢 *Como usar:*\n• Escolha quantas figurinhas deseja (1-30)\n• Ex: ${prefix}figurinhas 10\n• Ex: ${prefix}figurinhas 5\n\n✨ O pack será criado com figurinhas aleatórias!`);
+          if (!q) return reply(`🎨 *Gerador de Figurinhas*\n\n🔢 *Como usar:*\n• Escolha quantas figurinhas deseja (1-15)\n• Ex: ${prefix}figurinhas 10\n• Ex: ${prefix}figurinhas 5\n\n✨ As figurinhas serão enviadas uma por uma!\n${isGroup ? '📬 *Nota:* Em grupos, as figurinhas serão enviadas no seu privado!' : ''}`);
           
           const quantidade = parseInt(q);
           
-          if (isNaN(quantidade) || quantidade < 1 || quantidade > 30) {
-            return reply('❌ Número inválido! Escolha entre 1 e 30 figurinhas.');
+          if (isNaN(quantidade) || quantidade < 1 || quantidade > 15) {
+            return reply('❌ Número inválido! Escolha entre 1 e 15 figurinhas.');
           }
           
-          await reply(`🎨 Criando pack com ${quantidade} figurinha${quantidade > 1 ? 's' : ''}...\n⏳ Aguarde um momento...`);
+          // Destino: PV se for grupo, ou o próprio chat se for PV
+          const destino = isGroup ? sender : from;
           
-          const stickers = [];
+          if (isGroup) {
+            await reply(`📬 Enviando ${quantidade} figurinha${quantidade > 1 ? 's' : ''} no seu privado...\n⏳ Aguarde um momento!`);
+          } else {
+            await reply(`🎨 Enviando ${quantidade} figurinha${quantidade > 1 ? 's' : ''}...\n⏳ Aguarde um momento!`);
+          }
+          
           const usedNumbers = new Set();
+          let successCount = 0;
+          let failCount = 0;
           
           for (let i = 0; i < quantidade; i++) {
-            let randomNum;
-            do {
-              randomNum = Math.floor(Math.random() * 8051);
-            } while (usedNumbers.has(randomNum));
-            
-            usedNumbers.add(randomNum);
-            
-            stickers.push({
-              sticker: { 
-                url: `https://raw.githubusercontent.com/badDevelopper/Testfigu/main/fig (${Math.floor(Math.random() * 8051)}).webp` 
-              }
-            });
+            try {
+              // Gerar número único
+              let randomNum;
+              do {
+                randomNum = Math.floor(Math.random() * 8051);
+              } while (usedNumbers.has(randomNum));
+              
+              usedNumbers.add(randomNum);
+              
+              // Buscar a figurinha
+              const stickerUrl = `https://raw.githubusercontent.com/badDevelopper/Testfigu/main/fig (${randomNum}).webp`;
+              const stickerResponse = await axios.get(stickerUrl, {
+                responseType: 'arraybuffer',
+                timeout: 10000
+              });
+              
+              const stickerBuffer = Buffer.from(stickerResponse.data);
+              
+              // Enviar figurinha
+              await nazu.sendMessage(destino, {
+                sticker: stickerBuffer
+              });
+              
+              successCount++;
+              
+              // Pequeno delay para não sobrecarregar
+              await new Promise(resolve => setTimeout(resolve, 800));
+              
+            } catch (stickerError) {
+              console.error(`Erro ao enviar figurinha ${i + 1}:`, stickerError.message);
+              failCount++;
+            }
           }
           
-          const coverStickerNum = Math.floor(Math.random() * 8051);
-          const coverResponse = await axios.get(`https://raw.githubusercontent.com/badDevelopper/Testfigu/main/fig (${Math.floor(Math.random() * 8051)}).webp`, {
-            responseType: 'arraybuffer'
-          });
-
-          const coverBuffer = Buffer.from(coverResponse.data);
+          // Mensagem final
+          const finalMsg = `✅ Pronto!\n\n📊 *Resultado:*\n• Enviadas: ${successCount} figurinha${successCount !== 1 ? 's' : ''}\n${failCount > 0 ? `• Falhas: ${failCount}\n` : ''}`;
           
-          await nazu.sendMessage(from, {
-            stickerPack: {
-              name: `Pack Aleatório (${quantidade})`,
-              publisher: `By ${nomebot}`,
-              description: `Pack com ${quantidade} figurinhas aleatórias criado especialmente para você!`,
-              cover: coverBuffer,
-              stickers: stickers
-            }
-          }, {
-            quoted: info
+          await nazu.sendMessage(destino, {
+            text: finalMsg
           });
           
         } catch (e) {
           console.error('Erro no comando figurinhas:', e);
-          await reply("🐝 Oh não! Aconteceu um errinho ao criar o pack de figurinhas. Tente de novo daqui a pouquinho, por favor! 🥺");
+          await reply("🐝 Oh não! Aconteceu um errinho ao enviar as figurinhas. Tente de novo daqui a pouquinho, por favor! 🥺");
         }
         break;
 
