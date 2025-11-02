@@ -9,6 +9,7 @@ const os = require('os');
 const https = require('https');
 const crypto = require('crypto');
 const PerformanceOptimizer = require('./utils/performanceOptimizer');
+const cron = require('node-cron');
 const ia = require('./funcs/private/ia');
 const { formatUptime, normalizar, isGroupId, isUserId, isValidLid, isValidJid, getUserName, getLidFromJid, buildUserId, getBotId, ensureDirectoryExists, ensureJsonFileExists, loadJsonFile } = require('./utils/helpers');
 const {
@@ -1432,93 +1433,113 @@ Código: *${roleCode}*`,
       }
     };
     startRemindersWorker(nazu);
+    // GP schedule using cron jobs (daily execution)
     let gpScheduleWorkerStarted = global.gpScheduleWorkerStarted || false;
+    const gpCronJobs = {}; // key: `${groupId}:${type}` where type is 'open'|'close'
+
+    const unscheduleGroupJob = (groupId, type) => {
+      const key = `${groupId}:${type}`;
+      const j = gpCronJobs[key];
+      if (j && typeof j.stop === 'function') {
+        try { j.stop(); } catch (e) {}
+      }
+      delete gpCronJobs[key];
+    };
+
+    const scheduleGroupJob = (groupId, type, timeStr, nazuInstance) => {
+      if (!groupId || !timeStr) return;
+      const normalized = normalizeScheduleTime(timeStr);
+      if (!normalized) return;
+      const [hh, mm] = normalized.split(':');
+      if (typeof hh === 'undefined' || typeof mm === 'undefined') return;
+      const key = `${groupId}:${type}`;
+      // unschedule previous if exists
+      unscheduleGroupJob(groupId, type);
+
+      const cronExpr = `${parseInt(mm, 10)} ${parseInt(hh, 10)} * * *`;
+      try {
+        const task = cron.schedule(cronExpr, async () => {
+          try {
+            const filePath = buildGroupFilePath(groupId);
+            if (!fs.existsSync(filePath)) return;
+            let data = {};
+            try { data = JSON.parse(fs.readFileSync(filePath, 'utf8')) || {}; } catch (e) { data = {}; }
+            data.schedule = data.schedule || {};
+            const schedule = data.schedule;
+
+            if (type === 'open') {
+              try {
+                await nazuInstance.groupSettingUpdate(groupId, 'not_announcement');
+                await nazuInstance.sendMessage(groupId, { text: '🔓 Grupo aberto automaticamente pelo agendamento diário.' });
+                console.log(`[Cron] ✅ Grupo ABERTO automaticamente: ${groupId.substring(0, 15)}... às ${normalized}`);
+              } catch (e) {
+                console.error(`[Cron Error] open ${groupId}:`, e);
+              }
+            } else {
+              try {
+                await nazuInstance.groupSettingUpdate(groupId, 'announcement');
+                await nazuInstance.sendMessage(groupId, { text: '🔒 Grupo fechado automaticamente pelo agendamento diário.' });
+                console.log(`[Cron] ✅ Grupo FECHADO automaticamente: ${groupId.substring(0, 15)}... às ${normalized}`);
+              } catch (e) {
+                console.error(`[Cron Error] close ${groupId}:`, e);
+              }
+            }
+
+            // record run and persist
+            recordScheduleRun(schedule, type, getTodayStr(), normalized);
+            data.schedule = schedule;
+            try { writeJsonFile(filePath, data); } catch (e) { console.error('[Cron] Failed to write schedule run:', e); }
+          } catch (e) {
+            console.error('[Cron] Unexpected error in scheduled job:', e);
+          }
+        }, { timezone: 'America/Sao_Paulo' });
+
+        gpCronJobs[key] = task;
+      } catch (e) {
+        console.error('[Cron] Failed to schedule job', cronExpr, e);
+      }
+    };
+
+    const loadAllGroupSchedules = (nazuInstance) => {
+      try {
+        if (!ensureDirectoryExists(GRUPOS_DIR)) return;
+        const files = fs.readdirSync(GRUPOS_DIR).filter(f => f.endsWith('.json'));
+        let loadedCount = 0;
+        for (const f of files) {
+          const groupId = f.replace(/\.json$/, '');
+          if (!groupId.endsWith('@g.us')) continue;
+          const filePath = pathz.join(GRUPOS_DIR, f);
+          let data = {};
+          try { data = JSON.parse(fs.readFileSync(filePath, 'utf8')) || {}; } catch (e) { continue; }
+          const schedule = data.schedule && typeof data.schedule === 'object' ? data.schedule : {};
+          if (schedule.openTime) {
+            scheduleGroupJob(groupId, 'open', schedule.openTime, nazuInstance);
+            console.log(`[Cron] ✅ Agendamento ABRIR carregado: Grupo ${groupId.substring(0, 15)}... às ${schedule.openTime}`);
+            loadedCount++;
+          }
+          if (schedule.closeTime) {
+            scheduleGroupJob(groupId, 'close', schedule.closeTime, nazuInstance);
+            console.log(`[Cron] ✅ Agendamento FECHAR carregado: Grupo ${groupId.substring(0, 15)}... às ${schedule.closeTime}`);
+            loadedCount++;
+          }
+        }
+        if (loadedCount > 0) {
+          console.log(`[Cron] 📅 Total de ${loadedCount} agendamento(s) carregado(s) com sucesso`);
+        }
+      } catch (e) {
+        console.error('[Cron] Failed to load group schedules:', e);
+      }
+    };
+
     const startGpScheduleWorker = (nazuInstance) => {
       try {
         if (gpScheduleWorkerStarted) return;
         gpScheduleWorkerStarted = true;
         global.gpScheduleWorkerStarted = true;
-        setInterval(async () => {
-          try {
-            if (!ensureDirectoryExists(GRUPOS_DIR)) return;
-            const files = fs.readdirSync(GRUPOS_DIR).filter(f => f.endsWith('.json'));
-            if (!files.length) return;
-
-            const nowMin = getNowMinutes();
-            const today = getTodayStr();
-
-            for (const f of files) {
-              const groupId = f.replace(/\.json$/, '');
-              if (!groupId.endsWith('@g.us')) continue;
-              const filePath = pathz.join(GRUPOS_DIR, f);
-              let data;
-              try {
-                data = JSON.parse(fs.readFileSync(filePath, 'utf-8')) || {};
-              } catch (e) {
-                console.error(`[Schedule Worker] Error reading group file ${f}:`, e);
-                continue;
-              }
-
-              const schedule = data.schedule && typeof data.schedule === 'object' ? data.schedule : {};
-              let scheduleChanged = false;
-              let schedulePersisted = false;
-
-              if (schedule.lastRun && typeof schedule.lastRun !== 'object') {
-                schedule.lastRun = {};
-                scheduleChanged = true;
-              }
-
-              const openTimeRaw = typeof schedule.openTime === 'string' ? schedule.openTime : '';
-              const openTime = normalizeScheduleTime(openTimeRaw);
-              if (openTime && openTime !== openTimeRaw) {
-                schedule.openTime = openTime;
-                scheduleChanged = true;
-              }
-              const openMinutes = openTime ? parseTimeToMinutes(openTime) : null;
-
-              if (openMinutes !== null && openMinutes === nowMin && !hasRunForScheduleToday(schedule.lastRun?.open, today, openTime)) {
-                try {
-                  await nazuInstance.groupSettingUpdate(groupId, 'not_announcement');
-                  await nazuInstance.sendMessage(groupId, { text: '🔓 Grupo aberto automaticamente pelo agendamento diário.' });
-                  recordScheduleRun(schedule, 'open', today, openTime);
-                  data.schedule = schedule;
-                  writeJsonFile(filePath, data);
-                  schedulePersisted = true;
-                } catch (e) {
-                  console.error(`[Schedule Error] Failed to open group ${groupId}:`, e);
-                }
-              }
-
-              const closeTimeRaw = typeof schedule.closeTime === 'string' ? schedule.closeTime : '';
-              const closeTime = normalizeScheduleTime(closeTimeRaw);
-              if (closeTime && closeTime !== closeTimeRaw) {
-                schedule.closeTime = closeTime;
-                scheduleChanged = true;
-              }
-              const closeMinutes = closeTime ? parseTimeToMinutes(closeTime) : null;
-
-              if (closeMinutes !== null && closeMinutes === nowMin && !hasRunForScheduleToday(schedule.lastRun?.close, today, closeTime)) {
-                try {
-                  await nazuInstance.groupSettingUpdate(groupId, 'announcement');
-                  await nazuInstance.sendMessage(groupId, { text: '🔒 Grupo fechado automaticamente pelo agendamento diário.' });
-                  recordScheduleRun(schedule, 'close', today, closeTime);
-                  data.schedule = schedule;
-                  writeJsonFile(filePath, data);
-                  schedulePersisted = true;
-                } catch (e) {
-                  console.error(`[Schedule Error] Failed to close group ${groupId}:`, e);
-                }
-              }
-
-              if (!schedulePersisted && scheduleChanged) {
-                data.schedule = schedule;
-                writeJsonFile(filePath, data);
-              }
-            }
-          } catch (err) {
-          }
-        }, 60 * 1000);
+        // load existing schedules and create cron jobs
+        loadAllGroupSchedules(nazuInstance);
       } catch (e) {
+        console.error('[Cron] startGpScheduleWorker error:', e);
       }
     };
     startGpScheduleWorker(nazu);
@@ -9481,6 +9502,8 @@ case 'roubar':
               }
             }
             writeJsonFile(groupFilePath, data);
+            // Remove cron job in memory (se houver)
+            try { unscheduleGroupJob(from, 'open'); } catch (e) {}
             return reply('✅ Agendamento diário para ABRIR o grupo foi removido.');
           }
           
@@ -9503,6 +9526,9 @@ case 'roubar':
             }
           }
           writeJsonFile(groupFilePath, data);
+
+          // (Re)agendar job em memória
+          try { scheduleGroupJob(from, 'open', normalizedTime, nazu); } catch (e) { console.error('Erro ao agendar open cron:', e); }
           
           let msg = `✅ Agendamento salvo! O grupo será ABERTO todos os dias às ${normalizedTime} (horário de São Paulo).`;
           if (!isBotAdmin) msg += '\n⚠️ Observação: Eu preciso ser administrador para efetivar a abertura no horário.';
@@ -9534,6 +9560,8 @@ case 'roubar':
               }
             }
             writeJsonFile(groupFilePath, data);
+            // Remove cron job in memory (se houver)
+            try { unscheduleGroupJob(from, 'close'); } catch (e) {}
             return reply('✅ Agendamento diário para FECHAR o grupo foi removido.');
           }
           
@@ -9556,6 +9584,9 @@ case 'roubar':
             }
           }
           writeJsonFile(groupFilePath, data);
+
+          // (Re)agendar job em memória
+          try { scheduleGroupJob(from, 'close', normalizedTime, nazu); } catch (e) { console.error('Erro ao agendar close cron:', e); }
           
           let msg = `✅ Agendamento salvo! O grupo será FECHADO todos os dias às ${normalizedTime} (horário de São Paulo).`;
           if (!isBotAdmin) msg += '\n⚠️ Observação: Eu preciso ser administrador para efetivar o fechamento no horário.';
