@@ -78,6 +78,7 @@ ${middleBorder}${menuItemIcon}${prefix}linkgp
 ${middleBorder}${menuItemIcon}${prefix}grupo A/F
 ${middleBorder}${menuItemIcon}${prefix}opengp HH:MM|off
 ${middleBorder}${menuItemIcon}${prefix}closegp HH:MM|off
+${middleBorder}${menuItemIcon}${prefix}automsg
 ${middleBorder}${menuItemIcon}${prefix}banghost
 ${middleBorder}${menuItemIcon}${prefix}limitmessage
 ${middleBorder}${menuItemIcon}${prefix}dellimitmessage

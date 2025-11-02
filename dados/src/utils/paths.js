@@ -30,6 +30,7 @@ const CMD_USER_LIMITS_FILE = path.join(DATABASE_DIR, 'cmduserlimits.json');
 const ANTISPAM_FILE = path.join(DATABASE_DIR, 'antispam.json');
 const BOT_STATE_FILE = path.join(DATABASE_DIR, 'botState.json');
 const AUTO_HORARIOS_FILE = path.join(DATABASE_DIR, 'autohorarios.json');
+const AUTO_MENSAGENS_FILE = path.join(DATABASE_DIR, 'automensagens.json');
 const MODO_LITE_FILE = path.join(DATABASE_DIR, 'modolite.json');
 const SUBDONOS_FILE = path.join(DONO_DIR, 'subdonos.json');
 const ALUGUEIS_FILE = path.join(DONO_DIR, 'alugueis.json');
@@ -68,6 +69,7 @@ module.exports = {
   ANTISPAM_FILE,
   BOT_STATE_FILE,
   AUTO_HORARIOS_FILE,
+  AUTO_MENSAGENS_FILE,
   MODO_LITE_FILE,
   SUBDONOS_FILE,
   ALUGUEIS_FILE,

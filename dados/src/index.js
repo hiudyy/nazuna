@@ -142,6 +142,7 @@ const {
   ANTISPAM_FILE,
   BOT_STATE_FILE,
   AUTO_HORARIOS_FILE,
+  AUTO_MENSAGENS_FILE,
   MODO_LITE_FILE
 } = require('./utils/paths');
 const API_KEY_REQUIRED_MESSAGE = 'Este comando precisa de API key para funcionar. Meu dono já foi notificado! 😺';
@@ -1666,6 +1667,124 @@ Código: *${roleCode}*`,
       }
     };
     startAutoHorariosWorker(nazu);
+
+    // Auto Mensagens Worker usando cron jobs (executa conforme horários programados)
+    let autoMensagensWorkerStarted = global.autoMensagensWorkerStarted || false;
+    const autoMsgCronJobs = {}; // key: `${groupId}:${msgId}`
+
+    const unscheduleAutoMessage = (groupId, msgId) => {
+      const key = `${groupId}:${msgId}`;
+      const j = autoMsgCronJobs[key];
+      if (j && typeof j.stop === 'function') {
+        try { j.stop(); } catch (e) {}
+      }
+      delete autoMsgCronJobs[key];
+    };
+
+    const scheduleAutoMessage = (groupId, msgConfig, nazuInstance) => {
+      if (!groupId || !msgConfig || !msgConfig.id || !msgConfig.time) return;
+      
+      const normalized = normalizeScheduleTime(msgConfig.time);
+      if (!normalized) return;
+      
+      const [hh, mm] = normalized.split(':');
+      if (typeof hh === 'undefined' || typeof mm === 'undefined') return;
+      
+      const key = `${groupId}:${msgConfig.id}`;
+      
+      // Remover agendamento anterior se existir
+      unscheduleAutoMessage(groupId, msgConfig.id);
+
+      const cronExpr = `${parseInt(mm, 10)} ${parseInt(hh, 10)} * * *`;
+      
+      try {
+        const task = cron.schedule(cronExpr, async () => {
+          try {
+            if (!msgConfig.enabled) return;
+            
+            // Construir e enviar a mensagem
+            const messageContent = {};
+            
+            if (msgConfig.type === 'text') {
+              messageContent.text = msgConfig.content;
+            } else if (msgConfig.type === 'image') {
+              messageContent.image = { url: msgConfig.mediaPath };
+              if (msgConfig.caption) messageContent.caption = msgConfig.caption;
+            } else if (msgConfig.type === 'video') {
+              messageContent.video = { url: msgConfig.mediaPath };
+              if (msgConfig.caption) messageContent.caption = msgConfig.caption;
+            } else if (msgConfig.type === 'document') {
+              messageContent.document = { url: msgConfig.mediaPath };
+              messageContent.fileName = msgConfig.fileName || 'documento.pdf';
+              if (msgConfig.caption) messageContent.caption = msgConfig.caption;
+            } else if (msgConfig.type === 'sticker') {
+              messageContent.sticker = { url: msgConfig.mediaPath };
+            } else if (msgConfig.type === 'audio') {
+              messageContent.audio = { url: msgConfig.mediaPath };
+              messageContent.mimetype = 'audio/mp4';
+            }
+            
+            await nazuInstance.sendMessage(groupId, messageContent);
+            console.log(`[AutoMsg] ✅ Mensagem enviada automaticamente: Grupo ${groupId.substring(0, 15)}... às ${normalized}`);
+            
+          } catch (e) {
+            console.error(`[AutoMsg Error] ${groupId}:`, e);
+          }
+        }, { timezone: 'America/Sao_Paulo' });
+
+        autoMsgCronJobs[key] = task;
+      } catch (e) {
+        console.error('[AutoMsg] Failed to schedule message', cronExpr, e);
+      }
+    };
+
+    const loadAllAutoMessages = (nazuInstance) => {
+      try {
+        if (!ensureDirectoryExists(GRUPOS_DIR)) return;
+        const files = fs.readdirSync(GRUPOS_DIR).filter(f => f.endsWith('.json'));
+        let loadedCount = 0;
+        
+        for (const f of files) {
+          const groupId = f.replace(/\.json$/, '');
+          if (!groupId.endsWith('@g.us')) continue;
+          
+          const filePath = pathz.join(GRUPOS_DIR, f);
+          let data = {};
+          try { data = JSON.parse(fs.readFileSync(filePath, 'utf8')) || {}; } catch (e) { continue; }
+          
+          const autoMessages = data.autoMessages && Array.isArray(data.autoMessages) ? data.autoMessages : [];
+          
+          for (const msgConfig of autoMessages) {
+            if (msgConfig.enabled && msgConfig.time) {
+              scheduleAutoMessage(groupId, msgConfig, nazuInstance);
+              console.log(`[AutoMsg] ✅ Mensagem agendada: Grupo ${groupId.substring(0, 15)}... ID ${msgConfig.id} às ${msgConfig.time}`);
+              loadedCount++;
+            }
+          }
+        }
+        
+        if (loadedCount > 0) {
+          console.log(`[AutoMsg] 📨 Total de ${loadedCount} mensagem(ns) automática(s) carregada(s) com sucesso`);
+        }
+      } catch (e) {
+        console.error('[AutoMsg] Failed to load auto messages:', e);
+      }
+    };
+
+    const startAutoMensagensWorker = (nazuInstance) => {
+      try {
+        if (autoMensagensWorkerStarted) return;
+        autoMensagensWorkerStarted = true;
+        global.autoMensagensWorkerStarted = true;
+        
+        // Carregar mensagens existentes e criar cron jobs
+        loadAllAutoMessages(nazuInstance);
+      } catch (e) {
+        console.error('[AutoMsg] startAutoMensagensWorker error:', e);
+      }
+    };
+    
+    startAutoMensagensWorker(nazu);
 
     const getFileBuffer = async (mediakey, mediaType, options = {}) => {
       try {
@@ -9566,6 +9685,280 @@ case 'roubar':
         } catch (e) {
           console.error('Erro no closegp:', e);
           await reply('Ocorreu um erro ao salvar o agendamento 💔');
+        }
+        break;
+      case 'automsg':
+        try {
+          if (!isGroup) return reply('Este comando só pode ser usado em grupos 💔');
+          if (!isGroupAdmin) return reply('Apenas administradores podem usar este comando 💔');
+          
+          const subCommand = args[0]?.toLowerCase();
+          
+          if (!subCommand) {
+            return reply(`📨 *Auto Mensagens*
+
+Use os subcomandos:
+• ${groupPrefix}automsg add - Adicionar mensagem
+• ${groupPrefix}automsg list - Listar mensagens
+• ${groupPrefix}automsg del [id] - Remover mensagem
+• ${groupPrefix}automsg on [id] - Ativar mensagem
+• ${groupPrefix}automsg off [id] - Desativar mensagem`);
+          }
+          
+          const groupFilePath = pathz.join(GRUPOS_DIR, `${from}.json`);
+          let data = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath, 'utf-8')) : {};
+          data.autoMessages = data.autoMessages || [];
+          
+          switch (subCommand) {
+            case 'add':
+              if (!q.includes('|')) {
+                return reply(`📨 *Adicionar Auto Mensagem*
+
+Para adicionar, responda a uma mensagem (texto, imagem, vídeo, documento, figurinha ou áudio) e use:
+
+${groupPrefix}automsg add HH:MM | descrição
+
+Exemplos:
+• ${groupPrefix}automsg add 08:00 | Bom dia!
+• ${groupPrefix}automsg add 20:00 | Boa noite!
+
+A mensagem será enviada todos os dias no horário especificado.`);
+              }
+              
+              const [timeStr, ...descParts] = args.slice(1).join(' ').split('|').map(s => s.trim());
+              const description = descParts.join('|').trim() || 'Sem descrição';
+              
+              // Validar horário
+              const timeValidation = validateTimeFormat(timeStr);
+              if (!timeValidation.valid) {
+                return reply(`⏰ ${timeValidation.error}\nExemplo: ${groupPrefix}automsg add 08:00 | Bom dia!`);
+              }
+              
+              const normalizedTime = normalizeScheduleTime(timeStr);
+              if (!normalizedTime) {
+                return reply(`⏰ Horário inválido. Use o formato HH:MM`);
+              }
+              
+              // Verificar se há mensagem respondida ou texto
+              let msgConfig = {
+                id: Date.now().toString(),
+                time: normalizedTime,
+                description: description,
+                enabled: true,
+                createdAt: new Date().toISOString(),
+                createdBy: sender
+              };
+              
+              if (quotedMessageContent) {
+                // Processar mídia respondida
+                if (isQuotedImage || isQuotedVisuU || isQuotedVisuU2) {
+                  const mediaMsg = quotedMessageContent.imageMessage || 
+                                  quotedMessageContent.viewOnceMessage?.message?.imageMessage ||
+                                  quotedMessageContent.viewOnceMessageV2?.message?.imageMessage;
+                  
+                  const buffer = await getFileBuffer(mediaMsg, 'image');
+                  const autoMsgDir = pathz.join(__dirname, '..', 'midias', 'automsg', from);
+                  ensureDirectoryExists(autoMsgDir);
+                  
+                  const fileName = `${msgConfig.id}.jpg`;
+                  const filePath = pathz.join(autoMsgDir, fileName);
+                  fs.writeFileSync(filePath, buffer);
+                  
+                  msgConfig.type = 'image';
+                  msgConfig.mediaPath = filePath;
+                  msgConfig.caption = mediaMsg.caption || description;
+                  
+                } else if (isQuotedVideo) {
+                  const buffer = await getFileBuffer(quotedMessageContent.videoMessage, 'video');
+                  const autoMsgDir = pathz.join(__dirname, '..', 'midias', 'automsg', from);
+                  ensureDirectoryExists(autoMsgDir);
+                  
+                  const fileName = `${msgConfig.id}.mp4`;
+                  const filePath = pathz.join(autoMsgDir, fileName);
+                  fs.writeFileSync(filePath, buffer);
+                  
+                  msgConfig.type = 'video';
+                  msgConfig.mediaPath = filePath;
+                  msgConfig.caption = quotedMessageContent.videoMessage.caption || description;
+                  
+                } else if (isQuotedDocument || isQuotedDocW) {
+                  const docMsg = quotedMessageContent.documentMessage || 
+                                quotedMessageContent.documentWithCaptionMessage?.message?.documentMessage;
+                  const buffer = await getFileBuffer(docMsg, 'document');
+                  const autoMsgDir = pathz.join(__dirname, '..', 'midias', 'automsg', from);
+                  ensureDirectoryExists(autoMsgDir);
+                  
+                  const ext = docMsg.fileName?.split('.').pop() || 'pdf';
+                  const fileName = `${msgConfig.id}.${ext}`;
+                  const filePath = pathz.join(autoMsgDir, fileName);
+                  fs.writeFileSync(filePath, buffer);
+                  
+                  msgConfig.type = 'document';
+                  msgConfig.mediaPath = filePath;
+                  msgConfig.fileName = docMsg.fileName || 'documento.pdf';
+                  msgConfig.caption = docMsg.caption || description;
+                  
+                } else if (isQuotedSticker) {
+                  const buffer = await getFileBuffer(quotedMessageContent.stickerMessage, 'sticker');
+                  const autoMsgDir = pathz.join(__dirname, '..', 'midias', 'automsg', from);
+                  ensureDirectoryExists(autoMsgDir);
+                  
+                  const fileName = `${msgConfig.id}.webp`;
+                  const filePath = pathz.join(autoMsgDir, fileName);
+                  fs.writeFileSync(filePath, buffer);
+                  
+                  msgConfig.type = 'sticker';
+                  msgConfig.mediaPath = filePath;
+                  
+                } else if (isQuotedAudio) {
+                  const buffer = await getFileBuffer(quotedMessageContent.audioMessage, 'audio');
+                  const autoMsgDir = pathz.join(__dirname, '..', 'midias', 'automsg', from);
+                  ensureDirectoryExists(autoMsgDir);
+                  
+                  const fileName = `${msgConfig.id}.mp3`;
+                  const filePath = pathz.join(autoMsgDir, fileName);
+                  fs.writeFileSync(filePath, buffer);
+                  
+                  msgConfig.type = 'audio';
+                  msgConfig.mediaPath = filePath;
+                  
+                } else if (isQuotedMsg || isQuotedMsg2) {
+                  const text = quotedMessageContent.conversation || 
+                              quotedMessageContent.extendedTextMessage?.text;
+                  msgConfig.type = 'text';
+                  msgConfig.content = text;
+                } else {
+                  return reply('❌ Tipo de mensagem não suportado. Use texto, imagem, vídeo, documento, figurinha ou áudio.');
+                }
+              } else {
+                // Usar descrição como texto
+                if (!description || description === 'Sem descrição') {
+                  return reply('❌ Você precisa responder a uma mensagem ou fornecer um texto após o horário.');
+                }
+                msgConfig.type = 'text';
+                msgConfig.content = description;
+              }
+              
+              // Adicionar à lista
+              data.autoMessages.push(msgConfig);
+              writeJsonFile(groupFilePath, data);
+              
+              // Agendar
+              scheduleAutoMessage(from, msgConfig, nazu);
+              
+              await reply(`✅ Mensagem automática adicionada!
+
+🆔 ID: ${msgConfig.id}
+⏰ Horário: ${normalizedTime}
+📝 Tipo: ${msgConfig.type}
+📋 Descrição: ${description}
+
+A mensagem será enviada todos os dias às ${normalizedTime} (horário de São Paulo).`);
+              break;
+              
+            case 'list':
+            case 'lista':
+              if (data.autoMessages.length === 0) {
+                return reply('📭 Nenhuma mensagem automática configurada.');
+              }
+              
+              let listMsg = '📨 *Auto Mensagens Configuradas*\n\n';
+              data.autoMessages.forEach((msg, idx) => {
+                const status = msg.enabled ? '✅' : '❌';
+                listMsg += `${status} *${idx + 1}.* ID: ${msg.id}\n`;
+                listMsg += `   ⏰ Horário: ${msg.time}\n`;
+                listMsg += `   📝 Tipo: ${msg.type}\n`;
+                listMsg += `   📋 Descrição: ${msg.description}\n\n`;
+              });
+              
+              await reply(listMsg);
+              break;
+              
+            case 'del':
+            case 'delete':
+            case 'remover':
+              const msgId = args[1];
+              if (!msgId) {
+                return reply(`❌ Forneça o ID da mensagem.\nUso: ${groupPrefix}automsg del [id]`);
+              }
+              
+              const msgIndex = data.autoMessages.findIndex(m => m.id === msgId);
+              if (msgIndex === -1) {
+                return reply('❌ Mensagem não encontrada. Use automsg list para ver os IDs.');
+              }
+              
+              const removedMsg = data.autoMessages[msgIndex];
+              
+              // Remover arquivo de mídia se existir
+              if (removedMsg.mediaPath && fs.existsSync(removedMsg.mediaPath)) {
+                try {
+                  fs.unlinkSync(removedMsg.mediaPath);
+                } catch (e) {
+                  console.error('Erro ao remover arquivo de mídia:', e);
+                }
+              }
+              
+              // Desagendar
+              unscheduleAutoMessage(from, msgId);
+              
+              // Remover da lista
+              data.autoMessages.splice(msgIndex, 1);
+              writeJsonFile(groupFilePath, data);
+              
+              await reply(`✅ Mensagem automática removida!
+
+🆔 ID: ${msgId}
+⏰ Horário: ${removedMsg.time}`);
+              break;
+              
+            case 'on':
+            case 'ativar':
+              const onMsgId = args[1];
+              if (!onMsgId) {
+                return reply(`❌ Forneça o ID da mensagem.\nUso: ${groupPrefix}automsg on [id]`);
+              }
+              
+              const onMsg = data.autoMessages.find(m => m.id === onMsgId);
+              if (!onMsg) {
+                return reply('❌ Mensagem não encontrada. Use automsg list para ver os IDs.');
+              }
+              
+              onMsg.enabled = true;
+              writeJsonFile(groupFilePath, data);
+              
+              // Reagendar
+              scheduleAutoMessage(from, onMsg, nazu);
+              
+              await reply(`✅ Mensagem automática ativada!\n\n🆔 ID: ${onMsgId}`);
+              break;
+              
+            case 'off':
+            case 'desativar':
+              const offMsgId = args[1];
+              if (!offMsgId) {
+                return reply(`❌ Forneça o ID da mensagem.\nUso: ${groupPrefix}automsg off [id]`);
+              }
+              
+              const offMsg = data.autoMessages.find(m => m.id === offMsgId);
+              if (!offMsg) {
+                return reply('❌ Mensagem não encontrada. Use automsg list para ver os IDs.');
+              }
+              
+              offMsg.enabled = false;
+              writeJsonFile(groupFilePath, data);
+              
+              // Desagendar
+              unscheduleAutoMessage(from, offMsgId);
+              
+              await reply(`✅ Mensagem automática desativada!\n\n🆔 ID: ${offMsgId}`);
+              break;
+              
+            default:
+              return reply(`❌ Subcomando inválido. Use: add, list, del, on ou off`);
+          }
+        } catch (e) {
+          console.error('Erro no automsg:', e);
+          await reply('❌ Ocorreu um erro ao processar o comando de auto mensagem.');
         }
         break;
       case 'chaveamento':
