@@ -1,0 +1,42 @@
+import { Execution } from "../tasks/scheduled-task";
+import { TimeMatcher } from "../time/time-matcher";
+type OnFn = (date: Date) => void | Promise<void>;
+type OnErrorHookFn = (date: Date, error: Error, execution: Execution) => void | Promise<void>;
+type OnHookFn = (date: Date, execution: Execution) => boolean | Promise<boolean>;
+type OnMatch = (date: Date, execution: Execution) => any | Promise<any>;
+export type RunnerOptions = {
+    noOverlap?: boolean;
+    timezone?: string;
+    maxExecutions?: number;
+    maxRandomDelay?: number;
+    onMissedExecution?: OnFn;
+    onOverlap?: OnFn;
+    onError?: OnErrorHookFn;
+    onFinished?: OnHookFn;
+    beforeRun?: OnHookFn;
+    onMaxExecutions?: OnFn;
+};
+export declare class Runner {
+    timeMatcher: TimeMatcher;
+    onMatch: OnMatch;
+    noOverlap: boolean;
+    maxExecutions?: number;
+    maxRandomDelay: number;
+    runCount: number;
+    running: boolean;
+    heartBeatTimeout?: NodeJS.Timeout;
+    onMissedExecution: OnFn;
+    onOverlap: OnFn;
+    onError: OnErrorHookFn;
+    beforeRun: OnHookFn;
+    onFinished: OnHookFn;
+    onMaxExecutions: OnFn;
+    constructor(timeMatcher: TimeMatcher, onMatch: OnMatch, options?: RunnerOptions);
+    start(): void;
+    nextRun(): Date;
+    stop(): void;
+    isStarted(): boolean;
+    isStopped(): boolean;
+    execute(): Promise<void>;
+}
+export {};
