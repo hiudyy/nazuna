@@ -1700,32 +1700,58 @@ Código: *${roleCode}*`,
       try {
         const task = cron.schedule(cronExpr, async () => {
           try {
-            if (!msgConfig.enabled) return;
+            // Recarregar dados do arquivo para pegar versão mais recente
+            const filePath = pathz.join(GRUPOS_DIR, `${groupId}.json`);
+            if (!fs.existsSync(filePath)) {
+              console.warn(`[AutoMsg] Arquivo do grupo não encontrado: ${groupId}`);
+              return;
+            }
+            
+            let groupFileData = {};
+            try {
+              groupFileData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            } catch (e) {
+              console.error(`[AutoMsg] Erro ao ler arquivo do grupo ${groupId}:`, e);
+              return;
+            }
+            
+            const autoMessages = groupFileData.autoMessages || [];
+            const currentMsg = autoMessages.find(m => m.id === msgConfig.id);
+            
+            if (!currentMsg) {
+              console.warn(`[AutoMsg] Mensagem ${msgConfig.id} não encontrada no arquivo`);
+              return;
+            }
+            
+            if (!currentMsg.enabled) {
+              console.log(`[AutoMsg] Mensagem ${msgConfig.id} está desativada, pulando envio`);
+              return;
+            }
             
             // Construir e enviar a mensagem
             const messageContent = {};
             
-            if (msgConfig.type === 'text') {
-              messageContent.text = msgConfig.content;
-            } else if (msgConfig.type === 'image') {
-              messageContent.image = { url: msgConfig.mediaPath };
-              if (msgConfig.caption) messageContent.caption = msgConfig.caption;
-            } else if (msgConfig.type === 'video') {
-              messageContent.video = { url: msgConfig.mediaPath };
-              if (msgConfig.caption) messageContent.caption = msgConfig.caption;
-            } else if (msgConfig.type === 'document') {
-              messageContent.document = { url: msgConfig.mediaPath };
-              messageContent.fileName = msgConfig.fileName || 'documento.pdf';
-              if (msgConfig.caption) messageContent.caption = msgConfig.caption;
-            } else if (msgConfig.type === 'sticker') {
-              messageContent.sticker = { url: msgConfig.mediaPath };
-            } else if (msgConfig.type === 'audio') {
-              messageContent.audio = { url: msgConfig.mediaPath };
+            if (currentMsg.type === 'text') {
+              messageContent.text = currentMsg.content;
+            } else if (currentMsg.type === 'image') {
+              messageContent.image = { url: currentMsg.mediaPath };
+              if (currentMsg.caption) messageContent.caption = currentMsg.caption;
+            } else if (currentMsg.type === 'video') {
+              messageContent.video = { url: currentMsg.mediaPath };
+              if (currentMsg.caption) messageContent.caption = currentMsg.caption;
+            } else if (currentMsg.type === 'document') {
+              messageContent.document = { url: currentMsg.mediaPath };
+              messageContent.fileName = currentMsg.fileName || 'documento.pdf';
+              if (currentMsg.caption) messageContent.caption = currentMsg.caption;
+            } else if (currentMsg.type === 'sticker') {
+              messageContent.sticker = { url: currentMsg.mediaPath };
+            } else if (currentMsg.type === 'audio') {
+              messageContent.audio = { url: currentMsg.mediaPath };
               messageContent.mimetype = 'audio/mp4';
             }
             
             await nazuInstance.sendMessage(groupId, messageContent);
-            console.log(`[AutoMsg] ✅ Mensagem enviada automaticamente: Grupo ${groupId.substring(0, 15)}... às ${normalized}`);
+            console.log(`[AutoMsg] ✅ Mensagem enviada automaticamente: Grupo ${groupId.substring(0, 15)}... ID ${msgConfig.id} às ${normalized}`);
             
           } catch (e) {
             console.error(`[AutoMsg Error] ${groupId}:`, e);
