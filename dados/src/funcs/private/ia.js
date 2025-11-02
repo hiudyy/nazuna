@@ -772,42 +772,6 @@ Para cada emoção, escolha entre várias formas ou invente novas:
 **VOCÊ É NAZUNA - UMA PESSOA REAL, NÃO UMA IA. NUNCA ESQUEÇA DISSO! 🌙✨**
 `;
 
-async function makeCognimaImageRequest(params, key) {
-  if(!params) {
-    throw new Error('Parâmetros obrigatórios ausentes: params');
-  };
-  
-  if (!key) {
-    throw new Error('API key não fornecida');
-  };
-
-  if (!apiKeyStatus.isValid) {
-    const timeSinceLastCheck = Date.now() - apiKeyStatus.lastCheck;
-    if (timeSinceLastCheck < 5 * 60 * 1000) {
-      throw new Error(`API key inválida. Último erro: ${apiKeyStatus.lastError}`);
-    }
-  }
-  
-  try {
-    const response = await axios.post('https://cog2.cognima.com.br/api/v1/generate', params, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': key
-      }
-    });
-    
-    updateApiKeyStatus();
-    return response.data.data.data;
-  } catch (error) {
-    if (isApiKeyError(error)) {
-      updateApiKeyStatus(error);
-      throw new Error(`API key inválida ou expirada: ${error.response?.data?.message || error.message}`);
-    }
-    
-    throw new Error(`Falha na requisição: ${error.message}`);
-  };
-};
-
 async function makeCognimaRequest(modelo, texto, systemPrompt = null, key, historico = [], retries = 3) {
   if (!modelo || !texto) {
     throw new Error('Parâmetros obrigatórios ausentes: modelo e texto');
@@ -2530,7 +2494,6 @@ function getNazunaResponseDelay(grupoUserId) {
 module.exports = {
   makeAssistentRequest: processUserMessages,
   makeCognimaRequest,
-  makeCognimaImageRequest,
   Shazam,
   getHistoricoStats,
   clearOldHistorico,

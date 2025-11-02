@@ -4134,50 +4134,6 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         }
         break;
       //INTELIGENCIA ARTIFICIAL
-      case 'genrealism':
-      case 'genghibli':
-      case 'gencyberpunk':
-      case 'genanime':
-      case 'genportrait':
-      case 'genchibi':
-      case 'genpixelart':
-      case 'genoilpainting':
-      case 'gen3d':
-        try {
-          let styleKey = command === 'genrealism' ? 'default' : command.slice(3);
-          if (!KeyCog) {
-            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-          if (!q) return reply(`🎨 *Gerador de Imagens AI*\n\n💡 *Como usar:*\n• Forneça uma descrição detalhada do que deseja\n• Ex: ${prefix}${command} Black Cat\n• Ex: ${prefix}${command} paisagem montanha pôr do sol realista`);
-          await reply('⏳ Só um segundinho, estou gerando a imagem... ✨');
-          var ImageS;
-          ImageS = await ia.makeCognimaImageRequest({
-            model: "deepimg",
-            prompt: q,
-            size: "3:2",
-            style: styleKey,
-            n: 1
-          }, KeyCog);
-          if (!ImageS || !ImageS[0]) return reply('😓 Poxa, algo deu errado aqui');
-          await nazu.sendMessage(from, {
-            image: {
-              url: ImageS[0].url
-            }
-          }, {
-            quoted: info
-          });
-        } catch (e) {
-          console.error("Erro no DeepIMG", e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply('😓 Poxa, algo deu errado aqui');
-          }
-        }
-        break;
       case 'gemma':
         if (!q) return reply(`🤔 Qual sua dúvida para o Gemma? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {

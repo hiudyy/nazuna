@@ -8,7 +8,6 @@ async function menuIa(prefix, botName = "MeuBot", userName = "Usuário", {
     middleBorder = "┊",
     chatBotMenuTitle = "🤖 CHATBOTS INTELIGENTES",
     textMenuTitle = "✍️ GERAÇÃO DE TEXTO",
-    imageMenuTitle = "🎨 GERAÇÃO DE IMAGEM",
     toolsMenuTitle = "🛠️ FERRAMENTAS DE IA"
 } = {}) {
     const formattedHeader = header.replace(/#user#/g, userName);
@@ -45,19 +44,6 @@ ${middleBorder}${menuItemIcon}${prefix}rakutenai
 ${middleBorder}${menuItemIcon}${prefix}rocket
 ${middleBorder}${menuItemIcon}${prefix}swallow
 ${middleBorder}${menuItemIcon}${prefix}falcon
-${bottomBorder}
-
-${menuTopBorder}${separatorIcon} *${imageMenuTitle}*
-${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}genrealism
-${middleBorder}${menuItemIcon}${prefix}genportrait
-${middleBorder}${menuItemIcon}${prefix}genchibi
-${middleBorder}${menuItemIcon}${prefix}genghibli
-${middleBorder}${menuItemIcon}${prefix}genanime
-${middleBorder}${menuItemIcon}${prefix}gencyberpunk
-${middleBorder}${menuItemIcon}${prefix}genpixelart
-${middleBorder}${menuItemIcon}${prefix}genoilpainting
-${middleBorder}${menuItemIcon}${prefix}gen3d
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${toolsMenuTitle}*
