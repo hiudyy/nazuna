@@ -40,7 +40,7 @@ const CONFIG_FILE = path.join(SRC_DIR, 'config.json');
 const PACKAGE_JSON_PATH = path.join(ROOT_DIR, '..', 'package.json');
 
 module.exports = {
-  ROOT_DIR,
+  ROOT_DIR, 
   SRC_DIR,
   DATABASE_DIR,
   GRUPOS_DIR,
