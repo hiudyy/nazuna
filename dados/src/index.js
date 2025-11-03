@@ -340,7 +340,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
   const menus = require('./menus/index.js');
   const {
     menu,
-    menuButtons,
     menudown,
     menuadm,
     menubn,
@@ -352,7 +351,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
   menuAlterador,
   menuLogos,
   menuTopCmd,
-  menuGold
+  menuRPG
   } = menus;
   const prefix = prefixo;
   const numerodonoStr = String(numerodono);
@@ -613,7 +612,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         };
       };
   // default flags
-  groupData.modogold = typeof groupData.modogold === 'boolean' ? groupData.modogold : false;
+  groupData.modorpg = typeof groupData.modorpg === 'boolean' ? groupData.modorpg : false;
       groupData.minMessage = groupData.minMessage || null;
       groupData.moderators = groupData.moderators || [];
       groupData.allowedModCommands = groupData.allowedModCommands || [];
@@ -999,17 +998,12 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         const {
           mentions = [],
           noForward = false,
-          noQuote = false,
-          buttons = null
+          noQuote = false
         } = options;
         const messageContent = {
           text: text.trim(),
           mentions: mentions
         };
-        if (buttons) {
-          messageContent.buttons = buttons;
-          messageContent.headerType = 1;
-        }
         const sendOptions = {
           sendEphemeral: true
         };
@@ -3340,8 +3334,9 @@ Código: *${roleCode}*`,
         break;
       }
 
-      case 'menugold': {
-        await sendMenuWithMedia('menugold', menuGold);
+      case 'menurpg':
+      case 'rpg': {
+        await sendMenuWithMedia('menurpg', menuRPG);
         break;
       }
 
@@ -3420,12 +3415,13 @@ Código: *${roleCode}*`,
         break;
       }
 
-      case 'modogold': {
+      case 'modorpg':
+      case 'rpgmode': {
         if (!isGroup) return reply('Este comando só funciona em grupos.');
         if (!isGroupAdmin) return reply('Apenas administradores podem usar este comando.');
-        groupData.modogold = !groupData.modogold;
+        groupData.modorpg = !groupData.modorpg;
   writeJsonFile(groupFile, groupData);
-        await reply(`💰 Modo Gold ${groupData.modogold ? 'ATIVADO' : 'DESATIVADO'} neste grupo.`);
+        await reply(`⚔️ Modo RPG ${groupData.modorpg ? 'ATIVADO' : 'DESATIVADO'} neste grupo.\n\n${groupData.modorpg ? '🎮 Agora os membros podem usar todos os comandos RPG!' : '🔒 Comandos RPG desativados.'}`);
         break;
       }
 
@@ -3439,7 +3435,7 @@ Código: *${roleCode}*`,
       case 'transferir':
       case 'pix':
       case 'loja':
-      case 'lojagold':
+      case 'lojarps':
       case 'comprar':
       case 'buy':
   case 'inventario':
@@ -3483,13 +3479,13 @@ Código: *${roleCode}*`,
   case 'crime':
       case 'assaltar':
       case 'roubar':
-      case 'topgold':
+      case 'toprpg':
       case 'diario':
       case 'daily':
-      case 'resetgold':
+      case 'resetrpg':
       {
-        if (!isGroup) return reply('💰 Os comandos de economia funcionam apenas em grupos.');
-  if (!groupData.modogold) return reply(`🌟 *Modo Gold desativado!*\n\n🔒 Este recurso está disponível apenas quando o Modo Gold está ativado.\n🔐 *Administradores* podem ativar com: ${prefix}modogold`);
+        if (!isGroup) return reply('⚔️ Os comandos RPG funcionam apenas em grupos.');
+  if (!groupData.modorpg) return reply(`⚔️ *Modo RPG desativado!*\n\n🔒 Este recurso está disponível apenas quando o Modo RPG está ativado.\n🔐 *Administradores* podem ativar com: ${prefix}modorpg\n\n💡 Use ${prefix}menurpg para ver todos os comandos!`);
     const econ = loadEconomy();
     const changedEconomy = ensureEconomyDefaults(econ);
   const me = getEcoUser(econ, sender);
@@ -3500,7 +3496,7 @@ Código: *${roleCode}*`,
         const sub = command;
         const mentioned = (menc_jid2 && menc_jid2[0]) || (q.includes('@') ? q.split(' ')[0].replace('@','') : null);
 
-        if (sub === 'resetgold') {
+        if (sub === 'resetrpg') {
           if (!(isOwner && !isSubOwner && (sender === nmrdn || isBotSender))) return reply('Apenas o Dono principal pode resetar usuários.');
           const target = (menc_jid2 && menc_jid2[0]) || null;
           const scope = (q||'').toLowerCase();
@@ -3510,12 +3506,12 @@ Código: *${roleCode}*`,
               if (econ.users[p]) { delete econ.users[p]; count++; }
             }
             saveEconomy(econ);
-            return reply(`✅ Resetado o gold de ${count} membros do grupo.`);
+            return reply(`✅ Resetado os dados RPG de ${count} membros do grupo.`);
           }
           if (!target) return reply('Marque um usuário para resetar ou use "all".');
           delete econ.users[target];
           saveEconomy(econ);
-          return reply(`✅ Gold resetado para @${getUserName(target)}.`, { mentions:[target] });
+          return reply(`✅ Dados RPG resetados para @${getUserName(target)}.`, { mentions:[target] });
         }
 
         if (sub === 'perfilrpg' || sub === 'carteira') {
@@ -3568,7 +3564,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           return reply(`💸 Transferido ${fmt(amount)} para @${getUserName(mentioned)}.`, { mentions:[mentioned] });
         }
 
-        if (sub === 'loja' || sub === 'lojagold') {
+        if (sub === 'loja' || sub === 'lojarps') {
           const items = Object.entries(econ.shop||{});
           if (items.length === 0) return reply('A loja está vazia no momento.');
           let text = '🛍️ Loja de Itens\n\n';
@@ -4061,16 +4057,1932 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           return reply(`🎁 Recompensa diária coletada: ${fmt(reward)}!`);
         }
 
-        if (sub === 'topgold') {
+        if (sub === 'toprpg') {
           const arr = Object.entries(econ.users).map(([id,u])=>[id,(u.wallet||0)+(u.bank||0)]).sort((a,b)=>b[1]-a[1]).slice(0,10);
           if (arr.length===0) return reply('Sem dados suficientes para ranking.');
-          let text = '🏆 Ranking de Riqueza\n\n';
+          let text = '⚔️ 🏆 *RANKING RPG* 🏆 ⚔️\n\n';
           const mentions = [];
-          arr.forEach(([id,total],i)=>{ text += `${i+1}. @${id.split('@')[0]} — ${fmt(total)}\n`; mentions.push(id); });
+          arr.forEach(([id,total],i)=>{ 
+            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+            text += `${medal} @${id.split('@')[0]} — 💰 ${fmt(total)}\n`; 
+            mentions.push(id); 
+          });
+          text += `\n✨ Continue jogando para subir no rank!`;
           return reply(text, { mentions });
         }
 
-        return reply('Comando de economia inválido. Use '+prefix+'menugold para ver os comandos.');
+        return reply('Comando RPG inválido. Use '+prefix+'menurpg para ver todos os comandos.');
+      }
+
+      // ==================== NOVOS COMANDOS RPG ====================
+      
+      // Sistema de Equipamentos
+      case 'equipamentos':
+      case 'gear':
+      case 'equip': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.equipment) me.equipment = { weapon: null, armor: null, helmet: null, boots: null, accessory: null };
+        
+        const eq = me.equipment;
+        let text = `╭━━━⊱ ⚔️ *EQUIPAMENTOS* ⊱━━━╮\n`;
+        text += `│ 👤 Aventureiro: *${pushname}*\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `🗡️ *Arma:* ${eq.weapon || '❌ Nenhuma'}\n`;
+        text += `🛡️ *Armadura:* ${eq.armor || '❌ Nenhuma'}\n`;
+        text += `⛑️ *Capacete:* ${eq.helmet || '❌ Nenhum'}\n`;
+        text += `👢 *Botas:* ${eq.boots || '❌ Nenhuma'}\n`;
+        text += `💍 *Acessório:* ${eq.accessory || '❌ Nenhum'}\n\n`;
+        text += `╭━━━⊱ 📊 *ESTATÍSTICAS* ⊱━━━╮\n`;
+        text += `│ ⚔️ Poder de Ataque: +${me.attackBonus || 0}\n`;
+        text += `│ 🛡️ Poder de Defesa: +${me.defenseBonus || 0}\n`;
+        text += `│ ✨ Poder Total: ${me.power || 100}\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `💡 *Dicas:*\n`;
+        text += `• Use ${prefix}forjar para criar equipamentos\n`;
+        text += `• Use ${prefix}encantar para melhorar\n`;
+        text += `• Use ${prefix}inventario para ver itens`;
+        
+        return reply(text);
+      }
+
+      // Sistema de Pets
+      case 'pets':
+      case 'meuspets': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.pets) me.pets = [];
+        
+        if (me.pets.length === 0) {
+          let text = `╭━━━⊱ 🐾 *SISTEMA DE PETS* ⊱━━━╮\n`;
+          text += `│ Você ainda não tem companheiros!\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `🦊 *PETS DISPONÍVEIS:*\n\n`;
+          text += `� *Lobo* - Veloz e leal\n`;
+          text += `🐉 *Dragão* - Poderoso e raro\n`;
+          text += `🔥 *Fênix* - Imortal e místico\n`;
+          text += `🐯 *Tigre* - Feroz e forte\n`;
+          text += `🦅 *Águia* - Ágil e preciso\n\n`;
+          text += `💡 Use ${prefix}adotar <nome> para começar!`;
+          return reply(text);
+        }
+        
+        let text = `╭━━━⊱ 🐾 *MEUS PETS* ⊱━━━╮\n`;
+        text += `│ Treinador: *${pushname}*\n`;
+        text += `│ Total de Pets: ${me.pets.length}/5\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        me.pets.forEach((pet, i) => {
+          const hungerBar = '█'.repeat(Math.floor(pet.hunger / 10)) + '░'.repeat(10 - Math.floor(pet.hunger / 10));
+          const moodBar = '█'.repeat(Math.floor(pet.mood / 10)) + '░'.repeat(10 - Math.floor(pet.mood / 10));
+          
+          text += `${i + 1}. ${pet.emoji} *${pet.name}*\n`;
+          text += `┌─────────────────\n`;
+          text += `│ 📊 Level ${pet.level} | 💫 ${pet.exp}/${pet.level * 100} EXP\n`;
+          text += `│ ❤️ HP: ${pet.hp}/${pet.maxHp}\n`;
+          text += `│ ⚔️ ATK: ${pet.attack} | 🛡️ DEF: ${pet.defense}\n`;
+          text += `│ 🍖 Fome: ${hungerBar} ${pet.hunger}%\n`;
+          text += `│ 😊 Humor: ${moodBar} ${pet.mood}%\n`;
+          text += `└─────────────────\n\n`;
+        });
+        
+        text += `🎮 *COMANDOS DISPONÍVEIS:*\n`;
+        text += `• ${prefix}alimentar <número>\n`;
+        text += `• ${prefix}treinar <número>\n`;
+        text += `• ${prefix}evoluir <número>\n`;
+        text += `• ${prefix}renomear <número> <nome>\n`;
+        text += `• ${prefix}batalha <número> @user`;
+        
+        return reply(text);
+        break;
+      }
+
+      case 'adotar':
+      case 'adopt': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.pets) me.pets = [];
+        if (me.pets.length >= 5) return reply('🐾 Você já tem o máximo de 5 pets!');
+        
+        const petTypes = {
+          lobo: { emoji: '🐺', name: 'Lobo', hp: 100, attack: 15, defense: 10, cost: 5000, desc: 'Veloz e leal' },
+          dragao: { emoji: '🐉', name: 'Dragão', hp: 150, attack: 25, defense: 15, cost: 15000, desc: 'Poderoso e raro' },
+          fenix: { emoji: '🔥', name: 'Fênix', hp: 120, attack: 20, defense: 12, cost: 10000, desc: 'Imortal e místico' },
+          tigre: { emoji: '🐯', name: 'Tigre', hp: 110, attack: 18, defense: 11, cost: 7000, desc: 'Feroz e forte' },
+          aguia: { emoji: '🦅', name: 'Águia', hp: 90, attack: 22, defense: 8, cost: 6000, desc: 'Ágil e preciso' }
+        };
+        
+        const type = (q || '').toLowerCase();
+        if (!petTypes[type]) {
+          let text = `╭━━━⊱ 🐾 *LOJA DE PETS* ⊱━━━╮\n`;
+          text += `│ Escolha seu companheiro!\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          
+          Object.entries(petTypes).forEach(([key, pet]) => {
+            text += `${pet.emoji} *${pet.name}*\n`;
+            text += `┌─────────────────\n`;
+            text += `│ 📝 ${pet.desc}\n`;
+            text += `│ � Preço: ${pet.cost.toLocaleString()}\n`;
+            text += `│ ❤️ HP: ${pet.hp}\n`;
+            text += `│ ⚔️ ATK: ${pet.attack}\n`;
+            text += `│ 🛡️ DEF: ${pet.defense}\n`;
+            text += `└─────────────────\n\n`;
+          });
+          
+          text += `�💡 Use ${prefix}adotar <nome> para adotar`;
+          return reply(text);
+        }
+        
+        const pet = petTypes[type];
+        if (me.wallet < pet.cost) {
+          return reply(`💰 Você precisa de *${pet.cost.toLocaleString()}* moedas!\n\n💸 Você tem: ${me.wallet.toLocaleString()}\n❌ Faltam: ${(pet.cost - me.wallet).toLocaleString()}`);
+        }
+        
+        me.wallet -= pet.cost;
+        me.pets.push({
+          ...pet,
+          level: 1,
+          maxHp: pet.hp,
+          exp: 0,
+          hunger: 100,
+          mood: 100,
+          wins: 0,
+          losses: 0
+        });
+        
+        saveEconomy(econ);
+        
+        let text = `╭━━━⊱ 🎉 *ADOÇÃO REALIZADA!* ⊱━━━╮\n`;
+        text += `│\n`;
+        text += `│ Você adotou ${pet.emoji} *${pet.name}*!\n`;
+        text += `│\n`;
+        text += `│ ${pet.desc}\n`;
+        text += `│\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `💡 Use ${prefix}pets para ver seus companheiros`;
+        
+        return reply(text);
+        break;
+      }
+
+      case 'alimentar':
+      case 'feed': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.pets || me.pets.length === 0) return reply('🐾 Você não tem pets para alimentar!');
+        
+        const index = parseInt(q) - 1;
+        if (isNaN(index) || index < 0 || index >= me.pets.length) {
+          return reply(`❌ Pet inválido! Use ${prefix}pets para ver seus pets e escolha um número.`);
+        }
+        
+        const pet = me.pets[index];
+        const foodCost = 100;
+        
+        if (me.wallet < foodCost) return reply(`💰 Você precisa de ${foodCost} moedas para comprar comida!`);
+        if (pet.hunger >= 100) return reply(`🍖 ${pet.emoji} *${pet.name}* já está satisfeito!`);
+        
+        me.wallet -= foodCost;
+        const hungerGain = 30 + Math.floor(Math.random() * 20);
+        pet.hunger = Math.min(100, pet.hunger + hungerGain);
+        pet.mood = Math.min(100, pet.mood + 10);
+        
+        saveEconomy(econ);
+        
+        let text = `╭━━━⊱ 🍖 *ALIMENTAÇÃO* ⊱━━━╮\n`;
+        text += `│ ${pet.emoji} *${pet.name}* comeu!\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `😊 Humor: ${pet.mood}/100\n`;
+        text += `🍖 Fome: ${pet.hunger}/100 (+${hungerGain})\n\n`;
+        text += `💸 Custo: -${foodCost} moedas`;
+        
+        return reply(text);
+        break;
+      }
+
+      case 'treinar':
+      case 'train': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.pets || me.pets.length === 0) return reply('🐾 Você não tem pets para treinar!');
+        
+        const index = parseInt(q) - 1;
+        if (isNaN(index) || index < 0 || index >= me.pets.length) {
+          return reply(`❌ Pet inválido! Use ${prefix}pets para ver seus pets.`);
+        }
+        
+        const pet = me.pets[index];
+        if (pet.hunger < 30) return reply(`🍖 ${pet.emoji} *${pet.name}* está com muita fome! Alimente-o primeiro.`);
+        
+        const now = Date.now();
+        if (pet.lastTrain && (now - pet.lastTrain) < 3600000) {
+          const remaining = Math.ceil((3600000 - (now - pet.lastTrain)) / 60000);
+          return reply(`⏰ ${pet.emoji} *${pet.name}* está cansado!\n\n🕐 Aguarde *${remaining} minutos*`);
+        }
+        
+        const expGain = 50 + Math.floor(Math.random() * 30);
+        pet.exp = (pet.exp || 0) + expGain;
+        pet.hunger = Math.max(0, pet.hunger - 20);
+        pet.lastTrain = now;
+        
+        let text = `╭━━━⊱ 💪 *TREINAMENTO* ⊱━━━╮\n`;
+        text += `│ ${pet.emoji} *${pet.name}* treinou!\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        if (pet.exp >= pet.level * 100) {
+          pet.level++;
+          const atkGain = 2 + Math.floor(Math.random() * 3);
+          const defGain = 1 + Math.floor(Math.random() * 2);
+          const hpGain = 10 + Math.floor(Math.random() * 10);
+          
+          pet.attack += atkGain;
+          pet.defense += defGain;
+          pet.maxHp += hpGain;
+          pet.hp = pet.maxHp;
+          pet.exp = 0;
+          
+          text += `🎉 *LEVEL UP!* 🎉\n\n`;
+          text += `📊 Nível: ${pet.level - 1} → *${pet.level}*\n`;
+          text += `⚔️ ATK: ${pet.attack - atkGain} → *${pet.attack}* (+${atkGain})\n`;
+          text += `🛡️ DEF: ${pet.defense - defGain} → *${pet.defense}* (+${defGain})\n`;
+          text += `❤️ HP: ${pet.maxHp - hpGain} → *${pet.maxHp}* (+${hpGain})`;
+          
+          saveEconomy(econ);
+          return reply(text);
+        }
+        
+        text += `✨ EXP: +${expGain}\n`;
+        text += `📊 Progresso: ${pet.exp}/${pet.level * 100}\n`;
+        text += `🍖 Fome: ${pet.hunger}/100\n\n`;
+        text += `💡 ${pet.exp} de ${pet.level * 100} para o próximo nível`;
+        
+        saveEconomy(econ);
+        return reply(text);
+        break;
+      }
+
+      case 'evoluir':
+      case 'evolve': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.pets || me.pets.length === 0) return reply('🐾 Você não tem pets para evoluir!');
+        
+        const index = parseInt(q) - 1;
+        if (isNaN(index) || index < 0 || index >= me.pets.length) {
+          return reply(`❌ Pet inválido!`);
+        }
+        
+        const pet = me.pets[index];
+        const evolCost = pet.level * 1000;
+        const minLevel = 10;
+        
+        if (pet.level < minLevel) {
+          return reply(`❌ ${pet.emoji} *${pet.name}* precisa estar no nível ${minLevel}!\n\n📊 Nível atual: ${pet.level}`);
+        }
+        
+        if (me.wallet < evolCost) {
+          return reply(`💰 Evolução custa *${evolCost.toLocaleString()}* moedas!\n\n💸 Você tem: ${me.wallet.toLocaleString()}`);
+        }
+        
+        me.wallet -= evolCost;
+        pet.level += 5;
+        pet.attack += 10;
+        pet.defense += 5;
+        pet.maxHp += 50;
+        pet.hp = pet.maxHp;
+        
+        saveEconomy(econ);
+        
+        let text = `╭━━━⊱ ✨ *EVOLUÇÃO!* ✨ ⊱━━━╮\n`;
+        text += `│\n`;
+        text += `│ ${pet.emoji} *${pet.name}* evoluiu!\n`;
+        text += `│\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `🌟 Nível: +5 (${pet.level})\n`;
+        text += `⚔️ ATK: +10 (${pet.attack})\n`;
+        text += `🛡️ DEF: +5 (${pet.defense})\n`;
+        text += `❤️ HP: +50 (${pet.maxHp})\n\n`;
+        text += `💰 Custo: -${evolCost.toLocaleString()}`;
+        
+        return reply(text);
+        break;
+      }
+
+      case 'renomear':
+      case 'rename': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.pets || me.pets.length === 0) return reply('🐾 Você não tem pets!');
+        
+        const args = q.split(' ');
+        const index = parseInt(args[0]) - 1;
+        const newName = args.slice(1).join(' ');
+        
+        if (isNaN(index) || index < 0 || index >= me.pets.length) {
+          return reply(`❌ Pet inválido!`);
+        }
+        
+        if (!newName || newName.length < 2) {
+          return reply(`❌ Nome muito curto! Mínimo 2 caracteres.`);
+        }
+        
+        if (newName.length > 20) {
+          return reply(`❌ Nome muito longo! Máximo 20 caracteres.`);
+        }
+        
+        const pet = me.pets[index];
+        const oldName = pet.name;
+        const cost = 500;
+        
+        if (me.wallet < cost) {
+          return reply(`💰 Renomear custa ${cost} moedas!`);
+        }
+        
+        me.wallet -= cost;
+        pet.name = newName.substring(0, 20);
+        
+        saveEconomy(econ);
+        return reply(`✏️ ${pet.emoji} *${oldName}* agora se chama *${pet.name}*!\n\n💸 Custo: -${cost} moedas`);
+        break;
+      }
+
+      case 'batalha':
+      case 'petbattle': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        
+        if (!target) return reply(`❌ Marque alguém para batalhar!\n\n💡 Uso: ${prefix}batalha <número> @user`);
+        if (target === sender) return reply('❌ Você não pode batalhar contra si mesmo!');
+        
+        const opponent = getEcoUser(econ, target);
+        
+        if (!me.pets || me.pets.length === 0) return reply('🐾 Você não tem pets!');
+        if (!opponent.pets || opponent.pets.length === 0) {
+          return reply('❌ Seu oponente não tem pets!');
+        }
+        
+        const args = q.split(' ');
+        const myIndex = parseInt(args[0]) - 1;
+        
+        if (isNaN(myIndex) || myIndex < 0 || myIndex >= me.pets.length) {
+          return reply(`❌ Pet inválido! Use ${prefix}pets para ver.`);
+        }
+        
+        const myPet = me.pets[myIndex];
+        const oppPet = opponent.pets[Math.floor(Math.random() * opponent.pets.length)];
+        
+        // Sistema de batalha
+        let myHp = myPet.hp;
+        let oppHp = oppPet.hp;
+        let turn = 0;
+        const maxTurns = 10;
+        
+        let battleLog = `╭━━━⊱ ⚔️ *BATALHA DE PETS!* ⊱━━━╮\n\n`;
+        battleLog += `${myPet.emoji} *${myPet.name}* (Lv.${myPet.level})\n`;
+        battleLog += `VS\n`;
+        battleLog += `${oppPet.emoji} *${oppPet.name}* (Lv.${oppPet.level})\n\n`;
+        battleLog += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        while (myHp > 0 && oppHp > 0 && turn < maxTurns) {
+          // Meu turno
+          const myDmg = Math.max(1, myPet.attack - Math.floor(oppPet.defense / 2) + Math.floor(Math.random() * 10));
+          oppHp -= myDmg;
+          battleLog += `⚔️ ${myPet.name} causou ${myDmg} de dano!\n`;
+          
+          if (oppHp <= 0) break;
+          
+          // Turno oponente
+          const oppDmg = Math.max(1, oppPet.attack - Math.floor(myPet.defense / 2) + Math.floor(Math.random() * 10));
+          myHp -= oppDmg;
+          battleLog += `🛡️ ${oppPet.name} causou ${oppDmg} de dano!\n\n`;
+          
+          turn++;
+        }
+        
+        const won = myHp > oppHp;
+        const reward = won ? 1000 + (oppPet.level * 100) : 0;
+        
+        if (won) {
+          me.wallet += reward;
+          myPet.wins = (myPet.wins || 0) + 1;
+          oppPet.losses = (oppPet.losses || 0) + 1;
+          myPet.exp = (myPet.exp || 0) + 50;
+          
+          battleLog += `╭━━━⊱ 🏆 *VITÓRIA!* ⊱━━━╮\n`;
+          battleLog += `│ ${myPet.emoji} *${myPet.name}* venceu!\n`;
+          battleLog += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          battleLog += `💰 Recompensa: +${reward.toLocaleString()}\n`;
+          battleLog += `✨ EXP: +50`;
+        } else {
+          oppPet.wins = (oppPet.wins || 0) + 1;
+          myPet.losses = (myPet.losses || 0) + 1;
+          
+          battleLog += `╭━━━⊱ 💀 *DERROTA!* ⊱━━━╮\n`;
+          battleLog += `│ ${oppPet.emoji} *${oppPet.name}* venceu!\n`;
+          battleLog += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          battleLog += `💪 Treine mais e tente novamente!`;
+        }
+        
+        saveEconomy(econ);
+        return reply(battleLog, { mentions: [target] });
+        break;
+      }
+
+      // Sistema de Dungeons/Masmorras
+      case 'masmorra':
+      case 'dungeon':
+      case 'dg': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const now = Date.now();
+        if (me.lastDungeon && (now - me.lastDungeon) < 7200000) {
+          const remaining = Math.ceil((7200000 - (now - me.lastDungeon)) / 60000);
+          return reply(`⏰ Você está cansado da última aventura!\n\n🕐 Aguarde *${remaining} minutos*`);
+        }
+        
+        const dungeons = [
+          { name: '🕷️ Caverna das Aranhas', diff: 1, reward: [1000, 2000], exp: 100, emoji: '🕷️' },
+          { name: '🧟 Cripta dos Mortos', diff: 2, reward: [2000, 4000], exp: 200, emoji: '🧟' },
+          { name: '🐉 Covil do Dragão', diff: 3, reward: [5000, 10000], exp: 500, emoji: '🐉' },
+          { name: '👹 Fortaleza Demoníaca', diff: 4, reward: [10000, 20000], exp: 1000, emoji: '👹' }
+        ];
+        
+        const userLevel = me.level || 1;
+        const availableDungeons = dungeons.filter(d => d.diff <= Math.ceil(userLevel / 5) + 1);
+        
+        if (!q) {
+          let text = `╭━━━⊱ 🗺️ *MASMORRAS* ⊱━━━╮\n`;
+          text += `│ Aventureiro: *${pushname}*\n`;
+          text += `│ Nível: ${userLevel}\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          
+          availableDungeons.forEach((d, i) => {
+            text += `${i + 1}. ${d.emoji} *${d.name}*\n`;
+            text += `┌─────────────────\n`;
+            text += `│ 🎯 Dificuldade: ${'⭐'.repeat(d.diff)}\n`;
+            text += `│ 💰 Recompensa: ${d.reward[0].toLocaleString()}-${d.reward[1].toLocaleString()}\n`;
+            text += `│ ✨ EXP: ${d.exp}\n`;
+            text += `└─────────────────\n\n`;
+          });
+          
+          text += `💡 Use ${prefix}masmorra <número>`;
+          return reply(text);
+        }
+        
+        const index = parseInt(q) - 1;
+        if (isNaN(index) || index < 0 || index >= availableDungeons.length) {
+          return reply('❌ Masmorra inválida!');
+        }
+        
+        const dungeon = availableDungeons[index];
+        const userPower = (me.power || 100) + (me.attackBonus || 0);
+        const success = Math.random() < (0.7 - (dungeon.diff * 0.1) + (userPower / 1000));
+        
+        me.lastDungeon = now;
+        
+        if (success) {
+          const reward = Math.floor(Math.random() * (dungeon.reward[1] - dungeon.reward[0])) + dungeon.reward[0];
+          me.wallet += reward;
+          me.exp = (me.exp || 0) + dungeon.exp;
+          
+          let text = `╭━━━⊱ ⚔️ *VITÓRIA!* ⊱━━━╮\n`;
+          text += `│ ${dungeon.emoji} ${dungeon.name}\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `🎉 Você derrotou todos os monstros!\n\n`;
+          text += `💰 Moedas: +${reward.toLocaleString()}\n`;
+          text += `✨ EXP: +${dungeon.exp}\n\n`;
+          text += `🏆 Continue assim, aventureiro!`;
+          
+          saveEconomy(econ);
+          return reply(text);
+        } else {
+          const loss = Math.floor(me.wallet * 0.1);
+          me.wallet = Math.max(0, me.wallet - loss);
+          
+          let text = `╭━━━⊱ 💀 *DERROTA!* ⊱━━━╮\n`;
+          text += `│ ${dungeon.emoji} ${dungeon.name}\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `😵 Você foi derrotado pelos monstros...\n\n`;
+          text += `💸 Perdeu: -${loss.toLocaleString()}\n\n`;
+          text += `💪 Fortaleça-se e tente novamente!`;
+          
+          saveEconomy(econ);
+          return reply(text);
+        }
+        break;
+      }
+
+      // Sistema de Duelos/PvP
+      case 'duelar':
+      case 'duelo':
+      case 'duel': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque alguém para duelar!\n\n💡 Exemplo: ${prefix}duelar @user`);
+        if (target === sender) return reply('❌ Você não pode duelar consigo mesmo!');
+        
+        const opponent = getEcoUser(econ, target);
+        
+        const now = Date.now();
+        if (me.lastDuel && (now - me.lastDuel) < 600000) {
+          const remaining = Math.ceil((600000 - (now - me.lastDuel)) / 60000);
+          return reply(`⏰ Você está cansado! Aguarde ${remaining} minutos para outro duelo.`);
+        }
+        
+        // Calcular stats
+        const myPower = (me.power || 100) + (me.attackBonus || 0);
+        const myDefense = (me.defenseBonus || 0) + 50;
+        const oppPower = (opponent.power || 100) + (opponent.attackBonus || 0);
+        const oppDefense = (opponent.defenseBonus || 0) + 50;
+        
+        let myHp = 200 + ((me.level || 1) * 10);
+        let oppHp = 200 + ((opponent.level || 1) * 10);
+        
+        let text = `╭━━━⊱ ⚔️ *DUELO* ⊱━━━╮\n`;
+        text += `│ ${pushname} VS @${target.split('@')[0]}\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        let turn = 0;
+        let battle = '';
+        
+        while (myHp > 0 && oppHp > 0 && turn < 10) {
+          turn++;
+          
+          // Meu ataque
+          const myDmg = Math.max(5, myPower - Math.floor(Math.random() * oppDefense));
+          oppHp -= myDmg;
+          battle += `⚔️ ${pushname}: -${myDmg} HP\n`;
+          
+          if (oppHp <= 0) break;
+          
+          // Ataque oponente
+          const oppDmg = Math.max(5, oppPower - Math.floor(Math.random() * myDefense));
+          myHp -= oppDmg;
+          battle += `🛡️ Oponente: -${oppDmg} HP\n\n`;
+        }
+        
+        me.lastDuel = now;
+        
+        if (myHp > oppHp) {
+          const reward = Math.floor((opponent.wallet || 0) * 0.05);
+          me.wallet += reward;
+          opponent.wallet = Math.max(0, opponent.wallet - reward);
+          me.exp = (me.exp || 0) + 150;
+          
+          text += battle;
+          text += `\n🏆 *VITÓRIA!*\n\n`;
+          text += `💰 Recompensa: +${reward.toLocaleString()}\n`;
+          text += `✨ EXP: +150\n`;
+          text += `❤️ HP restante: ${Math.max(0, myHp)}`;
+          
+          saveEconomy(econ);
+          return reply(text, { mentions: [target] });
+        } else {
+          const loss = Math.floor(me.wallet * 0.05);
+          me.wallet = Math.max(0, me.wallet - loss);
+          opponent.wallet += loss;
+          opponent.exp = (opponent.exp || 0) + 150;
+          
+          text += battle;
+          text += `\n💀 *DERROTA!*\n\n`;
+          text += `💸 Perdeu: -${loss.toLocaleString()}\n\n`;
+          text += `💪 Treine mais e desafie novamente!`;
+          
+          saveEconomy(econ);
+          return reply(text, { mentions: [target] });
+        }
+        break;
+      }
+
+      // Sistema de Arena
+      case 'arena': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const now = Date.now();
+        if (me.lastArena && (now - me.lastArena) < 1800000) {
+          const remaining = Math.ceil((1800000 - (now - me.lastArena)) / 60000);
+          return reply(`⏰ A arena está fechada para você! Aguarde ${remaining} minutos.`);
+        }
+        
+        const levels = [
+          { name: 'Bronze', minLevel: 1, reward: [1000, 3000], enemies: 3 },
+          { name: 'Prata', minLevel: 5, reward: [3000, 7000], enemies: 5 },
+          { name: 'Ouro', minLevel: 10, reward: [7000, 15000], enemies: 7 },
+          { name: 'Platina', minLevel: 20, reward: [15000, 30000], enemies: 10 }
+        ];
+        
+        const userLevel = me.level || 1;
+        const available = levels.filter(l => l.minLevel <= userLevel);
+        
+        if (!q) {
+          let text = `╭━━━⊱ 🏛️ *ARENA* ⊱━━━╮\n`;
+          text += `│ Gladiador: *${pushname}*\n`;
+          text += `│ Nível: ${userLevel}\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          
+          available.forEach((l, i) => {
+            text += `${i + 1}. 🏆 *${l.name}*\n`;
+            text += `┌─────────────────\n`;
+            text += `│ 🎯 Nível Mínimo: ${l.minLevel}\n`;
+            text += `│ 💰 Prêmio: ${l.reward[0].toLocaleString()}-${l.reward[1].toLocaleString()}\n`;
+            text += `│ ⚔️ Inimigos: ${l.enemies}\n`;
+            text += `└─────────────────\n\n`;
+          });
+          
+          text += `💡 Use ${prefix}arena <número>`;
+          return reply(text);
+        }
+        
+        const index = parseInt(q) - 1;
+        if (isNaN(index) || index < 0 || index >= available.length) {
+          return reply('❌ Arena inválida!');
+        }
+        
+        const arena = available[index];
+        const userPower = (me.power || 100) + (me.attackBonus || 0);
+        const wins = Math.floor(Math.random() * (arena.enemies + 1));
+        
+        me.lastArena = now;
+        
+        if (wins >= arena.enemies * 0.7) {
+          const reward = Math.floor(Math.random() * (arena.reward[1] - arena.reward[0])) + arena.reward[0];
+          me.wallet += reward;
+          me.exp = (me.exp || 0) + (arena.enemies * 50);
+          
+          let text = `╭━━━⊱ 🏆 *VITÓRIA NA ARENA!* ⊱━━━╮\n`;
+          text += `│ Arena: ${arena.name}\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `⚔️ Derrotou: ${wins}/${arena.enemies} inimigos\n\n`;
+          text += `💰 Prêmio: +${reward.toLocaleString()}\n`;
+          text += `✨ EXP: +${arena.enemies * 50}\n\n`;
+          text += `🎉 A multidão te aclama!`;
+          
+          saveEconomy(econ);
+          return reply(text);
+        } else {
+          const loss = Math.floor(me.wallet * 0.08);
+          me.wallet = Math.max(0, me.wallet - loss);
+          
+          let text = `╭━━━⊱ 💀 *DERROTA NA ARENA* ⊱━━━╮\n`;
+          text += `│ Arena: ${arena.name}\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `⚔️ Derrotou: ${wins}/${arena.enemies} inimigos\n\n`;
+          text += `💸 Perdeu: -${loss.toLocaleString()}\n\n`;
+          text += `💪 Continue treinando!`;
+          
+          saveEconomy(econ);
+          return reply(text);
+        }
+        break;
+      }
+
+      // Sistema de Encantamento
+      case 'encantar':
+      case 'enchant': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.equipment || !me.equipment.weapon) {
+          return reply(`❌ Você não tem uma arma equipada!\n\n💡 Use ${prefix}equipar para equipar uma arma`);
+        }
+        
+        const weapon = me.equipment.weapon;
+        const enchantLevel = weapon.enchant || 0;
+        
+        if (enchantLevel >= 10) return reply('✨ Sua arma já está no encantamento máximo (+10)!');
+        
+        const cost = (enchantLevel + 1) * 5000;
+        const crystals = (enchantLevel + 1) * 3;
+        
+        if (!q) {
+          let text = `╭━━━⊱ ✨ *ENCANTAR* ⊱━━━╮\n`;
+          text += `│ Arma: ${weapon.emoji} *${weapon.name}*\n`;
+          text += `│ Encantamento: +${enchantLevel}\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `💎 Próximo nível: +${enchantLevel + 1}\n`;
+          text += `┌─────────────────\n`;
+          text += `│ 💰 Custo: ${cost.toLocaleString()}\n`;
+          text += `│ 💎 Cristais: ${crystals}x\n`;
+          text += `│ ⚔️ ATK: +${(enchantLevel + 1) * 5}\n`;
+          text += `│ 🎲 Chance: ${Math.max(30, 90 - (enchantLevel * 6))}%\n`;
+          text += `└─────────────────\n\n`;
+          text += `⚠️ Falha pode destruir a arma!\n\n`;
+          text += `💡 Use ${prefix}encantar confirmar`;
+          return reply(text);
+        }
+        
+        if (q.toLowerCase() !== 'confirmar') return reply('❌ Use "confirmar" para prosseguir');
+        
+        if (me.wallet < cost) return reply(`💰 Você precisa de ${cost.toLocaleString()} moedas!`);
+        if (!me.materials || (me.materials.cristal || 0) < crystals) {
+          return reply(`💎 Você precisa de ${crystals}x cristais!`);
+        }
+        
+        me.wallet -= cost;
+        me.materials.cristal -= crystals;
+        
+        const chance = Math.max(30, 90 - (enchantLevel * 6));
+        const success = Math.random() * 100 < chance;
+        
+        if (success) {
+          weapon.enchant = (weapon.enchant || 0) + 1;
+          weapon.attack = (weapon.attack || 0) + 5;
+          
+          let text = `╭━━━⊱ ✨ *SUCESSO!* ⊱━━━╮\n`;
+          text += `│ ${weapon.emoji} ${weapon.name} +${weapon.enchant}\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `🎉 Encantamento realizado!\n\n`;
+          text += `⚔️ ATK: ${weapon.attack}\n`;
+          text += `✨ Bônus: +${weapon.enchant * 5}\n\n`;
+          text += `🌟 Sua arma está mais poderosa!`;
+          
+          saveEconomy(econ);
+          return reply(text);
+        } else {
+          if (enchantLevel >= 5 && Math.random() < 0.3) {
+            delete me.equipment.weapon;
+            saveEconomy(econ);
+            return reply(`💥 *FALHA CRÍTICA!*\n\n😱 Sua arma foi destruída no processo...\n\n⚠️ Você perdeu: ${weapon.emoji} ${weapon.name} +${enchantLevel}`);
+          } else {
+            saveEconomy(econ);
+            return reply(`❌ *FALHA!*\n\n😔 O encantamento falhou, mas sua arma permaneceu intacta.\n\n💰 Perdeu: ${cost.toLocaleString()}\n💎 Perdeu: ${crystals}x cristais`);
+          }
+        }
+        break;
+      }
+
+      // Sistema de Desmontar
+      case 'desmontar':
+      case 'dismantle': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.inventory || Object.keys(me.inventory).length === 0) {
+          return reply(`❌ Seu inventário está vazio!\n\n💡 Consiga equipamentos em masmorras`);
+        }
+        
+        if (!q) {
+          let text = `╭━━━⊱ 🔨 *DESMONTAR* ⊱━━━╮\n`;
+          text += `│ Desmonte itens por materiais\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `📦 *SEU INVENTÁRIO:*\n\n`;
+          
+          let index = 1;
+          for (const [item, qty] of Object.entries(me.inventory)) {
+            if (qty > 0) {
+              text += `${index}. ${item} (${qty}x)\n`;
+              index++;
+            }
+          }
+          
+          text += `\n💡 Use ${prefix}desmontar <nome do item>`;
+          return reply(text);
+        }
+        
+        const itemName = q.toLowerCase();
+        if (!me.inventory[itemName] || me.inventory[itemName] <= 0) {
+          return reply('❌ Você não tem este item!');
+        }
+        
+        me.inventory[itemName]--;
+        
+        if (!me.materials) me.materials = {};
+        
+        const materials = ['ferro', 'madeira', 'couro', 'cristal'];
+        const gained = {};
+        
+        materials.forEach(mat => {
+          const amount = Math.floor(Math.random() * 5) + 1;
+          me.materials[mat] = (me.materials[mat] || 0) + amount;
+          gained[mat] = amount;
+        });
+        
+        let text = `╭━━━⊱ 🔨 *DESMONTADO* ⊱━━━╮\n`;
+        text += `│ Item: ${itemName}\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `📦 *MATERIAIS OBTIDOS:*\n\n`;
+        
+        for (const [mat, amt] of Object.entries(gained)) {
+          text += `• ${mat}: +${amt}\n`;
+        }
+        
+        text += `\n💡 Use materiais para craftar e encantar!`;
+        
+        saveEconomy(econ);
+        return reply(text);
+        break;
+      }
+
+      // Sistema de Missões
+      case 'missoes':
+      case 'quests':
+      case 'missao': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.quests) {
+          me.quests = {
+            daily: [],
+            lastReset: Date.now()
+          };
+        }
+        
+        // Reset diário
+        const now = Date.now();
+        if (now - me.quests.lastReset > 86400000) {
+          me.quests.daily = [];
+          me.quests.lastReset = now;
+        }
+        
+        // Gerar missões diárias
+        if (me.quests.daily.length === 0) {
+          const allQuests = [
+            { id: 'duel_3', name: '⚔️ Duelar 3 vezes', reward: 5000, exp: 200, progress: 0, goal: 3 },
+            { id: 'dungeon_2', name: '🗺️ Completar 2 masmorras', reward: 8000, exp: 300, progress: 0, goal: 2 },
+            { id: 'gather_10', name: '🌾 Coletar 10 recursos', reward: 3000, exp: 150, progress: 0, goal: 10 },
+            { id: 'cook_5', name: '👨‍🍳 Cozinhar 5 receitas', reward: 4000, exp: 180, progress: 0, goal: 5 },
+            { id: 'train_pet', name: '🐾 Treinar pet 5 vezes', reward: 6000, exp: 250, progress: 0, goal: 5 }
+          ];
+          
+          // Escolher 3 missões aleatórias
+          const shuffled = allQuests.sort(() => Math.random() - 0.5);
+          me.quests.daily = shuffled.slice(0, 3);
+        }
+        
+        let text = `╭━━━⊱ 📜 *MISSÕES DIÁRIAS* ⊱━━━╮\n`;
+        text += `│ Aventureiro: *${pushname}*\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        me.quests.daily.forEach((quest, i) => {
+          const completed = quest.progress >= quest.goal;
+          text += `${i + 1}. ${quest.name}\n`;
+          text += `┌─────────────────\n`;
+          text += `│ 📊 Progresso: ${quest.progress}/${quest.goal}\n`;
+          text += `│ 💰 Recompensa: ${quest.reward.toLocaleString()}\n`;
+          text += `│ ✨ EXP: ${quest.exp}\n`;
+          text += `│ ${completed ? '✅ Completo!' : '⏳ Em andamento'}\n`;
+          text += `└─────────────────\n\n`;
+        });
+        
+        const timeUntilReset = 86400000 - (now - me.quests.lastReset);
+        const hoursLeft = Math.floor(timeUntilReset / 3600000);
+        text += `⏰ Reseta em: ${hoursLeft}h`;
+        
+        saveEconomy(econ);
+        return reply(text);
+        break;
+      }
+
+      // Guerra de Clãs
+      case 'guerra':
+      case 'war':
+      case 'guerracla': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.clan) return reply('🏰 Você precisa estar em um clã para declarar guerra!');
+        
+        const myClan = econ.clans[me.clan];
+        if (myClan.leader !== sender) return reply('👑 Apenas o líder pode declarar guerra!');
+        
+        if (!q) {
+          let text = `╭━━━⊱ ⚔️ *GUERRA DE CLÃS* ⊱━━━╮\n`;
+          text += `│ Seu Clã: *${myClan.name}*\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `💡 Em breve: Sistema de guerras entre clãs!\n\n`;
+          text += `🏆 Recursos:\n`;
+          text += `• Batalhas estratégicas\n`;
+          text += `• Território conquistável\n`;
+          text += `• Recompensas épicas\n`;
+          text += `• Rankings de clãs\n\n`;
+          text += `⏰ Sistema em desenvolvimento...`;
+          return reply(text);
+        }
+        
+        return reply('⚠️ Sistema de guerras será implementado em breve!');
+        break;
+      }
+
+      // Sistema de Família
+      case 'familia':
+      case 'family': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.family) me.family = { spouse: null, children: [], parents: [], siblings: [] };
+        
+        let text = `╭━━━⊱ 👨‍👩‍👧‍👦 *MINHA FAMÍLIA* ⊱━━━╮\n`;
+        text += `│ ${pushname}\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        // Cônjuge
+        if (me.family.spouse) {
+          const spouseData = getEcoUser(econ, me.family.spouse);
+          text += `💍 *Cônjuge:*\n`;
+          text += `┌─────────────────\n`;
+          text += `│ @${me.family.spouse.split('@')[0]}\n`;
+          text += `│ ❤️ Desde: ${new Date(me.marriedAt || Date.now()).toLocaleDateString()}\n`;
+          text += `└─────────────────\n\n`;
+        } else {
+          text += `💍 *Cônjuge:* Solteiro(a)\n\n`;
+        }
+        
+        // Pais
+        if (me.family.parents && me.family.parents.length > 0) {
+          text += `👫 *Pais:*\n`;
+          me.family.parents.forEach(parent => {
+            text += `• @${parent.split('@')[0]}\n`;
+          });
+          text += `\n`;
+        }
+        
+        // Filhos
+        if (me.family.children && me.family.children.length > 0) {
+          text += `👶 *Filhos (${me.family.children.length}):*\n`;
+          me.family.children.forEach((child, i) => {
+            text += `${i + 1}. @${child.split('@')[0]}\n`;
+          });
+          text += `\n`;
+        } else {
+          text += `👶 *Filhos:* Nenhum\n\n`;
+        }
+        
+        // Irmãos
+        if (me.family.siblings && me.family.siblings.length > 0) {
+          text += `👫 *Irmãos (${me.family.siblings.length}):*\n`;
+          me.family.siblings.forEach(sibling => {
+            text += `• @${sibling.split('@')[0]}\n`;
+          });
+          text += `\n`;
+        }
+        
+        text += `💡 Use ${prefix}adotaruser @user para adotar\n`;
+        text += `💡 Use ${prefix}arvore para ver árvore genealógica`;
+        
+        const mentions = [
+          me.family.spouse,
+          ...(me.family.parents || []),
+          ...(me.family.children || []),
+          ...(me.family.siblings || [])
+        ].filter(Boolean);
+        
+        saveEconomy(econ);
+        return reply(text, { mentions });
+        break;
+      }
+
+      case 'adotaruser':
+      case 'adotar':
+      case 'adopt': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque alguém para adotar!\n\n💡 Exemplo: ${prefix}adotaruser @user`);
+        if (target === sender) return reply('❌ Você não pode se adotar!');
+        
+        const targetUser = getEcoUser(econ, target);
+        
+        if (!me.family) me.family = { spouse: null, children: [], parents: [], siblings: [] };
+        if (!targetUser.family) targetUser.family = { spouse: null, children: [], parents: [], siblings: [] };
+        
+        // Verificar se já é filho
+        if (me.family.children && me.family.children.includes(target)) {
+          return reply('❌ Esta pessoa já é seu filho(a)!');
+        }
+        
+        // Verificar se já tem pais
+        if (targetUser.family.parents && targetUser.family.parents.length >= 2) {
+          return reply('❌ Esta pessoa já tem 2 pais/mães!');
+        }
+        
+        // Custo da adoção
+        const adoptCost = 10000;
+        if (me.wallet < adoptCost) {
+          return reply(`💰 Você precisa de ${adoptCost.toLocaleString()} moedas para adotar!`);
+        }
+        
+        me.wallet -= adoptCost;
+        
+        // Adicionar aos filhos
+        if (!me.family.children) me.family.children = [];
+        me.family.children.push(target);
+        
+        // Adicionar aos pais
+        if (!targetUser.family.parents) targetUser.family.parents = [];
+        targetUser.family.parents.push(sender);
+        
+        // Se tiver cônjuge, adicionar como pai/mãe também
+        if (me.family.spouse) {
+          const spouseData = getEcoUser(econ, me.family.spouse);
+          if (!spouseData.family) spouseData.family = { spouse: sender, children: [], parents: [], siblings: [] };
+          if (!spouseData.family.children) spouseData.family.children = [];
+          spouseData.family.children.push(target);
+          targetUser.family.parents.push(me.family.spouse);
+        }
+        
+        let text = `╭━━━⊱ 👶 *ADOÇÃO* ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `🎉 Parabéns!\n\n`;
+        text += `${pushname} adotou @${target.split('@')[0]}!\n\n`;
+        text += `💰 Custo: ${adoptCost.toLocaleString()}\n`;
+        text += `👨‍👩‍👧‍👦 Agora você tem ${me.family.children.length} filho(s)!`;
+        
+        saveEconomy(econ);
+        return reply(text, { mentions: [target] });
+        break;
+      }
+
+      case 'arvore':
+      case 'familytree': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.family) me.family = { spouse: null, children: [], parents: [], siblings: [] };
+        
+        let text = `╭━━━⊱ 🌳 *ÁRVORE GENEALÓGICA* ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        // Avós
+        const grandparents = [];
+        if (me.family.parents) {
+          for (const parent of me.family.parents) {
+            const parentData = getEcoUser(econ, parent);
+            if (parentData.family && parentData.family.parents) {
+              grandparents.push(...parentData.family.parents);
+            }
+          }
+        }
+        
+        if (grandparents.length > 0) {
+          text += `👴👵 *Avós:*\n`;
+          [...new Set(grandparents)].forEach(gp => {
+            text += `• @${gp.split('@')[0]}\n`;
+          });
+          text += `\n`;
+        }
+        
+        // Pais
+        if (me.family.parents && me.family.parents.length > 0) {
+          text += `👫 *Pais:*\n`;
+          me.family.parents.forEach(parent => {
+            text += `• @${parent.split('@')[0]}\n`;
+          });
+          text += `\n`;
+        }
+        
+        // Você
+        text += `👤 *Você:* ${pushname}\n`;
+        if (me.family.spouse) {
+          text += `💍 *Cônjuge:* @${me.family.spouse.split('@')[0]}\n`;
+        }
+        text += `\n`;
+        
+        // Filhos
+        if (me.family.children && me.family.children.length > 0) {
+          text += `👶 *Filhos:*\n`;
+          me.family.children.forEach(child => {
+            text += `• @${child.split('@')[0]}\n`;
+          });
+          text += `\n`;
+        }
+        
+        // Netos
+        const grandchildren = [];
+        if (me.family.children) {
+          for (const child of me.family.children) {
+            const childData = getEcoUser(econ, child);
+            if (childData.family && childData.family.children) {
+              grandchildren.push(...childData.family.children);
+            }
+          }
+        }
+        
+        if (grandchildren.length > 0) {
+          text += `👶👶 *Netos:*\n`;
+          grandchildren.forEach(gc => {
+            text += `• @${gc.split('@')[0]}\n`;
+          });
+          text += `\n`;
+        }
+        
+        text += `🌳 ${grandparents.length + (me.family.parents?.length || 0) + 1 + (me.family.children?.length || 0) + grandchildren.length} membros na família`;
+        
+        const allMembers = [
+          ...grandparents,
+          ...(me.family.parents || []),
+          me.family.spouse,
+          ...(me.family.children || []),
+          ...grandchildren
+        ].filter(Boolean);
+        
+        return reply(text, { mentions: [...new Set(allMembers)] });
+        break;
+      }
+
+      // Sistema de Torneio
+      case 'torneio':
+      case 'tournament': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!econ.tournament) {
+          econ.tournament = {
+            active: false,
+            participants: [],
+            startTime: null,
+            prize: 0
+          };
+        }
+        
+        const tournament = econ.tournament;
+        
+        if (!tournament.active) {
+          // Criar torneio
+          if (q === 'criar' && isGroupAdmins) {
+            tournament.active = true;
+            tournament.participants = [];
+            tournament.startTime = Date.now();
+            tournament.prize = 50000;
+            
+            saveEconomy(econ);
+            return reply(`╭━━━⊱ 🏆 *TORNEIO ABERTO!* ⊱━━━╮\n╰━━━━━━━━━━━━━━━━━━━━╯\n\n⚔️ Um torneio foi iniciado!\n\n💰 Prêmio: ${tournament.prize.toLocaleString()}\n⏰ Inscrições abertas!\n\n💡 Use ${prefix}torneio entrar`);
+          }
+          
+          return reply(`❌ Não há torneio ativo!\n\n💡 Admins: Use ${prefix}torneio criar`);
+        }
+        
+        // Entrar no torneio
+        if (q === 'entrar') {
+          if (tournament.participants.includes(sender)) {
+            return reply('❌ Você já está inscrito no torneio!');
+          }
+          
+          const entryCost = 5000;
+          if (me.wallet < entryCost) {
+            return reply(`💰 Você precisa de ${entryCost.toLocaleString()} moedas para participar!`);
+          }
+          
+          me.wallet -= entryCost;
+          tournament.participants.push(sender);
+          tournament.prize += entryCost;
+          
+          saveEconomy(econ);
+          return reply(`✅ Você entrou no torneio!\n\n👥 Participantes: ${tournament.participants.length}\n💰 Prêmio acumulado: ${tournament.prize.toLocaleString()}`);
+        }
+        
+        // Iniciar torneio
+        if (q === 'iniciar' && isGroupAdmins) {
+          if (tournament.participants.length < 2) {
+            return reply('❌ Precisa de pelo menos 2 participantes!');
+          }
+          
+          // Simular batalhas
+          let fighters = [...tournament.participants];
+          let round = 1;
+          let results = `╭━━━⊱ 🏆 *TORNEIO* ⊱━━━╮\n╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          
+          while (fighters.length > 1) {
+            results += `⚔️ *RODADA ${round}*\n\n`;
+            const nextRound = [];
+            
+            for (let i = 0; i < fighters.length; i += 2) {
+              if (i + 1 < fighters.length) {
+                const fighter1 = fighters[i];
+                const fighter2 = fighters[i + 1];
+                const winner = Math.random() > 0.5 ? fighter1 : fighter2;
+                
+                results += `${fighter1 === winner ? '✅' : '❌'} @${fighter1.split('@')[0]} vs @${fighter2.split('@')[0]} ${fighter2 === winner ? '✅' : '❌'}\n`;
+                nextRound.push(winner);
+              } else {
+                nextRound.push(fighters[i]);
+              }
+            }
+            
+            results += `\n`;
+            fighters = nextRound;
+            round++;
+          }
+          
+          const winner = fighters[0];
+          const winnerData = getEcoUser(econ, winner);
+          winnerData.wallet += tournament.prize;
+          
+          results += `\n🏆 *CAMPEÃO:* @${winner.split('@')[0]}\n`;
+          results += `💰 Prêmio: ${tournament.prize.toLocaleString()}`;
+          
+          tournament.active = false;
+          tournament.participants = [];
+          
+          saveEconomy(econ);
+          return reply(results, { mentions: tournament.participants });
+        }
+        
+        // Ver info do torneio
+        let text = `╭━━━⊱ 🏆 *TORNEIO ATIVO* ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `👥 Participantes: ${tournament.participants.length}\n`;
+        text += `💰 Prêmio: ${tournament.prize.toLocaleString()}\n\n`;
+        text += `📋 *INSCRITOS:*\n`;
+        tournament.participants.slice(0, 10).forEach((p, i) => {
+          text += `${i + 1}. @${p.split('@')[0]}\n`;
+        });
+        if (tournament.participants.length > 10) {
+          text += `... e mais ${tournament.participants.length - 10}\n`;
+        }
+        text += `\n💡 Use ${prefix}torneio entrar`;
+        
+        return reply(text, { mentions: tournament.participants.slice(0, 10) });
+        break;
+      }
+
+      // Interações Sociais
+      case 'abracar':
+      case 'hug': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque alguém para abraçar!\n\n💡 Exemplo: ${prefix}abracar @user`);
+        if (target === sender) return reply('❌ Você não pode se abraçar!');
+        
+        const actions = [
+          `${pushname} deu um abraço caloroso em @${target.split('@')[0]}! 🤗`,
+          `${pushname} abraçou @${target.split('@')[0]} com muito carinho! 💕`,
+          `Um abraço apertado de ${pushname} para @${target.split('@')[0]}! 🫂`,
+          `${pushname} envolveu @${target.split('@')[0]} em seus braços! 🤗💖`
+        ];
+        
+        return reply(actions[Math.floor(Math.random() * actions.length)], { mentions: [target] });
+        break;
+      }
+
+      case 'beijar':
+      case 'kiss': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque alguém para beijar!\n\n💡 Exemplo: ${prefix}beijar @user`);
+        if (target === sender) return reply('❌ Você não pode se beijar!');
+        
+        const actions = [
+          `${pushname} deu um beijo em @${target.split('@')[0]}! 😘`,
+          `${pushname} beijou @${target.split('@')[0]} apaixonadamente! 💋`,
+          `Um beijo romântico de ${pushname} para @${target.split('@')[0]}! 😍`,
+          `${pushname} roubou um beijinho de @${target.split('@')[0]}! 😚`
+        ];
+        
+        return reply(actions[Math.floor(Math.random() * actions.length)], { mentions: [target] });
+        break;
+      }
+
+      case 'bater':
+      case 'tapa':
+      case 'slap': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque alguém para dar um tapa!\n\n💡 Exemplo: ${prefix}bater @user`);
+        if (target === sender) return reply('❌ Você não pode bater em si mesmo!');
+        
+        const actions = [
+          `${pushname} deu um tapa em @${target.split('@')[0]}! 👋💥`,
+          `PAH! ${pushname} acertou @${target.split('@')[0]} em cheio! 😤`,
+          `${pushname} não teve piedade e bateu em @${target.split('@')[0]}! 💢`,
+          `SMACK! ${pushname} deu um tapão em @${target.split('@')[0]}! 😠`
+        ];
+        
+        return reply(actions[Math.floor(Math.random() * actions.length)], { mentions: [target] });
+        break;
+      }
+
+      case 'proteger':
+      case 'protect': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque alguém para proteger!\n\n💡 Exemplo: ${prefix}proteger @user`);
+        if (target === sender) return reply('❌ Você não pode se proteger assim!');
+        
+        const protectCost = 2000;
+        if (me.wallet < protectCost) {
+          return reply(`💰 Você precisa de ${protectCost.toLocaleString()} moedas para proteger alguém!`);
+        }
+        
+        me.wallet -= protectCost;
+        
+        const targetData = getEcoUser(econ, target);
+        if (!targetData.protection) targetData.protection = {};
+        targetData.protection.protectedBy = sender;
+        targetData.protection.until = Date.now() + 3600000; // 1 hora
+        
+        saveEconomy(econ);
+        
+        let text = `╭━━━⊱ 🛡️ *PROTEÇÃO ATIVA* ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `${pushname} está protegendo @${target.split('@')[0]}!\n\n`;
+        text += `⏰ Duração: 1 hora\n`;
+        text += `🚫 Ataques e roubos bloqueados!\n`;
+        text += `💰 Custo: ${protectCost.toLocaleString()}`;
+        
+        return reply(text, { mentions: [target] });
+        break;
+      }
+
+      // Sistema de Reputação
+      case 'reputacao':
+      case 'rep':
+      case 'reputation': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.reputation) {
+          me.reputation = {
+            points: 0,
+            upvotes: 0,
+            downvotes: 0,
+            karma: 0,
+            fame: 0
+          };
+        }
+        
+        let text = `╭━━━⊱ ⭐ *REPUTAÇÃO* ⊱━━━╮\n`;
+        text += `│ ${pushname}\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `⭐ Pontos: ${me.reputation.points}\n`;
+        text += `👍 Votos Positivos: ${me.reputation.upvotes}\n`;
+        text += `👎 Votos Negativos: ${me.reputation.downvotes}\n`;
+        text += `☯️ Karma: ${me.reputation.karma}\n`;
+        text += `🌟 Fama: ${me.reputation.fame}\n\n`;
+        
+        const repLevel = Math.floor(me.reputation.points / 100);
+        const ranks = ['Novato', 'Conhecido', 'Respeitado', 'Famoso', 'Lendário'];
+        const rank = ranks[Math.min(repLevel, ranks.length - 1)];
+        
+        text += `🏅 Classificação: *${rank}*\n\n`;
+        text += `💡 Use ${prefix}votar @user para dar reputação`;
+        
+        saveEconomy(econ);
+        return reply(text);
+        break;
+      }
+
+      case 'votar':
+      case 'vote': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque alguém para votar!\n\n💡 Exemplo: ${prefix}votar @user`);
+        if (target === sender) return reply('❌ Você não pode votar em si mesmo!');
+        
+        if (!me.lastVote) me.lastVote = {};
+        
+        const now = Date.now();
+        if (me.lastVote[target] && (now - me.lastVote[target]) < 86400000) {
+          const remaining = Math.ceil((86400000 - (now - me.lastVote[target])) / 3600000);
+          return reply(`⏰ Você já votou nesta pessoa hoje!\n\nAguarde ${remaining}h para votar novamente.`);
+        }
+        
+        const targetData = getEcoUser(econ, target);
+        if (!targetData.reputation) {
+          targetData.reputation = {
+            points: 0,
+            upvotes: 0,
+            downvotes: 0,
+            karma: 0,
+            fame: 0
+          };
+        }
+        
+        targetData.reputation.points += 10;
+        targetData.reputation.upvotes++;
+        targetData.reputation.karma += 5;
+        targetData.reputation.fame++;
+        
+        me.lastVote[target] = now;
+        
+        let text = `╭━━━⊱ 👍 *VOTO POSITIVO* ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `${pushname} deu reputação para @${target.split('@')[0]}!\n\n`;
+        text += `⭐ +10 pontos de reputação\n`;
+        text += `☯️ +5 karma\n`;
+        text += `🌟 +1 fama`;
+        
+        saveEconomy(econ);
+        return reply(text, { mentions: [target] });
+        break;
+      }
+
+      // Sistema de Evolução/Prestige
+      case 'evoluir':
+      case 'evolucao':
+      case 'prestige': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.prestige) me.prestige = { level: 0, totalResets: 0, bonusMultiplier: 1 };
+        
+        const requiredLevel = 50 + (me.prestige.level * 10);
+        const requiredCoins = 100000 * (me.prestige.level + 1);
+        
+        if (!q) {
+          let text = `╭━━━⊱ 🌟 *EVOLUÇÃO* ⊱━━━╮\n`;
+          text += `│ ${pushname}\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `🔱 Prestige Atual: ${me.prestige.level}\n`;
+          text += `🔄 Resets Totais: ${me.prestige.totalResets}\n`;
+          text += `✨ Multiplicador: ${me.prestige.bonusMultiplier.toFixed(2)}x\n\n`;
+          text += `📊 *PRÓXIMO PRESTIGE:*\n`;
+          text += `┌─────────────────\n`;
+          text += `│ 📈 Level: ${me.level || 1}/${requiredLevel}\n`;
+          text += `│ 💰 Moedas: ${(me.wallet || 0).toLocaleString()}/${requiredCoins.toLocaleString()}\n`;
+          text += `│ 🎁 Bônus: +${((me.prestige.level + 1) * 0.1).toFixed(1)}x multiplicador\n`;
+          text += `└─────────────────\n\n`;
+          
+          if (me.level >= requiredLevel && me.wallet >= requiredCoins) {
+            text += `✅ Requisitos completos!\n\n`;
+            text += `⚠️ *ATENÇÃO:*\n`;
+            text += `• Level volta para 1\n`;
+            text += `• Moedas resetadas\n`;
+            text += `• Equipamentos mantidos\n`;
+            text += `• Família e clã mantidos\n`;
+            text += `• Pets mantidos\n\n`;
+            text += `💡 Use ${prefix}evoluir confirmar`;
+          } else {
+            text += `❌ Continue evoluindo para prestigiar!`;
+          }
+          
+          return reply(text);
+        }
+        
+        if (q !== 'confirmar') return reply('❌ Use "confirmar" para prestigiar');
+        
+        if (me.level < requiredLevel) {
+          return reply(`❌ Você precisa ser nível ${requiredLevel} para prestigiar!`);
+        }
+        
+        if (me.wallet < requiredCoins) {
+          return reply(`💰 Você precisa de ${requiredCoins.toLocaleString()} moedas!`);
+        }
+        
+        // Resetar
+        me.level = 1;
+        me.exp = 0;
+        me.wallet = 0;
+        me.bank = 0;
+        me.prestige.level++;
+        me.prestige.totalResets++;
+        me.prestige.bonusMultiplier = 1 + (me.prestige.level * 0.1);
+        
+        let text = `╭━━━⊱ 🌟 *PRESTIGIADO!* ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `🎉 Você alcançou o Prestige ${me.prestige.level}!\n\n`;
+        text += `✨ Novo multiplicador: ${me.prestige.bonusMultiplier.toFixed(2)}x\n`;
+        text += `🔄 Total de resets: ${me.prestige.totalResets}\n\n`;
+        text += `💪 Agora você é mais forte!\n`;
+        text += `📈 Ganhe mais XP e moedas!`;
+        
+        saveEconomy(econ);
+        return reply(text);
+        break;
+      }
+
+      // Sistema de Investimentos
+      case 'investir':
+      case 'invest': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.investments) {
+          me.investments = {
+            stocks: {},
+            totalInvested: 0,
+            totalProfit: 0,
+            lastDividend: 0
+          };
+        }
+        
+        if (!econ.stockMarket) {
+          econ.stockMarket = {
+            prices: {
+              tech: 100,
+              gold: 50,
+              crypto: 200,
+              energy: 75
+            },
+            lastUpdate: Date.now()
+          };
+        }
+        
+        // Atualizar preços diariamente
+        const now = Date.now();
+        if (now - econ.stockMarket.lastUpdate > 86400000) {
+          for (const stock in econ.stockMarket.prices) {
+            const change = (Math.random() - 0.5) * 20; // -10% a +10%
+            econ.stockMarket.prices[stock] = Math.max(10, econ.stockMarket.prices[stock] + change);
+          }
+          econ.stockMarket.lastUpdate = now;
+        }
+        
+        if (!q) {
+          let text = `╭━━━⊱ 📈 *MERCADO DE AÇÕES* ⊱━━━╮\n`;
+          text += `│ Investidor: ${pushname}\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `💼 *AÇÕES DISPONÍVEIS:*\n\n`;
+          
+          const stocks = {
+            tech: { name: '💻 Tecnologia', emoji: '💻' },
+            gold: { name: '🪙 Ouro', emoji: '🪙' },
+            crypto: { name: '₿ Cripto', emoji: '₿' },
+            energy: { name: '⚡ Energia', emoji: '⚡' }
+          };
+          
+          for (const [key, stock] of Object.entries(stocks)) {
+            const price = Math.floor(econ.stockMarket.prices[key]);
+            const owned = me.investments.stocks[key] || 0;
+            text += `${stock.emoji} *${stock.name}*\n`;
+            text += `┌─────────────────\n`;
+            text += `│ 💰 Preço: ${price.toLocaleString()}\n`;
+            text += `│ 📊 Você tem: ${owned}\n`;
+            text += `└─────────────────\n\n`;
+          }
+          
+          text += `💡 Use ${prefix}investir <ação> <quantidade>\n`;
+          text += `💡 Use ${prefix}vender <ação> <quantidade>`;
+          
+          saveEconomy(econ);
+          return reply(text);
+        }
+        
+        const args = q.split(' ');
+        const stockType = args[0]?.toLowerCase();
+        const amount = parseInt(args[1]) || 1;
+        
+        if (!econ.stockMarket.prices[stockType]) {
+          return reply('❌ Ação inválida! Escolha: tech, gold, crypto, energy');
+        }
+        
+        const price = Math.floor(econ.stockMarket.prices[stockType]);
+        const totalCost = price * amount;
+        
+        if (me.wallet < totalCost) {
+          return reply(`💰 Você precisa de ${totalCost.toLocaleString()} moedas!`);
+        }
+        
+        me.wallet -= totalCost;
+        me.investments.stocks[stockType] = (me.investments.stocks[stockType] || 0) + amount;
+        me.investments.totalInvested += totalCost;
+        
+        let text = `╭━━━⊱ 💼 *INVESTIMENTO* ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `✅ Investimento realizado!\n\n`;
+        text += `📊 Ação: ${stockType.toUpperCase()}\n`;
+        text += `📈 Quantidade: ${amount}\n`;
+        text += `💰 Valor: ${totalCost.toLocaleString()}\n`;
+        text += `💼 Total investido: ${me.investments.totalInvested.toLocaleString()}`;
+        
+        saveEconomy(econ);
+        return reply(text);
+        break;
+      }
+
+      case 'vender':
+      case 'sell': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.investments || !econ.stockMarket) {
+          return reply('❌ Você não tem investimentos!');
+        }
+        
+        const args = q.split(' ');
+        const stockType = args[0]?.toLowerCase();
+        const amount = parseInt(args[1]) || 1;
+        
+        if (!me.investments.stocks[stockType] || me.investments.stocks[stockType] < amount) {
+          return reply('❌ Você não tem ações suficientes!');
+        }
+        
+        const price = Math.floor(econ.stockMarket.prices[stockType]);
+        const totalValue = price * amount;
+        
+        me.investments.stocks[stockType] -= amount;
+        me.wallet += totalValue;
+        me.investments.totalProfit += totalValue;
+        
+        let text = `╭━━━⊱ 💵 *VENDA* ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `✅ Ações vendidas!\n\n`;
+        text += `📊 Ação: ${stockType.toUpperCase()}\n`;
+        text += `📈 Quantidade: ${amount}\n`;
+        text += `💰 Recebido: ${totalValue.toLocaleString()}\n`;
+        text += `💼 Lucro total: ${me.investments.totalProfit.toLocaleString()}`;
+        
+        saveEconomy(econ);
+        return reply(text);
+        break;
+      }
+
+      // Sistema de Apostas/Cassino
+      case 'dados':
+      case 'dice': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const bet = parseInt(q) || 0;
+        if (bet < 100) return reply('💰 Aposta mínima: 100 moedas');
+        if (me.wallet < bet) return reply('💰 Você não tem moedas suficientes!');
+        
+        const playerRoll = Math.floor(Math.random() * 6) + 1;
+        const botRoll = Math.floor(Math.random() * 6) + 1;
+        
+        let text = `╭━━━⊱ 🎲 *DADOS* ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `🎲 Você: ${playerRoll}\n`;
+        text += `🎲 Bot: ${botRoll}\n\n`;
+        
+        if (playerRoll > botRoll) {
+          const win = bet * 2;
+          me.wallet += win;
+          text += `🎉 *VOCÊ GANHOU!*\n\n`;
+          text += `💰 +${win.toLocaleString()}`;
+        } else if (playerRoll < botRoll) {
+          me.wallet -= bet;
+          text += `😢 *VOCÊ PERDEU!*\n\n`;
+          text += `💸 -${bet.toLocaleString()}`;
+        } else {
+          text += `🤝 *EMPATE!*\n\n`;
+          text += `💰 Aposta devolvida`;
+        }
+        
+        saveEconomy(econ);
+        return reply(text);
+        break;
+      }
+
+      case 'coinflip':
+      case 'moeda': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const args = q.split(' ');
+        const choice = args[0]?.toLowerCase(); // cara ou coroa
+        const bet = parseInt(args[1]) || 0;
+        
+        if (!['cara', 'coroa'].includes(choice)) {
+          return reply(`💡 Use ${prefix}coinflip <cara|coroa> <valor>`);
+        }
+        
+        if (bet < 100) return reply('💰 Aposta mínima: 100 moedas');
+        if (me.wallet < bet) return reply('💰 Você não tem moedas suficientes!');
+        
+        const result = Math.random() < 0.5 ? 'cara' : 'coroa';
+        
+        let text = `╭━━━⊱ 🪙 *COIN FLIP* ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `🪙 Você escolheu: *${choice}*\n`;
+        text += `🪙 Resultado: *${result}*\n\n`;
+        
+        if (choice === result) {
+          const win = bet * 2;
+          me.wallet += win;
+          text += `🎉 *VOCÊ GANHOU!*\n\n`;
+          text += `💰 +${win.toLocaleString()}`;
+        } else {
+          me.wallet -= bet;
+          text += `😢 *VOCÊ PERDEU!*\n\n`;
+          text += `💸 -${bet.toLocaleString()}`;
+        }
+        
+        saveEconomy(econ);
+        return reply(text);
+        break;
+      }
+
+      case 'crash': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const bet = parseInt(q) || 0;
+        if (bet < 100) return reply('💰 Aposta mínima: 100 moedas');
+        if (me.wallet < bet) return reply('💰 Você não tem moedas suficientes!');
+        
+        const crashPoint = (Math.random() * 4 + 1).toFixed(2); // 1.00x a 5.00x
+        const userExit = (Math.random() * 4 + 0.5).toFixed(2);
+        
+        let text = `╭━━━⊱ 🚀 *CRASH* ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `🚀 Você saiu em: ${userExit}x\n`;
+        text += `💥 Crash em: ${crashPoint}x\n\n`;
+        
+        if (parseFloat(userExit) < parseFloat(crashPoint)) {
+          const win = Math.floor(bet * parseFloat(userExit));
+          me.wallet += win;
+          text += `🎉 *VOCÊ GANHOU!*\n\n`;
+          text += `💰 +${win.toLocaleString()}`;
+        } else {
+          me.wallet -= bet;
+          text += `💥 *CRASHED!*\n\n`;
+          text += `💸 -${bet.toLocaleString()}`;
+        }
+        
+        saveEconomy(econ);
+        return reply(text);
+        break;
+      }
+
+      // Sistema de Streaks
+      case 'streak':
+      case 'serie': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.streak) {
+          me.streak = {
+            current: 0,
+            best: 0,
+            lastLogin: 0,
+            rewards: []
+          };
+        }
+        
+        const now = Date.now();
+        const oneDay = 86400000;
+        const timeSinceLogin = now - me.streak.lastLogin;
+        
+        // Verificar streak
+        if (timeSinceLogin > oneDay * 2) {
+          me.streak.current = 0; // Perdeu streak
+        }
+        
+        let text = `╭━━━⊱ 🔥 *STREAK* ⊱━━━╮\n`;
+        text += `│ ${pushname}\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `🔥 Streak Atual: ${me.streak.current} dias\n`;
+        text += `🏆 Melhor Streak: ${me.streak.best} dias\n\n`;
+        text += `📅 *RECOMPENSAS:*\n`;
+        text += `┌─────────────────\n`;
+        text += `│ 7 dias: 10.000 💰\n`;
+        text += `│ 15 dias: 25.000 💰\n`;
+        text += `│ 30 dias: 100.000 💰\n`;
+        text += `│ 60 dias: 500.000 💰\n`;
+        text += `└─────────────────\n\n`;
+        
+        if (me.streak.current >= 7 && !me.streak.rewards.includes(7)) {
+          text += `🎁 Recompensa disponível!\n`;
+          text += `💡 Use ${prefix}reivindicar`;
+        } else {
+          text += `💡 Use ${prefix}diario todos os dias!`;
+        }
+        
+        saveEconomy(econ);
+        return reply(text);
+        break;
+      }
+
+      case 'reivindicar':
+      case 'claim': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.streak || !me.streak.rewards) me.streak = { current: 0, best: 0, lastLogin: 0, rewards: [] };
+        
+        const rewards = [
+          { days: 7, amount: 10000 },
+          { days: 15, amount: 25000 },
+          { days: 30, amount: 100000 },
+          { days: 60, amount: 500000 }
+        ];
+        
+        let claimed = false;
+        let totalClaimed = 0;
+        let text = `╭━━━⊱ 🎁 *RECOMPENSAS* ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        for (const reward of rewards) {
+          if (me.streak.current >= reward.days && !me.streak.rewards.includes(reward.days)) {
+            me.wallet += reward.amount;
+            me.streak.rewards.push(reward.days);
+            totalClaimed += reward.amount;
+            claimed = true;
+            text += `✅ ${reward.days} dias: +${reward.amount.toLocaleString()}\n`;
+          }
+        }
+        
+        if (claimed) {
+          text += `\n💰 Total recebido: ${totalClaimed.toLocaleString()}`;
+          saveEconomy(econ);
+          return reply(text);
+        } else {
+          return reply('❌ Você não tem recompensas disponíveis!');
+        }
+        break;
       }
 
       case 'speedup':
@@ -6856,57 +8768,23 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'comandos':
       case 'commands':
         try {
-          const BUTTONS_FILE = pathz.join(DATABASE_DIR, 'bottons.json');
-          ensureJsonFileExists(BUTTONS_FILE, { enabled: false });
-          const buttonsData = loadJsonFile(BUTTONS_FILE, { enabled: false });
+          const menuVideoPath = __dirname + '/../midias/menu.mp4';
+          const menuImagePath = __dirname + '/../midias/menu.jpg';
+          const useVideo = fs.existsSync(menuVideoPath);
+          const mediaPath = useVideo ? menuVideoPath : menuImagePath;
+          const mediaBuffer = fs.readFileSync(mediaPath);
           
-          if (buttonsData.enabled) {
-            const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
-            const buttonMenuData = await menuButtons(prefix, nomebot, pushname, customDesign);
-            
-            const menuVideoPath = __dirname + '/../midias/menu.mp4';
-            const menuImagePath = __dirname + '/../midias/menu.jpg';
-            const useVideo = fs.existsSync(menuVideoPath);
-            const mediaPath = useVideo ? menuVideoPath : menuImagePath;
-            
-            if (fs.existsSync(mediaPath)) {
-              const mediaBuffer = fs.readFileSync(mediaPath);
-              
-              await nazu.sendMessage(from, {
-                [useVideo ? 'video' : 'image']: mediaBuffer,
-                caption: buttonMenuData.text,
-                title: buttonMenuData.title,
-                subtitle: buttonMenuData.subtitle,
-                footer: buttonMenuData.footer,
-                interactiveButtons: buttonMenuData.interactiveButtons,
-                gifPlayback: useVideo,
-                mimetype: useVideo ? 'video/mp4' : 'image/jpeg',
-                hasMediaAttachment: false
-              }, {
-                quoted: info
-              });
-            } else {
-              await nazu.sendMessage(from, buttonMenuData, { quoted: info });
-            }
-          } else {
-            const menuVideoPath = __dirname + '/../midias/menu.mp4';
-            const menuImagePath = __dirname + '/../midias/menu.jpg';
-            const useVideo = fs.existsSync(menuVideoPath);
-            const mediaPath = useVideo ? menuVideoPath : menuImagePath;
-            const mediaBuffer = fs.readFileSync(mediaPath);
-            
-            const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
-            const menuText = await menu(prefix, nomebot, pushname, customDesign);
-            
-            await nazu.sendMessage(from, {
-              [useVideo ? 'video' : 'image']: mediaBuffer,
-              caption: menuText,
-              gifPlayback: useVideo,
-              mimetype: useVideo ? 'video/mp4' : 'image/jpeg'
-            }, {
-              quoted: info
-            });
-          }
+          const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
+          const menuText = await menu(prefix, nomebot, pushname, customDesign);
+          
+          await nazu.sendMessage(from, {
+            [useVideo ? 'video' : 'image']: mediaBuffer,
+            caption: menuText,
+            gifPlayback: useVideo,
+            mimetype: useVideo ? 'video/mp4' : 'image/jpeg'
+          }, {
+            quoted: info
+          });
         } catch (error) {
           console.error('Erro ao enviar menu:', error);
           const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
@@ -8833,7 +10711,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             ["X9 (promo/rebaix)", !!groupData.x9],
             ["Modo Lite", !!isModoLite],
             ["Modo Brincadeira", !!isModoBn],
-            ["Modo Gold", !!groupData.modogold]
+            ["Modo RPG", !!groupData.modorpg]
           ];
           const admFlags = [["Só Admins", !!groupData.soadm]];
           const toLines = (pairs) => pairs.filter(([_, v]) => typeof v === 'boolean').map(([k, v]) => `┊   ${v ? '✅' : '❌'} ${k}`);
@@ -13253,36 +15131,6 @@ ${groupData.rules.length}. ${q}`);
       await reply('❌ Ocorreu um erro ao configurar os horários automáticos.');
     }
     break;
-
-      case 'botoes':
-      case 'buttons':
-        if (!isOwner) return reply("🚫 Apenas o dono pode ativar/desativar botões!");
-        try {
-          const BUTTONS_FILE = pathz.join(DATABASE_DIR, 'bottons.json');
-          ensureJsonFileExists(BUTTONS_FILE, { enabled: false });
-          
-          let buttonsData = loadJsonFile(BUTTONS_FILE, { enabled: false });
-          
-          if (!q || !['on', 'off', 'ativar', 'desativar', '1', '0'].includes(q.toLowerCase())) {
-            const status = buttonsData.enabled ? 'Ativo' : 'Desativo';
-            const emoji = buttonsData.enabled ? '✅' : '❌';
-            return reply(`${emoji} *Status dos Botões: ${status}*\n\n📝 *Uso:*\n• ${prefix}botoes on - Ativar\n• ${prefix}botoes off - Desativar`);
-          }
-          
-          const shouldEnable = ['on', 'ativar', '1'].includes(q.toLowerCase());
-          buttonsData.enabled = shouldEnable;
-          
-          fs.writeFileSync(BUTTONS_FILE, JSON.stringify(buttonsData, null, 2));
-          
-          const statusText = shouldEnable ? 'ativados' : 'desativados';
-          const emoji = shouldEnable ? '✅' : '❌';
-          
-          await reply(`${emoji} *Botões ${statusText} com sucesso!*\n\n${shouldEnable ? '🔘 Agora os menus serão exibidos com botões interativos.' : '📝 Os menus voltarão ao formato tradicional de texto.'}`);
-        } catch (error) {
-          console.error('Erro no comando botões:', error);
-          await reply('❌ Erro ao alterar configuração dos botões.');
-        }
-        break;
   
       // Rental expiration management commands
       case 'rentalstats':

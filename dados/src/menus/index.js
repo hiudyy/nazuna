@@ -4,7 +4,6 @@ const path = require('path');
 
 const menuModules = {
     menu: "./menu.js",
-    menuButtons: "./menuButtons.js",
     menuAlterador: "./alteradores.js",
     menudown: "./menudown.js",
     menuadm: "./menuadm.js",
@@ -15,7 +14,7 @@ const menuModules = {
     menuSticker: "./menufig.js",
     menuIa: "./menuia.js",
     menuTopCmd: "./topcmd.js",
-    menuGold: "./menugold.js"
+    menuRPG: "./menurpg.js"
 };
 
 /**

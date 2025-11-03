@@ -1,7 +1,7 @@
 {
     "name": "nazuna",
-    "version": "6.0.0",
-    "description": "Bot de whatsapp criado por hiudy",
+    "version": "7.0.0",
+    "description": "Bot de whatsapp criada por hiudy",
     "type": "commonjs",
     "main": "dados/src/connect.js",
     "scripts": {

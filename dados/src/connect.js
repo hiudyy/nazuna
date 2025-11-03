@@ -65,49 +65,42 @@ class MessageQueue {
         if (this.isProcessing) return;
         
         this.isProcessing = true;
-        this.processingInterval = setInterval(() => {
-            this.processQueue();
-        }, 0);
+        // Usa processo recursivo em vez de setInterval para melhor performance
+        this.processQueue();
     }
 
     stopProcessing() {
-        if (this.processingInterval) {
-            clearInterval(this.processingInterval);
-            this.processingInterval = null;
-        }
         this.isProcessing = false;
     }
 
     async processQueue() {
-        if (this.activeWorkers >= this.maxWorkers || this.queue.length === 0) {
-            if (this.activeWorkers === 0 && this.queue.length === 0) {
-                this.stopProcessing();
-            }
-            return;
-        }
+        // Processa múltiplos itens simultaneamente até o limite de workers
+        while (this.isProcessing && this.activeWorkers < this.maxWorkers && this.queue.length > 0) {
+            const item = this.queue.shift();
+            if (!item) break;
 
-        const item = this.queue.shift();
-        if (!item) return;
+            this.activeWorkers++;
+            this.stats.currentQueueLength = this.queue.length;
 
-        this.activeWorkers++;
-        this.stats.currentQueueLength = this.queue.length;
-
-        setImmediate(async () => {
-            try {
-                await this.processItem(item);
-            } catch (error) {
-                await this.handleProcessingError(item, error);
-            } finally {
-                this.activeWorkers--;
-                this.stats.totalProcessed++;
-                
-                if (this.queue.length > 0) {
-                    this.processQueue();
-                } else if (this.activeWorkers === 0) {
-                    this.stopProcessing();
+            // Processa item de forma assíncrona sem bloquear
+            setImmediate(async () => {
+                try {
+                    await this.processItem(item);
+                } catch (error) {
+                    await this.handleProcessingError(item, error);
+                } finally {
+                    this.activeWorkers--;
+                    this.stats.totalProcessed++;
+                    
+                    // Continua processando se houver itens na fila
+                    if (this.isProcessing && this.queue.length > 0) {
+                        this.processQueue();
+                    } else if (this.activeWorkers === 0 && this.queue.length === 0) {
+                        this.stopProcessing();
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     async processItem(item) {
@@ -171,9 +164,35 @@ class MessageQueue {
     }
 
     clear() {
+        // Rejeita todas as mensagens pendentes antes de limpar
+        this.queue.forEach(item => {
+            if (item.reject) {
+                item.reject(new Error('Queue cleared'));
+            }
+        });
         this.queue = [];
         this.stats.currentQueueLength = 0;
         this.stopProcessing();
+    }
+
+    async shutdown() {
+        console.log('🛑 Finalizando MessageQueue...');
+        this.stopProcessing();
+        
+        // Aguarda workers ativos terminarem (timeout de 10s)
+        const shutdownTimeout = 10000;
+        const startTime = Date.now();
+        
+        while (this.activeWorkers > 0 && (Date.now() - startTime) < shutdownTimeout) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        if (this.activeWorkers > 0) {
+            console.warn(`⚠️ ${this.activeWorkers} workers ainda ativos após timeout de shutdown`);
+        }
+        
+        this.clear();
+        console.log('✅ MessageQueue finalizado');
     }
 
     pause() {
@@ -187,7 +206,7 @@ class MessageQueue {
     }
 }
 
-const messageQueue = new MessageQueue(4);
+const messageQueue = new MessageQueue(8);
 
 const configPath = path.join(__dirname, "config.json");
 let config = JSON.parse(readFileSync(configPath, "utf8"));
@@ -249,12 +268,26 @@ const {
 } = config;
 const codeMode = process.argv.includes('--code') || process.env.NAZUNA_CODE_MODE === '1';
 
-setInterval(() => {
-    if (messagesCache && messagesCache.size > 5000) {
-        const keysToDelete = Array.from(messagesCache.keys()).slice(0, messagesCache.size - 2000);
-        keysToDelete.forEach(key => messagesCache.delete(key));
-    }
-}, 600000);
+// Cleanup otimizado do cache de mensagens
+let cacheCleanupInterval = null;
+const setupMessagesCacheCleanup = () => {
+    if (cacheCleanupInterval) clearInterval(cacheCleanupInterval);
+    
+    cacheCleanupInterval = setInterval(() => {
+        if (!messagesCache || messagesCache.size <= 3000) return;
+        
+        const keysToDelete = Math.floor(messagesCache.size * 0.4); // Remove 40% dos mais antigos
+        const keys = Array.from(messagesCache.keys()).slice(0, keysToDelete);
+        keys.forEach(key => messagesCache.delete(key));
+        
+        console.log(`🧹 Cache limpo: ${keysToDelete} mensagens removidas (total: ${messagesCache.size})`);
+    }, 300000); // A cada 5 minutos
+};
+
+// Inicia cleanup quando o bot conectar
+const startCacheCleanup = () => {
+    setupMessagesCacheCleanup();
+};
 
 const ask = (question) => {
     const rl = readline.createInterface({
@@ -359,14 +392,28 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
             return;
         }
         
-        if (inf.participants.some(p => p.startsWith(NazunaSock.user.id.split(':')[0])))
+        // Valida se são participantes válidos
+        if (!inf.participants || !Array.isArray(inf.participants) || inf.participants.length === 0) {
+            console.warn('⚠️ Evento de participantes sem lista válida');
             return;
+        }
+        
+        // Ignora eventos do próprio bot
+        const botId = NazunaSock.user.id.split(':')[0];
+        if (inf.participants.some(p => p.startsWith(botId))) {
+            return;
+        }
             
-        let groupMetadata = await NazunaSock.groupMetadata(from).catch(() => null);
+        let groupMetadata = await NazunaSock.groupMetadata(from).catch(err => {
+            console.error(`❌ Erro ao buscar metadados do grupo ${from}: ${err.message}`);
+            return null;
+        });
+        
         if (!groupMetadata) {
             console.error(`❌ Metadados do grupo ${from} não encontrados.`);
             return;
         }
+        
         const groupSettings = await loadGroupSettings(from);
         const globalBlacklist = await loadGlobalBlacklist();
         switch (inf.action) {
@@ -390,36 +437,49 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
                     }
                 }
                 if (membersToRemove.length > 0) {
-                    await NazunaSock.groupParticipantsUpdate(from, membersToRemove, 'remove');
+                    await NazunaSock.groupParticipantsUpdate(from, membersToRemove, 'remove').catch(err => {
+                        console.error(`❌ Erro ao remover membros do grupo ${from}: ${err.message}`);
+                    });
+                    
                     await NazunaSock.sendMessage(from, {
                         text: `🚫 Foram removidos ${membersToRemove.length} membros por regras de moderação:\n- ${removalReasons.join('\n- ')}`,
                         mentions: membersToRemove,
+                    }).catch(err => {
+                        console.error(`❌ Erro ao enviar notificação de remoção: ${err.message}`);
                     });
                 }
+                
                 if (membersToWelcome.length > 0) {
                     const message = await createGroupMessage(NazunaSock, groupMetadata, membersToWelcome, groupSettings.welcome || {
                         text: groupSettings.textbv
                     });
-                    await NazunaSock.sendMessage(from, message);
+                    
+                    await NazunaSock.sendMessage(from, message).catch(err => {
+                        console.error(`❌ Erro ao enviar mensagem de boas-vindas: ${err.message}`);
+                    });
                 }
                 break;
             }
             case 'remove': {
                 if (groupSettings.exit?.enabled) {
                     const message = await createGroupMessage(NazunaSock, groupMetadata, inf.participants, groupSettings.exit, false);
-                    await NazunaSock.sendMessage(from, message);
+                    await NazunaSock.sendMessage(from, message).catch(err => {
+                        console.error(`❌ Erro ao enviar mensagem de saída: ${err.message}`);
+                    });
                 }
                 break;
             }
             case 'promote':
             case 'demote': {
                 // Notificação X9 (sem bloqueio de ação)
-                if (groupSettings.x9) {
+                if (groupSettings.x9 && inf.author) {
                     for (const participant of inf.participants) {
                         const action = inf.action === 'promote' ? 'promovido a ADM' : 'rebaixado de ADM';
                         await NazunaSock.sendMessage(from, {
                             text: `🚨 @${participant.split('@')[0]} foi ${action} por @${inf.author.split('@')[0]}.`,
                             mentions: [participant, inf.author],
+                        }).catch(err => {
+                            console.error(`❌ Erro ao enviar notificação X9: ${err.message}`);
                         });
                     }
                 }
@@ -652,6 +712,11 @@ async function handleJidFiles(jidFiles, jidToLidMap, orphanJidsSet) {
 }
 
 async function fetchLidWithRetry(NazunaSock, jid, maxRetries = 3) {
+    if (!jid || !isValidJid(jid)) {
+        console.warn(`⚠️ JID inválido fornecido: ${jid}`);
+        return null;
+    }
+    
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             const result = await NazunaSock.onWhatsApp(jid);
@@ -660,7 +725,9 @@ async function fetchLidWithRetry(NazunaSock, jid, maxRetries = 3) {
             }
             return null;
         } catch (err) {
-            // Retry silently
+            if (attempt === maxRetries) {
+                console.warn(`⚠️ Falha ao buscar LID para ${jid} após ${maxRetries} tentativas`);
+            }
         }
         if (attempt < maxRetries) {
             await new Promise(resolve => setTimeout(resolve, 100 * attempt));
@@ -845,17 +912,20 @@ async function createBotSocket(authDir) {
         messageQueue.setErrorHandler(queueErrorHandler);
 
         const processMessage = async (info) => {
-            if (!info.message || !info.key.remoteJid)
+            if (!info || !info.message || !info.key?.remoteJid) {
                 return;
+            }
                 
             if (info?.WebMessageInfo) {
                 return;
             }
             
-            if (messagesCache) {
+            // Cache da mensagem com validação
+            if (messagesCache && info.key?.id) {
                 messagesCache.set(info.key.id, info.message);
             }
             
+            // Processa mensagem
             if (typeof indexModule === 'function') {
                 await indexModule(NazunaSock, info, null, null, messagesCache, rentalExpirationManager);
             } else {
@@ -922,11 +992,10 @@ async function createBotSocket(authDir) {
                 await rentalExpirationManager.initialize();
                 
                 attachMessagesListener();
-                console.log(`✅ Bot ${nomebot} iniciado com sucesso! Prefixo: ${prefixo} | Dono: ${nomedono}`);
+                startCacheCleanup(); // Inicia o sistema de limpeza de cache
                 
-                setTimeout(() => {
-                    // Skip unnecessary initialization logs
-                }, 5000);
+                console.log(`✅ Bot ${nomebot} iniciado com sucesso! Prefixo: ${prefixo} | Dono: ${nomedono}`);
+                console.log(`📊 Configuração: ${messageQueue.maxWorkers} workers | Cache ativo`);
             }
             if (connection === 'close') {
                 const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
@@ -940,11 +1009,20 @@ async function createBotSocket(authDir) {
                     [DisconnectReason.badSession]: 'Sessão inválida',
                     [DisconnectReason.restartRequired]: 'Reinício necessário',
                 } [reason] || 'Motivo desconhecido';
+                
                 console.log(`❌ Conexão fechada. Código: ${reason} | Motivo: ${reasonMessage}`);
+                
+                // Limpa recursos antes de reconectar
+                if (cacheCleanupInterval) {
+                    clearInterval(cacheCleanupInterval);
+                    cacheCleanupInterval = null;
+                }
+                
                 if (reason === DisconnectReason.badSession || reason === DisconnectReason.loggedOut) {
                     await clearAuthDir();
                     console.log('🔄 Nova autenticação será necessária na próxima inicialização.');
                 }
+                
                 console.log('🔄 Aguardando 5 segundos antes de reconectar...');
                 setTimeout(() => {
                     startNazu();
@@ -983,13 +1061,29 @@ async function startNazu() {
 
 process.on('SIGTERM', async () => {
     console.log('📡 SIGTERM recebido, parando bot graciosamente...');
+    
+    // Limpa recursos
+    if (cacheCleanupInterval) {
+        clearInterval(cacheCleanupInterval);
+    }
+    
+    await messageQueue.shutdown();
     await performanceOptimizer.shutdown();
+    
     process.exit(0);
 });
 
 process.on('SIGINT', async () => {
     console.log('📡 SIGINT recebido, parando bot graciosamente...');
+    
+    // Limpa recursos
+    if (cacheCleanupInterval) {
+        clearInterval(cacheCleanupInterval);
+    }
+    
+    await messageQueue.shutdown();
     await performanceOptimizer.shutdown();
+    
     process.exit(0);
 });
 
