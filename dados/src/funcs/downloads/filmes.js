@@ -35,12 +35,11 @@ async function Filmes(query, apiKey) {
   }
 
   try {
-    const response = await axiosInstance.post(
+    const response = await axiosInstance.get(
       `${CONFIG.API_BASE_URL}/api/v1/filmes/buscar`,
-      { query },
       {
+        params: { query },
         headers: {
-          'Content-Type': 'application/json',
           'X-API-Key': apiKey
         }
       }
