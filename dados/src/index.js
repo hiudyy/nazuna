@@ -6477,7 +6477,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         }
         try {
           await reply(`⏳ Só um segundinho, estou consultando o Swallow... ✨`);
-          const response = await ia.makeCognimaRequest('institute-of-science-tokyo/llama-3.1-swallow-70b-instruct-v0.1', q, null, KeyCog || null);
+          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', q, null, KeyCog || null);
           await reply(response.data.choices[0].message.content);
         } catch (e) {
           console.error('Erro na API Swallow:', e);
@@ -6562,7 +6562,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         try {
           await reply('⏳ Aguarde enquanto preparo um resumo bem caprichado... ✨');
           const prompt = `Resuma o seguinte texto em poucos parágrafos, de forma clara e objetiva, destacando as informações mais importantes:\n\n${q}`;
-          const response = await ia.makeCognimaRequest('institute-of-science-tokyo/llama-3.1-swallow-70b-instruct-v0.1', prompt, null, KeyCog || null);
+          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
           await reply(response.data.choices[0].message.content);
         } catch (e) {
           console.error('Erro ao resumir texto:', e);
@@ -6601,7 +6601,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
             return reply(`😓 Ops, não encontrei conteúdo suficiente para resumir nessa página! Tente outra URL, tá? 🌐`);
           }
           const prompt = `Resuma o seguinte conteúdo extraído de uma página web em poucos parágrafos, de forma clara e objetiva, destacando os pontos principais:\n\n${cleanText.substring(0, 5000)}`;
-          const iaResponse = await ia.makeCognimaRequest('institute-of-science-tokyo/llama-3.1-swallow-70b-instruct-v0.1', prompt, null, KeyCog || null);
+          const iaResponse = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
           await reply(iaResponse.data.choices[0].message.content);
         } catch (e) {
           console.error('Erro ao resumir URL:', e.message);
@@ -6628,7 +6628,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         try {
           await reply('⏳ Um segundinho, estou pensando em ideias incríveis... ✨');
           const prompt = `Gere 15 ideias criativas e detalhadas para o seguinte tema: ${q}`;
-          const response = await ia.makeCognimaRequest('institute-of-science-tokyo/llama-3.1-swallow-70b-instruct-v0.1', prompt, null, KeyCog || null);
+          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
           await reply(response.data.choices[0].message.content);
         } catch (e) {
           console.error('Erro ao gerar ideias:', e);
@@ -6651,7 +6651,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         try {
           await reply('⏳ Um momentinho, estou preparando uma explicação bem clara... ✨');
           const prompt = `Explique o seguinte conceito de forma simples e clara, como se fosse para alguém sem conhecimento prévio: ${q}`;
-          const response = await ia.makeCognimaRequest('institute-of-science-tokyo/llama-3.1-swallow-70b-instruct-v0.1', prompt, null, KeyCog || null);
+          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
           await reply(response.data.choices[0].message.content);
         } catch (e) {
           console.error('Erro ao explicar conceito:', e);
@@ -6674,7 +6674,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         try {
           await reply('⏳ Aguarde enquanto dou um polimento no seu texto... ✨');
           const prompt = `Corrija os erros gramaticais, ortográficos e de estilo no seguinte texto, mantendo o significado original: ${q}`;
-          const response = await ia.makeCognimaRequest('institute-of-science-tokyo/llama-3.1-swallow-70b-instruct-v0.1', prompt, null, KeyCog || null);
+          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
           await reply(response.data.choices[0].message.content);
         } catch (e) {
           console.error('Erro ao corrigir texto:', e);
@@ -6714,7 +6714,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const idioma = partes[0].trim();
           const texto = partes.slice(1).join('|').trim();
           const prompt = `Traduza o seguinte texto para ${idioma}:\n\n${texto}\n\nForneça apenas a tradução, sem explicações adicionais.`;
-          const bahz = await ia.makeCognimaRequest('institute-of-science-tokyo/llama-3.1-swallow-70b-instruct-v0.1', prompt, null, KeyCog || null);
+          const bahz = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
           await reply(`🌐✨ *Prontinho! Sua tradução para ${idioma.toUpperCase()} está aqui:*\n\n${bahz.data.choices[0].message.content}`);
         } catch (e) {
           console.error("Erro ao traduzir texto:", e);
@@ -6864,7 +6864,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           }
           if (!definicaoEncontrada) {
             const prompt = `Defina a palavra "${palavra}" em português de forma completa e fofa. Inclua a classe gramatical, os principais significados e um exemplo de uso em uma frase curta e bonitinha.`;
-            const bahz = await ia.makeCognimaRequest('institute-of-science-tokyo/llama-3.1-swallow-70b-instruct-v0.1', prompt, null, KeyCog || null);
+            const bahz = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
             await reply(`${bahz.data.choices[0].message.content}`);
             definicaoEncontrada = true;
           }

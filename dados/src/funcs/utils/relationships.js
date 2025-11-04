@@ -187,13 +187,13 @@ class RelationshipManager {
       if (currentStatus === 'namoro') {
         return {
           allowed: false,
-          message: 'Vocês já estão namorando.'
+          message: 'Vocês já estão namorando. Use o comando de terminar primeiro se quiser começar de novo.'
         };
       }
       if (currentStatus === 'casamento') {
         return {
           allowed: false,
-          message: 'Vocês já são casados.'
+          message: 'Vocês já são casados. Use o comando de terminar primeiro se quiser começar de novo.'
         };
       }
       return { allowed: true };
@@ -201,34 +201,48 @@ class RelationshipManager {
 
     if (type === 'namoro') {
       if (currentStatus === 'namoro') {
+        const since = pair.stages?.namoro?.since;
+        const dateText = since ? this._formatDate(since) : 'recentemente';
         return {
           allowed: false,
-          message: 'Vocês já estão namorando.'
+          message: `Vocês já estão namorando desde ${dateText}.`
         };
       }
       if (currentStatus === 'casamento') {
         return {
           allowed: false,
-          message: 'Vocês já são casados.'
+          message: 'Vocês já são casados!'
         };
       }
+      // Permite evoluir de brincadeira para namoro
       return { allowed: true };
     }
 
     if (type === 'casamento') {
       if (currentStatus === 'casamento') {
+        const since = pair.stages?.casamento?.since;
+        const dateText = since ? this._formatDate(since) : 'recentemente';
         return {
           allowed: false,
-          message: 'Vocês já são casados.'
+          message: `Vocês já são casados desde ${dateText}.`
         };
       }
-      const since = pair.stages?.namoro?.since;
-      if (!since) {
+      
+      if (currentStatus !== 'namoro') {
         return {
           allowed: false,
           message: 'Vocês precisam estar namorando para casar.'
         };
       }
+      
+      const since = pair.stages?.namoro?.since;
+      if (!since) {
+        return {
+          allowed: false,
+          message: 'Vocês precisam estar namorando para casar. O registro do namoro não foi encontrado.'
+        };
+      }
+      
       const sinceTime = Date.parse(since);
       if (Number.isNaN(sinceTime)) {
         return {
@@ -236,6 +250,7 @@ class RelationshipManager {
           message: 'Não foi possível validar a data do namoro. Reinicie o namoro antes de casar.'
         };
       }
+      
       const elapsed = Date.now() - sinceTime;
       if (elapsed < MARRIAGE_REQUIRED_MS) {
         return {
@@ -243,6 +258,7 @@ class RelationshipManager {
           message: `Vocês precisam namorar por mais ${this._formatDuration(MARRIAGE_REQUIRED_MS - elapsed)} antes de casar.`
         };
       }
+      
       return { allowed: true };
     }
 
@@ -362,8 +378,10 @@ class RelationshipManager {
       acceptedAt: stageEntry.acceptedAt
     });
 
+    // Lógica de atualização de status
     if (request.type === 'brincadeira') {
       pair.status = 'brincadeira';
+      // Só cria brincadeira se não existir
       if (!pair.stages.brincadeira) {
         pair.stages.brincadeira = stageEntry;
       }
@@ -372,26 +390,30 @@ class RelationshipManager {
       }
     } else if (request.type === 'namoro') {
       pair.status = 'namoro';
+      // Sempre atualiza o namoro com a nova data
       pair.stages.namoro = stageEntry;
+      // Preserva brincadeira anterior se existir, senão cria
       if (!pair.stages.brincadeira) {
-        pair.stages.brincadeira = stageEntry;
+        pair.stages.brincadeira = { ...stageEntry };
       }
     } else if (request.type === 'casamento') {
       pair.status = 'casamento';
+      // Sempre atualiza o casamento com a nova data
       pair.stages.casamento = stageEntry;
+      // Preserva namoro e brincadeira anteriores
       if (!pair.stages.namoro) {
-        pair.stages.namoro = stageEntry;
+        pair.stages.namoro = { ...stageEntry };
       }
       if (!pair.stages.brincadeira) {
-        pair.stages.brincadeira = stageEntry;
+        pair.stages.brincadeira = { ...stageEntry };
       }
     }
 
     pair.users = [this._normalizeId(request.requesterRaw), this._normalizeId(request.targetRaw)];
     pair.updatedAt = stageEntry.since;
-  pair.terminatedAt = null;
-  pair.terminatedBy = null;
-  pair.lastStatus = pair.status;
+    pair.terminatedAt = null;
+    pair.terminatedBy = null;
+    pair.lastStatus = pair.status;
 
     data.pairs[key] = pair;
     this._saveData(data);
@@ -418,15 +440,26 @@ class RelationshipManager {
     ];
 
     if (sinceText) {
-      const duration = Date.parse(stageInfo.since);
-      const elapsed = Number.isNaN(duration) ? null : this._formatDuration(Date.now() - duration);
-      lines.push(`🗓️ Início: ${sinceText}${elapsed ? ` (${elapsed})` : ''}`);
+      lines.push(`🗓️ Início: ${sinceText}`);
     }
 
+    // Para casamento, mostra quanto tempo namoraram
     if (request.type === 'casamento' && pair.stages?.namoro?.since) {
       const namoroSince = Date.parse(pair.stages.namoro.since);
-      if (!Number.isNaN(namoroSince)) {
-        lines.push(`💞 Namoro antes do casamento: ${this._formatDuration(Date.now() - namoroSince)}`);
+      const casamentoSince = Date.parse(stageInfo.since);
+      if (!Number.isNaN(namoroSince) && !Number.isNaN(casamentoSince)) {
+        const namoroDuration = casamentoSince - namoroSince;
+        lines.push(`� Tempo de namoro antes do casamento: ${this._formatDuration(namoroDuration)}`);
+      }
+    }
+
+    // Para namoro, mostra quanto tempo de brincadeira (se houver)
+    if (request.type === 'namoro' && pair.stages?.brincadeira?.since) {
+      const brincadeiraSince = Date.parse(pair.stages.brincadeira.since);
+      const namoroSince = Date.parse(stageInfo.since);
+      if (!Number.isNaN(brincadeiraSince) && !Number.isNaN(namoroSince) && brincadeiraSince !== namoroSince) {
+        const brincadeiraDuration = namoroSince - brincadeiraSince;
+        lines.push(`🎈 Tempo de brincadeira antes do namoro: ${this._formatDuration(brincadeiraDuration)}`);
       }
     }
 
@@ -444,10 +477,10 @@ class RelationshipManager {
 
     const data = this._loadData();
     const pair = data.pairs[key];
-    if (!pair) {
+    if (!pair || !pair.status) {
       return {
         success: false,
-        message: 'Nenhum relacionamento registrado entre essas pessoas.'
+        message: 'Nenhum relacionamento ativo registrado entre essas pessoas.'
       };
     }
 
@@ -462,38 +495,44 @@ class RelationshipManager {
     if (pair.status && TYPE_CONFIG[pair.status]) {
       const statusConfig = TYPE_CONFIG[pair.status];
       lines.push(`${statusConfig.emoji} Status atual: ${statusConfig.label}`);
+      
       const statusSince = pair.stages?.[pair.status]?.since;
       if (statusSince) {
         const formatted = this._formatDate(statusSince);
-        const elapsed = Date.parse(statusSince);
-        const duration = Number.isNaN(elapsed) ? null : this._formatDuration(Date.now() - elapsed);
-        lines.push(`🗓️ Desde: ${formatted || 'data desconhecida'}${duration ? ` (${duration})` : ''}`);
+        const sinceTimestamp = Date.parse(statusSince);
+        const duration = Number.isNaN(sinceTimestamp) ? null : this._formatDuration(Date.now() - sinceTimestamp);
+        lines.push(`🗓️ Desde: ${formatted || 'data desconhecida'}${duration ? ` (há ${duration})` : ''}`);
       }
     } else {
-      lines.push('Status atual: sem registro.');
+      lines.push('⚠️ Status atual: sem registro válido.');
     }
 
+    // Mostra histórico de estágios
     const historicalStages = ['brincadeira', 'namoro', 'casamento']
       .filter(stage => pair.stages?.[stage]?.since)
       .map(stage => {
         const config = TYPE_CONFIG[stage];
         const since = pair.stages[stage].since;
         const formatted = this._formatDate(since);
-        const elapsed = Date.parse(since);
-        const duration = Number.isNaN(elapsed) ? null : this._formatDuration(Date.now() - elapsed);
-        return `${config.emoji} ${config.label}: ${formatted || 'data desconhecida'}${duration ? ` (${duration})` : ''}`;
+        const sinceTimestamp = Date.parse(since);
+        const duration = Number.isNaN(sinceTimestamp) ? null : this._formatDuration(Date.now() - sinceTimestamp);
+        return `${config.emoji} ${config.label}: ${formatted || 'data desconhecida'}${duration ? ` (há ${duration})` : ''}`;
       });
 
-    if (historicalStages.length) {
-      lines.push('', '📚 Histórico:', ...historicalStages);
+    if (historicalStages.length > 0) {
+      lines.push('', '📚 Histórico de Estágios:', ...historicalStages);
     }
 
-    if (pair.status !== 'casamento' && pair.stages?.namoro?.since) {
+    // Se está namorando mas não casado, mostra tempo restante para casar
+    if (pair.status === 'namoro' && pair.stages?.namoro?.since) {
       const namoroSince = Date.parse(pair.stages.namoro.since);
       if (!Number.isNaN(namoroSince)) {
         const elapsed = Date.now() - namoroSince;
         if (elapsed < MARRIAGE_REQUIRED_MS) {
-          lines.push('', `⏳ Restam ${this._formatDuration(MARRIAGE_REQUIRED_MS - elapsed)} de namoro para liberar o casamento.`);
+          const remaining = MARRIAGE_REQUIRED_MS - elapsed;
+          lines.push('', `⏳ Tempo restante para liberar casamento: ${this._formatDuration(remaining)}`);
+        } else {
+          lines.push('', `✅ Já podem se casar! Tempo de namoro: ${this._formatDuration(elapsed)}`);
         }
       }
     }
@@ -586,18 +625,18 @@ class RelationshipManager {
     const lines = [
       '💔 *Relacionamento encerrado!*',
       '',
-      `${config.emoji} Status anterior: ${config.label}`
+      `${config.emoji} Status encerrado: ${config.label}`
     ];
 
-    if (sinceFormatted) {
-      lines.push(`📆 Iniciado em: ${sinceFormatted}`);
-    }
-    if (duration) {
-      lines.push(`⏳ Duração: ${duration}`);
+    if (sinceFormatted && duration) {
+      lines.push(`📆 Duração total: ${duration}`);
+      lines.push(`🗓️ Início: ${sinceFormatted}`);
+    } else if (sinceFormatted) {
+      lines.push(`🗓️ Iniciado em: ${sinceFormatted}`);
     }
 
     lines.push('', `👤 Quem encerrou: @${triggerName}`);
-    lines.push('', `👥 Casal: @${userOneName} & @${userTwoName}`);
+    lines.push(`👥 Ex-casal: @${userOneName} & @${userTwoName}`);
 
     return {
       success: true,

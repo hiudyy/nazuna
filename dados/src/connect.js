@@ -17,9 +17,11 @@ const PerformanceOptimizer = require('./utils/performanceOptimizer.js');
 const RentalExpirationManager = require('./utils/rentalExpirationManager.js');
 
 class MessageQueue {
-    constructor(maxWorkers = 4) {
+    constructor(maxWorkers = 4, batchSize = 10, messagesPerBatch = 2) {
         this.queue = [];
         this.maxWorkers = maxWorkers;
+        this.batchSize = batchSize; // Número de lotes
+        this.messagesPerBatch = messagesPerBatch; // Mensagens por lote
         this.activeWorkers = 0;
         this.isProcessing = false;
         this.processingInterval = null;
@@ -28,7 +30,9 @@ class MessageQueue {
             totalProcessed: 0,
             totalErrors: 0,
             currentQueueLength: 0,
-            startTime: Date.now()
+            startTime: Date.now(),
+            batchesProcessed: 0,
+            avgBatchTime: 0
         };
     }
 
@@ -74,42 +78,75 @@ class MessageQueue {
     }
 
     async processQueue() {
-        // Processa múltiplos itens simultaneamente até o limite de workers
-        while (this.isProcessing && this.activeWorkers < this.maxWorkers && this.queue.length > 0) {
-            const item = this.queue.shift();
-            if (!item) break;
+        // Processa mensagens em lotes paralelos
+        while (this.isProcessing && this.queue.length > 0) {
+            // Calcula quantos lotes podemos processar
+            const availableBatches = Math.min(
+                this.batchSize,
+                Math.ceil(this.queue.length / this.messagesPerBatch)
+            );
 
-            this.activeWorkers++;
+            if (availableBatches === 0) break;
+
+            // Cria array de lotes
+            const batches = [];
+            for (let i = 0; i < availableBatches && this.queue.length > 0; i++) {
+                const batchItems = [];
+                for (let j = 0; j < this.messagesPerBatch && this.queue.length > 0; j++) {
+                    const item = this.queue.shift();
+                    if (item) batchItems.push(item);
+                }
+                if (batchItems.length > 0) {
+                    batches.push(batchItems);
+                }
+            }
+
             this.stats.currentQueueLength = this.queue.length;
 
-            // Processa item de forma assíncrona sem bloquear
-            setImmediate(async () => {
-                try {
-                    await this.processItem(item);
-                } catch (error) {
-                    await this.handleProcessingError(item, error);
-                } finally {
-                    this.activeWorkers--;
-                    this.stats.totalProcessed++;
-                    
-                    // Continua processando se houver itens na fila
-                    if (this.isProcessing && this.queue.length > 0) {
-                        this.processQueue();
-                    } else if (this.activeWorkers === 0 && this.queue.length === 0) {
-                        this.stopProcessing();
-                    }
-                }
-            });
+            // Processa todos os lotes em paralelo
+            const batchStartTime = Date.now();
+            await Promise.allSettled(
+                batches.map(batch => this.processBatch(batch))
+            );
+            
+            const batchDuration = Date.now() - batchStartTime;
+            this.stats.batchesProcessed++;
+            this.stats.avgBatchTime = 
+                (this.stats.avgBatchTime * (this.stats.batchesProcessed - 1) + batchDuration) / 
+                this.stats.batchesProcessed;
+        }
+
+        if (this.queue.length === 0) {
+            this.stopProcessing();
         }
     }
 
+    async processBatch(batchItems) {
+        // Processa todas as mensagens do lote em paralelo
+        const batchPromises = batchItems.map(item => this.processItem(item));
+        
+        const results = await Promise.allSettled(batchPromises);
+        
+        // Contabiliza resultados
+        results.forEach((result, index) => {
+            if (result.status === 'fulfilled') {
+                this.stats.totalProcessed++;
+            } else {
+                this.stats.totalErrors++;
+            }
+        });
+    }
+
     async processItem(item) {
-        const { message, processor, resolve } = item;
+        const { message, processor, resolve, reject } = item;
         
         try {
             const result = await processor(message);
             resolve(result);
+            return result;
         } catch (error) {
+            await this.handleProcessingError(item, error);
+            reject(error);
             throw error;
         }
     }
@@ -136,10 +173,14 @@ class MessageQueue {
             queueLength: this.queue.length,
             activeWorkers: this.activeWorkers,
             maxWorkers: this.maxWorkers,
+            batchSize: this.batchSize,
+            messagesPerBatch: this.messagesPerBatch,
             isProcessing: this.isProcessing,
             totalProcessed: this.stats.totalProcessed,
             totalErrors: this.stats.totalErrors,
             currentQueueLength: this.stats.currentQueueLength,
+            batchesProcessed: this.stats.batchesProcessed,
+            avgBatchTime: Math.round(this.stats.avgBatchTime),
             uptime: uptime,
             uptimeFormatted: this.formatUptime(uptime),
             throughput: this.stats.totalProcessed > 0 ?
@@ -206,7 +247,7 @@ class MessageQueue {
     }
 }
 
-const messageQueue = new MessageQueue(8);
+const messageQueue = new MessageQueue(8, 10, 2); // 8 workers, 10 lotes, 2 mensagens por lote
 
 const configPath = path.join(__dirname, "config.json");
 let config = JSON.parse(readFileSync(configPath, "utf8"));
@@ -995,7 +1036,7 @@ async function createBotSocket(authDir) {
                 startCacheCleanup(); // Inicia o sistema de limpeza de cache
                 
                 console.log(`✅ Bot ${nomebot} iniciado com sucesso! Prefixo: ${prefixo} | Dono: ${nomedono}`);
-                console.log(`📊 Configuração: ${messageQueue.maxWorkers} workers | Cache ativo`);
+                console.log(`📊 Configuração: ${messageQueue.batchSize} lotes de ${messageQueue.messagesPerBatch} mensagens (${messageQueue.batchSize * messageQueue.messagesPerBatch} msgs paralelas)`);
             }
             if (connection === 'close') {
                 const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
