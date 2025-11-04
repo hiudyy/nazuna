@@ -1,99 +1,69 @@
-// Sistema de Assistir Filmes
-// Sistema único, diferente de qualquer outro bot
-// Criador: Hiudy
-// Caso for usar, deixe os créditos!
-// <3
+/**
+ * Sistema de Busca de Filmes usando API Cognima
+ * Criador: Hiudy
+ * Versão: 3.0.0 - Nova API
+ */
 
 const axios = require('axios');
-const { parseHTML } = require('linkedom');
 
-// Lista de chaves da API do Google Custom Search
-const API_KEYS = [
-  "AIzaSyD51LedjJnOulDkA6u8nfmt17cnIlJ7igc",
-  "AIzaSyDbQwjgQforqkA-cHt0omRNX4OQsJ3ocvg",
-  "AIzaSyA9wPFHMwnkaBLpnLTP9d8lgEoHAsISQN0",
-  "AIzaSyB1wjSU3NfUmc32bus34j9BmSDBKTKaEYg",
-  "AIzaSyBm0L9hwLyZ9jhV3HGVcNKQ6znG7_zbSoU",
-  "AIzaSyAm_B1DHAK_kCVWHPACK1XAe8sVry1Fj0U",
-];
+// Configuração
+const CONFIG = {
+  API_BASE_URL: 'https://cog2.cognima.com.br',
+  TIMEOUT: 10000
+};
 
-// Configuração do Axios com timeout
+// Cliente Axios com configurações
 const axiosInstance = axios.create({
-  timeout: 10000, // 10 segundos de timeout
+  timeout: CONFIG.TIMEOUT
 });
 
 /**
- * Busca resultados usando a API do Google Custom Search
- * @param {string} query - Termo de busca
- * @returns {Promise<Array>} - Lista de resultados { title, link }
+ * Busca filmes usando a API Cognima
+ * @param {string} query - Nome do filme para buscar
+ * @param {string} apiKey - API Key da Cognima
+ * @returns {Promise<Object|null>} - Objeto com { id, nome, banner, watchLink } ou null
  */
-async function search(query) {
+async function Filmes(query, apiKey) {
   if (!query || typeof query !== 'string') {
-    console.error('Query inválida.');
-    return [];
-  }
-
-  for (const key of API_KEYS) {
-    const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&key=${key}&cx=32a7e8cb9ffc24cd5`;
-    try {
-      const response = await axiosInstance.get(url);
-      const results = response.data.items || [];
-      return results.map(item => ({ title: item.title, link: item.link }));
-    } catch (error) {
-      console.error(`Erro com a chave ${key}:`, error.response?.data?.error?.message || error.message);
-    }
-  }
-  return [];
-}
-
-/**
- * Busca informações de um vídeo com base no texto de busca
- * @param {string} texto - Termo de busca para o filme
- * @returns {Promise<Object|null>} - Objeto com { img, name, url } ou null
- */
-async function Filmes(texto) {
-  if (!texto) {
-    console.log('Texto de busca não fornecido.');
+    console.error('[Filmes] Query inválida');
     return null;
   }
 
-  const results = await search(texto);
-  if (results.length === 0) {
-    console.log('Nenhum resultado encontrado.');
+  if (!apiKey) {
+    console.error('[Filmes] API key não fornecida');
     return null;
   }
 
-  for (const result of results) {
-    // Verifica se o link é de uma página de vídeo (expande para outros sites se necessário)
-    if (result.link.includes('/video/')) {
-      try {
-        const videoPageResponse = await axiosInstance.get(result.link);
-        const { document } = parseHTML(videoPageResponse.data);
-
-        const videoElement = document.querySelector('#tokyvideo_player');
-        if (!videoElement) continue;
-
-        const src = videoElement.querySelector('source')?.getAttribute('src');
-        const poster = videoElement.getAttribute('poster');
-        const dataTitle = videoElement.getAttribute('data-title');
-        const tinyUrlResponse = await axios.get(`https://tinyurl.com/api-create.php?url=${src}`);
-        const Bah = await axios.get(`https://api.cognima.com.br/api/watch?key=CognimaTeamFreeKey&url=${tinyUrlResponse.data}&name=${dataTitle}&banner=${poster}&description=Buscado Por Nazuna Bot`);
-        
-        if (poster && dataTitle && src) {
-          return {
-            img: poster,
-            name: dataTitle,
-            url: `https://api.cognima.com.br${Bah.data.roomUrl}`,
-          };
+  try {
+    const response = await axiosInstance.post(
+      `${CONFIG.API_BASE_URL}/api/v1/filmes/buscar`,
+      { query },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey
         }
-      } catch (error) {
-        console.error(`Erro ao acessar ${result.link}:`, error.message);
       }
-    }
-  }
+    );
 
-  console.log('Nenhum vídeo encontrado.');
-  return null;
+    if (response.data.success && response.data.data) {
+      const { id, nome, banner, watchLink } = response.data.data;
+      
+      return {
+        id,
+        nome,
+        img: banner,
+        name: nome,
+        url: `${CONFIG.API_BASE_URL}${watchLink}`
+      };
+    }
+
+    console.log('[Filmes] Nenhum resultado encontrado');
+    return null;
+  } catch (error) {
+    console.error('[Filmes] Erro na busca:', error.response?.data || error.message);
+    return null;
+  }
 }
 
 module.exports = Filmes;

@@ -61,5 +61,3 @@ async function getCommandStats(command) {
 initializeStats();
 
 module.exports = { trackCommandUsage, getMostUsedCommands, getCommandStats };
-
-module.exports = { trackCommandUsage, getMostUsedCommands, getCommandStats };

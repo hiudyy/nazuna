@@ -188,4 +188,3 @@ const sendSticker = async (nazu, jid, {
 };
 
 module.exports = { sendSticker };
-module.exports = { sendSticker };

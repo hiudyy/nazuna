@@ -358,7 +358,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
   const modules = require('./funcs/exports.js');
   const {
     youtube,
-    banner,
     tiktok,
     pinterest,
     igdl,
@@ -8284,25 +8283,22 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'assistir':
         try {
           if (!q) return reply('Cadê o nome do filme ou episódio de série? 🤔');
+          
+          // Verificar se tem API key
+          if (!KeyCog) {
+            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+          
           await reply('Um momento, estou buscando as informações para você 🕵️‍♂️');
           var datyz;
-          datyz = await FilmesDL(q);
+          datyz = await FilmesDL(q, KeyCog);
           if (!datyz || !datyz.url) return reply('Desculpe, não consegui encontrar nada. Tente com outro nome de filme ou série. 😔');
-          let bannerBuf = null;
-          try {
-            bannerBuf = await banner.Filme(datyz.img, datyz.name, datyz.url);
-          } catch (be) { console.error('Erro ao gerar banner Filme:', be); }
-          if (bannerBuf) {
-            await nazu.sendMessage(from, {
-              image: bannerBuf,
-              caption: `Aqui está o que encontrei! 🎬\n\n*Nome*: ${datyz.name}\n🔗 *Assista:* ${datyz.url}`
-            }, { quoted: info });
-          } else {
-            await nazu.sendMessage(from, {
-              image: { url: datyz.img },
-              caption: `Aqui está o que encontrei! 🎬\n\n*Nome*: ${datyz.name}\n🔗 *Assista:* ${datyz.url}`
-            }, { quoted: info });
-          }
+          
+          await nazu.sendMessage(from, {
+            image: { url: datyz.img },
+            caption: `Aqui está o que encontrei! 🎬\n\n*Nome*: ${datyz.name}\n🔗 *Assista:* ${datyz.url}`
+          }, { quoted: info });
         } catch (e) {
           console.error(e);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
@@ -10771,45 +10767,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           ].join('\n');
           const fullCaption = (lines + schedLines + '\n' + extrasLines).trim();
 
-          let groupPic = '';
-          try {
-            groupPic = await nazu.profilePictureUrl(from, 'image');
-          } catch {
-            groupPic = 'https://raw.githubusercontent.com/nazuninha/uploads/main/outros/1753966446765_oordgn.bin';
-          }
-          let bgImg = '';
-          try {
-            bgImg = '';
-          } catch {}
-          let statusBanner = null;
-          try {
-            statusBanner = await banner.StatusGrupo(
-              bgImg,
-              groupPic,
-              {
-                subject,
-                groupId: getUserName(from),
-                ownerTag,
-                createdAt,
-                desc,
-                totalMembers,
-                totalAdmins,
-                isPremium: !!premiumListaZinha[from],
-                rentStatus,
-                totalMsgs,
-                totalCmds,
-                totalFigs
-              }
-            );
-          } catch (e) {
-            console.error('Erro ao gerar banner StatusGrupo:', e);
-          }
-
-          if (statusBanner) {
-            await nazu.sendMessage(from, { image: statusBanner, caption: fullCaption, mentions: [ownerJid] }, { quoted: info });
-          } else {
-            await reply(fullCaption, { mentions: [ownerJid] });
-          }
+          await reply(fullCaption, { mentions: [ownerJid] });
         } catch (e) {
           console.error("Erro em statusgp:", e);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
@@ -11911,11 +11869,7 @@ A mensagem será enviada todos os dias às ${normalizedTime} (horário de São P
             
             mensagem += `  🥊 Partida ${i + 1}: ${p1} vs ${p2}\n`;
           });
-          const imageA = await banner.Chaveamento("", grupo1, grupo2);
-          await nazu.sendMessage(from, {
-            image: imageA,
-            caption: mensagem
-          });
+          await reply(mensagem);
         } catch (e) {
           console.error('Erro no comando chaveamento:', e);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");

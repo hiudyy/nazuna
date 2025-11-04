@@ -1,16 +1,7 @@
 /**
  * Download e Pesquisa YouTube usando API Cognima
- * Updated to use cog2.cognima.co💡 *Informações da API Cognima:*
-• Oferece 150 requisições GRATUITAS por dia
-• Após esgotar, é necessário adquirir um plano pago
-• Para adquirir: wa.me/553399285117
-• Painel: https://cog2.cognima.com.br
-
-🔧 *Possíveis causas e soluções:*
-1️⃣ *API Key expirada* → Renovar no painel Cognima
-2️⃣ *Limite de 150 requisições esgotado* → Aguardar próximo dia ou adquirir via WhatsApp
-3️⃣ *Chave incorreta* → Verificar se está correta no config.json
-4️⃣ *Problema temporário do servidor* → Aguardar alguns minutos*/
+ * Updated to use cog2.cognima.com.br API
+ */
 
 const axios = require('axios');
 const { spawn } = require('child_process');
