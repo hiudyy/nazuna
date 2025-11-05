@@ -126,6 +126,31 @@ class RelationshipManager {
       };
     }
 
+    // ===== CORREÇÃO: Verifica se o solicitante já está em outro relacionamento =====
+    const requesterActivePair = this.getActivePairForUser(requesterId);
+    if (requesterActivePair && this._normalizeId(requesterActivePair.partnerId) !== target) {
+      const partnerName = getUserName(requesterActivePair.partnerId);
+      const currentConfig = TYPE_CONFIG[requesterActivePair.pair.status];
+      return {
+        success: false,
+        message: `❌ Você já está em ${currentConfig.inviteLabel} com @${partnerName}. Termine esse relacionamento primeiro!`,
+        mentions: [requesterActivePair.partnerId]
+      };
+    }
+
+    // ===== CORREÇÃO: Verifica se o alvo já está em outro relacionamento =====
+    const targetActivePair = this.getActivePairForUser(targetId);
+    if (targetActivePair && this._normalizeId(targetActivePair.partnerId) !== requester) {
+      const partnerName = getUserName(targetActivePair.partnerId);
+      const targetName = getUserName(targetId);
+      const currentConfig = TYPE_CONFIG[targetActivePair.pair.status];
+      return {
+        success: false,
+        message: `❌ @${targetName} já está em ${currentConfig.inviteLabel} com @${partnerName}!`,
+        mentions: [targetId, targetActivePair.partnerId]
+      };
+    }
+
     const pairKey = this._getPairKey(requesterId, targetId);
     if (!pairKey) {
       return { success: false, message: 'Não foi possível registrar o pedido.' };
@@ -655,24 +680,19 @@ class RelationshipManager {
   }
 
   // Sistema de Traição
-  betrayRelationship(userId, targetId, partnerId, groupId) {
-    const userKey = this._getPairKey(userId, partnerId);
-    if (!userKey) {
-      return {
-        success: false,
-        message: '❌ Não foi possível identificar o relacionamento.'
-      };
-    }
-
-    const data = this._loadData();
-    const currentPair = data.pairs[userKey];
+  betrayRelationship(userId, targetId, groupId) {
+    // ===== CORREÇÃO: Busca o relacionamento ativo do usuário =====
+    const userActivePair = this.getActivePairForUser(userId);
     
-    if (!currentPair || !currentPair.status) {
+    if (!userActivePair) {
       return {
         success: false,
         message: '❌ Você não está em um relacionamento ativo!'
       };
     }
+
+    const partnerId = userActivePair.partnerId;
+    const userKey = userActivePair.key;
 
     // Verifica se está tentando trair com o próprio parceiro
     if (this._normalizeId(targetId) === this._normalizeId(partnerId)) {
@@ -682,24 +702,33 @@ class RelationshipManager {
       };
     }
 
+    // Verifica se está tentando trair consigo mesmo
+    if (this._normalizeId(targetId) === this._normalizeId(userId)) {
+      return {
+        success: false,
+        message: '❌ Você não pode trair a si mesmo!'
+      };
+    }
+
+    const data = this._loadData();
+    const currentPair = data.pairs[userKey];
+    
+    if (!currentPair || !currentPair.status) {
+      return {
+        success: false,
+        message: '❌ Não foi possível encontrar seu relacionamento ativo!'
+      };
+    }
+
     // Verifica se o alvo também está em um relacionamento
-    const targetKey = this._getPairKey(targetId, partnerId);
-    const targetWithUser = this._getPairKey(userId, targetId);
+    const targetActivePair = this.getActivePairForUser(targetId);
     
     let targetInRelationship = false;
     let targetPartner = null;
     
-    // Procura se o alvo está em algum relacionamento
-    for (const [key, pair] of Object.entries(data.pairs)) {
-      if (!pair.status) continue;
-      const pairUsers = pair.users || [];
-      const targetNorm = this._normalizeId(targetId);
-      
-      if (pairUsers.some(u => this._normalizeId(u) === targetNorm)) {
-        targetInRelationship = true;
-        targetPartner = pairUsers.find(u => this._normalizeId(u) !== targetNorm);
-        break;
-      }
+    if (targetActivePair) {
+      targetInRelationship = true;
+      targetPartner = targetActivePair.partnerId;
     }
 
     const now = new Date().toISOString();

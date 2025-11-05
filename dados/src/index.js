@@ -3533,6 +3533,22 @@ Código: *${roleCode}*`,
   case 'crime':
       case 'assaltar':
       case 'roubar':
+      case 'cozinhar':
+      case 'cook':
+      case 'receitas':
+      case 'plantar':
+      case 'plant':
+      case 'farm':
+      case 'colher':
+      case 'harvest':
+      case 'plantacao':
+      case 'plantação':
+      case 'horta':
+      case 'comer':
+      case 'eat':
+      case 'vendercomida':
+      case 'ingredientes':
+      case 'sementes':
       case 'toprpg':
       case 'diario':
       case 'daily':
@@ -3872,6 +3888,384 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
             const fine = 120 + Math.floor(Math.random()*201); const pay = Math.min(me.wallet, fine); me.wallet -= pay; me.cooldowns.crime = Date.now()+10*60*1000; saveEconomy(econ);
             return reply(`🚔 Você foi pego! Pagou multa de ${fmt(pay)}.`);
           }
+        }
+
+        // ===== SISTEMA DE COZINHAR =====
+        if (sub === 'receitas') {
+          // Inicializa receitas culinárias se não existir
+          if (!econ.cookingRecipes) {
+            econ.cookingRecipes = {
+              pao: { name: '🍞 Pão', requires: { trigo: 3 }, gold: 10, sellPrice: 50, energy: 10 },
+              sopa: { name: '🍲 Sopa', requires: { cenoura: 2, batata: 2 }, gold: 15, sellPrice: 80, energy: 20 },
+              salada: { name: '🥗 Salada', requires: { alface: 2, tomate: 2 }, gold: 12, sellPrice: 60, energy: 15 },
+              bolo: { name: '🍰 Bolo', requires: { trigo: 5, ovo: 3 }, gold: 25, sellPrice: 120, energy: 30 },
+              pizza: { name: '🍕 Pizza', requires: { trigo: 4, tomate: 3, queijo: 2 }, gold: 35, sellPrice: 150, energy: 40 },
+              hamburguer: { name: '🍔 Hambúrguer', requires: { carne: 2, trigo: 3, alface: 1 }, gold: 40, sellPrice: 180, energy: 50 },
+              sushi: { name: '🍣 Sushi', requires: { peixe: 4, arroz: 3 }, gold: 50, sellPrice: 200, energy: 45 },
+              macarrao: { name: '🍝 Macarrão', requires: { trigo: 3, tomate: 2 }, gold: 20, sellPrice: 90, energy: 25 }
+            };
+            saveEconomy(econ);
+          }
+
+          let text = '📖 *RECEITAS CULINÁRIAS*\n\n';
+          for (const [key, rec] of Object.entries(econ.cookingRecipes)) {
+            const ingredients = Object.entries(rec.requires).map(([ing, qty]) => `${ing} x${qty}`).join(', ');
+            text += `${rec.name}\n`;
+            text += `  📦 Ingredientes: ${ingredients}\n`;
+            text += `  💰 Custo: ${fmt(rec.gold)}\n`;
+            text += `  💵 Venda: ${fmt(rec.sellPrice)}\n`;
+            text += `  ⚡ Energia: +${rec.energy}\n`;
+            text += `  🍳 Cozinhar: ${prefix}cozinhar ${key}\n\n`;
+          }
+          text += `💡 *Dica:* Plante ingredientes com ${prefix}plantar`;
+          return reply(text);
+        }
+
+        if (sub === 'cozinhar' || sub === 'cook') {
+          const recipeKey = (args[0] || '').toLowerCase();
+          
+          // Inicializa receitas se não existir
+          if (!econ.cookingRecipes) {
+            econ.cookingRecipes = {
+              pao: { name: '🍞 Pão', requires: { trigo: 3 }, gold: 10, sellPrice: 50, energy: 10 },
+              sopa: { name: '🍲 Sopa', requires: { cenoura: 2, batata: 2 }, gold: 15, sellPrice: 80, energy: 20 },
+              salada: { name: '🥗 Salada', requires: { alface: 2, tomate: 2 }, gold: 12, sellPrice: 60, energy: 15 },
+              bolo: { name: '🍰 Bolo', requires: { trigo: 5, ovo: 3 }, gold: 25, sellPrice: 120, energy: 30 },
+              pizza: { name: '🍕 Pizza', requires: { trigo: 4, tomate: 3, queijo: 2 }, gold: 35, sellPrice: 150, energy: 40 },
+              hamburguer: { name: '🍔 Hambúrguer', requires: { carne: 2, trigo: 3, alface: 1 }, gold: 40, sellPrice: 180, energy: 50 },
+              sushi: { name: '🍣 Sushi', requires: { peixe: 4, arroz: 3 }, gold: 50, sellPrice: 200, energy: 45 },
+              macarrao: { name: '🍝 Macarrão', requires: { trigo: 3, tomate: 2 }, gold: 20, sellPrice: 90, energy: 25 }
+            };
+          }
+
+          if (!recipeKey) {
+            return reply(`👨‍🍳 *SISTEMA DE COZINHA*\n\n📖 Veja as receitas disponíveis: ${prefix}receitas\n🍳 Cozinhar: ${prefix}cozinhar <receita>\n\n💡 Exemplo: ${prefix}cozinhar pao`);
+          }
+
+          const recipe = econ.cookingRecipes[recipeKey];
+          if (!recipe) {
+            return reply(`❌ Receita não encontrada! Use ${prefix}receitas para ver todas as receitas disponíveis.`);
+          }
+
+          // Verifica cooldown
+          const cd = me.cooldowns?.cook || 0;
+          if (Date.now() < cd) {
+            return reply(`⏳ Você ainda está cozinhando! Aguarde ${timeLeft(cd)}.`);
+          }
+
+          // Verifica gold
+          if (me.wallet < recipe.gold) {
+            return reply(`💰 Você precisa de ${fmt(recipe.gold)} para cozinhar ${recipe.name}. Saldo atual: ${fmt(me.wallet)}`);
+          }
+
+          // Verifica ingredientes
+          me.ingredients = me.ingredients || {};
+          for (const [ing, qty] of Object.entries(recipe.requires)) {
+            if ((me.ingredients[ing] || 0) < qty) {
+              return reply(`📦 Ingredientes insuficientes! Você precisa de ${ing} x${qty}, mas tem apenas x${me.ingredients[ing] || 0}.\n\n🌱 Plante ingredientes com ${prefix}plantar`);
+            }
+          }
+
+          // Consome recursos
+          me.wallet -= recipe.gold;
+          for (const [ing, qty] of Object.entries(recipe.requires)) {
+            me.ingredients[ing] -= qty;
+          }
+
+          // Adiciona comida ao inventário
+          me.cookedFood = me.cookedFood || {};
+          me.cookedFood[recipeKey] = (me.cookedFood[recipeKey] || 0) + 1;
+
+          // Skill e desafios
+          addSkillXP(me, 'cooking', 2);
+          updateChallenge(me, 'cook', 1, true);
+          updatePeriodChallenge(me, 'cook', 1, true);
+
+          // Cooldown de 3 minutos
+          me.cooldowns.cook = Date.now() + 3 * 60 * 1000;
+          
+          saveEconomy(econ);
+
+          return reply(`👨‍🍳 *COZINHA CONCLUÍDA!*\n\n${recipe.name} preparado com sucesso!\n⚡ Energia: +${recipe.energy}\n💵 Valor de venda: ${fmt(recipe.sellPrice)}\n\n🍴 Use ${prefix}comer ${recipeKey} para consumir\n💰 Use ${prefix}vendercomida ${recipeKey} para vender`);
+        }
+
+        // ===== SISTEMA DE PLANTAÇÃO =====
+        if (sub === 'plantacao' || sub === 'plantação' || sub === 'horta') {
+          me.farm = me.farm || { plots: [], maxPlots: 4, lastExpansion: 0 };
+          
+          const now = Date.now();
+          let text = '🌾 *MINHA PLANTAÇÃO*\n\n';
+          text += `📊 Terrenos: ${me.farm.plots.length}/${me.farm.maxPlots}\n\n`;
+
+          if (me.farm.plots.length === 0) {
+            text += '🌱 Sua plantação está vazia!\n\n';
+          } else {
+            me.farm.plots.forEach((plot, idx) => {
+              const timeLeft = plot.readyAt - now;
+              const isReady = timeLeft <= 0;
+              const seed = econ.seeds?.[plot.seed] || { name: plot.seed, growTime: 600000, yield: { [plot.seed]: 1 } };
+              
+              text += `🌱 *Terreno ${idx + 1}*\n`;
+              text += `  Semente: ${seed.name}\n`;
+              if (isReady) {
+                text += `  ✅ Pronto para colher!\n`;
+              } else {
+                const mins = Math.ceil(timeLeft / 60000);
+                text += `  ⏳ Pronto em: ${mins} min\n`;
+              }
+              text += `\n`;
+            });
+          }
+
+          text += `\n💡 *Comandos:*\n`;
+          text += `🌱 Plantar: ${prefix}plantar <semente>\n`;
+          text += `🌾 Colher: ${prefix}colher\n`;
+          text += `📦 Sementes: ${prefix}sementes\n`;
+
+          return reply(text);
+        }
+
+        if (sub === 'plantar' || sub === 'plant' || sub === 'farm') {
+          const seedKey = (args[0] || '').toLowerCase();
+          
+          // Inicializa sistema de sementes
+          if (!econ.seeds) {
+            econ.seeds = {
+              trigo: { name: '🌾 Trigo', cost: 20, growTime: 5 * 60 * 1000, yield: { trigo: 3 } },
+              cenoura: { name: '🥕 Cenoura', cost: 15, growTime: 4 * 60 * 1000, yield: { cenoura: 2 } },
+              batata: { name: '🥔 Batata', cost: 15, growTime: 4 * 60 * 1000, yield: { batata: 2 } },
+              tomate: { name: '🍅 Tomate', cost: 18, growTime: 6 * 60 * 1000, yield: { tomate: 3 } },
+              alface: { name: '🥬 Alface', cost: 12, growTime: 3 * 60 * 1000, yield: { alface: 2 } },
+              milho: { name: '🌽 Milho', cost: 25, growTime: 7 * 60 * 1000, yield: { milho: 4 } },
+              arroz: { name: '🌾 Arroz', cost: 22, growTime: 8 * 60 * 1000, yield: { arroz: 4 } },
+              cana: { name: '🌿 Cana-de-açúcar', cost: 30, growTime: 10 * 60 * 1000, yield: { acucar: 5 } }
+            };
+            saveEconomy(econ);
+          }
+
+          if (!seedKey) {
+            let text = '🌱 *SISTEMA DE PLANTAÇÃO*\n\n';
+            text += '📦 *Sementes Disponíveis:*\n\n';
+            for (const [key, seed] of Object.entries(econ.seeds)) {
+              const mins = Math.floor(seed.growTime / 60000);
+              const yieldText = Object.entries(seed.yield).map(([k, v]) => `${k} x${v}`).join(', ');
+              text += `${seed.name}\n`;
+              text += `  💰 Custo: ${fmt(seed.cost)}\n`;
+              text += `  ⏱️ Tempo: ${mins} min\n`;
+              text += `  🌾 Colheita: ${yieldText}\n\n`;
+            }
+            text += `🌱 Plantar: ${prefix}plantar <semente>\n`;
+            text += `💡 Exemplo: ${prefix}plantar trigo`;
+            return reply(text);
+          }
+
+          const seed = econ.seeds[seedKey];
+          if (!seed) {
+            return reply(`❌ Semente não encontrada! Use ${prefix}plantar para ver as sementes disponíveis.`);
+          }
+
+          // Inicializa fazenda do usuário
+          me.farm = me.farm || { plots: [], maxPlots: 4, lastExpansion: 0 };
+
+          // Verifica se tem espaço
+          if (me.farm.plots.length >= me.farm.maxPlots) {
+            return reply(`🌾 Todos os seus terrenos estão ocupados! Aguarde a colheita ou expanda sua fazenda.\n\n🌾 Use ${prefix}colher para colher plantas prontas`);
+          }
+
+          // Verifica gold
+          if (me.wallet < seed.cost) {
+            return reply(`💰 Você precisa de ${fmt(seed.cost)} para plantar ${seed.name}. Saldo: ${fmt(me.wallet)}`);
+          }
+
+          // Planta
+          me.wallet -= seed.cost;
+          const now = Date.now();
+          me.farm.plots.push({
+            seed: seedKey,
+            plantedAt: now,
+            readyAt: now + seed.growTime
+          });
+
+          // Skill
+          addSkillXP(me, 'farming', 1);
+          updateChallenge(me, 'plant', 1, true);
+          updatePeriodChallenge(me, 'plant', 1, true);
+
+          saveEconomy(econ);
+
+          const mins = Math.floor(seed.growTime / 60000);
+          return reply(`🌱 ${seed.name} plantado com sucesso!\n\n⏱️ Estará pronto para colher em ${mins} minutos.\n🌾 Terrenos ocupados: ${me.farm.plots.length}/${me.farm.maxPlots}\n\n💡 Use ${prefix}horta para ver suas plantações`);
+        }
+
+        if (sub === 'colher' || sub === 'harvest') {
+          me.farm = me.farm || { plots: [], maxPlots: 4, lastExpansion: 0 };
+
+          if (me.farm.plots.length === 0) {
+            return reply(`🌾 Você não tem nada plantado!\n\n🌱 Use ${prefix}plantar <semente> para começar a cultivar.`);
+          }
+
+          const now = Date.now();
+          const readyPlots = me.farm.plots.filter(plot => plot.readyAt <= now);
+
+          if (readyPlots.length === 0) {
+            const nextReady = Math.min(...me.farm.plots.map(p => p.readyAt));
+            const timeLeft = Math.ceil((nextReady - now) / 60000);
+            return reply(`⏳ Nenhuma planta está pronta para colher ainda.\n\n🕐 Próxima colheita em: ${timeLeft} minuto(s)\n\n💡 Use ${prefix}horta para ver o status de todas as plantações`);
+          }
+
+          // Colhe todas as plantas prontas
+          me.ingredients = me.ingredients || {};
+          let harvestedText = '';
+          let totalValue = 0;
+
+          readyPlots.forEach(plot => {
+            const seed = econ.seeds?.[plot.seed];
+            if (seed && seed.yield) {
+              for (const [ingredient, qty] of Object.entries(seed.yield)) {
+                me.ingredients[ingredient] = (me.ingredients[ingredient] || 0) + qty;
+                harvestedText += `${ingredient} x${qty}, `;
+                totalValue += qty * 10; // Valor estimado
+              }
+            }
+          });
+
+          // Remove plantas colhidas
+          me.farm.plots = me.farm.plots.filter(plot => plot.readyAt > now);
+
+          // Skill e desafios
+          addSkillXP(me, 'farming', readyPlots.length * 2);
+          updateChallenge(me, 'harvest', readyPlots.length, true);
+          updatePeriodChallenge(me, 'harvest', readyPlots.length, true);
+
+          saveEconomy(econ);
+
+          harvestedText = harvestedText.slice(0, -2); // Remove última vírgula
+
+          return reply(`🌾 *COLHEITA CONCLUÍDA!*\n\n✅ Plantas colhidas: ${readyPlots.length}\n📦 Ingredientes obtidos:\n${harvestedText}\n\n💵 Valor estimado: ${fmt(totalValue)}\n🌱 Terrenos livres: ${me.farm.maxPlots - me.farm.plots.length}/${me.farm.maxPlots}\n\n👨‍🍳 Use ${prefix}receitas para ver o que pode cozinhar!`);
+        }
+
+        // ===== COMANDOS COMPLEMENTARES DE COZINHA =====
+        if (sub === 'ingredientes') {
+          me.ingredients = me.ingredients || {};
+          const entries = Object.entries(me.ingredients).filter(([, qty]) => qty > 0);
+          
+          if (entries.length === 0) {
+            return reply(`📦 *INGREDIENTES*\n\nVocê não possui ingredientes.\n\n🌱 Plante com ${prefix}plantar para conseguir ingredientes!`);
+          }
+
+          let text = '📦 *MEUS INGREDIENTES*\n\n';
+          for (const [ing, qty] of entries) {
+            text += `• ${ing}: x${qty}\n`;
+          }
+          text += `\n👨‍🍳 Use ${prefix}receitas para ver o que pode cozinhar`;
+          return reply(text);
+        }
+
+        if (sub === 'comer' || sub === 'eat') {
+          const foodKey = (args[0] || '').toLowerCase();
+          
+          me.cookedFood = me.cookedFood || {};
+          
+          if (!foodKey) {
+            const entries = Object.entries(me.cookedFood).filter(([, qty]) => qty > 0);
+            if (entries.length === 0) {
+              return reply(`🍽️ Você não tem comida preparada.\n\n👨‍🍳 Cozinhe algo com ${prefix}cozinhar`);
+            }
+            
+            let text = '🍽️ *COMIDAS PREPARADAS*\n\n';
+            for (const [key, qty] of entries) {
+              const recipe = econ.cookingRecipes?.[key];
+              if (recipe) {
+                text += `${recipe.name} x${qty}\n`;
+                text += `  ⚡ Energia: +${recipe.energy}\n`;
+                text += `  💵 Valor: ${fmt(recipe.sellPrice)}\n\n`;
+              }
+            }
+            text += `🍴 Comer: ${prefix}comer <comida>\n`;
+            text += `💰 Vender: ${prefix}vendercomida <comida>`;
+            return reply(text);
+          }
+
+          if (!me.cookedFood[foodKey] || me.cookedFood[foodKey] <= 0) {
+            return reply(`❌ Você não tem ${foodKey} preparado.\n\n👨‍🍳 Cozinhe com ${prefix}cozinhar ${foodKey}`);
+          }
+
+          const recipe = econ.cookingRecipes?.[foodKey];
+          if (!recipe) {
+            return reply('❌ Receita não encontrada.');
+          }
+
+          // Consome a comida
+          me.cookedFood[foodKey] -= 1;
+          
+          // Adiciona energia (pode ser usado para reduzir cooldowns ou dar bônus)
+          me.energy = (me.energy || 0) + recipe.energy;
+          
+          // Skill
+          addSkillXP(me, 'cooking', 1);
+          
+          saveEconomy(econ);
+
+          return reply(`😋 *DELICIOSO!*\n\nVocê comeu ${recipe.name}!\n⚡ Energia: +${recipe.energy}\n💪 Energia total: ${me.energy}\n\n💡 Quanto mais energia, mais bônus você recebe!`);
+        }
+
+        if (sub === 'vendercomida') {
+          const foodKey = (args[0] || '').toLowerCase();
+          
+          me.cookedFood = me.cookedFood || {};
+          
+          if (!foodKey) {
+            return reply(`💰 *VENDER COMIDA*\n\nUse: ${prefix}vendercomida <comida>\n\n💡 Veja suas comidas com ${prefix}comer`);
+          }
+
+          const qty = parseInt(args[1]) || 1;
+          
+          if (!me.cookedFood[foodKey] || me.cookedFood[foodKey] < qty) {
+            return reply(`❌ Você não tem ${qty}x ${foodKey}.\n\n🍽️ Você tem: ${me.cookedFood[foodKey] || 0}`);
+          }
+
+          const recipe = econ.cookingRecipes?.[foodKey];
+          if (!recipe) {
+            return reply('❌ Receita não encontrada.');
+          }
+
+          const totalValue = recipe.sellPrice * qty;
+          me.cookedFood[foodKey] -= qty;
+          me.wallet += totalValue;
+          
+          saveEconomy(econ);
+
+          return reply(`💰 *VENDA CONCLUÍDA!*\n\nVocê vendeu ${qty}x ${recipe.name}\n💵 Ganhou: ${fmt(totalValue)}\n💼 Carteira: ${fmt(me.wallet)}`);
+        }
+
+        if (sub === 'sementes') {
+          // Inicializa sementes se não existir
+          if (!econ.seeds) {
+            econ.seeds = {
+              trigo: { name: '🌾 Trigo', cost: 20, growTime: 5 * 60 * 1000, yield: { trigo: 3 } },
+              cenoura: { name: '🥕 Cenoura', cost: 15, growTime: 4 * 60 * 1000, yield: { cenoura: 2 } },
+              batata: { name: '🥔 Batata', cost: 15, growTime: 4 * 60 * 1000, yield: { batata: 2 } },
+              tomate: { name: '🍅 Tomate', cost: 18, growTime: 6 * 60 * 1000, yield: { tomate: 3 } },
+              alface: { name: '🥬 Alface', cost: 12, growTime: 3 * 60 * 1000, yield: { alface: 2 } },
+              milho: { name: '🌽 Milho', cost: 25, growTime: 7 * 60 * 1000, yield: { milho: 4 } },
+              arroz: { name: '🌾 Arroz', cost: 22, growTime: 8 * 60 * 1000, yield: { arroz: 4 } },
+              cana: { name: '🌿 Cana-de-açúcar', cost: 30, growTime: 10 * 60 * 1000, yield: { acucar: 5 } }
+            };
+            saveEconomy(econ);
+          }
+
+          let text = '🌱 *CATÁLOGO DE SEMENTES*\n\n';
+          for (const [key, seed] of Object.entries(econ.seeds)) {
+            const mins = Math.floor(seed.growTime / 60000);
+            const yieldText = Object.entries(seed.yield).map(([k, v]) => `${k} x${v}`).join(', ');
+            text += `${seed.name}\n`;
+            text += `  💰 Custo: ${fmt(seed.cost)}\n`;
+            text += `  ⏱️ Crescimento: ${mins} min\n`;
+            text += `  🌾 Colheita: ${yieldText}\n`;
+            text += `  🌱 Plantar: ${prefix}plantar ${key}\n\n`;
+          }
+          text += `💡 *Dica:* Use ${prefix}horta para ver suas plantações`;
+          return reply(text);
         }
 
         if (sub === 'minerar' || sub === 'mine') {
@@ -13942,12 +14336,7 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
           break;
         }
 
-        const activePair = relationshipManager.getActivePairForUser(sender);
-        if (!activePair) {
-          await reply('❌ Você precisa estar em um relacionamento para poder trair! 💔');
-          break;
-        }
-
+        // A verificação se está em relacionamento é feita na função betrayRelationship
         const betrayalResult = relationshipManager.betrayRelationship(sender, menc_os2, from);
         if (!betrayalResult.success) {
           await reply(betrayalResult.message);
@@ -13956,7 +14345,7 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
 
         await nazu.sendMessage(from, {
           text: betrayalResult.message,
-          mentions: betrayalResult.mentions || [sender, menc_os2, activePair.partnerId]
+          mentions: betrayalResult.mentions || [sender, menc_os2]
         });
         break;
       }
