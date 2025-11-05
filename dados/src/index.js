@@ -7711,6 +7711,125 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         }
         break;
 
+      case 'addsubbot':
+        if (!isOwner) return reply("🚫 Apenas o Dono principal pode adicionar sub-bots!");
+        try {
+          const subBotManager = require('./utils/subBotManager.js');
+          
+          if (!q || !q.trim()) {
+            return reply(`📝 *Como usar:*\n\n${prefix}addsubbot <número>\n\n*Exemplo:*\n${prefix}addsubbot 5511999999999\n\n⚠️ O número deve incluir o código do país (Brasil: 55)`);
+          }
+          
+          const phoneNumber = q.trim().replace(/\D/g, '');
+          
+          if (!/^\d{10,15}$/.test(phoneNumber) || !phoneNumber.startsWith('55')) {
+            return reply('❌ Número inválido! Use um número válido com código de país.\n\n*Exemplo:* 5511999999999');
+          }
+          
+          await reply('⏳ Criando sub-bot... Aguarde...');
+          
+          const result = await subBotManager.addSubBot(phoneNumber, numerodono);
+          
+          await reply(result.message);
+          
+          if (result.success) {
+            await reply(`\n🔐 *INSTRUÇÕES IMPORTANTES:*\n\n1️⃣ O código de pareamento foi exibido no console do servidor\n2️⃣ Abra o WhatsApp no número ${phoneNumber}\n3️⃣ Vá em: *Aparelhos Conectados > Conectar um aparelho*\n4️⃣ Digite o código de 8 dígitos\n5️⃣ Aguarde a conexão ser estabelecida\n\n✅ Após parear, o sub-bot iniciará automaticamente!`);
+          }
+        } catch (error) {
+          console.error("Erro ao adicionar sub-bot:", error);
+          await reply(`❌ Erro ao criar sub-bot: ${error.message}`);
+        }
+        break;
+
+      case 'removesubbot':
+      case 'delsubbot':
+      case 'rmsubbot':
+        if (!isOwner) return reply("🚫 Apenas o Dono principal pode remover sub-bots!");
+        try {
+          const subBotManager = require('./utils/subBotManager.js');
+          
+          if (!q || !q.trim()) {
+            const listResult = subBotManager.listSubBots();
+            if (!listResult.success || listResult.subbots.length === 0) {
+              return reply('❌ Nenhum sub-bot cadastrado para remover.');
+            }
+            
+            let msg = `📋 *Sub-Bots Disponíveis:*\n\n`;
+            listResult.subbots.forEach((bot, index) => {
+              msg += `${index + 1}. *ID:* ${bot.id.substring(0, 20)}...\n`;
+              msg += `   📱 *Número:* ${bot.phoneNumber}\n`;
+              msg += `   🔌 *Status:* ${bot.status}\n\n`;
+            });
+            msg += `\n💡 *Use:* ${prefix}removesubbot <número>\n\n*Exemplo:*\n${prefix}removesubbot 1`;
+            
+            return reply(msg);
+          }
+          
+          // Tenta remover por índice primeiro
+          const listResult = subBotManager.listSubBots();
+          if (listResult.success && listResult.subbots.length > 0) {
+            const index = parseInt(q) - 1;
+            if (index >= 0 && index < listResult.subbots.length) {
+              const botId = listResult.subbots[index].id;
+              await reply('⏳ Removendo sub-bot... Aguarde...');
+              const result = await subBotManager.removeSubBot(botId);
+              return reply(result.message);
+            }
+          }
+          
+          // Se não for índice, tenta pelo ID direto
+          await reply('⏳ Removendo sub-bot... Aguarde...');
+          const result = await subBotManager.removeSubBot(q.trim());
+          await reply(result.message);
+        } catch (error) {
+          console.error("Erro ao remover sub-bot:", error);
+          await reply(`❌ Erro ao remover sub-bot: ${error.message}`);
+        }
+        break;
+
+      case 'listarsubbots':
+      case 'listsubbots':
+      case 'subbots':
+        if (!isOwner) return reply("🚫 Apenas o Dono principal pode ver os sub-bots!");
+        try {
+          const subBotManager = require('./utils/subBotManager.js');
+          
+          const result = subBotManager.listSubBots();
+          
+          if (!result.success) {
+            return reply(result.message);
+          }
+          
+          if (result.subbots.length === 0) {
+            return reply('📋 *Nenhum sub-bot cadastrado.*\n\n💡 Use `!addsubbot <número>` para adicionar um sub-bot.');
+          }
+          
+          let msg = `🤖 *Sub-Bots Ativos* 🤖\n`;
+          msg += `═══════════════════\n\n`;
+          
+          result.subbots.forEach((bot, index) => {
+            const statusEmoji = bot.status === 'conectado' ? '🟢' : bot.status === 'aguardando_pareamento' ? '🟡' : '🔴';
+            const activeText = bot.isActive ? '✅ Ativo' : '⏸️ Inativo';
+            
+            msg += `*${index + 1}.* ${statusEmoji} ${activeText}\n`;
+            msg += `📱 *Número:* ${bot.phoneNumber}\n`;
+            msg += `🆔 *ID:* \`${bot.id.substring(0, 25)}...\`\n`;
+            msg += `📊 *Status:* ${bot.status}\n`;
+            msg += `📅 *Criado:* ${new Date(bot.createdAt).toLocaleString('pt-BR')}\n`;
+            msg += `🔌 *Última conexão:* ${bot.lastConnection !== 'Nunca' ? new Date(bot.lastConnection).toLocaleString('pt-BR') : 'Nunca'}\n`;
+            msg += `\n`;
+          });
+          
+          msg += `═══════════════════\n`;
+          msg += `Total: ${result.subbots.length} sub-bot(s)`;
+          
+          await reply(msg);
+        } catch (error) {
+          console.error("Erro ao listar sub-bots:", error);
+          await reply(`❌ Erro ao listar sub-bots: ${error.message}`);
+        }
+        break;
+
       case 'cmdlimitar':
       case 'cmdlimit':
       case 'limitarcmd':

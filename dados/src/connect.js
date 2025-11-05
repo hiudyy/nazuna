@@ -1047,6 +1047,17 @@ async function createBotSocket(authDir) {
                 attachMessagesListener();
                 startCacheCleanup(); // Inicia o sistema de limpeza de cache
                 
+                // Inicializa sub-bots automaticamente
+                try {
+                    const subBotManager = require('./utils/subBotManager.js');
+                    console.log('🤖 Verificando sub-bots cadastrados...');
+                    setTimeout(async () => {
+                        await subBotManager.initializeAllSubBots();
+                    }, 5000); // Aguarda 5 segundos após bot principal conectar
+                } catch (error) {
+                    console.error('❌ Erro ao inicializar sub-bots:', error.message);
+                }
+                
                 console.log(`✅ Bot ${nomebot} iniciado com sucesso! Prefixo: ${prefixo} | Dono: ${nomedono}`);
                 console.log(`📊 Configuração: ${messageQueue.batchSize} lotes de ${messageQueue.messagesPerBatch} mensagens (${messageQueue.batchSize * messageQueue.messagesPerBatch} msgs paralelas)`);
             }
@@ -1115,6 +1126,14 @@ async function startNazu() {
 process.on('SIGTERM', async () => {
     console.log('📡 SIGTERM recebido, parando bot graciosamente...');
     
+    // Desconecta sub-bots
+    try {
+        const subBotManager = require('./utils/subBotManager.js');
+        await subBotManager.disconnectAllSubBots();
+    } catch (error) {
+        console.error('Erro ao desconectar sub-bots:', error.message);
+    }
+    
     // Limpa recursos
     if (cacheCleanupInterval) {
         clearInterval(cacheCleanupInterval);
@@ -1128,6 +1147,14 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
     console.log('📡 SIGINT recebido, parando bot graciosamente...');
+    
+    // Desconecta sub-bots
+    try {
+        const subBotManager = require('./utils/subBotManager.js');
+        await subBotManager.disconnectAllSubBots();
+    } catch (error) {
+        console.error('Erro ao desconectar sub-bots:', error.message);
+    }
     
     // Limpa recursos
     if (cacheCleanupInterval) {
