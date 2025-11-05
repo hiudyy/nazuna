@@ -66,6 +66,7 @@ const {
   ensureUserChallenge,
   updateChallenge,
   isChallengeCompleted,
+  updateQuestProgress,
   SKILL_LIST,
   ensureUserSkills,
   skillXpForNext,
@@ -270,6 +271,60 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     KeyCog = false;
   } else if (!isValidApiKey(KeyCog)) {
     KeyCog = false;
+  }
+
+  // Sistema de degradação automática de pets
+  function applyPetDegradation(pets) {
+    if (!Array.isArray(pets) || pets.length === 0) return { changed: false };
+    
+    const now = Date.now();
+    const oneHour = 3600000; // 1 hora em ms
+    const oneDayInHours = 24; // Degradação total em 24 horas se não cuidar
+    
+    let changed = false;
+    
+    pets.forEach(pet => {
+      // Inicializa lastUpdate se não existir
+      if (!pet.lastUpdate) {
+        pet.lastUpdate = now;
+        changed = true;
+        return;
+      }
+      
+      const timePassed = now - pet.lastUpdate;
+      const hoursPassed = timePassed / oneHour;
+      
+      // Só degrada se passou mais de 1 hora
+      if (hoursPassed >= 1) {
+        // Calcula degradação proporcional ao tempo
+        const hungerDegrade = Math.floor(hoursPassed * (100 / oneDayInHours)); // ~4.17 por hora
+        const moodDegrade = Math.floor(hoursPassed * (100 / (oneDayInHours * 2))); // ~2.08 por hora (degrada mais devagar)
+        
+        // Aplica degradação
+        const oldHunger = pet.hunger || 100;
+        const oldMood = pet.mood || 100;
+        
+        pet.hunger = Math.max(0, oldHunger - hungerDegrade);
+        pet.mood = Math.max(0, oldMood - moodDegrade);
+        
+        // Se fome está muito baixa, humor degrada mais rápido
+        if (pet.hunger < 30) {
+          pet.mood = Math.max(0, pet.mood - Math.floor(hoursPassed * 5));
+        }
+        
+        // Se fome chegou a 0, pet perde HP gradualmente
+        if (pet.hunger === 0 && hoursPassed >= 2) {
+          const hpLoss = Math.floor(hoursPassed * (pet.maxHp * 0.02)); // 2% do HP máximo por hora
+          pet.hp = Math.max(1, (pet.hp || pet.maxHp) - hpLoss); // Nunca deixa morrer (mínimo 1 HP)
+        }
+        
+        // Atualiza timestamp
+        pet.lastUpdate = now;
+        changed = true;
+      }
+    });
+    
+    return { changed };
   }
 
   async function handleAutoDownload(nazu, from, url, info) {
@@ -4120,6 +4175,12 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         
         if (!me.pets) me.pets = [];
         
+        // Aplica degradação automática
+        const degradation = applyPetDegradation(me.pets);
+        if (degradation.changed) {
+          saveEconomy(econ);
+        }
+        
         if (me.pets.length === 0) {
           let text = `╭━━━⊱ 🐾 *SISTEMA DE PETS* ⊱━━━╮\n`;
           text += `│ Você ainda não tem companheiros!\n`;
@@ -4139,11 +4200,26 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         text += `│ Total de Pets: ${me.pets.length}/5\n`;
         text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
         
+        let hasWarnings = false;
         me.pets.forEach((pet, i) => {
           const hungerBar = '█'.repeat(Math.floor(pet.hunger / 10)) + '░'.repeat(10 - Math.floor(pet.hunger / 10));
           const moodBar = '█'.repeat(Math.floor(pet.mood / 10)) + '░'.repeat(10 - Math.floor(pet.mood / 10));
           
-          text += `${i + 1}. ${pet.emoji} *${pet.name}*\n`;
+          // Status de alerta
+          let statusEmoji = '';
+          if (pet.hunger < 20) {
+            statusEmoji = ' ⚠️ FOME CRÍTICA';
+            hasWarnings = true;
+          } else if (pet.hunger < 40) {
+            statusEmoji = ' 🍖 Com fome';
+          }
+          
+          if (pet.mood < 20) {
+            statusEmoji += ' 😢 TRISTE';
+            hasWarnings = true;
+          }
+          
+          text += `${i + 1}. ${pet.emoji} *${pet.name}*${statusEmoji}\n`;
           text += `┌─────────────────\n`;
           text += `│ 📊 Level ${pet.level} | 💫 ${pet.exp}/${pet.level * 100} EXP\n`;
           text += `│ ❤️ HP: ${pet.hp}/${pet.maxHp}\n`;
@@ -4153,12 +4229,17 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           text += `└─────────────────\n\n`;
         });
         
+        if (hasWarnings) {
+          text += `⚠️ *ATENÇÃO:* Alguns pets precisam de cuidados!\n\n`;
+        }
+        
         text += `🎮 *COMANDOS DISPONÍVEIS:*\n`;
         text += `• ${prefix}alimentar <número>\n`;
         text += `• ${prefix}treinar <número>\n`;
         text += `• ${prefix}evoluir <número>\n`;
         text += `• ${prefix}renomear <número> <nome>\n`;
-        text += `• ${prefix}batalha <número> @user`;
+        text += `• ${prefix}batalha <número> @user\n\n`;
+        text += `💡 Seus pets perdem fome e humor com o tempo!`;
         
         return reply(text);
         break;
@@ -4218,7 +4299,8 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           hunger: 100,
           mood: 100,
           wins: 0,
-          losses: 0
+          losses: 0,
+          lastUpdate: Date.now() // Timestamp para degradação
         });
         
         saveEconomy(econ);
@@ -4230,7 +4312,8 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         text += `│ ${pet.desc}\n`;
         text += `│\n`;
         text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
-        text += `💡 Use ${prefix}pets para ver seus companheiros`;
+        text += `💡 Use ${prefix}pets para ver seus companheiros\n`;
+        text += `⚠️ Lembre-se: seus pets precisam de cuidados regulares!`;
         
         return reply(text);
         break;
@@ -4245,6 +4328,9 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         const me = getEcoUser(econ, sender);
         
         if (!me.pets || me.pets.length === 0) return reply('🐾 Você não tem pets para alimentar!');
+        
+        // Aplica degradação antes de alimentar
+        applyPetDegradation(me.pets);
         
         const index = parseInt(q) - 1;
         if (isNaN(index) || index < 0 || index >= me.pets.length) {
@@ -4261,15 +4347,25 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         const hungerGain = 30 + Math.floor(Math.random() * 20);
         pet.hunger = Math.min(100, pet.hunger + hungerGain);
         pet.mood = Math.min(100, pet.mood + 10);
+        pet.lastUpdate = Date.now(); // Atualiza timestamp
+        
+        // Recupera HP se estava perdendo
+        if (pet.hp < pet.maxHp) {
+          const hpRecover = Math.floor(pet.maxHp * 0.1);
+          pet.hp = Math.min(pet.maxHp, pet.hp + hpRecover);
+        }
         
         saveEconomy(econ);
         
         let text = `╭━━━⊱ 🍖 *ALIMENTAÇÃO* ⊱━━━╮\n`;
         text += `│ ${pet.emoji} *${pet.name}* comeu!\n`;
         text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
-        text += `😊 Humor: ${pet.mood}/100\n`;
-        text += `🍖 Fome: ${pet.hunger}/100 (+${hungerGain})\n\n`;
-        text += `💸 Custo: -${foodCost} moedas`;
+        text += `😊 Humor: ${pet.mood}/100 (+10)\n`;
+        text += `🍖 Fome: ${pet.hunger}/100 (+${hungerGain})\n`;
+        if (pet.hp < pet.maxHp) {
+          text += `❤️ HP: ${pet.hp}/${pet.maxHp} (recuperando)\n`;
+        }
+        text += `\n💸 Custo: -${foodCost} moedas`;
         
         return reply(text);
         break;
@@ -4284,6 +4380,9 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         const me = getEcoUser(econ, sender);
         
         if (!me.pets || me.pets.length === 0) return reply('🐾 Você não tem pets para treinar!');
+        
+        // Aplica degradação antes de treinar
+        applyPetDegradation(me.pets);
         
         const index = parseInt(q) - 1;
         if (isNaN(index) || index < 0 || index >= me.pets.length) {
@@ -4303,6 +4402,9 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         pet.exp = (pet.exp || 0) + expGain;
         pet.hunger = Math.max(0, pet.hunger - 20);
         pet.lastTrain = now;
+        
+        // Atualiza missão de treinar pet
+        updateQuestProgress(me, 'train_pet', 1);
         
         let text = `╭━━━⊱ 💪 *TREINAMENTO* ⊱━━━╮\n`;
         text += `│ ${pet.emoji} *${pet.name}* treinou!\n`;
@@ -4580,13 +4682,37 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           me.wallet += reward;
           me.exp = (me.exp || 0) + dungeon.exp;
           
+          // Verifica level up
+          if (!me.level) me.level = 1;
+          const nextLevelXp = 100 * Math.pow(1.5, me.level - 1);
+          let leveledUp = false;
+          let levelsGained = 0;
+          
+          while (me.exp >= nextLevelXp) {
+            me.exp -= nextLevelXp;
+            me.level++;
+            levelsGained++;
+            leveledUp = true;
+            if (me.level > 100) break; // Safety cap
+          }
+          
+          // Atualiza missão de dungeon
+          updateQuestProgress(me, 'dungeon', 1);
+          
           let text = `╭━━━⊱ ⚔️ *VITÓRIA!* ⊱━━━╮\n`;
           text += `│ ${dungeon.emoji} ${dungeon.name}\n`;
           text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
           text += `🎉 Você derrotou todos os monstros!\n\n`;
           text += `💰 Moedas: +${reward.toLocaleString()}\n`;
-          text += `✨ EXP: +${dungeon.exp}\n\n`;
-          text += `🏆 Continue assim, aventureiro!`;
+          text += `✨ EXP: +${dungeon.exp}`;
+          
+          if (leveledUp) {
+            text += `\n\n🎊 *LEVEL UP!* 🎊\n`;
+            text += `📊 Você subiu ${levelsGained} ${levelsGained > 1 ? 'níveis' : 'nível'}!\n`;
+            text += `🔹 Nível atual: *${me.level}*`;
+          }
+          
+          text += `\n\n🏆 Continue assim, aventureiro!`;
           
           saveEconomy(econ);
           return reply(text);
@@ -4669,11 +4795,30 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           opponent.wallet = Math.max(0, opponent.wallet - reward);
           me.exp = (me.exp || 0) + 150;
           
+          // Verifica level up
+          if (!me.level) me.level = 1;
+          const nextLevelXp = 100 * Math.pow(1.5, me.level - 1);
+          let leveledUp = false;
+          
+          if (me.exp >= nextLevelXp) {
+            me.exp -= nextLevelXp;
+            me.level++;
+            leveledUp = true;
+          }
+          
+          // Atualiza missão de duelo
+          updateQuestProgress(me, 'duel', 1);
+          
           text += battle;
           text += `\n🏆 *VITÓRIA!*\n\n`;
           text += `💰 Recompensa: +${reward.toLocaleString()}\n`;
-          text += `✨ EXP: +150\n`;
-          text += `❤️ HP restante: ${Math.max(0, myHp)}`;
+          text += `✨ EXP: +150`;
+          
+          if (leveledUp) {
+            text += `\n\n🎊 *LEVEL UP!*\n📊 Nível: *${me.level}*`;
+          }
+          
+          text += `\n❤️ HP restante: ${Math.max(0, myHp)}`;
           
           saveEconomy(econ);
           return reply(text, { mentions: [target] });
@@ -4682,6 +4827,9 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           me.wallet = Math.max(0, me.wallet - loss);
           opponent.wallet += loss;
           opponent.exp = (opponent.exp || 0) + 150;
+          
+          // Atualiza missão de duelo mesmo em derrota
+          updateQuestProgress(me, 'duel', 1);
           
           text += battle;
           text += `\n💀 *DERROTA!*\n\n`;
@@ -5904,18 +6052,37 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
             current: 0,
             best: 0,
             lastLogin: 0,
+            lastClaim: 0,
             rewards: []
           };
         }
         
         const now = Date.now();
-        const oneDay = 86400000;
+        const oneDay = 86400000; // 24 horas
+        const twoDays = oneDay * 2;
         const timeSinceLogin = now - me.streak.lastLogin;
         
-        // Verificar streak
-        if (timeSinceLogin > oneDay * 2) {
-          me.streak.current = 0; // Perdeu streak
+        // Verificar e atualizar streak
+        if (me.streak.lastLogin === 0) {
+          // Primeira vez usando o sistema
+          me.streak.current = 0;
+        } else if (timeSinceLogin > twoDays) {
+          // Perdeu o streak (mais de 2 dias)
+          me.streak.current = 0;
+        } else if (timeSinceLogin >= oneDay) {
+          // Passou 1 dia, pode incrementar
+          const timeSinceLastClaim = now - (me.streak.lastClaim || 0);
+          if (timeSinceLastClaim >= oneDay) {
+            me.streak.current++;
+            me.streak.lastClaim = now;
+            if (me.streak.current > me.streak.best) {
+              me.streak.best = me.streak.current;
+            }
+          }
         }
+        
+        // Atualiza lastLogin sempre que o comando é usado
+        me.streak.lastLogin = now;
         
         let text = `╭━━━⊱ 🔥 *STREAK* ⊱━━━╮\n`;
         text += `│ ${pushname}\n`;
@@ -5930,11 +6097,24 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         text += `│ 60 dias: 500.000 💰\n`;
         text += `└─────────────────\n\n`;
         
-        if (me.streak.current >= 7 && !me.streak.rewards.includes(7)) {
+        const rewards = [7, 15, 30, 60];
+        const hasReward = rewards.some(days => 
+          me.streak.current >= days && !me.streak.rewards.includes(days)
+        );
+        
+        if (hasReward) {
           text += `🎁 Recompensa disponível!\n`;
           text += `💡 Use ${prefix}reivindicar`;
         } else {
-          text += `💡 Use ${prefix}diario todos os dias!`;
+          const nextReward = rewards.find(days => me.streak.current < days);
+          if (nextReward) {
+            const daysLeft = nextReward - me.streak.current;
+            text += `💡 Próxima recompensa em ${daysLeft} dias!\n`;
+            text += `Use ${prefix}diario todos os dias para manter seu streak!`;
+          } else {
+            text += `🏆 Você desbloqueou todas as recompensas!\n`;
+            text += `Continue mantendo seu streak!`;
+          }
         }
         
         saveEconomy(econ);

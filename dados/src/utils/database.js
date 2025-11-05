@@ -1113,6 +1113,27 @@ function isChallengeCompleted(user){
   return ch.tasks.every(t=> (t.progress||0) >= t.target);
 }
 
+// ===== Missões Diárias =====
+function updateQuestProgress(user, questType, inc = 1) {
+  if (!user.quests || !user.quests.daily || !Array.isArray(user.quests.daily)) return;
+  
+  const questIdMap = {
+    'duel': 'duel_3',
+    'dungeon': 'dungeon_2',
+    'gather': 'gather_10',
+    'cook': 'cook_5',
+    'train_pet': 'train_pet'
+  };
+  
+  const questId = questIdMap[questType] || questType;
+  
+  user.quests.daily.forEach(quest => {
+    if (quest.id === questId && quest.progress < quest.goal) {
+      quest.progress = Math.min(quest.goal, (quest.progress || 0) + inc);
+    }
+  });
+}
+
 // ===== Habilidades (Skills) e Desafios Periódicos =====
 const SKILL_LIST = ['mining','working','fishing','exploring','hunting','forging','crime'];
 
@@ -1934,6 +1955,7 @@ module.exports = {
   ensureUserChallenge,
   updateChallenge,
   isChallengeCompleted,
+  updateQuestProgress,
   SKILL_LIST,
   ensureUserSkills,
   skillXpForNext,
