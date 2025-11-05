@@ -1,6 +1,6 @@
 const { default: makeWASocket } = require('whaileys/lib/Socket');
 const { downloadContentFromMessage, generateWAMessageFromContent, generateWAMessage, isJidNewsletter, getContentType } = require('whaileys');
-const { exec, execSync } = require('child_process');
+const { exec, execSync, spawn } = require('child_process');
 const { parseHTML } = require('linkedom');
 const axios = require('axios');
 const pathz = require('path');
@@ -7248,6 +7248,228 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           await reply("❌ Ocorreu um erro inesperado.");
         }
         break;
+
+      case 'atualizar':
+      case 'update':
+      case 'atualizarbot':
+        if (!isOwner || isSubOwner) return reply("🚫 Apenas o Dono principal pode atualizar o bot!");
+        
+        try {
+          const updateScriptPath = pathz.join(__dirname, '.scripts', 'update.js');
+          
+          // Verifica se o script de atualização existe
+          if (!fs.existsSync(updateScriptPath)) {
+            return reply("❌ Script de atualização não encontrado!\n\n📂 Caminho esperado: dados/src/.scripts/update.js");
+          }
+
+          // Se não passou o parâmetro "sim", mostra o aviso
+          if (!q || q.toLowerCase() !== 'sim') {
+            const avisoMsg = `⚠️ *ATENÇÃO - ATUALIZAÇÃO DO BOT* ⚠️
+
+┏━━━━━━━━━━━━━━━━━━━━━
+┃ 📢 *AVISOS IMPORTANTES:*
+┣━━━━━━━━━━━━━━━━━━━━━
+┃
+┃ ⚠️ Edições manuais no código 
+┃    serão *PERDIDAS*
+┃
+┃ ✅ Banco de dados será 
+┃    *PRESERVADO*
+┃
+┃ ✅ Configurações (config.json)
+┃    serão *MANTIDAS*
+┃
+┃ ✅ Mídias serão *PRESERVADAS*
+┃
+┃ 🔒 Backup automático será criado
+┃
+┃ ⏸️ Processamento de mensagens
+┃    será *PAUSADO* durante update
+┃
+┣━━━━━━━━━━━━━━━━━━━━━
+┃ 💡 *RECOMENDAÇÃO:*
+┃ Faça um backup manual antes!
+┣━━━━━━━━━━━━━━━━━━━━━
+┃
+┃ 📝 Para confirmar, use:
+┃ ${prefix}atualizar sim
+┃
+┗━━━━━━━━━━━━━━━━━━━━━`;
+            
+            return reply(avisoMsg);
+          }
+
+          // Confirmação recebida, iniciar atualização
+          await reply("🚀 *INICIANDO ATUALIZAÇÃO...*\n\n⏸️ Pausando processamento de mensagens...");
+
+          // Pausa o processamento de mensagens
+          const messageQueueModule = require('./connect');
+          if (messageQueueModule.messageQueue && typeof messageQueueModule.messageQueue.pause === 'function') {
+            messageQueueModule.messageQueue.pause();
+            await reply("✅ Processamento pausado com sucesso!\n\n🔄 Iniciando script de atualização...");
+          }
+
+          // Cria o processo de atualização
+          const updateProcess = spawn('node', [updateScriptPath], {
+            cwd: pathz.join(__dirname, '..', '..'),
+            stdio: ['ignore', 'pipe', 'pipe'],
+            detached: false
+          });
+
+          let lastUpdate = Date.now();
+          let outputBuffer = '';
+          const UPDATE_INTERVAL = 3000; // 3 segundos entre atualizações
+
+          // Função para enviar updates
+          const sendUpdate = async (message) => {
+            const now = Date.now();
+            if (now - lastUpdate >= UPDATE_INTERVAL) {
+              try {
+                await reply(message);
+                lastUpdate = now;
+              } catch (e) {
+                console.error('Erro ao enviar update:', e);
+              }
+            }
+          };
+
+          // Captura stdout
+          updateProcess.stdout.on('data', async (data) => {
+            const output = data.toString();
+            console.log('UPDATE:', output);
+            outputBuffer += output;
+
+            // Detecta mensagens importantes e envia updates
+            if (output.includes('Verificando requisitos')) {
+              await sendUpdate('🔍 Verificando requisitos do sistema...');
+            } else if (output.includes('Criando backup')) {
+              await sendUpdate('📁 Criando backup dos arquivos importantes...');
+            } else if (output.includes('Backup salvo')) {
+              await sendUpdate('✅ Backup criado com sucesso!');
+            } else if (output.includes('Baixando a versão')) {
+              await sendUpdate('📥 Baixando atualização do GitHub...');
+            } else if (output.includes('Download concluído')) {
+              await sendUpdate('✅ Download concluído!\n\n🧹 Limpando arquivos antigos...');
+            } else if (output.includes('Limpeza concluída')) {
+              await sendUpdate('✅ Limpeza concluída!\n\n🚀 Aplicando atualização...');
+            } else if (output.includes('Atualização aplicada')) {
+              await sendUpdate('✅ Atualização aplicada!\n\n📂 Restaurando dados preservados...');
+            } else if (output.includes('Backup restaurado')) {
+              await sendUpdate('✅ Dados restaurados!\n\n📦 Instalando dependências...');
+            } else if (output.includes('Instalando dependências')) {
+              await sendUpdate('📦 Instalando/verificando dependências...\n⏳ Isso pode levar alguns minutos...');
+            } else if (output.includes('Dependências instaladas')) {
+              await sendUpdate('✅ Dependências instaladas com sucesso!');
+            }
+          });
+
+          // Captura stderr
+          updateProcess.stderr.on('data', (data) => {
+            const error = data.toString();
+            console.error('UPDATE ERROR:', error);
+          });
+
+          // Quando o processo terminar
+          updateProcess.on('close', async (code) => {
+            if (code === 0) {
+              await reply(`✅ *ATUALIZAÇÃO CONCLUÍDA COM SUCESSO!*
+
+🎉 O bot foi atualizado para a versão mais recente!
+
+🔄 Reiniciando automaticamente em 3 segundos...`);
+
+              // Aguarda 3 segundos antes de reiniciar
+              setTimeout(async () => {
+                await reply('🔄 Reiniciando agora...');
+                
+                // Aguarda mais 1 segundo para garantir que a mensagem foi enviada
+                setTimeout(() => {
+                  console.log('[UPDATE] Reiniciando após atualização...');
+                  process.exit(0); // Exit code 0 indica sucesso, o gerenciador de processos deve reiniciar
+                }, 1000);
+              }, 3000);
+            } else {
+              await reply(`❌ *ERRO NA ATUALIZAÇÃO!*
+
+⚠️ O processo de atualização falhou com código: ${code}
+
+🔧 *O que fazer:*
+┃
+┃ 1️⃣ Verifique sua conexão com a internet
+┃ 2️⃣ Certifique-se de ter Git instalado
+┃ 3️⃣ Tente novamente em alguns minutos
+┃ 4️⃣ Se persistir, atualize manualmente:
+┃    cd dados/src/.scripts
+┃    node update.js
+┃
+┗━━━━━━━━━━━━━━━━━━━━━
+
+📂 Backup foi preservado para segurança.`);
+
+              // Retoma o processamento de mensagens
+              if (messageQueueModule.messageQueue && typeof messageQueueModule.messageQueue.resume === 'function') {
+                messageQueueModule.messageQueue.resume();
+              }
+            }
+          });
+
+          // Timeout de segurança (15 minutos)
+          setTimeout(async () => {
+            if (!updateProcess.killed) {
+              updateProcess.kill();
+              await reply("⏱️ Timeout na atualização (15min).\n\n❌ Processo cancelado por segurança.\n\n🔄 Retomando processamento de mensagens...");
+              
+              if (messageQueueModule.messageQueue && typeof messageQueueModule.messageQueue.resume === 'function') {
+                messageQueueModule.messageQueue.resume();
+              }
+            }
+          }, 15 * 60 * 1000); // 15 minutos
+
+        } catch (e) {
+          console.error("Erro no comando atualizar:", e);
+          await reply(`❌ Erro ao executar atualização: ${e.message}\n\n🔄 Retomando processamento de mensagens...`);
+          
+          // Garante retomar o processamento em caso de erro
+          try {
+            const messageQueueModule = require('./connect');
+            if (messageQueueModule.messageQueue && typeof messageQueueModule.messageQueue.resume === 'function') {
+              messageQueueModule.messageQueue.resume();
+            }
+          } catch (resumeError) {
+            console.error('Erro ao retomar processamento:', resumeError);
+          }
+        }
+        break;
+
+      case 'reiniciar':
+      case 'restart':
+      case 'reboot':
+        if (!isOwner) return reply("🚫 Apenas o Dono principal pode reiniciar o bot!");
+        
+        try {
+          await reply(`🔄 *REINICIANDO O BOT...*
+
+⏸️ Pausando processamento de mensagens...
+🔄 O bot voltará online em alguns segundos!`);
+
+          // Pausa o processamento de mensagens
+          const messageQueueModule = require('./connect');
+          if (messageQueueModule.messageQueue && typeof messageQueueModule.messageQueue.pause === 'function') {
+            messageQueueModule.messageQueue.pause();
+          }
+
+          // Aguarda 2 segundos para garantir que a mensagem foi enviada
+          setTimeout(() => {
+            console.log('[RESTART] Reiniciando bot via comando...');
+            process.exit(0); // Exit code 0 indica reinício intencional
+          }, 2000);
+
+        } catch (e) {
+          console.error("Erro no comando reiniciar:", e);
+          await reply(`❌ Erro ao tentar reiniciar: ${e.message}`);
+        }
+        break;
+
       case 'listaralugueis':
       case 'aluguelist':
       case 'listaluguel':
@@ -13686,6 +13908,96 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
         });
         break;
       }
+
+      case 'trair':
+      case 'traicao': {
+        if (!isGroup) {
+          await reply('⚠️ Esse comando só pode ser usado em grupos.');
+          break;
+        }
+        if (!isModoBn) {
+          await reply('❌ O modo brincadeira não está ativo nesse grupo.');
+          break;
+        }
+
+        if (!menc_os2) {
+          await reply('❌ Você precisa marcar alguém para trair! Exemplo: ' + prefix + 'trair @pessoa');
+          break;
+        }
+
+        if (menc_os2 === sender) {
+          await reply('❌ Você não pode trair a si mesmo... isso não faz sentido! 🤨');
+          break;
+        }
+
+        const activePair = relationshipManager.getActivePairForUser(sender);
+        if (!activePair) {
+          await reply('❌ Você precisa estar em um relacionamento para poder trair! 💔');
+          break;
+        }
+
+        const betrayalResult = relationshipManager.betrayRelationship(sender, menc_os2, from);
+        if (!betrayalResult.success) {
+          await reply(betrayalResult.message);
+          break;
+        }
+
+        await nazu.sendMessage(from, {
+          text: betrayalResult.message,
+          mentions: betrayalResult.mentions || [sender, menc_os2, activePair.partnerId]
+        });
+        break;
+      }
+
+      case 'historicotraicao':
+      case 'historicotraicoes':
+      case 'historicodetraicao': {
+        if (!isGroup) {
+          await reply('⚠️ Esse comando só pode ser usado em grupos.');
+          break;
+        }
+        if (!isModoBn) {
+          await reply('❌ O modo brincadeira não está ativo nesse grupo.');
+          break;
+        }
+
+        const mentionedList = Array.isArray(menc_jid2) ? menc_jid2 : [];
+        let userOne = null;
+        let userTwo = null;
+
+        if (mentionedList.length >= 2) {
+          [userOne, userTwo] = mentionedList;
+        } else if (menc_os2) {
+          userOne = sender;
+          userTwo = menc_os2;
+        } else {
+          const activePair = relationshipManager.getActivePairForUser(sender);
+          if (!activePair) {
+            await reply('❌ Você não marcou ninguém e não possui relacionamento ativo para consultar o histórico.');
+            break;
+          }
+          userOne = sender;
+          userTwo = activePair.partnerId;
+        }
+
+        if (userOne === userTwo) {
+          await reply('❌ Selecione pessoas diferentes para consultar o histórico.');
+          break;
+        }
+
+        const historyResult = relationshipManager.getBetrayalHistory(userOne, userTwo);
+        if (!historyResult.success) {
+          await reply(historyResult.message);
+          break;
+        }
+
+        await nazu.sendMessage(from, {
+          text: historyResult.message,
+          mentions: historyResult.mentions || [userOne, userTwo]
+        });
+        break;
+      }
+
       case 'casal':
         try {
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");

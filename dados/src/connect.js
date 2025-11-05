@@ -77,6 +77,18 @@ class MessageQueue {
         this.isProcessing = false;
     }
 
+    pause() {
+        this.isProcessing = false;
+        console.log('[MessageQueue] Processamento pausado');
+    }
+
+    resume() {
+        if (!this.isProcessing) {
+            console.log('[MessageQueue] Retomando processamento');
+            this.startProcessing();
+        }
+    }
+
     async processQueue() {
         // Processa mensagens em lotes paralelos
         while (this.isProcessing && this.queue.length > 0) {
@@ -1140,6 +1152,6 @@ process.on('uncaughtException', async (error) => {
     }
 });
 
-module.exports = { rentalExpirationManager };
+module.exports = { rentalExpirationManager, messageQueue };
 
 startNazu();

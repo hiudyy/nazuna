@@ -653,6 +653,188 @@ class RelationshipManager {
       }
     }
   }
+
+  // Sistema de Traição
+  betrayRelationship(userId, targetId, partnerId, groupId) {
+    const userKey = this._getPairKey(userId, partnerId);
+    if (!userKey) {
+      return {
+        success: false,
+        message: '❌ Não foi possível identificar o relacionamento.'
+      };
+    }
+
+    const data = this._loadData();
+    const currentPair = data.pairs[userKey];
+    
+    if (!currentPair || !currentPair.status) {
+      return {
+        success: false,
+        message: '❌ Você não está em um relacionamento ativo!'
+      };
+    }
+
+    // Verifica se está tentando trair com o próprio parceiro
+    if (this._normalizeId(targetId) === this._normalizeId(partnerId)) {
+      return {
+        success: false,
+        message: '❌ Você não pode trair seu parceiro com ele mesmo!'
+      };
+    }
+
+    // Verifica se o alvo também está em um relacionamento
+    const targetKey = this._getPairKey(targetId, partnerId);
+    const targetWithUser = this._getPairKey(userId, targetId);
+    
+    let targetInRelationship = false;
+    let targetPartner = null;
+    
+    // Procura se o alvo está em algum relacionamento
+    for (const [key, pair] of Object.entries(data.pairs)) {
+      if (!pair.status) continue;
+      const pairUsers = pair.users || [];
+      const targetNorm = this._normalizeId(targetId);
+      
+      if (pairUsers.some(u => this._normalizeId(u) === targetNorm)) {
+        targetInRelationship = true;
+        targetPartner = pairUsers.find(u => this._normalizeId(u) !== targetNorm);
+        break;
+      }
+    }
+
+    const now = new Date().toISOString();
+    const config = TYPE_CONFIG[currentPair.status];
+
+    // Registra a traição no histórico
+    if (!Array.isArray(currentPair.history)) {
+      currentPair.history = [];
+    }
+
+    currentPair.history.push({
+      type: 'traicao',
+      traitor: userId,
+      victim: partnerId,
+      accomplice: targetId,
+      date: now,
+      groupId: groupId,
+      previousStatus: currentPair.status
+    });
+
+    // Incrementa contador de traições
+    if (!currentPair.betrayals) {
+      currentPair.betrayals = { [userId]: 0, [partnerId]: 0 };
+    }
+    currentPair.betrayals[userId] = (currentPair.betrayals[userId] || 0) + 1;
+
+    // Marca como relacionamento traído
+    currentPair.lastBetrayal = {
+      date: now,
+      traitor: userId,
+      victim: partnerId,
+      accomplice: targetId
+    };
+
+    this._saveData(data);
+
+    const traitorName = getUserName(userId);
+    const victimName = getUserName(partnerId);
+    const accompliceName = getUserName(targetId);
+
+    const lines = [
+      '😈 *TRAIÇÃO DETECTADA!*',
+      '',
+      `💔 @${traitorName} traiu @${victimName}!`,
+      `👤 Cúmplice: @${accompliceName}`,
+      ''
+    ];
+
+    if (targetInRelationship && targetPartner) {
+      lines.push(`⚠️ @${accompliceName} também está em um relacionamento!`);
+      lines.push(`💔 @${getUserName(targetPartner)} também foi traído(a)!`);
+      lines.push('');
+    }
+
+    lines.push(`${config.emoji} Status atual: ${config.label}`);
+    lines.push(`⚠️ Traições registradas: ${currentPair.betrayals[userId]}`);
+    lines.push('');
+    lines.push('💡 O relacionamento continua, mas a confiança foi abalada...');
+    lines.push(`Use /terminar para encerrar o relacionamento.`);
+
+    const mentions = [userId, partnerId, targetId];
+    if (targetPartner) mentions.push(targetPartner);
+
+    return {
+      success: true,
+      message: lines.join('\n'),
+      mentions: Array.from(new Set(mentions.filter(Boolean))),
+      betrayalCount: currentPair.betrayals[userId]
+    };
+  }
+
+  getBetrayalHistory(userA, userB) {
+    const key = this._getPairKey(userA, userB);
+    if (!key) {
+      return {
+        success: false,
+        message: 'Não foi possível identificar essa dupla.'
+      };
+    }
+
+    const data = this._loadData();
+    const pair = data.pairs[key];
+    
+    if (!pair || !pair.status) {
+      return {
+        success: false,
+        message: 'Nenhum relacionamento ativo encontrado entre essas pessoas.'
+      };
+    }
+
+    const betrayals = (pair.history || []).filter(h => h.type === 'traicao');
+    
+    if (betrayals.length === 0) {
+      return {
+        success: true,
+        message: '✨ Este relacionamento não possui histórico de traições!',
+        mentions: [userA, userB],
+        betrayalCount: 0
+      };
+    }
+
+    const partnerA = getUserName(userA);
+    const partnerB = getUserName(userB);
+    
+    const lines = [
+      '📜 *HISTÓRICO DE TRAIÇÕES*',
+      '',
+      `👥 Casal: @${partnerA} & @${partnerB}`,
+      `💔 Total de traições: ${betrayals.length}`,
+      ''
+    ];
+
+    betrayals.slice(-5).forEach((betrayal, index) => {
+      const traitorName = getUserName(betrayal.traitor);
+      const victimName = getUserName(betrayal.victim);
+      const accompliceName = getUserName(betrayal.accomplice);
+      const date = this._formatDate(betrayal.date);
+      
+      lines.push(`${index + 1}. 😈 @${traitorName} traiu @${victimName}`);
+      lines.push(`   👤 Com: @${accompliceName}`);
+      lines.push(`   📅 Data: ${date || 'N/A'}`);
+      lines.push('');
+    });
+
+    if (betrayals.length > 5) {
+      lines.push(`... e mais ${betrayals.length - 5} traições anteriores.`);
+    }
+
+    return {
+      success: true,
+      message: lines.join('\n'),
+      mentions: Array.from(new Set([userA, userB, ...betrayals.map(b => b.traitor), ...betrayals.map(b => b.accomplice)].filter(Boolean))),
+      betrayalCount: betrayals.length
+    };
+  }
 }
 
 module.exports = new RelationshipManager();
