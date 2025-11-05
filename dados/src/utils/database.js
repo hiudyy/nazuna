@@ -1227,8 +1227,20 @@ function checkLevelUp(userId, userData, levelingData, nazu, from) {
     userData.xp -= nextLevelXp;
     userData.patent = getPatent(userData.level, levelingData.patents);
     fs.writeFileSync(LEVELING_FILE, JSON.stringify(levelingData, null, 2));
+    
+    let levelUpText = `╭━━━⊱ ⭐ *LEVEL UP!* ⭐ ⊱━━━╮\n`;
+    levelUpText += `│\n`;
+    levelUpText += `│ 👤 @${getUserName(userId)}\n`;
+    levelUpText += `│\n`;
+    levelUpText += `│ 📊 *Nível Atual:* ${userData.level}\n`;
+    levelUpText += `│ ✨ *XP:* ${userData.xp}/${nextLevelXp}\n`;
+    levelUpText += `│ 🎖️ *Patente:* ${userData.patent}\n`;
+    levelUpText += `│\n`;
+    levelUpText += `╰━━━━━━━━━━━━━━━━━━━━━━╯\n`;
+    levelUpText += `\n🎊 *Parabéns pelo progresso!* 🎊`;
+    
     nazu.sendMessage(from, {
-      text: `🎉 @${getUserName(userId)} subiu para o nível ${userData.level}!\n🔹 XP atual: ${userData.xp}\n🎖️ Nova patente: ${userData.patent}`,
+      text: levelUpText,
       mentions: [userId]
     });
   }

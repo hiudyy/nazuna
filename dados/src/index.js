@@ -3786,8 +3786,14 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           if (!isFinite(amount) || amount <= 0) return reply('Valor inválido.');
           if (amount > me.wallet) return reply('Saldo insuficiente.');
           const win = Math.random() < 0.47;
-          if (win) { me.wallet += amount; saveEconomy(econ); return reply(`🍀 Você ganhou ${fmt(amount)}!`); }
-          me.wallet -= amount; saveEconomy(econ); return reply(`💥 Você perdeu ${fmt(amount)}.`);
+          if (win) { 
+            me.wallet += amount; 
+            saveEconomy(econ); 
+            return reply(`╭━━━⊱ 🍀 *VITÓRIA!* 🍀 ⊱━━━╮\n│\n│ 💰 Ganhou: *+${fmt(amount)}*\n│\n╰━━━━━━━━━━━━━━━━━━━━━╯`); 
+          }
+          me.wallet -= amount; 
+          saveEconomy(econ); 
+          return reply(`╭━━━⊱ 💥 *PERDEU!* 💥 ⊱━━━╮\n│\n│ 💸 Perdeu: *-${fmt(amount)}*\n│\n╰━━━━━━━━━━━━━━━━━━━━━╯`);
         }
         if (sub === 'slots') {
           const amount = parseAmount(args[0]||'100', me.wallet);
@@ -3801,7 +3807,28 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           const delta = Math.floor(amount * (mult-1));
           me.wallet += delta; // delta pode ser negativo
           saveEconomy(econ);
-          return reply(`🎰 ${r.join(' | ')}\n${mult>1?`Você ganhou ${fmt(Math.floor(amount*(mult-1)))}!`:`Você perdeu ${fmt(amount)}`}`);
+          
+          let slotText = `╭━━━⊱ 🎰 *SLOTS* 🎰 ⊱━━━╮\n`;
+          slotText += `│\n`;
+          slotText += `│ ${r.join(' | ')}\n`;
+          slotText += `│\n`;
+          slotText += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          
+          if (mult > 1) {
+            slotText += `╭━━━⊱ 🎉 *GANHOU!* 🎉 ⊱━━━╮\n`;
+            slotText += `│\n`;
+            slotText += `│ 💰 Ganhou: *+${fmt(Math.floor(amount*(mult-1)))}*\n`;
+            slotText += `│\n`;
+            slotText += `╰━━━━━━━━━━━━━━━━━━━━╯`;
+          } else {
+            slotText += `╭━━━⊱ 💸 *PERDEU!* 💸 ⊱━━━╮\n`;
+            slotText += `│\n`;
+            slotText += `│ 💔 Perdeu: *-${fmt(amount)}*\n`;
+            slotText += `│\n`;
+            slotText += `╰━━━━━━━━━━━━━━━━━━━━╯`;
+          }
+          
+          return reply(slotText);
         }
 
         if (sub === 'vagas') {
@@ -3823,7 +3850,17 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           const bonus = Math.floor(base * ((fishBonus||0) + skillB)); const total = base + bonus;
           me.wallet += total; me.cooldowns.fish = Date.now() + 4*60*1000; // cooldown maior
           addSkillXP(me,'fishing',1); updateChallenge(me,'fish',1,true); updatePeriodChallenge(me,'fish',1,true); saveEconomy(econ);
-          return reply(`🎣 Você pescou e ganhou ${fmt(total)} ${bonus>0?`(bônus ${fmt(bonus)})`:''}!`);
+          
+          let fishText = `╭━━━⊱ 🎣 *PESCOU!* 🎣 ⊱━━━╮\n`;
+          fishText += `│\n`;
+          fishText += `│ 💰 Ganhou: *${fmt(total)}*\n`;
+          if (bonus > 0) {
+            fishText += `│ ✨ Bônus: *+${fmt(bonus)}*\n`;
+          }
+          fishText += `│\n`;
+          fishText += `╰━━━━━━━━━━━━━━━━━━━━━╯`;
+          
+          return reply(fishText);
         }
 
         if (sub === 'explorar' || sub === 'explore') {
@@ -3843,7 +3880,17 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           const bonus = Math.floor(base * ((huntBonus||0) + skillB)); const total = base + bonus;
           me.wallet += total; me.cooldowns.hunt = Date.now() + 6*60*1000;
           addSkillXP(me,'hunting',1); updateChallenge(me,'hunt',1,true); updatePeriodChallenge(me,'hunt',1,true); saveEconomy(econ);
-          return reply(`🏹 Você caçou e ganhou ${fmt(total)} ${bonus>0?`(bônus ${fmt(bonus)})`:''}!`);
+          
+          let huntText = `╭━━━⊱ 🏹 *CAÇOU!* 🏹 ⊱━━━╮\n`;
+          huntText += `│\n`;
+          huntText += `│ 💰 Ganhou: *${fmt(total)}*\n`;
+          if (bonus > 0) {
+            huntText += `│ ✨ Bônus: *+${fmt(bonus)}*\n`;
+          }
+          huntText += `│\n`;
+          huntText += `╰━━━━━━━━━━━━━━━━━━━━━╯`;
+          
+          return reply(huntText);
         }
 
         if (sub === 'forjar' || sub === 'forge') {
@@ -4830,11 +4877,18 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           pet.hp = pet.maxHp;
           pet.exp = 0;
           
-          text += `🎉 *LEVEL UP!* 🎉\n\n`;
-          text += `📊 Nível: ${pet.level - 1} → *${pet.level}*\n`;
-          text += `⚔️ ATK: ${pet.attack - atkGain} → *${pet.attack}* (+${atkGain})\n`;
-          text += `🛡️ DEF: ${pet.defense - defGain} → *${pet.defense}* (+${defGain})\n`;
-          text += `❤️ HP: ${pet.maxHp - hpGain} → *${pet.maxHp}* (+${hpGain})`;
+          text += `╭━━━⊱ � *PET EVOLUIU!* � ⊱━━━╮\n`;
+          text += `│\n`;
+          text += `│ 🐾 *${pet.name}* ${pet.emoji}\n`;
+          text += `│\n`;
+          text += `│ 📊 *Nível:* ${pet.level - 1} ➜ *${pet.level}*\n`;
+          text += `│\n`;
+          text += `│ ⚔️ *ATK:* ${pet.attack - atkGain} ➜ *${pet.attack}* *(+${atkGain})*\n`;
+          text += `│ 🛡️ *DEF:* ${pet.defense - defGain} ➜ *${pet.defense}* *(+${defGain})*\n`;
+          text += `│ ❤️ *HP:* ${pet.maxHp - hpGain} ➜ *${pet.maxHp}* *(+${hpGain})*\n`;
+          text += `│\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━━━━╯\n`;
+          text += `\n✨ *Seu pet ficou mais forte!* ✨`;
           
           saveEconomy(econ);
           return reply(text);
@@ -5107,20 +5161,33 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           // Atualiza missão de dungeon
           updateQuestProgress(me, 'dungeon', 1);
           
-          let text = `╭━━━⊱ ⚔️ *VITÓRIA!* ⊱━━━╮\n`;
-          text += `│ ${dungeon.emoji} ${dungeon.name}\n`;
-          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
-          text += `🎉 Você derrotou todos os monstros!\n\n`;
-          text += `💰 Moedas: +${reward.toLocaleString()}\n`;
-          text += `✨ EXP: +${dungeon.exp}`;
+          let text = `╭━━━⊱ ⚔️ *VITÓRIA!* ⚔️ ⊱━━━╮\n`;
+          text += `│\n`;
+          text += `│ ${dungeon.emoji} *${dungeon.name}*\n`;
+          text += `│\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `🎉 *Você derrotou todos os monstros!*\n\n`;
+          text += `┌─⊱ 💰 *RECOMPENSAS* ⊰─┐\n`;
+          text += `│\n`;
+          text += `│ 💵 Moedas: *+${reward.toLocaleString()}*\n`;
+          text += `│ ✨ EXP: *+${dungeon.exp}*\n`;
           
           if (leveledUp) {
-            text += `\n\n🎊 *LEVEL UP!* 🎊\n`;
-            text += `📊 Você subiu ${levelsGained} ${levelsGained > 1 ? 'níveis' : 'nível'}!\n`;
-            text += `🔹 Nível atual: *${me.level}*`;
+            text += `│\n`;
+            text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+            text += `╭━━━⊱ � *LEVEL UP!* � ⊱━━━╮\n`;
+            text += `│\n`;
+            text += `│ 📊 Você subiu *${levelsGained}*`;
+            text += levelsGained > 1 ? ` *níveis!*\n` : ` *nível!*\n`;
+            text += `│ � Nível atual: *${me.level}*\n`;
+            text += `│\n`;
+            text += `╰━━━━━━━━━━━━━━━━━━━━━╯`;
+          } else {
+            text += `│\n`;
+            text += `└━━━━━━━━━━━━━━━━━━━━┘`;
           }
           
-          text += `\n\n🏆 Continue assim, aventureiro!`;
+          text += `\n\n🏆 *Continue assim, aventureiro!*`;
           
           saveEconomy(econ);
           return reply(text);
@@ -5128,12 +5195,18 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           const loss = Math.floor(me.wallet * 0.1);
           me.wallet = Math.max(0, me.wallet - loss);
           
-          let text = `╭━━━⊱ 💀 *DERROTA!* ⊱━━━╮\n`;
-          text += `│ ${dungeon.emoji} ${dungeon.name}\n`;
-          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
-          text += `😵 Você foi derrotado pelos monstros...\n\n`;
-          text += `💸 Perdeu: -${loss.toLocaleString()}\n\n`;
-          text += `💪 Fortaleça-se e tente novamente!`;
+          let text = `╭━━━⊱ 💀 *DERROTA!* 💀 ⊱━━━╮\n`;
+          text += `│\n`;
+          text += `│ ${dungeon.emoji} *${dungeon.name}*\n`;
+          text += `│\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `😵 *Você foi derrotado pelos monstros...*\n\n`;
+          text += `┌─⊱ 💸 *PERDAS* ⊰─┐\n`;
+          text += `│\n`;
+          text += `│ 💵 Moedas: *-${loss.toLocaleString()}*\n`;
+          text += `│\n`;
+          text += `└━━━━━━━━━━━━━━━━━━━━┘\n\n`;
+          text += `💪 *Fortaleça-se e tente novamente!*`;
           
           saveEconomy(econ);
           return reply(text);
@@ -5218,15 +5291,25 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           updateQuestProgress(me, 'duel', 1);
           
           text += battle;
-          text += `\n🏆 *VITÓRIA!*\n\n`;
-          text += `💰 Recompensa: +${reward.toLocaleString()}\n`;
-          text += `✨ EXP: +150`;
+          text += `\n╭━━━⊱ 🏆 *VITÓRIA!* 🏆 ⊱━━━╮\n`;
+          text += `│\n`;
+          text += `│ 💰 Recompensa: *+${reward.toLocaleString()}*\n`;
+          text += `│ ✨ EXP: *+150*\n`;
           
           if (leveledUp) {
-            text += `\n\n🎊 *LEVEL UP!*\n📊 Nível: *${me.level}*`;
+            text += `│\n`;
+            text += `╰━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+            text += `╭━━━⊱ � *LEVEL UP!* 🌟 ⊱━━━╮\n`;
+            text += `│\n`;
+            text += `│ 📊 Nível atual: *${me.level}*\n`;
+            text += `│ ❤️ HP restante: *${Math.max(0, myHp)}*\n`;
+            text += `│\n`;
+            text += `╰━━━━━━━━━━━━━━━━━━━━━╯`;
+          } else {
+            text += `│ ❤️ HP restante: *${Math.max(0, myHp)}*\n`;
+            text += `│\n`;
+            text += `╰━━━━━━━━━━━━━━━━━━━━━╯`;
           }
-          
-          text += `\n❤️ HP restante: ${Math.max(0, myHp)}`;
           
           saveEconomy(econ);
           return reply(text, { mentions: [target] });
@@ -5240,9 +5323,12 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           updateQuestProgress(me, 'duel', 1);
           
           text += battle;
-          text += `\n💀 *DERROTA!*\n\n`;
-          text += `💸 Perdeu: -${loss.toLocaleString()}\n\n`;
-          text += `💪 Treine mais e desafie novamente!`;
+          text += `\n╭━━━⊱ 💀 *DERROTA!* 💀 ⊱━━━╮\n`;
+          text += `│\n`;
+          text += `│ 💸 Perdeu: *-${loss.toLocaleString()}*\n`;
+          text += `│\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `💪 *Treine mais e desafie novamente!*`;
           
           saveEconomy(econ);
           return reply(text, { mentions: [target] });
@@ -5309,13 +5395,19 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           me.wallet += reward;
           me.exp = (me.exp || 0) + (arena.enemies * 50);
           
-          let text = `╭━━━⊱ 🏆 *VITÓRIA NA ARENA!* ⊱━━━╮\n`;
-          text += `│ Arena: ${arena.name}\n`;
-          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
-          text += `⚔️ Derrotou: ${wins}/${arena.enemies} inimigos\n\n`;
-          text += `💰 Prêmio: +${reward.toLocaleString()}\n`;
-          text += `✨ EXP: +${arena.enemies * 50}\n\n`;
-          text += `🎉 A multidão te aclama!`;
+          let text = `╭━━━⊱ 🏆 *VITÓRIA NA ARENA!* 🏆 ⊱━━━╮\n`;
+          text += `│\n`;
+          text += `│ 🏟️ Arena: *${arena.name}*\n`;
+          text += `│\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `⚔️ *Derrotou:* ${wins}/${arena.enemies} inimigos\n\n`;
+          text += `┌─⊱ 🎁 *RECOMPENSAS* ⊰─┐\n`;
+          text += `│\n`;
+          text += `│ 💰 Prêmio: *+${reward.toLocaleString()}*\n`;
+          text += `│ ✨ EXP: *+${arena.enemies * 50}*\n`;
+          text += `│\n`;
+          text += `└━━━━━━━━━━━━━━━━━━━━━┘\n\n`;
+          text += `🎉 *A multidão te aclama!*`;
           
           saveEconomy(econ);
           return reply(text);
@@ -5323,12 +5415,18 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           const loss = Math.floor(me.wallet * 0.08);
           me.wallet = Math.max(0, me.wallet - loss);
           
-          let text = `╭━━━⊱ 💀 *DERROTA NA ARENA* ⊱━━━╮\n`;
-          text += `│ Arena: ${arena.name}\n`;
-          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
-          text += `⚔️ Derrotou: ${wins}/${arena.enemies} inimigos\n\n`;
-          text += `💸 Perdeu: -${loss.toLocaleString()}\n\n`;
-          text += `💪 Continue treinando!`;
+          let text = `╭━━━⊱ 💀 *DERROTA NA ARENA* 💀 ⊱━━━╮\n`;
+          text += `│\n`;
+          text += `│ 🏟️ Arena: *${arena.name}*\n`;
+          text += `│\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `⚔️ *Derrotou:* ${wins}/${arena.enemies} inimigos\n\n`;
+          text += `┌─⊱ 💸 *PERDAS* ⊰─┐\n`;
+          text += `│\n`;
+          text += `│ 💵 Moedas: *-${loss.toLocaleString()}*\n`;
+          text += `│\n`;
+          text += `└━━━━━━━━━━━━━━━━━━━━━┘\n\n`;
+          text += `💪 *Continue treinando!*`;
           
           saveEconomy(econ);
           return reply(text);
@@ -6345,24 +6443,36 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         const playerRoll = Math.floor(Math.random() * 6) + 1;
         const botRoll = Math.floor(Math.random() * 6) + 1;
         
-        let text = `╭━━━⊱ 🎲 *DADOS* ⊱━━━╮\n`;
-        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
-        text += `🎲 Você: ${playerRoll}\n`;
-        text += `🎲 Bot: ${botRoll}\n\n`;
+        let text = `╭━━━⊱ 🎲 *JOGO DE DADOS* 🎲 ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `🎲 *Você:* ${playerRoll}\n`;
+        text += `🎲 *Bot:* ${botRoll}\n\n`;
+        text += `╭━━━━━━━━━━━━━━━━━━━━━╮\n`;
         
         if (playerRoll > botRoll) {
           const win = bet * 2;
           me.wallet += win;
-          text += `🎉 *VOCÊ GANHOU!*\n\n`;
-          text += `💰 +${win.toLocaleString()}`;
+          text += `│\n`;
+          text += `│ 🎉 *VOCÊ GANHOU!*\n`;
+          text += `│\n`;
+          text += `│ 💰 Ganhou: *+${win.toLocaleString()}*\n`;
+          text += `│\n`;
         } else if (playerRoll < botRoll) {
           me.wallet -= bet;
-          text += `😢 *VOCÊ PERDEU!*\n\n`;
-          text += `💸 -${bet.toLocaleString()}`;
+          text += `│\n`;
+          text += `│ 😢 *VOCÊ PERDEU!*\n`;
+          text += `│\n`;
+          text += `│ 💸 Perdeu: *-${bet.toLocaleString()}*\n`;
+          text += `│\n`;
         } else {
-          text += `🤝 *EMPATE!*\n\n`;
-          text += `💰 Aposta devolvida`;
+          text += `│\n`;
+          text += `│ 🤝 *EMPATE!*\n`;
+          text += `│\n`;
+          text += `│ 💰 *Aposta devolvida*\n`;
+          text += `│\n`;
         }
+        
+        text += `╰━━━━━━━━━━━━━━━━━━━━━╯`;
         
         saveEconomy(econ);
         return reply(text);
