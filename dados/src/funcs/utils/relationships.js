@@ -37,6 +37,7 @@ const TYPE_CONFIG = {
 class RelationshipManager {
   constructor() {
     this.pendingRequests = new Map();
+    this.pendingBetrayals = new Map(); // Nova estrutura para pedidos de traição
     const timer = setInterval(() => this._cleanup(), 60 * 1000);
     if (typeof timer.unref === 'function') {
       timer.unref();
@@ -677,28 +678,87 @@ class RelationshipManager {
         this.pendingRequests.delete(groupId);
       }
     }
+    // Limpa pedidos de traição expirados
+    for (const [key, betrayal] of this.pendingBetrayals.entries()) {
+      if (betrayal.expiresAt && betrayal.expiresAt <= now) {
+        this.pendingBetrayals.delete(key);
+      }
+    }
   }
 
-  // Sistema de Traição
-  betrayRelationship(userId, targetId, groupId) {
-    // ===== CORREÇÃO: Busca o relacionamento ativo do usuário =====
+  // Verifica se há pedido de traição pendente
+  hasPendingBetrayal(groupId) {
+    for (const [key, betrayal] of this.pendingBetrayals.entries()) {
+      if (betrayal.groupId === groupId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Processa resposta de traição
+  processBetrayalResponse(groupId, responderId, rawResponse, prefix = '/') {
+    let betrayalToProcess = null;
+    let betrayalKey = null;
+
+    // Encontra o pedido de traição para este grupo e respondente
+    for (const [key, betrayal] of this.pendingBetrayals.entries()) {
+      if (betrayal.groupId === groupId && this._normalizeId(betrayal.targetId) === this._normalizeId(responderId)) {
+        betrayalToProcess = betrayal;
+        betrayalKey = key;
+        break;
+      }
+    }
+
+    if (!betrayalToProcess) return null;
+
+    const decision = this._normalizeDecision(rawResponse);
+    if (!decision) {
+      return {
+        success: false,
+        reason: 'invalid_response',
+        message: '❌ Resposta inválida. Use "sim" para aceitar ou "não" para recusar.'
+      };
+    }
+
+    this.pendingBetrayals.delete(betrayalKey);
+
+    const traitorName = getUserName(betrayalToProcess.userId);
+    const targetName = getUserName(betrayalToProcess.targetId);
+    const victimName = getUserName(betrayalToProcess.partnerId);
+
+    if (decision === 'reject') {
+      return {
+        success: true,
+        message: `😇 *CONSCIÊNCIA LIMPA*\n\n@${targetName} recusou a proposta de traição de @${traitorName}!\n\n💚 @${victimName} pode dormir tranquilo(a)!`,
+        mentions: [betrayalToProcess.targetId, betrayalToProcess.userId, betrayalToProcess.partnerId]
+      };
+    }
+
+    // Aceita a traição - executa o processo completo
+    return this._executeBetrayalAccepted(betrayalToProcess, prefix);
+  }
+
+  // Cria pedido de traição
+  createBetrayalRequest(userId, targetId, groupId, prefix = '/') {
     const userActivePair = this.getActivePairForUser(userId);
     
     if (!userActivePair) {
       return {
         success: false,
-        message: '❌ Você não está em um relacionamento ativo!'
+        message: '❌ Você não está em um relacionamento ativo!',
+        mentions: []
       };
     }
 
     const partnerId = userActivePair.partnerId;
-    const userKey = userActivePair.key;
 
     // Verifica se está tentando trair com o próprio parceiro
     if (this._normalizeId(targetId) === this._normalizeId(partnerId)) {
       return {
         success: false,
-        message: '❌ Você não pode trair seu parceiro com ele mesmo!'
+        message: '❌ Você não pode trair seu parceiro com ele mesmo!',
+        mentions: [partnerId]
       };
     }
 
@@ -706,9 +766,51 @@ class RelationshipManager {
     if (this._normalizeId(targetId) === this._normalizeId(userId)) {
       return {
         success: false,
-        message: '❌ Você não pode trair a si mesmo!'
+        message: '❌ Você não pode trair a si mesmo!',
+        mentions: []
       };
     }
+
+    // Verifica se já existe pedido de traição pendente neste grupo
+    for (const betrayal of this.pendingBetrayals.values()) {
+      if (betrayal.groupId === groupId) {
+        return {
+          success: false,
+          message: '⏳ Já existe um pedido de traição aguardando resposta neste grupo.',
+          mentions: []
+        };
+      }
+    }
+
+    const now = Date.now();
+    const betrayalKey = `${groupId}:${userId}:${targetId}:${now}`;
+    
+    const betrayalRequest = {
+      userId,
+      targetId,
+      partnerId,
+      groupId,
+      userKey: userActivePair.key,
+      createdAt: now,
+      expiresAt: now + REQUEST_TIMEOUT_MS
+    };
+
+    this.pendingBetrayals.set(betrayalKey, betrayalRequest);
+
+    const traitorName = getUserName(userId);
+    const targetName = getUserName(targetId);
+    const victimName = getUserName(partnerId);
+
+    return {
+      success: true,
+      message: `😈 *PROPOSTA DE TRAIÇÃO*\n\n@${traitorName} quer trair @${victimName} com você, @${targetName}!\n\n✅ Aceitar: "sim"\n❌ Recusar: "não"\n\n⏳ Expira em ${this._formatDuration(REQUEST_TIMEOUT_MS)}.`,
+      mentions: [userId, targetId, partnerId]
+    };
+  }
+
+  // Executa traição após aceitação
+  _executeBetrayalAccepted(betrayalRequest, prefix = '/') {
+    const { userId, targetId, partnerId, groupId, userKey } = betrayalRequest;
 
     const data = this._loadData();
     const currentPair = data.pairs[userKey];
@@ -716,7 +818,8 @@ class RelationshipManager {
     if (!currentPair || !currentPair.status) {
       return {
         success: false,
-        message: '❌ Não foi possível encontrar seu relacionamento ativo!'
+        message: '❌ Não foi possível encontrar seu relacionamento ativo!',
+        mentions: []
       };
     }
 
@@ -770,27 +873,27 @@ class RelationshipManager {
     const accompliceName = getUserName(targetId);
 
     const lines = [
-      '😈 *TRAIÇÃO DETECTADA!*',
+      '😈 *TRAIÇÃO CONFIRMADA!*',
       '',
       `💔 @${traitorName} traiu @${victimName}!`,
-      `👤 Cúmplice: @${accompliceName}`,
+      `👤 Cúmplice: @${accompliceName} aceitou participar!`,
       ''
     ];
+
+    const mentions = [userId, partnerId, targetId];
 
     if (targetInRelationship && targetPartner) {
       lines.push(`⚠️ @${accompliceName} também está em um relacionamento!`);
       lines.push(`💔 @${getUserName(targetPartner)} também foi traído(a)!`);
       lines.push('');
+      mentions.push(targetPartner);
     }
 
     lines.push(`${config.emoji} Status atual: ${config.label}`);
     lines.push(`⚠️ Traições registradas: ${currentPair.betrayals[userId]}`);
     lines.push('');
     lines.push('💡 O relacionamento continua, mas a confiança foi abalada...');
-    lines.push(`Use /terminar para encerrar o relacionamento.`);
-
-    const mentions = [userId, partnerId, targetId];
-    if (targetPartner) mentions.push(targetPartner);
+    lines.push(`Use ${prefix}terminar para encerrar o relacionamento.`);
 
     return {
       success: true,

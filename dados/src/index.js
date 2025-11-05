@@ -2276,6 +2276,22 @@ Código: *${roleCode}*`,
             }
           }
         }
+        
+        // Processa resposta de traição
+        if (relationshipManager.hasPendingBetrayal(from) && body) {
+          const betrayalResponse = relationshipManager.processBetrayalResponse(from, sender, body, groupPrefix);
+          if (betrayalResponse) {
+            if (betrayalResponse.success && betrayalResponse.message) {
+              await nazu.sendMessage(from, {
+                text: betrayalResponse.message,
+                mentions: betrayalResponse.mentions || []
+              });
+            } else if (betrayalResponse.reason === 'invalid_response' && betrayalResponse.message) {
+              await reply(betrayalResponse.message);
+            }
+          }
+        }
+        
         if (tictactoe.hasPendingInvitation(from) && budy2) {
           const normalizedResponse = budy2.toLowerCase().trim();
           const result = tictactoe.processInvitationResponse(from, sender, normalizedResponse);
@@ -14155,7 +14171,14 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
         }
         const requestResult = relationshipManager.createRequest('brincadeira', from, sender, menc_os2);
         if (!requestResult.success) {
-          await reply(requestResult.message);
+          if (requestResult.mentions && requestResult.mentions.length > 0) {
+            await nazu.sendMessage(from, {
+              text: requestResult.message,
+              mentions: requestResult.mentions
+            }, { quoted: info });
+          } else {
+            await reply(requestResult.message);
+          }
           break;
         }
         await nazu.sendMessage(from, {
@@ -14183,7 +14206,14 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
         }
         const requestResult = relationshipManager.createRequest('namoro', from, sender, menc_os2);
         if (!requestResult.success) {
-          await reply(requestResult.message);
+          if (requestResult.mentions && requestResult.mentions.length > 0) {
+            await nazu.sendMessage(from, {
+              text: requestResult.message,
+              mentions: requestResult.mentions
+            }, { quoted: info });
+          } else {
+            await reply(requestResult.message);
+          }
           break;
         }
         await nazu.sendMessage(from, {
@@ -14212,7 +14242,14 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
         }
         const requestResult = relationshipManager.createRequest('casamento', from, sender, menc_os2);
         if (!requestResult.success) {
-          await reply(requestResult.message);
+          if (requestResult.mentions && requestResult.mentions.length > 0) {
+            await nazu.sendMessage(from, {
+              text: requestResult.message,
+              mentions: requestResult.mentions
+            }, { quoted: info });
+          } else {
+            await reply(requestResult.message);
+          }
           break;
         }
         await nazu.sendMessage(from, {
@@ -14253,9 +14290,10 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
           break;
         }
 
-        await reply(summary.message, {
+        await nazu.sendMessage(from, {
+          text: summary.message,
           mentions: summary.mentions || [userOne, userTwo]
-        });
+        }, { quoted: info });
         break;
       }
       case 'terminar':
@@ -14327,7 +14365,7 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
         }
 
         if (!menc_os2) {
-          await reply('❌ Você precisa marcar alguém para trair! Exemplo: ' + prefix + 'trair @pessoa');
+          await reply('❌ Você precisa marcar alguém para trair! Exemplo: ' + groupPrefix + 'trair @pessoa');
           break;
         }
 
@@ -14336,10 +14374,10 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
           break;
         }
 
-        // A verificação se está em relacionamento é feita na função betrayRelationship
-        const betrayalResult = relationshipManager.betrayRelationship(sender, menc_os2, from);
+        // Cria pedido de traição (precisa ser aceito pelo alvo)
+        const betrayalResult = relationshipManager.createBetrayalRequest(sender, menc_os2, from, groupPrefix);
         if (!betrayalResult.success) {
-          await reply(betrayalResult.message);
+          await reply(betrayalResult.message, { mentions: betrayalResult.mentions || [] });
           break;
         }
 
