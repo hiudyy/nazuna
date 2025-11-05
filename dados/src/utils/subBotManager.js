@@ -13,6 +13,9 @@ const BASE_DATABASE_DIR = path.join(__dirname, '../../database');
 // Instâncias ativas de sub-bots
 const activeSubBots = new Map();
 
+// Controle de geração de código em progresso
+const generatingCode = new Set();
+
 // Logger silencioso
 const logger = pino({ level: 'silent' });
 
@@ -149,36 +152,28 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber, generatePairing
         if (generatePairingCode && !sock.authState.creds.registered) {
             const cleanPhone = phoneNumber;
             
-            // Aguarda a conexão estar pronta
-            await new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    reject(new Error('Timeout ao aguardar conexão'));
-                }, 30000);
-
-                const checkConnection = (update) => {
-                    const { connection } = update;
-                    if (connection === 'open' || connection === 'connecting') {
-                        clearTimeout(timeout);
-                        sock.ev.off('connection.update', checkConnection);
-                        resolve();
-                    }
-                };
-
-                sock.ev.on('connection.update', checkConnection);
-            });
-
-            // Agora solicita o código
-            pairingCode = await sock.requestPairingCode(cleanPhone);
+            console.log(`⏳ Aguardando socket inicializar...`);
             
-            console.log(`🔑 Código de pareamento gerado para ${phoneNumber}: ${pairingCode}`);
+            // Aguarda um pouco para o socket estar pronto
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            try {
+                // Agora solicita o código
+                pairingCode = await sock.requestPairingCode(cleanPhone);
+                
+                console.log(`🔑 Código de pareamento gerado para ${phoneNumber}: ${pairingCode}`);
 
-            // Salva informações do sub-bot
-            const subbots = loadSubBots();
-            if (subbots[botId]) {
-                subbots[botId].pairingCode = pairingCode;
-                subbots[botId].status = 'aguardando_pareamento';
-                subbots[botId].lastPairingRequest = new Date().toISOString();
-                saveSubBots(subbots);
+                // Salva informações do sub-bot
+                const subbots = loadSubBots();
+                if (subbots[botId]) {
+                    subbots[botId].pairingCode = pairingCode;
+                    subbots[botId].status = 'aguardando_pareamento';
+                    subbots[botId].lastPairingRequest = new Date().toISOString();
+                    saveSubBots(subbots);
+                }
+            } catch (pairingError) {
+                console.error(`❌ Erro ao solicitar código de pareamento:`, pairingError.message);
+                throw new Error(`Não foi possível gerar o código de pareamento. Tente novamente em alguns segundos.`);
             }
         }
 
@@ -583,59 +578,79 @@ async function generatePairingCodeForSubBot(userLid) {
 
         const [botId, bot] = botEntry;
 
-        // Desconecta se estiver ativo
-        const activeSock = activeSubBots.get(botId);
-        if (activeSock) {
-            try {
-                await activeSock.logout();
-                activeSubBots.delete(botId);
-            } catch (e) {
-                console.log('Desconectando sub-bot anterior:', e.message);
-            }
-        }
-
-        // Remove credenciais antigas
-        const authDir = path.join(SUBBOTS_DIR, botId, 'auth');
-        if (fs.existsSync(authDir)) {
-            fs.rmSync(authDir, { recursive: true, force: true });
-            fs.mkdirSync(authDir, { recursive: true });
-        }
-
-        console.log(`🔑 Gerando novo código de pareamento para sub-bot ${botId}...`);
-
-        // Inicializa com geração de código
-        const result = await initializeSubBot(botId, bot.phoneNumber, bot.ownerNumber, true);
-
-        if (!result.pairingCode) {
+        // Verifica se já está gerando código
+        if (generatingCode.has(botId)) {
             return {
                 success: false,
-                message: '❌ Erro ao gerar código de pareamento!'
+                message: '⏳ Já existe uma geração de código em andamento! Aguarde alguns segundos e tente novamente.'
             };
         }
 
-        // Monta mensagem com o código
-        let message = `🔑 *CÓDIGO DE PAREAMENTO GERADO!*\n\n`;
-        message += `📱 *Seu número:* ${bot.phoneNumber}\n`;
-        message += `🆔 *ID:* \`${botId}\`\n\n`;
-        message += `🔢 *CÓDIGO:*\n`;
-        message += `\`\`\`${result.pairingCode}\`\`\`\n\n`;
-        message += `📲 *Instruções:*\n`;
-        message += `1. Abra o WhatsApp no seu número\n`;
-        message += `2. Vá em *Configurações > Aparelhos conectados*\n`;
-        message += `3. Clique em *"Conectar um aparelho"*\n`;
-        message += `4. Clique em *"Conectar com número de telefone"*\n`;
-        message += `5. Digite o código acima\n\n`;
-        message += `⏱️ *Atenção:* O código expira em alguns minutos!\n`;
-        message += `🔄 Após parear, você será conectado automaticamente como sub-bot!`;
+        // Marca como gerando
+        generatingCode.add(botId);
 
-        return {
-            success: true,
-            message,
-            pairingCode: result.pairingCode,
-            botId
-        };
+        try {
+            // Desconecta se estiver ativo
+            const activeSock = activeSubBots.get(botId);
+            if (activeSock) {
+                try {
+                    await activeSock.logout();
+                    activeSubBots.delete(botId);
+                } catch (e) {
+                    console.log('Desconectando sub-bot anterior:', e.message);
+                }
+            }
+
+            // Remove credenciais antigas
+            const authDir = path.join(SUBBOTS_DIR, botId, 'auth');
+            if (fs.existsSync(authDir)) {
+                fs.rmSync(authDir, { recursive: true, force: true });
+                fs.mkdirSync(authDir, { recursive: true });
+            }
+
+            console.log(`🔑 Gerando novo código de pareamento para sub-bot ${botId}...`);
+
+            // Inicializa com geração de código
+            const result = await initializeSubBot(botId, bot.phoneNumber, bot.ownerNumber, true);
+
+            if (!result.pairingCode) {
+                return {
+                    success: false,
+                    message: '❌ Erro ao gerar código de pareamento!'
+                };
+            }
+
+            // Monta mensagem com o código
+            let message = `🔑 *CÓDIGO DE PAREAMENTO GERADO!*\n\n`;
+            message += `📱 *Seu número:* ${bot.phoneNumber}\n`;
+            message += `🆔 *ID:* \`${botId}\`\n\n`;
+            message += `🔢 *CÓDIGO:*\n`;
+            message += `\`\`\`${result.pairingCode}\`\`\`\n\n`;
+            message += `📲 *Instruções:*\n`;
+            message += `1. Abra o WhatsApp no seu número\n`;
+            message += `2. Vá em *Configurações > Aparelhos conectados*\n`;
+            message += `3. Clique em *"Conectar um aparelho"*\n`;
+            message += `4. Clique em *"Conectar com número de telefone"*\n`;
+            message += `5. Digite o código acima\n\n`;
+            message += `⏱️ *Atenção:* O código expira em alguns minutos!\n`;
+            message += `🔄 Após parear, você será conectado automaticamente como sub-bot!`;
+
+            return {
+                success: true,
+                message,
+                pairingCode: result.pairingCode,
+                botId
+            };
+        } finally {
+            // Remove da lista de gerando após 10 segundos
+            setTimeout(() => {
+                generatingCode.delete(botId);
+            }, 10000);
+        }
     } catch (error) {
         console.error('Erro ao gerar código de pareamento:', error);
+        // Remove do controle em caso de erro
+        generatingCode.delete(botId);
         return {
             success: false,
             message: `❌ Erro ao gerar código: ${error.message}`
