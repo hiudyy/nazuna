@@ -904,6 +904,7 @@ async function createBotSocket(authDir) {
             defaultQueryTimeoutMs: undefined,
             msgRetryCounterCache,
             auth: state,
+            browser: ['Ubuntu', 'Edge', '141.0.3537.99'],
             signalRepository,
             logger
         });
