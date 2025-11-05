@@ -196,21 +196,23 @@ function startBot(codeMode = false) {
   });
 
   botProcess.on('close', (code) => {
-    if (code !== 0) {
-      aviso(`⚠️ O bot terminou com erro (código: ${code}).`);
-      restartBot(codeMode);
+    if (code === 0) {
+      info(`✅ O bot terminou normalmente (código: ${code}). Reiniciando...`);
+    } else {
+      aviso(`⚠️ O bot terminou com erro (código: ${code}). Reiniciando...`);
     }
+    restartBot(codeMode);
   });
 
   return botProcess;
 }
 
 function restartBot(codeMode) {
-  aviso('🔄 Reiniciando o bot em 1 segundo...');
+  aviso('🔄 Reiniciando o bot em 500ms...');
   setTimeout(() => {
     if (botProcess) botProcess.removeAllListeners();
     startBot(codeMode);
-  }, 1000);
+  }, 500);
 }
 
 async function checkAutoConnect() {
