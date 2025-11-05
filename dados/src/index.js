@@ -15771,8 +15771,7 @@ ${groupData.rules.length}. ${q}`);
           if (!isGroup) return reply("Este comando só funciona em grupos.");
           if (!isGroupAdmin) return reply("Apenas administradores podem adicionar usuários à whitelist.");
           
-          const wlArgs = q.split('|').map(a => a.trim());
-          if (!menc_os2 || wlArgs.length < 1) {
+          if (!menc_os2) {
             const availableAntis = ['antilink', 'antilinkgp', 'antilinkhard', 'antiporn', 'antistatus', 'antibtn', 'antidoc', 'antiloc', 'antifig'];
             return reply(`📋 *Uso do comando:*
 ${prefix}wl.add @usuario | anti1,anti2,anti3
@@ -15785,11 +15784,21 @@ ${prefix}wl.add @usuario | antilink,antistatus,antiporn`);
           }
           
           const userId = menc_os2;
-          const antisString = wlArgs[0] || '';
-          const antis = antisString.split(',').map(a => a.trim().toLowerCase()).filter(a => a.length > 0);
+          
+          const wlArgs = q.split('|').map(a => a.trim());
+          const antisString = wlArgs.length > 1 ? wlArgs[1] : wlArgs[0];
+          
+          if (!antisString || antisString.length === 0) {
+            return reply(`⚠️ Especifique os antis após o |
+
+*Exemplo:*
+${prefix}wl.add @usuario | antilink,antistatus`);
+          }
+          
+          const antis = antisString.split(',').map(a => a.trim().toLowerCase()).filter(a => a.length > 0 && !a.includes('@'));
           
           if (antis.length === 0) {
-            return reply('⚠️ Especifique pelo menos um anti para whitelist.');
+            return reply('⚠️ Nenhum anti válido foi especificado. Use o formato: antilink,antistatus,antiporn');
           }
           
           const validAntis = ['antilink', 'antilinkgp', 'antilinkhard', 'antiporn', 'antistatus', 'antibtn', 'antidoc', 'antiloc', 'antifig'];
