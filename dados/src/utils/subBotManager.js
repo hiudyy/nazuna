@@ -125,13 +125,20 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber) {
 
         const sock = makeWASocket({
             version,
-            auth: state,
             logger,
+            browser: ['Ubuntu', 'Edge', '141.0.3537.99'],
+            emitOwnEvents: true,
+            fireInitQueries: true,
+            generateHighQualityLinkPreview: true,
+            syncFullHistory: true,
+            markOnlineOnConnect: true,
+            connectTimeoutMs: 120000,
+            retryRequestDelayMs: 5000,
+            qrTimeout: 180000,
+            keepAliveIntervalMs: 30_000,
+            defaultQueryTimeoutMs: undefined,
             msgRetryCounterCache,
-            browser: ['SubBot', 'Chrome', '121.0.0'],
-            printQRInTerminal: false,
-            connectTimeoutMs: 60000,
-            keepAliveIntervalMs: 30000
+            auth: state,
         });
 
         // Solicita pairing code
