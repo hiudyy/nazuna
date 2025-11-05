@@ -7316,20 +7316,48 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             detached: false
           });
 
-          let lastUpdate = Date.now();
           let outputBuffer = '';
-          const UPDATE_INTERVAL = 3000; // 3 segundos entre atualizações
+          const messagesSent = new Set(); // Rastreia mensagens já enviadas para evitar duplicatas
+          const messageQueue = []; // Fila de mensagens pendentes
+          let isProcessingQueue = false;
 
-          // Função para enviar updates
-          const sendUpdate = async (message) => {
-            const now = Date.now();
-            if (now - lastUpdate >= UPDATE_INTERVAL) {
+          // Mapeamento de triggers para mensagens
+          const updateMessages = {
+            'Verificando requisitos': '🔍 Verificando requisitos do sistema...',
+            'Criando backup': '📁 Criando backup dos arquivos importantes...',
+            'Backup salvo': '✅ Backup criado com sucesso!',
+            'Baixando a versão': '📥 Baixando atualização do GitHub...',
+            'Download concluído': '✅ Download concluído!\n\n🧹 Limpando arquivos antigos...',
+            'Limpeza concluída': '✅ Limpeza concluída!\n\n🚀 Aplicando atualização...',
+            'Atualização aplicada': '✅ Atualização aplicada!\n\n📂 Restaurando dados preservados...',
+            'Backup restaurado': '✅ Dados restaurados!\n\n📦 Instalando dependências...',
+            'Instalando dependências': '📦 Instalando/verificando dependências...\n⏳ Isso pode levar alguns minutos...',
+            'Dependências instaladas': '✅ Dependências instaladas com sucesso!'
+          };
+
+          // Processa a fila de mensagens sequencialmente
+          const processMessageQueue = async () => {
+            if (isProcessingQueue || messageQueue.length === 0) return;
+            
+            isProcessingQueue = true;
+            while (messageQueue.length > 0) {
+              const message = messageQueue.shift();
               try {
                 await reply(message);
-                lastUpdate = now;
+                await new Promise(resolve => setTimeout(resolve, 1500)); // Delay entre mensagens
               } catch (e) {
                 console.error('Erro ao enviar update:', e);
               }
+            }
+            isProcessingQueue = false;
+          };
+
+          // Adiciona mensagem à fila se não foi enviada ainda
+          const queueUpdate = (trigger, message) => {
+            if (!messagesSent.has(trigger)) {
+              messagesSent.add(trigger);
+              messageQueue.push(message);
+              processMessageQueue();
             }
           };
 
@@ -7339,27 +7367,11 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             console.log('UPDATE:', output);
             outputBuffer += output;
 
-            // Detecta mensagens importantes e envia updates
-            if (output.includes('Verificando requisitos')) {
-              await sendUpdate('🔍 Verificando requisitos do sistema...');
-            } else if (output.includes('Criando backup')) {
-              await sendUpdate('📁 Criando backup dos arquivos importantes...');
-            } else if (output.includes('Backup salvo')) {
-              await sendUpdate('✅ Backup criado com sucesso!');
-            } else if (output.includes('Baixando a versão')) {
-              await sendUpdate('📥 Baixando atualização do GitHub...');
-            } else if (output.includes('Download concluído')) {
-              await sendUpdate('✅ Download concluído!\n\n🧹 Limpando arquivos antigos...');
-            } else if (output.includes('Limpeza concluída')) {
-              await sendUpdate('✅ Limpeza concluída!\n\n🚀 Aplicando atualização...');
-            } else if (output.includes('Atualização aplicada')) {
-              await sendUpdate('✅ Atualização aplicada!\n\n📂 Restaurando dados preservados...');
-            } else if (output.includes('Backup restaurado')) {
-              await sendUpdate('✅ Dados restaurados!\n\n📦 Instalando dependências...');
-            } else if (output.includes('Instalando dependências')) {
-              await sendUpdate('📦 Instalando/verificando dependências...\n⏳ Isso pode levar alguns minutos...');
-            } else if (output.includes('Dependências instaladas')) {
-              await sendUpdate('✅ Dependências instaladas com sucesso!');
+            // Verifica cada trigger e enfileira a mensagem correspondente
+            for (const [trigger, message] of Object.entries(updateMessages)) {
+              if (output.includes(trigger)) {
+                queueUpdate(trigger, message);
+              }
             }
           });
 
