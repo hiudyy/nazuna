@@ -145,9 +145,29 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber, generatePairing
 
         let pairingCode = null;
 
-        // Solicita pairing code apenas se solicitado
+        // Aguarda a conexão abrir antes de solicitar pairing code
         if (generatePairingCode && !sock.authState.creds.registered) {
             const cleanPhone = phoneNumber;
+            
+            // Aguarda a conexão estar pronta
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('Timeout ao aguardar conexão'));
+                }, 30000);
+
+                const checkConnection = (update) => {
+                    const { connection } = update;
+                    if (connection === 'open' || connection === 'connecting') {
+                        clearTimeout(timeout);
+                        sock.ev.off('connection.update', checkConnection);
+                        resolve();
+                    }
+                };
+
+                sock.ev.on('connection.update', checkConnection);
+            });
+
+            // Agora solicita o código
             pairingCode = await sock.requestPairingCode(cleanPhone);
             
             console.log(`🔑 Código de pareamento gerado para ${phoneNumber}: ${pairingCode}`);
