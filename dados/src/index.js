@@ -7726,15 +7726,11 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             return reply('❌ Número inválido! Use um número válido com código de país.\n\n*Exemplo:* 5511999999999');
           }
           
-          await reply('⏳ Criando sub-bot... Aguarde...');
+          await reply('⏳ Criando sub-bot e gerando código de pareamento... Aguarde...');
           
           const result = await subBotManager.addSubBot(phoneNumber, numerodono);
           
           await reply(result.message);
-          
-          if (result.success) {
-            await reply(`\n🔐 *INSTRUÇÕES IMPORTANTES:*\n\n1️⃣ O código de pareamento foi exibido no console do servidor\n2️⃣ Abra o WhatsApp no número ${phoneNumber}\n3️⃣ Vá em: *Aparelhos Conectados > Conectar um aparelho*\n4️⃣ Digite o código de 8 dígitos\n5️⃣ Aguarde a conexão ser estabelecida\n\n✅ Após parear, o sub-bot iniciará automaticamente!`);
-          }
         } catch (error) {
           console.error("Erro ao adicionar sub-bot:", error);
           await reply(`❌ Erro ao criar sub-bot: ${error.message}`);

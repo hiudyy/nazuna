@@ -111,6 +111,7 @@ function createSubBotConfig(botId, phoneNumber, ownerNumber) {
 
 /**
  * Inicializa uma instância de sub-bot
+ * @returns {Promise<{sock: Object, pairingCode: string|null}>}
  */
 async function initializeSubBot(botId, phoneNumber, ownerNumber) {
     try {
@@ -141,17 +142,14 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber) {
             auth: state,
         });
 
+        let pairingCode = null;
+
         // Solicita pairing code
         if (!sock.authState.creds.registered) {
             const cleanPhone = phoneNumber.replace(/\D/g, '');
-            const code = await sock.requestPairingCode(cleanPhone);
+            pairingCode = await sock.requestPairingCode(cleanPhone);
             
-            console.log(`\n${'='.repeat(60)}`);
-            console.log(`🔑 CÓDIGO DE PAREAMENTO PARA SUB-BOT`);
-            console.log(`📱 Número: ${phoneNumber}`);
-            console.log(`🔢 Código: ${code}`);
-            console.log(`📲 Envie este código no WhatsApp para ativar o sub-bot`);
-            console.log(`${'='.repeat(60)}\n`);
+            console.log(`🔑 Código de pareamento gerado para ${phoneNumber}: ${pairingCode}`);
 
             // Salva informações do sub-bot
             const subbots = loadSubBots();
@@ -159,7 +157,7 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber) {
                 id: botId,
                 phoneNumber,
                 ownerNumber,
-                pairingCode: code,
+                pairingCode,
                 status: 'aguardando_pareamento',
                 createdAt: new Date().toISOString(),
                 lastConnection: null,
@@ -183,7 +181,7 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber) {
                     subbots[botId].number = sock.user?.id?.split(':')[0] || phoneNumber;
                     saveSubBots(subbots);
                 }
-
+ 
                 activeSubBots.set(botId, sock);
             }
 
@@ -225,7 +223,7 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber) {
             }
         });
 
-        return sock;
+        return { sock, pairingCode };
     } catch (error) {
         console.error(`❌ Erro ao inicializar sub-bot ${botId}:`, error);
         throw error;
@@ -265,13 +263,33 @@ async function addSubBot(phoneNumber, ownerNumber) {
         }
 
         // Inicializa o sub-bot
-        await initializeSubBot(botId, phoneNumber, ownerNumber);
+        const result = await initializeSubBot(botId, phoneNumber, ownerNumber);
+
+        // Monta mensagem de resposta
+        let message = `✅ *SUB-BOT CRIADO COM SUCESSO!*\n\n`;
+        message += `📱 *Número:* ${phoneNumber}\n`;
+        message += `🆔 *ID:* ${botId}\n\n`;
+
+        if (result.pairingCode) {
+            message += `🔑 *CÓDIGO DE PAREAMENTO:*\n`;
+            message += `\`\`\`${result.pairingCode}\`\`\`\n\n`;
+            message += `📲 *Instruções:*\n`;
+            message += `1. Abra o WhatsApp no número ${phoneNumber}\n`;
+            message += `2. Vá em Configurações > Aparelhos conectados\n`;
+            message += `3. Clique em "Conectar um aparelho"\n`;
+            message += `4. Clique em "Conectar com número de telefone"\n`;
+            message += `5. Digite o código acima\n\n`;
+            message += `⏱️ O código expira em alguns minutos!`;
+        } else {
+            message += `✅ Sub-bot já está autenticado e conectando...`;
+        }
 
         return {
             success: true,
-            message: `✅ Sub-bot criado com sucesso!\n📱 Número: ${phoneNumber}\n🆔 ID: ${botId}\n\n🔑 O código de pareamento foi exibido no console.`,
+            message,
             botId,
-            phoneNumber
+            phoneNumber,
+            pairingCode: result.pairingCode
         };
     } catch (error) {
         console.error('Erro ao adicionar sub-bot:', error);
