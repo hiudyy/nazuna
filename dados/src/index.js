@@ -11914,7 +11914,8 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         break;
       case 'dono':
         try {
-          const TextinDonoInfo = `╭⊰ 🌸 『 *INFORMAÇÕES DONO* 』\n┊\n┊👤 *Dono*: ${nomedono}\n┊📱 *Número Dono*: wa.me/${numerodono.replace(/\D/g, '')}\n┊\n╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯`;
+          const numeroDonoFormatado = numerodono ? String(numerodono).replace(/\D/g, '') : 'Não configurado';
+          const TextinDonoInfo = `╭⊰ 🌸 『 *INFORMAÇÕES DONO* 』\n┊\n┊👤 *Dono*: ${nomedono}\n┊📱 *Número Dono*: wa.me/${numeroDonoFormatado}\n┊\n╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯`;
           await reply(TextinDonoInfo);
         } catch (e) {
           console.error(e);
