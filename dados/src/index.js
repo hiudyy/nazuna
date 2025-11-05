@@ -7720,17 +7720,32 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             return reply(`📝 *Como usar:*\n\n${prefix}addsubbot <número>\n\n*Exemplo:*\n${prefix}addsubbot 5511999999999\n\n⚠️ O número deve incluir o código do país (Brasil: 55)`);
           }
           
-          const phoneNumber = q;
+          const phoneNumber = q.trim().replace(/\D/g, '');
           
-          if (!/^\d{10,15}$/.test(phoneNumber)) {
+          if (!/^\d{10,15}$/.test(phoneNumber) || !phoneNumber.startsWith('55')) {
             return reply('❌ Número inválido! Use um número válido com código de país.\n\n*Exemplo:* 5511999999999');
           }
           
-          await reply('⏳ Criando sub-bot e gerando código de pareamento... Aguarde...');
+          await reply('⏳ Verificando número e registrando sub-bot... Aguarde...');
           
-          const result = await subBotManager.addSubBot(phoneNumber, numerodono);
+          // Verifica se o número existe no WhatsApp e pega o LID
+          try {
+            const [result] = await nazu.onWhatsApp(phoneNumber);
+            
+            if (!result || !result.exists) {
+              return reply(`❌ O número ${phoneNumber} não está registrado no WhatsApp!`);
+            }
+            
+            const subBotLid = result.lid;
+            
+            const addResult = await subBotManager.addSubBot(phoneNumber, numerodono, subBotLid);
+            
+            await reply(addResult.message);
+          } catch (verifyError) {
+            console.error("Erro ao verificar número:", verifyError);
+            return reply(`❌ Erro ao verificar o número no WhatsApp: ${verifyError.message}`);
+          }
           
-          await reply(result.message);
         } catch (error) {
           console.error("Erro ao adicionar sub-bot:", error);
           await reply(`❌ Erro ao criar sub-bot: ${error.message}`);
@@ -7823,6 +7838,51 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         } catch (error) {
           console.error("Erro ao listar sub-bots:", error);
           await reply(`❌ Erro ao listar sub-bots: ${error.message}`);
+        }
+        break;
+
+      case 'conectarsubbot':
+      case 'reconnectsubbot':
+        if (!isOwner) return reply("🚫 Apenas o Dono principal pode reconectar sub-bots!");
+        try {
+          const subBotManager = require('./utils/subBotManager.js');
+          
+          if (!q || !q.trim()) {
+            return reply(`📝 *Como usar:*\n\n${prefix}conectarsubbot <id>\n\n*Exemplo:*\n${prefix}conectarsubbot subbot_1234567890_abc123\n\n💡 Use \`${prefix}listarsubbots\` para ver os IDs`);
+          }
+          
+          const botId = q.trim();
+          
+          await reply('⏳ Conectando sub-bot... Aguarde...');
+          
+          const result = await subBotManager.reconnectSubBot(botId);
+          
+          await reply(result.message);
+        } catch (error) {
+          console.error("Erro ao reconectar sub-bot:", error);
+          await reply(`❌ Erro ao reconectar sub-bot: ${error.message}`);
+        }
+        break;
+
+      case 'gerarcodigo':
+      case 'pairingcode':
+      case 'codigosubbot':
+        try {
+          const subBotManager = require('./utils/subBotManager.js');
+          
+          // Verifica se o usuário é um sub-bot cadastrado
+          const result = await subBotManager.generatePairingCodeForSubBot(sender);
+          
+          if (!result.success) {
+            return reply(result.message);
+          }
+          
+          // Envia o código no privado do sub-bot
+          await reply(result.message);
+          
+        } catch (error) {
+          console.error("Erro ao gerar código de pareamento:", error);
+          await reply(`❌ Erro ao gerar código: ${error.message}`);
         }
         break;
 

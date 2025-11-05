@@ -111,9 +111,10 @@ function createSubBotConfig(botId, phoneNumber, ownerNumber) {
 
 /**
  * Inicializa uma instância de sub-bot
+ * @param {boolean} generatePairingCode - Se deve gerar código de pareamento
  * @returns {Promise<{sock: Object, pairingCode: string|null}>}
  */
-async function initializeSubBot(botId, phoneNumber, ownerNumber) {
+async function initializeSubBot(botId, phoneNumber, ownerNumber, generatePairingCode = false) {
     try {
         console.log(`🤖 Inicializando sub-bot ${botId}...`);
 
@@ -144,8 +145,8 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber) {
 
         let pairingCode = null;
 
-        // Solicita pairing code
-        if (!sock.authState.creds.registered) {
+        // Solicita pairing code apenas se solicitado
+        if (generatePairingCode && !sock.authState.creds.registered) {
             const cleanPhone = phoneNumber;
             pairingCode = await sock.requestPairingCode(cleanPhone);
             
@@ -153,17 +154,12 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber) {
 
             // Salva informações do sub-bot
             const subbots = loadSubBots();
-            subbots[botId] = {
-                id: botId,
-                phoneNumber,
-                ownerNumber,
-                pairingCode,
-                status: 'aguardando_pareamento',
-                createdAt: new Date().toISOString(),
-                lastConnection: null,
-                dirs
-            };
-            saveSubBots(subbots);
+            if (subbots[botId]) {
+                subbots[botId].pairingCode = pairingCode;
+                subbots[botId].status = 'aguardando_pareamento';
+                subbots[botId].lastPairingRequest = new Date().toISOString();
+                saveSubBots(subbots);
+            }
         }
 
         sock.ev.on('creds.update', saveCreds);
@@ -203,12 +199,21 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber) {
                 if (reason === DisconnectReason.loggedOut) {
                     console.log(`🗑️ Sub-bot ${botId} foi deslogado, removendo dados...`);
                     await removeSubBot(botId);
-                } else {
-                    // Tenta reconectar após 10 segundos
+                } else if (reason === 428) {
+                    // Erro 428 = aguardando pareamento, não reconectar automaticamente
+                    console.log(`⏸️ Sub-bot ${botId} aguardando pareamento. Use o código enviado para conectar.`);
+                    if (subbots[botId]) {
+                        subbots[botId].status = 'aguardando_pareamento';
+                        saveSubBots(subbots);
+                    }
+                } else if (sock.authState.creds.registered) {
+                    // Só reconecta automaticamente se já estiver registrado
                     console.log(`🔄 Tentando reconectar sub-bot ${botId} em 10 segundos...`);
                     setTimeout(() => {
                         initializeSubBot(botId, phoneNumber, ownerNumber);
                     }, 10000);
+                } else {
+                    console.log(`⏸️ Sub-bot ${botId} não registrado. Aguardando pareamento manual.`);
                 }
             }
         });
@@ -233,7 +238,7 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber) {
 /**
  * Adiciona um novo sub-bot
  */
-async function addSubBot(phoneNumber, ownerNumber) {
+async function addSubBot(phoneNumber, ownerNumber, subBotLid) {
     try {
         // Valida número
         const cleanPhone = phoneNumber.replace(/\D/g, '');
@@ -241,6 +246,14 @@ async function addSubBot(phoneNumber, ownerNumber) {
             return {
                 success: false,
                 message: '❌ Número inválido! Use formato: 5511999999999'
+            };
+        }
+
+        // Valida LID do sub-bot
+        if (!subBotLid || !subBotLid.includes('@s.whatsapp.net')) {
+            return {
+                success: false,
+                message: '❌ LID do sub-bot inválido! Marque o número do sub-bot.'
             };
         }
 
@@ -257,39 +270,55 @@ async function addSubBot(phoneNumber, ownerNumber) {
             };
         }
 
+        // Verifica se o LID já está cadastrado
+        const existingLid = Object.values(subbots).find(b => b.subBotLid === subBotLid);
+        if (existingLid) {
+            return {
+                success: false,
+                message: '❌ Este número já está cadastrado como sub-bot!'
+            };
+        }
+
         // Cria diretórios
         if (!fs.existsSync(SUBBOTS_DIR)) {
             fs.mkdirSync(SUBBOTS_DIR, { recursive: true });
         }
 
-        // Inicializa o sub-bot
-        const result = await initializeSubBot(botId, phoneNumber, ownerNumber);
+        // Salva as informações do sub-bot SEM inicializar ainda
+        subbots[botId] = {
+            id: botId,
+            phoneNumber,
+            ownerNumber,
+            subBotLid,
+            status: 'aguardando_codigo',
+            createdAt: new Date().toISOString(),
+            lastConnection: null,
+            pairingCode: null
+        };
+        saveSubBots(subbots);
+
+        // Cria diretórios mas não inicializa
+        createSubBotDirectories(botId);
+        createSubBotConfig(botId, phoneNumber, ownerNumber);
 
         // Monta mensagem de resposta
-        let message = `✅ *SUB-BOT CRIADO COM SUCESSO!*\n\n`;
+        let message = `✅ *SUB-BOT REGISTRADO COM SUCESSO!*\n\n`;
         message += `📱 *Número:* ${phoneNumber}\n`;
-        message += `🆔 *ID:* ${botId}\n\n`;
-
-        if (result.pairingCode) {
-            message += `🔑 *CÓDIGO DE PAREAMENTO:*\n`;
-            message += `\`\`\`${result.pairingCode}\`\`\`\n\n`;
-            message += `📲 *Instruções:*\n`;
-            message += `1. Abra o WhatsApp no número ${phoneNumber}\n`;
-            message += `2. Vá em Configurações > Aparelhos conectados\n`;
-            message += `3. Clique em "Conectar um aparelho"\n`;
-            message += `4. Clique em "Conectar com número de telefone"\n`;
-            message += `5. Digite o código acima\n\n`;
-            message += `⏱️ O código expira em alguns minutos!`;
-        } else {
-            message += `✅ Sub-bot já está autenticado e conectando...`;
-        }
+        message += `🆔 *ID:* \`${botId}\`\n`;
+        message += `� *LID:* \`${subBotLid}\`\n\n`;
+        message += `⚠️ *IMPORTANTE:*\n`;
+        message += `O sub-bot foi registrado mas ainda não está ativo.\n\n`;
+        message += `📲 *Próximo passo:*\n`;
+        message += `O dono do sub-bot (${phoneNumber}) deve usar o comando:\n`;
+        message += `\`!gerarcodigo\`\n\n`;
+        message += `Isso gerará o código de pareamento para conectar o sub-bot!`;
 
         return {
             success: true,
             message,
             botId,
             phoneNumber,
-            pairingCode: result.pairingCode
+            subBotLid
         };
     } catch (error) {
         console.error('Erro ao adicionar sub-bot:', error);
@@ -399,24 +428,35 @@ async function initializeAllSubBots() {
             return;
         }
 
-        console.log(`🤖 Inicializando ${keys.length} sub-bot(s)...`);
+        console.log(`🤖 Verificando ${keys.length} sub-bot(s)...`);
 
+        let initialized = 0;
         for (const botId of keys) {
             const bot = subbots[botId];
             
-            // Só inicializa se não estiver ativo
+            // Só inicializa se não estiver ativo e se tiver credenciais salvas (já foi pareado)
             if (!activeSubBots.has(botId)) {
-                try {
-                    await initializeSubBot(botId, bot.phoneNumber, bot.ownerNumber);
-                    // Pequeno delay entre inicializações
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                } catch (error) {
-                    console.error(`❌ Erro ao inicializar sub-bot ${botId}:`, error.message);
+                const authDir = path.join(SUBBOTS_DIR, botId, 'auth');
+                const credsFile = path.join(authDir, 'creds.json');
+                
+                // Verifica se já foi pareado (tem creds.json)
+                if (fs.existsSync(credsFile)) {
+                    try {
+                        console.log(`🔄 Inicializando sub-bot ${botId}...`);
+                        await initializeSubBot(botId, bot.phoneNumber, bot.ownerNumber, false);
+                        initialized++;
+                        // Pequeno delay entre inicializações
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    } catch (error) {
+                        console.error(`❌ Erro ao inicializar sub-bot ${botId}:`, error.message);
+                    }
+                } else {
+                    console.log(`⏸️ Sub-bot ${botId} aguardando pareamento inicial.`);
                 }
             }
         }
 
-        console.log(`✅ Inicialização de sub-bots concluída!`);
+        console.log(`✅ Inicialização concluída! ${initialized} sub-bot(s) conectado(s).`);
     } catch (error) {
         console.error('❌ Erro ao inicializar sub-bots:', error);
     }
@@ -465,6 +505,124 @@ function getSubBotInfo(botId) {
     };
 }
 
+/**
+ * Reconecta um sub-bot específico após pareamento
+ */
+async function reconnectSubBot(botId) {
+    try {
+        const subbots = loadSubBots();
+        const bot = subbots[botId];
+        
+        if (!bot) {
+            return {
+                success: false,
+                message: '❌ Sub-bot não encontrado!'
+            };
+        }
+
+        if (activeSubBots.has(botId)) {
+            return {
+                success: false,
+                message: '⚠️ Sub-bot já está conectado!'
+            };
+        }
+
+        console.log(`🔄 Reconectando sub-bot ${botId}...`);
+        await initializeSubBot(botId, bot.phoneNumber, bot.ownerNumber, false);
+
+        return {
+            success: true,
+            message: `✅ Sub-bot ${botId} reconectando...`
+        };
+    } catch (error) {
+        console.error('Erro ao reconectar sub-bot:', error);
+        return {
+            success: false,
+            message: `❌ Erro ao reconectar: ${error.message}`
+        };
+    }
+}
+
+/**
+ * Gera código de pareamento para um sub-bot específico
+ * Reseta as credenciais e gera novo código
+ */
+async function generatePairingCodeForSubBot(userLid) {
+    try {
+        const subbots = loadSubBots();
+        
+        // Encontra o sub-bot pelo LID
+        const botEntry = Object.entries(subbots).find(([_, bot]) => bot.subBotLid === userLid);
+        
+        if (!botEntry) {
+            return {
+                success: false,
+                message: '❌ Você não está cadastrado como sub-bot!'
+            };
+        }
+
+        const [botId, bot] = botEntry;
+
+        // Desconecta se estiver ativo
+        const activeSock = activeSubBots.get(botId);
+        if (activeSock) {
+            try {
+                await activeSock.logout();
+                activeSubBots.delete(botId);
+            } catch (e) {
+                console.log('Desconectando sub-bot anterior:', e.message);
+            }
+        }
+
+        // Remove credenciais antigas
+        const authDir = path.join(SUBBOTS_DIR, botId, 'auth');
+        if (fs.existsSync(authDir)) {
+            fs.rmSync(authDir, { recursive: true, force: true });
+            fs.mkdirSync(authDir, { recursive: true });
+        }
+
+        console.log(`🔑 Gerando novo código de pareamento para sub-bot ${botId}...`);
+
+        // Inicializa com geração de código
+        const result = await initializeSubBot(botId, bot.phoneNumber, bot.ownerNumber, true);
+
+        if (!result.pairingCode) {
+            return {
+                success: false,
+                message: '❌ Erro ao gerar código de pareamento!'
+            };
+        }
+
+        // Monta mensagem com o código
+        let message = `🔑 *CÓDIGO DE PAREAMENTO GERADO!*\n\n`;
+        message += `📱 *Seu número:* ${bot.phoneNumber}\n`;
+        message += `🆔 *ID:* \`${botId}\`\n\n`;
+        message += `🔢 *CÓDIGO:*\n`;
+        message += `\`\`\`${result.pairingCode}\`\`\`\n\n`;
+        message += `📲 *Instruções:*\n`;
+        message += `1. Abra o WhatsApp no seu número\n`;
+        message += `2. Vá em *Configurações > Aparelhos conectados*\n`;
+        message += `3. Clique em *"Conectar um aparelho"*\n`;
+        message += `4. Clique em *"Conectar com número de telefone"*\n`;
+        message += `5. Digite o código acima\n\n`;
+        message += `⏱️ *Atenção:* O código expira em alguns minutos!\n`;
+        message += `🔄 Após parear, você será conectado automaticamente como sub-bot!`;
+
+        return {
+            success: true,
+            message,
+            pairingCode: result.pairingCode,
+            botId
+        };
+    } catch (error) {
+        console.error('Erro ao gerar código de pareamento:', error);
+        return {
+            success: false,
+            message: `❌ Erro ao gerar código: ${error.message}`
+        };
+    }
+}
+
 module.exports = {
     addSubBot,
     removeSubBot,
@@ -472,5 +630,7 @@ module.exports = {
     initializeAllSubBots,
     disconnectAllSubBots,
     getSubBotInfo,
+    reconnectSubBot,
+    generatePairingCodeForSubBot,
     activeSubBots
 };

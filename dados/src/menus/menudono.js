@@ -117,6 +117,9 @@ ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}addsubbot
 ${middleBorder}${menuItemIcon}${prefix}removesubbot
 ${middleBorder}${menuItemIcon}${prefix}listarsubbots
+${middleBorder}${menuItemIcon}${prefix}conectarsubbot
+${middleBorder}
+${middleBorder}🔑 Sub-bot use: ${prefix}gerarcodigo
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${botControlMenuTitle}*
