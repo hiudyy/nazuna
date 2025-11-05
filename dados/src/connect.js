@@ -897,7 +897,7 @@ async function createBotSocket(authDir) {
             generateHighQualityLinkPreview: true,
             syncFullHistory: true,
             markOnlineOnConnect: true,
-            connectTimeoutMs: 60000,
+            connectTimeoutMs: 120000,
             retryRequestDelayMs: 5000,
             qrTimeout: 180000,
             keepAliveIntervalMs: 30_000,
@@ -905,8 +905,7 @@ async function createBotSocket(authDir) {
             msgRetryCounterCache,
             auth: state,
             signalRepository,
-            browser: ['Ubuntu', 'Edge', '110.0.1587.56'],
-            logger,
+            logger
         });
 
         if (codeMode && !NazunaSock.authState.creds.registered) {
