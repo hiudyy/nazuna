@@ -250,7 +250,7 @@ async function addSubBot(phoneNumber, ownerNumber, subBotLid) {
         }
 
         // Valida LID do sub-bot
-        if (!subBotLid || !subBotLid.includes('@s.whatsapp.net')) {
+        if (!subBotLid || !subBotLid.includes('@lid')) {
             return {
                 success: false,
                 message: '❌ LID do sub-bot inválido! Marque o número do sub-bot.'
