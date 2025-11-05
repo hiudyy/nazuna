@@ -94,6 +94,13 @@ ${middleBorder}${menuItemIcon}${prefix}revokemodcmd
 ${middleBorder}${menuItemIcon}${prefix}listmodcmds
 ${bottomBorder}
 
+${menuTopBorder}${separatorIcon} *🛡️ WHITELIST DE ANTIS*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}wl.add
+${middleBorder}${menuItemIcon}${prefix}wl.remove
+${middleBorder}${menuItemIcon}${prefix}wl.lista
+${bottomBorder}
+
 ${menuTopBorder}${separatorIcon} *${partnershipsMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}parcerias

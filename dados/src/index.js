@@ -672,6 +672,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       groupData.allowedModCommands = groupData.allowedModCommands || [];
       groupData.mutedUsers = groupData.mutedUsers || {};
       groupData.levelingEnabled = groupData.levelingEnabled || false;
+      groupData.adminWhitelist = groupData.adminWhitelist || {};
       if (!groupData.roles || typeof groupData.roles !== 'object') {
         groupData.roles = {};
       }
@@ -711,6 +712,20 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       if (isGroup) {
         writeJsonFile(groupFile, groupData);
       }
+    };
+    
+    // Função para verificar se um usuário está na whitelist para determinado anti
+    const isUserWhitelisted = (userId, antiType) => {
+      if (!groupData.adminWhitelist || typeof groupData.adminWhitelist !== 'object') {
+        return false;
+      }
+      
+      const userWhitelist = groupData.adminWhitelist[userId];
+      if (!userWhitelist || !Array.isArray(userWhitelist.antis)) {
+        return false;
+      }
+      
+      return userWhitelist.antis.includes(antiType);
     };
     const groupPrefix = groupData.customPrefix || prefixo;
     var isCmd = body.trim().startsWith(groupPrefix);
@@ -836,33 +851,37 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
 };
 
     if (isGroup && isStatusMention && isAntiStatus && !isGroupAdmin) {
-      if (isBotAdmin) {
-        await nazu.sendMessage(from, {
-          delete: {
-            remoteJid: from,
-            fromMe: false,
-            id: info.key.id,
-            participant: sender
-          }
-        });
-        await nazu.groupParticipantsUpdate(from, [sender], 'remove');
-      } else {
-        await reply("⚠️ Não posso remover o usuário porque não sou administrador.");
+      if (!isUserWhitelisted(sender, 'antistatus')) {
+        if (isBotAdmin) {
+          await nazu.sendMessage(from, {
+            delete: {
+              remoteJid: from,
+              fromMe: false,
+              id: info.key.id,
+              participant: sender
+            }
+          });
+          await nazu.groupParticipantsUpdate(from, [sender], 'remove');
+        } else {
+          await reply("⚠️ Não posso remover o usuário porque não sou administrador.");
+        }
       }
     }
     if (isGroup && isButtonMessage && isAntiBtn && !isGroupAdmin) {
-      if (isBotAdmin) {
-        await nazu.sendMessage(from, {
-          delete: {
-            remoteJid: from,
-            fromMe: false,
-            id: info.key.id,
-            participant: sender
-          }
-        });
-        await nazu.groupParticipantsUpdate(from, [sender], 'remove');
-      } else {
-        await reply("⚠️ Não posso remover o usuário porque não sou administrador.");
+      if (!isUserWhitelisted(sender, 'antibtn')) {
+        if (isBotAdmin) {
+          await nazu.sendMessage(from, {
+            delete: {
+              remoteJid: from,
+              fromMe: false,
+              id: info.key.id,
+              participant: sender
+            }
+          });
+          await nazu.groupParticipantsUpdate(from, [sender], 'remove');
+        } else {
+          await reply("⚠️ Não posso remover o usuário porque não sou administrador.");
+        }
       }
     }
     if (isGroup && isCmd && isOnlyAdmin && !isGroupAdmin) {
@@ -1950,81 +1969,85 @@ Código: *${roleCode}*`,
       }
     }
     if (isGroup && isAntiPorn && !info.key.fromMe) {
-      const mediaInfo = getMediaInfo(info.message);
-      if (mediaInfo && mediaInfo.type === 'image') {
-        try {
-          const imageBuffer = await getFileBuffer(mediaInfo.media, 'image');
-          const mediaURL = await upload(imageBuffer, true);
-          if (mediaURL) {
-            const apiResponse = await axios.get(`https://nsfw-demo.sashido.io/api/image/classify?url=${encodeURIComponent(mediaURL)}`);
-            let scores = {
-              Porn: 0,
-              Hentai: 0
-            };
-            if (Array.isArray(apiResponse.data)) {
-              scores = apiResponse.data.reduce((acc, item) => {
-                if (item && typeof item.className === 'string' && typeof item.probability === 'number') {
-                  if (item.className === 'Porn' || item.className === 'Hentai') {
-                    acc[item.className] = Math.max(acc[item.className] || 0, item.probability);
-                  }
-                }
-                return acc;
-              }, {
+      if (!isGroupAdmin && !isUserWhitelisted(sender, 'antiporn')) {
+        const mediaInfo = getMediaInfo(info.message);
+        if (mediaInfo && mediaInfo.type === 'image') {
+          try {
+            const imageBuffer = await getFileBuffer(mediaInfo.media, 'image');
+            const mediaURL = await upload(imageBuffer, true);
+            if (mediaURL) {
+              const apiResponse = await axios.get(`https://nsfw-demo.sashido.io/api/image/classify?url=${encodeURIComponent(mediaURL)}`);
+              let scores = {
                 Porn: 0,
                 Hentai: 0
-              });
-            } else {
-              console.warn("Anti-porn API response format unexpected:", apiResponse.data);
-            }
-            const pornThreshold = 0.7;
-            const hentaiThreshold = 0.7;
-            const isPorn = scores.Porn >= pornThreshold;
-            const isHentai = scores.Hentai >= hentaiThreshold;
-            if (isPorn || isHentai) {
-              const reason = isPorn ? 'Pornografia' : 'Hentai';
-              await reply(`🚨 Conteúdo impróprio detectado! (${reason})`);
-              if (isBotAdmin) {
-                try {
-                  await nazu.sendMessage(from, {
-                    delete: info.key
-                  });
-                  await nazu.groupParticipantsUpdate(from, [sender], 'remove');
-                  await reply(`🔞 @${getUserName(sender)}, conteúdo impróprio detectado. Você foi removido do grupo.`, {
-                    mentions: [sender]
-                  });
-                } catch (adminError) {
-                  console.error(`Erro ao remover usuário por anti-porn: ${adminError}`);
-                  await reply(`⚠️ Não consegui remover @${getUserName(sender)} automaticamente após detectar conteúdo impróprio. Admins, por favor, verifiquem!`, {
+              };
+              if (Array.isArray(apiResponse.data)) {
+                scores = apiResponse.data.reduce((acc, item) => {
+                  if (item && typeof item.className === 'string' && typeof item.probability === 'number') {
+                    if (item.className === 'Porn' || item.className === 'Hentai') {
+                      acc[item.className] = Math.max(acc[item.className] || 0, item.probability);
+                    }
+                  }
+                  return acc;
+                }, {
+                  Porn: 0,
+                  Hentai: 0
+                });
+              } else {
+                console.warn("Anti-porn API response format unexpected:", apiResponse.data);
+              }
+              const pornThreshold = 0.7;
+              const hentaiThreshold = 0.7;
+              const isPorn = scores.Porn >= pornThreshold;
+              const isHentai = scores.Hentai >= hentaiThreshold;
+              if (isPorn || isHentai) {
+                const reason = isPorn ? 'Pornografia' : 'Hentai';
+                await reply(`🚨 Conteúdo impróprio detectado! (${reason})`);
+                if (isBotAdmin) {
+                  try {
+                    await nazu.sendMessage(from, {
+                      delete: info.key
+                    });
+                    await nazu.groupParticipantsUpdate(from, [sender], 'remove');
+                    await reply(`🔞 @${getUserName(sender)}, conteúdo impróprio detectado. Você foi removido do grupo.`, {
+                      mentions: [sender]
+                    });
+                  } catch (adminError) {
+                    console.error(`Erro ao remover usuário por anti-porn: ${adminError}`);
+                    await reply(`⚠️ Não consegui remover @${getUserName(sender)} automaticamente após detectar conteúdo impróprio. Admins, por favor, verifiquem!`, {
+                      mentions: [sender]
+                    });
+                  }
+                } else {
+                  await reply(`@${getUserName(sender)} enviou conteúdo impróprio (${reason}), mas não posso removê-lo sem ser admin.`, {
                     mentions: [sender]
                   });
                 }
-              } else {
-                await reply(`@${getUserName(sender)} enviou conteúdo impróprio (${reason}), mas não posso removê-lo sem ser admin.`, {
-                  mentions: [sender]
-                });
               }
+            } else {
+              console.warn("Falha no upload da imagem para verificação anti-porn.");
             }
-          } else {
-            console.warn("Falha no upload da imagem para verificação anti-porn.");
+          } catch (error) {
+            console.error("Erro na verificação anti-porn:", error);
           }
-        } catch (error) {
-          console.error("Erro na verificação anti-porn:", error);
         }
       }
     }
     if (isGroup && groupData.antiloc && !isGroupAdmin && type === 'locationMessage') {
-      await nazu.sendMessage(from, {
-        delete: {
-          remoteJid: from,
-          fromMe: false,
-          id: info.key.id,
-          participant: sender
-        }
-      });
-      await nazu.groupParticipantsUpdate(from, [sender], 'remove');
-      await reply(`🗺️ @${getUserName(sender)}, localização não permitida. Você foi removido do grupo.`, {
-        mentions: [sender]
-      });
+      if (!isUserWhitelisted(sender, 'antiloc')) {
+        await nazu.sendMessage(from, {
+          delete: {
+            remoteJid: from,
+            fromMe: false,
+            id: info.key.id,
+            participant: sender
+          }
+        });
+        await nazu.groupParticipantsUpdate(from, [sender], 'remove');
+        await reply(`🗺️ @${getUserName(sender)}, localização não permitida. Você foi removido do grupo.`, {
+          mentions: [sender]
+        });
+      }
     }
     if (isGroup && antifloodData[from]?.enabled && isCmd && !isGroupAdmin) {
       antifloodData[from].users = antifloodData[from].users || {};
@@ -2040,18 +2063,20 @@ Código: *${roleCode}*`,
       writeJsonFile(pathz.join(DATABASE_DIR, 'antiflood.json'), antifloodData);
     }
     if (isGroup && groupData.antidoc && !isGroupAdmin && (type === 'documentMessage' || type === 'documentWithCaptionMessage')) {
-      await nazu.sendMessage(from, {
-        delete: {
-          remoteJid: from,
-          fromMe: false,
-          id: info.key.id,
-          participant: sender
-        }
-      });
-      await nazu.groupParticipantsUpdate(from, [sender], 'remove');
-      await reply(`📄 @${getUserName(sender)}, documentos não são permitidos. Você foi removido do grupo.`, {
-        mentions: [sender]
-      });
+      if (!isUserWhitelisted(sender, 'antidoc')) {
+        await nazu.sendMessage(from, {
+          delete: {
+            remoteJid: from,
+            fromMe: false,
+            id: info.key.id,
+            participant: sender
+          }
+        });
+        await nazu.groupParticipantsUpdate(from, [sender], 'remove');
+        await reply(`📄 @${getUserName(sender)}, documentos não são permitidos. Você foi removido do grupo.`, {
+          mentions: [sender]
+        });
+      }
     }
     
     if (isGroup && groupData.autodl && budy2.includes('http') && !isCmd) {
@@ -2092,28 +2117,30 @@ Código: *${roleCode}*`,
       }
     }
     if (isGroup && groupData.antilinkhard && !isGroupAdmin && budy2.includes('http') && !isOwner) {
-      try {
-        await nazu.sendMessage(from, {
-          delete: {
-            remoteJid: from,
-            fromMe: false,
-            id: info.key.id,
-            participant: sender
+      if (!isUserWhitelisted(sender, 'antilinkhard')) {
+        try {
+          await nazu.sendMessage(from, {
+            delete: {
+              remoteJid: from,
+              fromMe: false,
+              id: info.key.id,
+              participant: sender
+            }
+          });
+          if (isBotAdmin) {
+            await nazu.groupParticipantsUpdate(from, [sender], 'remove');
+            await reply(`🔗 @${getUserName(sender)}, links não são permitidos. Você foi removido do grupo.`, {
+              mentions: [sender]
+            });
+          } else {
+            await reply(`🔗 Atenção, @${getUserName(sender)}! Links não são permitidos. Não consigo remover você, mas evite enviar links.`, {
+              mentions: [sender]
+            });
           }
-        });
-        if (isBotAdmin) {
-          await nazu.groupParticipantsUpdate(from, [sender], 'remove');
-          await reply(`🔗 @${getUserName(sender)}, links não são permitidos. Você foi removido do grupo.`, {
-            mentions: [sender]
-          });
-        } else {
-          await reply(`🔗 Atenção, @${getUserName(sender)}! Links não são permitidos. Não consigo remover você, mas evite enviar links.`, {
-            mentions: [sender]
-          });
+          return;
+        } catch (error) {
+          console.error("Erro no sistema antilink hard:", error);
         }
-        return;
-      } catch (error) {
-        console.error("Erro no sistema antilink hard:", error);
       }
     }
     let quotedMessageContent = null;
@@ -2188,47 +2215,49 @@ Código: *${roleCode}*`,
     }
 
     if (isGroup && isAntiLinkGp && !isGroupAdmin) {
-      let foundGroupLink = false;
-      let link_dgp = null;
-      try {
-        if (budy2.includes('chat.whatsapp.com')) {
-          foundGroupLink = true;
-          link_dgp = await nazu.groupInviteCode(from);
-          if (budy2.includes(link_dgp)) foundGroupLink = false;
-        }
-        if (!foundGroupLink && info.message?.requestPaymentMessage) {
-          const paymentText = info.message.requestPaymentMessage?.noteMessage?.extendedTextMessage?.text || '';
-          if (paymentText.includes('chat.whatsapp.com')) {
+      if (!isUserWhitelisted(sender, 'antilinkgp')) {
+        let foundGroupLink = false;
+        let link_dgp = null;
+        try {
+          if (budy2.includes('chat.whatsapp.com')) {
             foundGroupLink = true;
-            link_dgp = link_dgp || await nazu.groupInviteCode(from);
-            if (paymentText.includes(link_dgp)) foundGroupLink = false;
+            link_dgp = await nazu.groupInviteCode(from);
+            if (budy2.includes(link_dgp)) foundGroupLink = false;
           }
-        }
-        if (foundGroupLink) {
-          if (isOwner) return;
-          await nazu.sendMessage(from, {
-            delete: {
-              remoteJid: from,
-              fromMe: false,
-              id: info.key.id,
-              participant: sender
+          if (!foundGroupLink && info.message?.requestPaymentMessage) {
+            const paymentText = info.message.requestPaymentMessage?.noteMessage?.extendedTextMessage?.text || '';
+            if (paymentText.includes('chat.whatsapp.com')) {
+              foundGroupLink = true;
+              link_dgp = link_dgp || await nazu.groupInviteCode(from);
+              if (paymentText.includes(link_dgp)) foundGroupLink = false;
             }
-          });
-          if (!AllgroupMembers.includes(sender)) return;
-          if (isBotAdmin) {
-            await nazu.groupParticipantsUpdate(from, [sender], 'remove');
-            await reply(`🔗 @${getUserName(sender)}, links de outros grupos não são permitidos. Você foi removido do grupo.`, {
-              mentions: [sender]
-            });
-          } else {
-            await reply(`🔗 Atenção, @${getUserName(sender)}! Links de outros grupos não são permitidos. Não consigo remover você, mas evite compartilhar esses links.`, {
-              mentions: [sender]
-            });
           }
-          return;
+          if (foundGroupLink) {
+            if (isOwner) return;
+            await nazu.sendMessage(from, {
+              delete: {
+                remoteJid: from,
+                fromMe: false,
+                id: info.key.id,
+                participant: sender
+              }
+            });
+            if (!AllgroupMembers.includes(sender)) return;
+            if (isBotAdmin) {
+              await nazu.groupParticipantsUpdate(from, [sender], 'remove');
+              await reply(`🔗 @${getUserName(sender)}, links de outros grupos não são permitidos. Você foi removido do grupo.`, {
+                mentions: [sender]
+              });
+            } else {
+              await reply(`🔗 Atenção, @${getUserName(sender)}! Links de outros grupos não são permitidos. Não consigo remover você, mas evite compartilhar esses links.`, {
+                mentions: [sender]
+              });
+            }
+            return;
+          }
+        } catch (error) {
+          console.error("Erro no sistema antilink de grupos:", error);
         }
-      } catch (error) {
-        console.error("Erro no sistema antilink de grupos:", error);
       }
     }
   const botStateFile = pathz.join(DATABASE_DIR, 'botState.json');
@@ -2498,40 +2527,42 @@ Código: *${roleCode}*`,
     }
     //ANTI FIGURINHAS
     if (isGroup && groupData.antifig && groupData.antifig.enabled && type === "stickerMessage" && !isGroupAdmin && !info.key.fromMe) {
-      try {
-        await nazu.sendMessage(from, {
-          delete: {
-            remoteJid: from,
-            fromMe: false,
-            id: info.key.id,
-            participant: sender
+      if (!isUserWhitelisted(sender, 'antifig')) {
+        try {
+          await nazu.sendMessage(from, {
+            delete: {
+              remoteJid: from,
+              fromMe: false,
+              id: info.key.id,
+              participant: sender
+            }
+          });
+          groupData.warnings = groupData.warnings || {};
+          groupData.warnings[sender] = groupData.warnings[sender] || {
+            count: 0,
+            lastWarned: null
+          };
+          groupData.warnings[sender].count += 1;
+          groupData.warnings[sender].lastWarned = new Date().toISOString();
+          const warnCount = groupData.warnings[sender].count;
+          const warnLimit = groupData.antifig.warnLimit || 3;
+          let warnMessage = `🚫 @${getUserName(sender)}, figurinhas não são permitidas neste grupo! Advertência ${warnCount}/${warnLimit}.`;
+          if (warnCount >= warnLimit && isBotAdmin) {
+            warnMessage += `\n⚠️ Você atingiu o limite de advertências e será removido.`;
+            await nazu.groupParticipantsUpdate(from, [sender], 'remove');
+            delete groupData.warnings[sender];
           }
-        });
-        groupData.warnings = groupData.warnings || {};
-        groupData.warnings[sender] = groupData.warnings[sender] || {
-          count: 0,
-          lastWarned: null
-        };
-        groupData.warnings[sender].count += 1;
-        groupData.warnings[sender].lastWarned = new Date().toISOString();
-        const warnCount = groupData.warnings[sender].count;
-        const warnLimit = groupData.antifig.warnLimit || 3;
-        let warnMessage = `🚫 @${getUserName(sender)}, figurinhas não são permitidas neste grupo! Advertência ${warnCount}/${warnLimit}.`;
-        if (warnCount >= warnLimit && isBotAdmin) {
-          warnMessage += `\n⚠️ Você atingiu o limite de advertências e será removido.`;
-          await nazu.groupParticipantsUpdate(from, [sender], 'remove');
-          delete groupData.warnings[sender];
+          await nazu.sendMessage(from, {
+            text: warnMessage,
+            mentions: [sender]
+          });
+    writeJsonFile(groupFile, groupData);
+        } catch (error) {
+          console.error("Erro no sistema antifig:", error);
+          await reply(`⚠️ Erro ao processar antifig para @${getUserName(sender)}. Administradores, verifiquem!`, {
+            mentions: [sender]
+          });
         }
-        await nazu.sendMessage(from, {
-          text: warnMessage,
-          mentions: [sender]
-        });
-  writeJsonFile(groupFile, groupData);
-      } catch (error) {
-        console.error("Erro no sistema antifig:", error);
-        await reply(`⚠️ Erro ao processar antifig para @${getUserName(sender)}. Administradores, verifiquem!`, {
-          mentions: [sender]
-        });
       }
     }
     if (!isCmd) {
@@ -15733,6 +15764,126 @@ ${groupData.rules.length}. ${q}`);
         }
         break;
       
+      case 'wl.add':
+      case 'wladd':
+      case 'addwhitelist':
+        try {
+          if (!isGroup) return reply("Este comando só funciona em grupos.");
+          if (!isGroupAdmin) return reply("Apenas administradores podem adicionar usuários à whitelist.");
+          
+          const wlArgs = q.split('|').map(a => a.trim());
+          if (!menc_os2 || wlArgs.length < 1) {
+            const availableAntis = ['antilink', 'antilinkgp', 'antilinkhard', 'antiporn', 'antistatus', 'antibtn', 'antidoc', 'antiloc', 'antifig'];
+            return reply(`📋 *Uso do comando:*
+${prefix}wl.add @usuario | anti1,anti2,anti3
+
+*Antis disponíveis:*
+${availableAntis.map(a => `• ${a}`).join('\n')}
+
+*Exemplo:*
+${prefix}wl.add @usuario | antilink,antistatus,antiporn`);
+          }
+          
+          const userId = menc_os2;
+          const antisString = wlArgs[0] || '';
+          const antis = antisString.split(',').map(a => a.trim().toLowerCase()).filter(a => a.length > 0);
+          
+          if (antis.length === 0) {
+            return reply('⚠️ Especifique pelo menos um anti para whitelist.');
+          }
+          
+          const validAntis = ['antilink', 'antilinkgp', 'antilinkhard', 'antiporn', 'antistatus', 'antibtn', 'antidoc', 'antiloc', 'antifig'];
+          const invalidAntis = antis.filter(a => !validAntis.includes(a));
+          
+          if (invalidAntis.length > 0) {
+            return reply(`❌ Antis inválidos: ${invalidAntis.join(', ')}\n\n*Válidos:* ${validAntis.join(', ')}`);
+          }
+          
+          groupData.adminWhitelist[userId] = {
+            antis: antis,
+            addedBy: sender,
+            addedAt: new Date().toISOString()
+          };
+          
+          persistGroupData();
+          
+          await reply(`✅ @${getUserName(userId)} adicionado à whitelist!\n\n*Antis ignorados:*\n${antis.map(a => `• ${a}`).join('\n')}`, {
+            mentions: [userId]
+          });
+        } catch (e) {
+          console.error('Erro no comando wl.add:', e);
+          await reply("❌ Ocorreu um erro ao adicionar à whitelist.");
+        }
+        break;
+        
+      case 'wl.remove':
+      case 'wlremove':
+      case 'removewhitelist':
+        try {
+          if (!isGroup) return reply("Este comando só funciona em grupos.");
+          if (!isGroupAdmin) return reply("Apenas administradores podem remover usuários da whitelist.");
+          
+          if (!menc_os2) {
+            return reply(`⚠️ Marque o usuário que deseja remover da whitelist.\n\nEx: ${prefix}wl.remove @usuario`);
+          }
+          
+          const userId = menc_os2;
+          
+          if (!groupData.adminWhitelist[userId]) {
+            return reply(`@${getUserName(userId)} não está na whitelist.`, {
+              mentions: [userId]
+            });
+          }
+          
+          delete groupData.adminWhitelist[userId];
+          persistGroupData();
+          
+          await reply(`✅ @${getUserName(userId)} removido da whitelist!`, {
+            mentions: [userId]
+          });
+        } catch (e) {
+          console.error('Erro no comando wl.remove:', e);
+          await reply("❌ Ocorreu um erro ao remover da whitelist.");
+        }
+        break;
+        
+      case 'wl.lista':
+      case 'wllist':
+      case 'listawhitelist':
+      case 'whitelistlista':
+        try {
+          if (!isGroup) return reply("Este comando só funciona em grupos.");
+          
+          const whitelistEntries = Object.entries(groupData.adminWhitelist || {});
+          
+          if (whitelistEntries.length === 0) {
+            return reply('📋 Não há usuários na whitelist deste grupo.');
+          }
+          
+          let message = `📋 *Whitelist do Grupo*\n`;
+          message += `═══════════════════\n\n`;
+          
+          const mentions = [];
+          
+          whitelistEntries.forEach(([userId, data], index) => {
+            mentions.push(userId);
+            message += `${index + 1}. @${getUserName(userId)}\n`;
+            message += `   *Antis ignorados:*\n`;
+            data.antis.forEach(anti => {
+              message += `   • ${anti}\n`;
+            });
+            message += `   *Adicionado em:* ${new Date(data.addedAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n\n`;
+          });
+          
+          message += `═══════════════════\n`;
+          message += `Total: ${whitelistEntries.length} usuário(s)`;
+          
+          await reply(message, { mentions });
+        } catch (e) {
+          console.error('Erro no comando wl.lista:', e);
+          await reply("❌ Ocorreu um erro ao listar whitelist.");
+        }
+        break;
         
         case 'minmessage':
   try {
