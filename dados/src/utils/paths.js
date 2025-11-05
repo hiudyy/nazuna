@@ -2,7 +2,10 @@ const path = require('path');
 
 const SRC_DIR = path.join(__dirname, '..');
 const ROOT_DIR = path.join(SRC_DIR, '..');
-const DATABASE_DIR = path.join(ROOT_DIR, 'database');
+
+// Detecta se é sub-bot e ajusta os caminhos de database
+const BASE_DATABASE_DIR = process.env.DATABASE_PATH || path.join(ROOT_DIR, 'database');
+const DATABASE_DIR = BASE_DATABASE_DIR;
 const GRUPOS_DIR = path.join(DATABASE_DIR, 'grupos');
 const USERS_DIR = path.join(DATABASE_DIR, 'users');
 const DONO_DIR = path.join(DATABASE_DIR, 'dono');
@@ -36,7 +39,10 @@ const SUBDONOS_FILE = path.join(DONO_DIR, 'subdonos.json');
 const ALUGUEIS_FILE = path.join(DONO_DIR, 'alugueis.json');
 const CODIGOS_ALUGUEL_FILE = path.join(DONO_DIR, 'codigos_aluguel.json');
 const RELATIONSHIPS_FILE = path.join(DATABASE_DIR, 'relationships.json');
-const CONFIG_FILE = path.join(SRC_DIR, 'config.json');
+
+// Detecta se é sub-bot e ajusta o caminho do config
+const CONFIG_FILE = process.env.CONFIG_PATH || path.join(SRC_DIR, 'config.json');
+
 const PACKAGE_JSON_PATH = path.join(ROOT_DIR, '..', 'package.json');
 
 module.exports = {

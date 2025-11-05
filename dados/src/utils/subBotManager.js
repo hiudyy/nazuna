@@ -233,13 +233,56 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber, generatePairing
             }
         });
 
-        // Handler de mensagens simples (apenas loga por enquanto)
+        // Handler de mensagens - processa comandos
         sock.ev.on('messages.upsert', async (m) => {
             if (!m.messages || m.type !== 'notify') return;
             
-            for (const msg of m.messages) {
-                if (!msg.message) continue;
-                console.log(`📨 Sub-bot ${botId} recebeu mensagem de ${msg.key.remoteJid}`);
+            try {
+                for (const info of m.messages) {
+                    if (!info || !info.message || !info.key?.remoteJid) continue;
+                    
+                    console.log(`📨 Sub-bot ${botId} processando mensagem de ${info.key.remoteJid}`);
+                    
+                    // Define o caminho do config do sub-bot temporariamente
+                    const originalConfigPath = process.env.CONFIG_PATH;
+                    const subBotConfigPath = path.join(dirs.databaseDir, 'config.json');
+                    
+                    // Temporariamente define o config do sub-bot
+                    process.env.CONFIG_PATH = subBotConfigPath;
+                    process.env.DATABASE_PATH = dirs.databaseDir;
+                    process.env.IS_SUBBOT = 'true';
+                    process.env.SUBBOT_ID = botId;
+                    
+                    try {
+                        // Carrega o módulo de processamento
+                        const indexModule = require('../index.js');
+                        
+                        // Cria um cache simples para este sub-bot
+                        const NodeCache = require('node-cache');
+                        const messagesCache = new NodeCache({ stdTTL: 300 });
+                        
+                        if (info.key?.id) {
+                            messagesCache.set(info.key.id, info.message);
+                        }
+                        
+                        // Processa a mensagem usando a mesma lógica do bot principal
+                        if (typeof indexModule === 'function') {
+                            await indexModule(sock, info, null, messagesCache, null);
+                        }
+                    } finally {
+                        // Restaura o config original
+                        if (originalConfigPath) {
+                            process.env.CONFIG_PATH = originalConfigPath;
+                        } else {
+                            delete process.env.CONFIG_PATH;
+                        }
+                        delete process.env.DATABASE_PATH;
+                        delete process.env.IS_SUBBOT;
+                        delete process.env.SUBBOT_ID;
+                    }
+                }
+            } catch (error) {
+                console.error(`❌ Erro ao processar mensagem no sub-bot ${botId}:`, error.message);
             }
         });
 
