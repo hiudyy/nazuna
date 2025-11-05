@@ -7720,9 +7720,9 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             return reply(`📝 *Como usar:*\n\n${prefix}addsubbot <número>\n\n*Exemplo:*\n${prefix}addsubbot 5511999999999\n\n⚠️ O número deve incluir o código do país (Brasil: 55)`);
           }
           
-          const phoneNumber = q.trim().replace(/\D/g, '');
+          const phoneNumber = q;
           
-          if (!/^\d{10,15}$/.test(phoneNumber) || !phoneNumber.startsWith('55')) {
+          if (!/^\d{10,15}$/.test(phoneNumber)) {
             return reply('❌ Número inválido! Use um número válido com código de país.\n\n*Exemplo:* 5511999999999');
           }
           

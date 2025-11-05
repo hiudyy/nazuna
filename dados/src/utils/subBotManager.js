@@ -146,7 +146,7 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber) {
 
         // Solicita pairing code
         if (!sock.authState.creds.registered) {
-            const cleanPhone = phoneNumber.replace(/\D/g, '');
+            const cleanPhone = phoneNumber;
             pairingCode = await sock.requestPairingCode(cleanPhone);
             
             console.log(`🔑 Código de pareamento gerado para ${phoneNumber}: ${pairingCode}`);
