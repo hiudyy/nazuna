@@ -104,7 +104,7 @@ ${menuTopBorder}${separatorIcon} *${rentalSystemMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}modoaluguel
 ${middleBorder}${menuItemIcon}${prefix}addaluguel
-${middleBorder}${menuItemIcon}${prefix}gerarcodigo
+${middleBorder}${menuItemIcon}${prefix}gerarcod
 ${middleBorder}${menuItemIcon}${prefix}listaluguel
 ${middleBorder}${menuItemIcon}${prefix}limparaluguel
 ${middleBorder}${menuItemIcon}${prefix}dayfree

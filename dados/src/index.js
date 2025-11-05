@@ -8397,6 +8397,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         }
         break;
       case 'gerarcodigo':
+      case 'gerarcod':
         if (!isOwner) return reply("🚫 Apenas o Dono principal pode gerar códigos!");
         try {
           const parts = q.trim().split(' ');
