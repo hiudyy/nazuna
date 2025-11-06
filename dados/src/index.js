@@ -230,8 +230,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
   // Log de início de processamento para debug paralelo
   const msgId = info?.key?.id?.slice(-6) || 'unknown';
   const from = info?.key?.remoteJid || 'unknown';
-  console.log(`🔄 [${msgId}] Iniciando processamento - ${from}`);
-  
+
   let config = loadJsonFile(CONFIG_FILE, {});
   ensureDatabaseIntegrity({ log: Boolean(config?.debug) });
   

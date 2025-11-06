@@ -259,7 +259,6 @@ class MessageQueue {
         }
         
         this.clear();
-        console.log('✅ MessageQueue finalizado');
     }
 
     pause() {
