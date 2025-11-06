@@ -11,7 +11,7 @@ const crypto = require('crypto');
 const PerformanceOptimizer = require('./utils/performanceOptimizer');
 const cron = require('node-cron');
 const ia = require('./funcs/private/ia');
-const { formatUptime, normalizar, isGroupId, isUserId, isValidLid, isValidJid, getUserName, getLidFromJid, buildUserId, getBotId, ensureDirectoryExists, ensureJsonFileExists, loadJsonFile, initJidLidCache, saveJidLidCache, getLidFromJidCached, normalizeUserId } = require('./utils/helpers');
+const { formatUptime, normalizar, isGroupId, isUserId, isValidLid, isValidJid, getUserName, getLidFromJid, buildUserId, getBotId, ensureDirectoryExists, ensureJsonFileExists, loadJsonFile, initJidLidCache, saveJidLidCache, getLidFromJidCached, normalizeUserId, convertIdsToLid, idsMatch, idInArray } = require('./utils/helpers');
 const {
   loadMsgPrefix,
   saveMsgPrefix,
@@ -840,11 +840,24 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       return null;
     };
 
-    const AllgroupMembers = !isGroup ? [] :
+    // Extrai IDs dos membros (pode estar em JID)
+    const rawMembers = !isGroup ? [] :
       groupMetadata.participants?.map(extractParticipantId).filter(Boolean) || [];
-
-    const groupAdmins = !isGroup ? [] :
+    
+    // Extrai IDs dos admins (pode estar em JID)
+    const rawAdmins = !isGroup ? [] :
       groupMetadata.participants?.filter(p => p.admin === 'admin' || p.admin === 'superadmin').map(extractParticipantId).filter(Boolean) || [];
+
+    // Converte todos os membros e admins para LID (usando cache)
+    const AllgroupMembers = await convertIdsToLid(nazu, rawMembers);
+    const groupAdmins = await convertIdsToLid(nazu, rawAdmins);
+    
+    // Debug log
+    debugLog('Membros e Admins convertidos:', {
+      totalMembros: AllgroupMembers.length,
+      totalAdmins: groupAdmins.length,
+      admins: groupAdmins.map(a => a?.substring(0, 20))
+    });
 
     // Robust bot ID extraction with multiple fallback mechanisms
     const getBotNumber = (nazu) => {
@@ -874,30 +887,34 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     };
 
     const botNumber = getBotNumber(nazu);
-    const isBotAdmin = !isGroup || !botNumber ? false : groupAdmins.includes(botNumber);
+    
+    // Converte o botNumber para LID se for JID
+    const botNumberLid = botNumber && isValidJid(botNumber) 
+      ? await getLidFromJidCached(nazu, botNumber) 
+      : botNumber;
+    
+    const isBotAdmin = !isGroup || !botNumberLid ? false : idInArray(botNumberLid, groupAdmins);
     
     let isGroupAdmin = false;
     if (isGroup) {
       const isModeratorActionAllowed = groupData.moderators?.includes(sender) && groupData.allowedModCommands?.includes(command);
       
-      // Verifica admin comparando tanto LID quanto JID (compatibilidade)
-      const senderBase = sender.split('@')[0];
-      const isAdminMatch = groupAdmins.some(adminId => {
-        const adminBase = adminId.split('@')[0];
-        return adminBase === senderBase;
-      });
+      // Usa a função idsMatch para comparação robusta
+      const isAdminMatch = idInArray(sender, groupAdmins);
       
       isGroupAdmin = isAdminMatch || isOwner || isModeratorActionAllowed;
       
       // Debug: log das verificações de admin
       debugLog('Verificação de admin:', { 
         sender: sender?.substring(0, 30),
-        senderBase,
+        senderBase: sender?.split('@')[0],
         groupAdminsCount: groupAdmins.length,
         groupAdmins: groupAdmins.map(a => a?.substring(0, 20)),
         isAdminMatch,
         isGroupAdmin,
-        isModerator: isModeratorActionAllowed
+        isModerator: isModeratorActionAllowed,
+        isBotAdmin,
+        botNumber: botNumberLid?.substring(0, 30)
       });
     }
     const isModoBn = groupData.modobrincadeira;

@@ -78,6 +78,45 @@ async function getLidFromJidCached(nazu, jid) {
   return jid;
 }
 
+// Converte um array de IDs (JID/LID) para LID em batch
+async function convertIdsToLid(nazu, ids) {
+  if (!Array.isArray(ids) || ids.length === 0) return [];
+  
+  const converted = [];
+  
+  // Processa em paralelo (batch de 5 para não sobrecarregar)
+  const batchSize = 5;
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const batch = ids.slice(i, i + batchSize);
+    const batchPromises = batch.map(id => getLidFromJidCached(nazu, id));
+    const batchResults = await Promise.all(batchPromises);
+    converted.push(...batchResults);
+  }
+  
+  return converted;
+}
+
+// Verifica se dois IDs são equivalentes (ignora sufixo @lid/@s.whatsapp.net)
+function idsMatch(id1, id2) {
+  if (!id1 || !id2) return false;
+  
+  const base1 = id1.split('@')[0];
+  const base2 = id2.split('@')[0];
+  
+  return base1 === base2;
+}
+
+// Verifica se um ID está presente em um array (comparação por base)
+function idInArray(id, array) {
+  if (!id || !Array.isArray(array)) return false;
+  
+  const baseId = id.split('@')[0];
+  return array.some(item => {
+    const baseItem = item?.split('@')[0];
+    return baseItem === baseId;
+  });
+}
+
 // Converte qualquer ID (JID ou LID) para o formato unificado (preferencialmente LID)
 async function normalizeUserId(nazu, userId) {
   if (!userId || typeof userId !== 'string') return userId;
@@ -225,5 +264,8 @@ module.exports = {
   initJidLidCache,
   saveJidLidCache,
   getLidFromJidCached,
-  normalizeUserId
+  normalizeUserId,
+  convertIdsToLid,
+  idsMatch,
+  idInArray
 };
