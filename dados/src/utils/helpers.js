@@ -51,14 +51,21 @@ async function getLidFromJidCached(nazu, jid) {
   
   // 1. Verifica cache em memória primeiro (mais rápido)
   if (jidLidMemoryCache.has(jid)) {
-    return jidLidMemoryCache.get(jid);
+    const cachedLid = jidLidMemoryCache.get(jid);
+    // Remove :XX se existir no cache
+    return cachedLid.includes(':') ? cachedLid.split(':')[0] + '@lid' : cachedLid;
   }
   
   // 2. Se não está no cache, busca via API
   try {
     const result = await nazu.onWhatsApp(jid);
     if (result && result[0] && result[0].lid) {
-      const lid = result[0].lid;
+      let lid = result[0].lid;
+      
+      // Remove :XX se existir
+      if (lid.includes(':')) {
+        lid = lid.split(':')[0] + '@lid';
+      }
       
       // Salva no cache
       jidLidMemoryCache.set(jid, lid);
@@ -96,23 +103,33 @@ async function convertIdsToLid(nazu, ids) {
   return converted;
 }
 
-// Verifica se dois IDs são equivalentes (ignora sufixo @lid/@s.whatsapp.net)
+// Verifica se dois IDs são equivalentes (ignora sufixo @lid/@s.whatsapp.net e :XX)
 function idsMatch(id1, id2) {
   if (!id1 || !id2) return false;
   
-  const base1 = id1.split('@')[0];
-  const base2 = id2.split('@')[0];
+  // Remove :XX se existir (ex: 267955023654984:13@lid -> 267955023654984@lid)
+  const clean1 = id1.includes(':') ? id1.split(':')[0] + (id1.includes('@lid') ? '@lid' : '@s.whatsapp.net') : id1;
+  const clean2 = id2.includes(':') ? id2.split(':')[0] + (id2.includes('@lid') ? '@lid' : '@s.whatsapp.net') : id2;
+  
+  const base1 = clean1.split('@')[0];
+  const base2 = clean2.split('@')[0];
   
   return base1 === base2;
 }
 
-// Verifica se um ID está presente em um array (comparação por base)
+// Verifica se um ID está presente em um array (comparação por base, ignora :XX)
 function idInArray(id, array) {
   if (!id || !Array.isArray(array)) return false;
   
-  const baseId = id.split('@')[0];
+  // Remove :XX se existir
+  const cleanId = id.includes(':') ? id.split(':')[0] + (id.includes('@lid') ? '@lid' : '@s.whatsapp.net') : id;
+  const baseId = cleanId.split('@')[0];
+  
   return array.some(item => {
-    const baseItem = item?.split('@')[0];
+    if (!item) return false;
+    // Remove :XX do item também
+    const cleanItem = item.includes(':') ? item.split(':')[0] + (item.includes('@lid') ? '@lid' : '@s.whatsapp.net') : item;
+    const baseItem = cleanItem.split('@')[0];
     return baseItem === baseId;
   });
 }

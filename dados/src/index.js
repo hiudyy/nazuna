@@ -835,9 +835,15 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const extractParticipantId = (participant) => {
       if (!participant) return null;
       // Retorna LID se disponível, senão retorna o ID padrão
-      if (participant.lid) return participant.lid;
-      if (participant.id) return participant.id;
-      return null;
+      let id = participant.lid || participant.id || null;
+      
+      // Remove :XX se existir (ex: 267955023654984:13@lid -> 267955023654984@lid)
+      if (id && id.includes(':')) {
+        const suffix = id.includes('@lid') ? '@lid' : '@s.whatsapp.net';
+        id = id.split(':')[0] + suffix;
+      }
+      
+      return id;
     };
 
     // Extrai IDs dos membros (pode estar em JID)
@@ -864,7 +870,10 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       try {
         // Tenta pegar LID primeiro
         if (nazu.user?.lid) {
-          return nazu.user.lid;
+          // Remove o sufixo `:XX` se existir (ex: 267955023654984:13@lid -> 267955023654984@lid)
+          const lid = nazu.user.lid;
+          const cleanLid = lid.includes(':') ? lid.split(':')[0] + '@lid' : lid;
+          return cleanLid;
         }
         
         // Fallback para ID padrão
