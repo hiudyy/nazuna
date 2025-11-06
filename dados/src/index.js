@@ -3635,105 +3635,162 @@ Código: *${roleCode}*`,
 
         if (sub === 'perfilrpg' || sub === 'carteira') {
           const total = (me.wallet||0) + (me.bank||0);
-          return reply(`👤 Perfil Financeiro
-💼 Carteira: ${fmt(me.wallet)}
-🏦 Banco: ${fmt(me.bank)}
-💠 Total: ${fmt(total)}
- 💼 Emprego: ${me.job ? econ.jobCatalog[me.job]?.name || me.job : 'Desempregado(a)'}
-`);
+          return reply(`╭━━━⊱ 👤 *PERFIL FINANCEIRO* 👤 ⊱━━━╮
+│
+│ � *Carteira:* ${fmt(me.wallet)}
+│ 🏦 *Banco:* ${fmt(me.bank)}
+│ � *Total:* ${fmt(total)}
+│
+│ 💼 *Emprego:* ${me.job ? econ.jobCatalog[me.job]?.name || me.job : 'Desempregado(a)'}
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
         }
         if (sub === 'banco') {
           const cap = isFinite(bankCapacity) ? bankCapacity : '∞';
-          return reply(`🏦 Banco
-Saldo: ${fmt(me.bank)}
-Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
-`);
+          return reply(`╭━━━⊱ 🏦 *BANCO* 🏦 ⊱━━━╮
+│
+│ 💰 *Saldo:* ${fmt(me.bank)}
+│ 📦 *Capacidade:* ${cap === '∞' ? 'Ilimitada' : fmt(cap)}
+│
+╰━━━━━━━━━━━━━━━━━━━━━╯`);
         }
 
         if (sub === 'depositar' || sub === 'dep') {
           const amount = parseAmount(q.split(' ')[0], me.wallet);
-          if (!isFinite(amount) || amount <= 0) return reply('Informe um valor válido (ou "all").');
-          if (amount > me.wallet) return reply('Você não tem tudo isso na carteira.');
+          if (!isFinite(amount) || amount <= 0) return reply('❌ Informe um valor válido (ou "all").');
+          if (amount > me.wallet) return reply('❌ Você não tem tudo isso na carteira.');
           const cap = isFinite(bankCapacity) ? bankCapacity : Infinity;
           const space = cap - me.bank;
-          if (space <= 0) return reply('Seu banco está cheio. Compre um Cofre na loja para aumentar a capacidade.');
+          if (space <= 0) return reply('⚠️ Seu banco está cheio. Compre um Cofre na loja para aumentar a capacidade.');
           const toDep = Math.min(amount, space);
           me.wallet -= toDep; me.bank += toDep;
           saveEconomy(econ);
-          return reply(`✅ Depositado ${fmt(toDep)}. Banco: ${fmt(me.bank)} | Carteira: ${fmt(me.wallet)}`);
+          return reply(`╭━━━⊱ 💰 *DEPÓSITO* 💰 ⊱━━━╮
+│
+│ ✅ Depositado: ${fmt(toDep)}
+│
+│ 🏦 Banco: ${fmt(me.bank)}
+│ 💼 Carteira: ${fmt(me.wallet)}
+│
+╰━━━━━━━━━━━━━━━━━━━━━╯`);
         }
         if (sub === 'sacar' || sub === 'saque') {
           const amount = parseAmount(q.split(' ')[0], me.bank);
-          if (!isFinite(amount) || amount <= 0) return reply('Informe um valor válido (ou "all").');
-          if (amount > me.bank) return reply('Saldo insuficiente no banco.');
+          if (!isFinite(amount) || amount <= 0) return reply('❌ Informe um valor válido (ou "all").');
+          if (amount > me.bank) return reply('❌ Saldo insuficiente no banco.');
           me.bank -= amount; me.wallet += amount;
           saveEconomy(econ);
-          return reply(`✅ Sacado ${fmt(amount)}. Banco: ${fmt(me.bank)} | Carteira: ${fmt(me.wallet)}`);
+          return reply(`╭━━━⊱ 💳 *SAQUE* 💳 ⊱━━━╮
+│
+│ ✅ Sacado: ${fmt(amount)}
+│
+│ 🏦 Banco: ${fmt(me.bank)}
+│ 💼 Carteira: ${fmt(me.wallet)}
+│
+╰━━━━━━━━━━━━━━━━━━━━━╯`);
         }
 
         if (sub === 'transferir' || sub === 'pix') {
-          if (!mentioned) return reply(`👥 *Transferência de recursos*\n\n.Marque um usuário e informe o valor.\n📝 *Exemplo:* ${prefix}${sub} @user 100`);
+          if (!mentioned) return reply(`╭━━━⊱ � *TRANSFERÊNCIA* 💸 ⊱━━━╮
+│
+│ 👥 Marque um usuário e informe
+│    o valor a transferir
+│
+│ 📝 *Exemplo:*
+│ ${prefix}${sub} @user 100
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━╯`);
           const amount = parseAmount(args.slice(-1)[0], me.wallet);
-          if (!isFinite(amount) || amount <= 0) return reply('Informe um valor válido.');
-          if (amount > me.wallet) return reply('Você não tem esse valor na carteira.');
+          if (!isFinite(amount) || amount <= 0) return reply('❌ Informe um valor válido.');
+          if (amount > me.wallet) return reply('❌ Você não tem esse valor na carteira.');
           const other = getEcoUser(econ, mentioned);
-          if (mentioned === sender) return reply('Você não pode transferir para si mesmo.');
+          if (mentioned === sender) return reply('❌ Você não pode transferir para si mesmo.');
           me.wallet -= amount; other.wallet += amount;
           saveEconomy(econ);
-          return reply(`💸 Transferido ${fmt(amount)} para @${getUserName(mentioned)}.`, { mentions:[mentioned] });
+          return reply(`╭━━━⊱ ✅ *TRANSFERÊNCIA* ✅ ⊱━━━╮
+│
+│ 💸 Transferido: ${fmt(amount)}
+│ 👤 Para: @${getUserName(mentioned)}
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━╯`, { mentions:[mentioned] });
         }
 
         if (sub === 'loja' || sub === 'lojarps') {
           const items = Object.entries(econ.shop||{});
-          if (items.length === 0) return reply('A loja está vazia no momento.');
-          let text = '🛍️ Loja de Itens\n\n';
+          if (items.length === 0) return reply('❌ A loja está vazia no momento.');
+          let text = '╭━━━⊱ 🛍️ *LOJA DE ITENS* 🛍️ ⊱━━━╮\n│\n';
           for (const [k, it] of items) {
-            text += `• ${k} — ${it.name} — ${fmt(it.price)}\n`;
+            text += `│ 🔹 *${k}*\n│   ${it.name} — ${fmt(it.price)}\n│\n`;
           }
-          text += `\nCompre com: ${prefix}comprar <item>`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n💡 Compre com: ${prefix}comprar <item>`;
           return reply(text);
         }
         if (sub === 'comprar' || sub === 'buy') {
           const key = (args[0]||'').toLowerCase();
-          if (!key) return reply('Informe o item. Ex: '+prefix+'comprar pickaxe_bronze');
+          if (!key) return reply(`╭━━━⊱ 🛒 *COMPRAR* 🛒 ⊱━━━╮
+│
+│ ❌ Informe o item desejado
+│
+│ 📝 *Exemplo:*
+│ ${prefix}comprar pickaxe_bronze
+│
+│ 🛍️ Ver loja: ${prefix}loja
+│
+╰━━━━━━━━━━━━━━━━━━━━╯`);
           const it = (econ.shop||{})[key];
-          if (!it) return reply('Item não encontrado. Veja a loja com '+prefix+'loja');
-          if (me.wallet < it.price) return reply('Saldo insuficiente na carteira.');
+          if (!it) return reply(`❌ Item não encontrado.\n\n🛍️ Veja a loja com ${prefix}loja`);
+          if (me.wallet < it.price) return reply('❌ Saldo insuficiente na carteira.');
           me.wallet -= it.price;
           // Se for ferramenta (picareta), equipa automaticamente
           if (it.type === 'tool' && it.toolType === 'pickaxe') {
             me.tools = me.tools || {};
             me.tools.pickaxe = { tier: it.tier, dur: it.durability, max: it.durability, key };
             saveEconomy(econ);
-            return reply(`✅ Você comprou e equipou ${it.name} (durabilidade ${it.durability}).`);
+            return reply(`╭━━━⊱ ✅ *COMPRA* ✅ ⊱━━━╮
+│
+│ 🛠️ Você comprou e equipou:
+│ ${it.name}
+│
+│ ⚙️ Durabilidade: ${it.durability}
+│
+╰━━━━━━━━━━━━━━━━━━━━╯`);
           }
           // Caso contrário, vai para o inventário
           me.inventory[key] = (me.inventory[key]||0)+1;
           saveEconomy(econ);
-          return reply(`✅ Você comprou ${it.name} por ${fmt(it.price)}!`);
+          return reply(`╭━━━⊱ ✅ *COMPRA* ✅ ⊱━━━╮
+│
+│ 🎒 Você comprou:
+│ ${it.name}
+│
+│ 💰 Preço: ${fmt(it.price)}
+│
+╰━━━━━━━━━━━━━━━━━━━━╯`);
         }
 
         if (sub === 'inventario' || sub === 'inv') {
           const entries = Object.entries(me.inventory||{}).filter(([,q])=>q>0);
-          let text = '🎒 Inventário\n\n';
+          let text = '╭━━━⊱ 🎒 *INVENTÁRIO* 🎒 ⊱━━━╮\n│\n';
           if (entries.length>0) {
             for (const [k,q] of entries) {
               const it = (econ.shop||{})[k];
-              text += `• ${it?.name || k} x${q}\n`;
+              text += `│ 📦 ${it?.name || k} x${q}\n`;
             }
           } else {
-            text += '• (vazio)\n';
+            text += '│ 📭 (vazio)\n';
           }
+          text += '│\n';
           // Ferramentas
           const pk = me.tools?.pickaxe;
-          text += '\n🛠️ Ferramentas\n';
+          text += '╠━━━⊱ 🛠️ *FERRAMENTAS* 🛠️ ⊱━━━╣\n│\n';
           if (pk) {
             const tierName = pk.tier || 'desconhecida';
             const dur = pk.dur ?? 0; const max = pk.max ?? (pk.tier==='bronze'?20:pk.tier==='ferro'?60:pk.tier==='diamante'?150:0);
-            text += `• Picareta ${tierName} — ${dur}/${max}\n`;
+            text += `│ ⛏️ Picareta ${tierName}\n│    Durabilidade: ${dur}/${max}\n`;
           } else {
-            text += '• Picareta — nenhuma\n';
+            text += '│ ⛏️ Picareta — nenhuma\n';
           }
+          text += '│\n╰━━━━━━━━━━━━━━━━━━━━━━━━╯';
           return reply(text);
         }
 
@@ -3741,49 +3798,80 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         if (sub === 'materiais') {
           const mats = me.materials || {};
           const keys = Object.keys(mats).filter(k=>mats[k]>0);
-          if (keys.length===0) return reply('⛏️ Você não possui materiais. Mine para coletar.');
-          let text = '⛏️ Materiais\n\n';
-          for (const k of keys) text += `• ${k}: ${mats[k]}\n`;
+          if (keys.length===0) return reply('╭━━━⊱ ⛏️ *MATERIAIS* ⛏️ ⊱━━━╮\n│\n│ 📭 Você não possui materiais\n│\n│ ⛏️ Mine para coletar!\n│ Use: '+prefix+'minerar\n│\n╰━━━━━━━━━━━━━━━━━━━━━━╯');
+          let text = '╭━━━⊱ ⛏️ *MATERIAIS* ⛏️ ⊱━━━╮\n│\n';
+          for (const k of keys) text += `│ 💎 ${k}: ${mats[k]}\n`;
+          text += '│\n╰━━━━━━━━━━━━━━━━━━━━━━╯';
           return reply(text);
         }
         if (sub === 'precos' || sub === 'preços') {
           const mp = econ.materialsPrices || {};
-          let text = '💱 Preço dos Materiais (unidade)\n\n';
-          for (const [k,v] of Object.entries(mp)) text += `• ${k}: ${fmt(v)}\n`;
+          let text = '╭━━━⊱ 💱 *PREÇOS* 💱 ⊱━━━╮\n│\n│ 💎 *MATERIAIS (unidade)*\n│\n';
+          for (const [k,v] of Object.entries(mp)) text += `│ 🔸 ${k}: ${fmt(v)}\n`;
           // Receitas básicas
           const r = econ.recipes || {};
           if (Object.keys(r).length>0) {
-            text += '\n📜 Receitas\n';
+            text += '│\n│ 📜 *RECEITAS*\n│\n';
             for (const [key,rec] of Object.entries(r)) {
               const shopItem = econ.shop?.[key];
               const name = shopItem?.name || key;
               const req = Object.entries(rec.requires||{}).map(([mk,mq])=>`${mk} x${mq}`).join(', ');
-              text += `• ${name}: ${req} + ${fmt(rec.gold||0)} gold\n`;
+              text += `│ 🔨 ${name}\n│    ${req} + ${fmt(rec.gold||0)}\n`;
             }
           }
+          text += '│\n╰━━━━━━━━━━━━━━━━━━━━━━━━╯';
           return reply(text);
         }
         if (sub === 'vender') {
           const matKey = (args[0]||'').toLowerCase();
-          if (!matKey) return reply(`Use: ${prefix}vender <material> <quantidade|all>`);
+          if (!matKey) return reply(`╭━━━⊱ 💰 *VENDER MATERIAIS* 💰 ⊱━━━╮
+│
+│ 📝 *Uso:*
+│ ${prefix}vender <material> <qtd|all>
+│
+│ 💡 *Exemplo:*
+│ ${prefix}vender ferro 10
+│ ${prefix}vender ouro all
+│
+│ 💱 Ver preços: ${prefix}precos
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
           const price = (econ.materialsPrices||{})[matKey];
-          if (!price) return reply('Material inválido. Veja preços com '+prefix+'precos');
+          if (!price) return reply(`❌ Material inválido.\n\n💱 Veja preços com ${prefix}precos`);
           const have = me.materials?.[matKey] || 0;
-          if (have<=0) return reply('Você não possui esse material.');
+          if (have<=0) return reply('❌ Você não possui esse material.');
           const qtyArg = args[1]||'all';
           const qty = ['all','tudo','max'].includes((qtyArg||'').toLowerCase()) ? have : parseAmount(qtyArg, have);
-          if (!isFinite(qty) || qty<=0) return reply('Quantidade inválida.');
+          if (!isFinite(qty) || qty<=0) return reply('❌ Quantidade inválida.');
           const gain = qty * price;
           me.materials[matKey] = have - qty;
           me.wallet += gain;
           saveEconomy(econ);
-          return reply(`💰 Você vendeu ${qty}x ${matKey} por ${fmt(gain)}.`);
+          return reply(`╭━━━⊱ ✅ *VENDA* ✅ ⊱━━━╮
+│
+│ � Vendeu: ${qty}x ${matKey}
+│ 💰 Ganhou: ${fmt(gain)}
+│
+╰━━━━━━━━━━━━━━━━━━━━━╯`);
         }
         if (sub === 'reparar') {
           const pk = getActivePickaxe(me) || me.tools?.pickaxe;
-          if (!pk) return reply('Você não tem picareta equipada. Compre uma na '+prefix+'loja.');
+          if (!pk) return reply(`╭━━━⊱ 🛠️ *REPARAR* 🛠️ ⊱━━━╮
+│
+│ ❌ Você não tem picareta equipada
+│
+│ 🛍️ Compre uma: ${prefix}loja
+│
+╰━━━━━━━━━━━━━━━━━━━━━━╯`);
           const kits = me.inventory?.repairkit || 0;
-          if (kits<=0) return reply(`Você não tem Kit de Reparos. Compre com ${prefix}comprar repairkit.`);
+          if (kits<=0) return reply(`╭━━━⊱ 🔧 *KIT DE REPAROS* 🔧 ⊱━━━╮
+│
+│ ❌ Você não tem Kit de Reparos
+│
+│ 🛒 Compre com:
+│ ${prefix}comprar repairkit
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━╯`);
           const repair = econ.shop?.repairkit?.effect?.repair || 40;
           const max = pk.max ?? (pk.tier==='bronze'?20:pk.tier==='ferro'?60:pk.tier==='diamante'?150:pk.dur);
           const before = pk.dur;
@@ -3791,28 +3879,42 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
           me.inventory.repairkit = kits - 1;
           me.tools.pickaxe = { ...pk, max };
           saveEconomy(econ);
-          return reply(`🛠️ Picareta reparada: ${before} ➜ ${pk.dur}/${max}.`);
+          return reply(`╭━━━⊱ 🛠️ *REPARADO!* 🛠️ ⊱━━━╮
+│
+│ ⛏️ Picareta reparada
+│ 📊 ${before} ➜ ${pk.dur}/${max}
+│
+│ 🔧 Kits restantes: ${kits - 1}
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━╯`);
         }
         if (sub === 'desafio') {
           ensureUserChallenge(me);
           const ch = me.challenge;
           if ((args[0]||'').toLowerCase()==='coletar') {
-            if (ch.claimed) return reply('Você já coletou a recompensa de hoje.');
-            if (!isChallengeCompleted(me)) return reply('Complete todas as tarefas diárias para coletar.');
+            if (ch.claimed) return reply('❌ Você já coletou a recompensa de hoje.');
+            if (!isChallengeCompleted(me)) return reply('❌ Complete todas as tarefas diárias para coletar.');
             me.wallet += ch.reward;
             ch.claimed = true;
             saveEconomy(econ);
-            return reply(`🎉 Recompensa diária coletada: ${fmt(ch.reward)}!`);
+            return reply(`╭━━━⊱ 🎉 *RECOMPENSA!* 🎉 ⊱━━━╮
+│
+│ ✅ Desafio diário concluído!
+│ 💰 Recompensa: ${fmt(ch.reward)}
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━╯`);
           }
           const labels = {
             mine: 'Minerações', work:'Trabalhos', fish:'Pescarias', explore:'Explorações', hunt:'Caçadas', crimeSuccess:'Crimes bem-sucedidos'
           };
-          let text = '🏅 Desafio Diário\n\n';
+          let text = '╭━━━⊱ 🏅 *DESAFIO DIÁRIO* 🏅 ⊱━━━╮\n│\n';
           for (const t of ch.tasks||[]) {
-            text += `• ${labels[t.type]||t.type}: ${t.progress||0}/${t.target}\n`;
+            text += `│ 📋 ${labels[t.type]||t.type}\n│    ${t.progress||0}/${t.target}\n`;
           }
-          text += `\nPrêmio: ${fmt(ch.reward)} ${ch.claimed?'(coletado)':''}`;
-          if (isChallengeCompleted(me) && !ch.claimed) text += `\n\nUse: ${prefix}desafio coletar`;
+          text += `│\n│ 🎁 Prêmio: ${fmt(ch.reward)}\n`;
+          if (ch.claimed) text += `│ ✅ (coletado)\n`;
+          text += '│\n╰━━━━━━━━━━━━━━━━━━━━━━━━╯';
+          if (isChallengeCompleted(me) && !ch.claimed) text += `\n\n💡 Use: ${prefix}desafio coletar`;
           return reply(text);
         }
 
@@ -3867,16 +3969,51 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         }
 
         if (sub === 'vagas') {
-          const jobs = econ.jobCatalog||{}; let txt='💼 Vagas de Emprego\n\n';
-          Object.entries(jobs).forEach(([k,j])=>{ txt += `• ${k} — ${j.name} (${fmt(j.min)}-${fmt(j.max)})\n`; });
-          txt += `\nUse: ${prefix}emprego <vaga>`; return reply(txt);
+          const jobs = econ.jobCatalog||{}; 
+          let txt='╭━━━⊱ 💼 *VAGAS DE EMPREGO* 💼 ⊱━━━╮\n│\n';
+          Object.entries(jobs).forEach(([k,j])=>{ 
+            txt += `│ 🔹 *${k}*\n│   ${j.name}\n│   💰 ${fmt(j.min)}-${fmt(j.max)}\n│\n`; 
+          });
+          txt += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n💡 Use: ${prefix}emprego <vaga>`; 
+          return reply(txt);
         }
         if (sub === 'emprego') {
-          const key = (args[0]||'').toLowerCase(); if (!key) return reply('Informe a vaga. Veja com '+prefix+'vagas');
-          const job = (econ.jobCatalog||{})[key]; if (!job) return reply('Vaga inexistente.');
-          me.job = key; saveEconomy(econ); return reply(`✅ Agora você trabalha como ${job.name}. Ganhos ao usar ${prefix}trabalhar aumentam conforme a vaga.`);
+          const key = (args[0]||'').toLowerCase(); 
+          if (!key) return reply(`╭━━━⊱ 💼 *EMPREGO* 💼 ⊱━━━╮
+│
+│ ❌ Informe a vaga desejada
+│
+│ 📋 Ver vagas: ${prefix}vagas
+│
+│ 💡 Exemplo:
+│ ${prefix}emprego vendedor
+│
+╰━━━━━━━━━━━━━━━━━━━━━╯`);
+          const job = (econ.jobCatalog||{})[key]; 
+          if (!job) return reply('❌ Vaga inexistente.');
+          me.job = key; 
+          saveEconomy(econ); 
+          return reply(`╭━━━⊱ ✅ *CONTRATADO!* ✅ ⊱━━━╮
+│
+│ 💼 Emprego: ${job.name}
+│ 💰 Ganhos: ${fmt(job.min)}-${fmt(job.max)}
+│
+│ 🏢 Use ${prefix}trabalhar
+│    para receber seu salário!
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━╯`);
         }
-        if (sub === 'demitir') { me.job = null; saveEconomy(econ); return reply('👋 Você pediu demissão.'); }
+        if (sub === 'demitir') { 
+          me.job = null; 
+          saveEconomy(econ); 
+          return reply(`╭━━━⊱ 👋 *DEMISSÃO* 👋 ⊱━━━╮
+│
+│ ✅ Você pediu demissão
+│
+│ 💼 Veja novas vagas: ${prefix}vagas
+│
+╰━━━━━━━━━━━━━━━━━━━━━━╯`); 
+        }
 
         if (sub === 'pescar' || sub === 'fish') {
           const cd = me.cooldowns?.fish || 0; if (Date.now()<cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para pescar novamente.`);
@@ -3899,13 +4036,29 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         }
 
         if (sub === 'explorar' || sub === 'explore') {
-          const cd = me.cooldowns?.explore || 0; if (Date.now()<cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para explorar novamente.`);
+          const cd = me.cooldowns?.explore || 0; 
+          if (Date.now()<cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para explorar novamente.`);
           const base = 35 + Math.floor(Math.random()*56); // 35-90
           const skillB = getSkillBonus(me,'exploring');
-          const bonus = Math.floor(base * ((exploreBonus||0) + skillB)); const total = base + bonus;
-          me.wallet += total; me.cooldowns.explore = Date.now() + 5*60*1000; // cooldown maior
-          addSkillXP(me,'exploring',1); updateChallenge(me,'explore',1,true); updatePeriodChallenge(me,'explore',1,true); saveEconomy(econ);
-          return reply(`🧭 Você explorou e encontrou ${fmt(total)} ${bonus>0?`(bônus ${fmt(bonus)})`:''}!`);
+          const bonus = Math.floor(base * ((exploreBonus||0) + skillB)); 
+          const total = base + bonus;
+          me.wallet += total; 
+          me.cooldowns.explore = Date.now() + 5*60*1000; // cooldown maior
+          addSkillXP(me,'exploring',1); 
+          updateChallenge(me,'explore',1,true); 
+          updatePeriodChallenge(me,'explore',1,true); 
+          saveEconomy(econ);
+          
+          let exploreText = `╭━━━⊱ 🧭 *EXPLOROU!* 🧭 ⊱━━━╮\n`;
+          exploreText += `│\n`;
+          exploreText += `│ 💰 Ganhou: *${fmt(total)}*\n`;
+          if (bonus > 0) {
+            exploreText += `│ ✨ Bônus: *+${fmt(bonus)}*\n`;
+          }
+          exploreText += `│\n`;
+          exploreText += `╰━━━━━━━━━━━━━━━━━━━━━╯`;
+          
+          return reply(exploreText);
         }
 
         if (sub === 'cacar' || sub === 'caçar' || sub === 'hunt') {
@@ -3972,17 +4125,39 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
         }
 
     if (sub === 'crime') {
-          const cd = me.cooldowns?.crime || 0; if (Date.now()<cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para tentar de novo.`);
+          const cd = me.cooldowns?.crime || 0; 
+          if (Date.now()<cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para tentar de novo.`);
           const success = Math.random() < 0.35; // 35% sucesso, mais difícil
           if (success) {
             const base = 90 + Math.floor(Math.random()*141); // 90-230, menor
             const skillB = getSkillBonus(me,'crime');
             const gain = Math.floor(base * (1 + skillB));
-            me.wallet += gain; me.cooldowns.crime = Date.now()+10*60*1000; addSkillXP(me,'crime',1); updateChallenge(me,'crimeSuccess',1,true); updatePeriodChallenge(me,'crimeSuccess',1,true); saveEconomy(econ);
-            return reply(`🕵️ Você cometeu um crime e lucrou ${fmt(gain)}. Cuidado para não ser pego!`);
+            me.wallet += gain; 
+            me.cooldowns.crime = Date.now()+10*60*1000; 
+            addSkillXP(me,'crime',1); 
+            updateChallenge(me,'crimeSuccess',1,true); 
+            updatePeriodChallenge(me,'crimeSuccess',1,true); 
+            saveEconomy(econ);
+            return reply(`╭━━━⊱ 🕵️ *CRIME* 🕵️ ⊱━━━╮
+│
+│ ✅ Crime bem-sucedido!
+│ 💰 Lucrou: ${fmt(gain)}
+│
+│ ⚠️ Cuidado para não ser pego!
+│
+╰━━━━━━━━━━━━━━━━━━━━━╯`);
           } else {
-            const fine = 120 + Math.floor(Math.random()*201); const pay = Math.min(me.wallet, fine); me.wallet -= pay; me.cooldowns.crime = Date.now()+10*60*1000; saveEconomy(econ);
-            return reply(`🚔 Você foi pego! Pagou multa de ${fmt(pay)}.`);
+            const fine = 120 + Math.floor(Math.random()*201); 
+            const pay = Math.min(me.wallet, fine); 
+            me.wallet -= pay; 
+            me.cooldowns.crime = Date.now()+10*60*1000; 
+            saveEconomy(econ);
+            return reply(`╭━━━⊱ 🚔 *PEGO!* 🚔 ⊱━━━╮
+│
+│ ❌ Você foi pego pela polícia!
+│ 💸 Multa: ${fmt(pay)}
+│
+╰━━━━━━━━━━━━━━━━━━━━╯`);
           }
         }
 
@@ -5780,8 +5955,7 @@ Capacidade: ${cap === '∞' ? 'ilimitada' : fmt(cap)}
       }
 
       case 'adotaruser':
-      case 'adotar':
-      case 'adopt': {
+      case 'adotarfilho': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
         
@@ -9534,7 +9708,16 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'ytmp3':
         try {
           if (!q) {
-            return reply(`📝 Digite o nome da música ou um link do YouTube.\n\n📌 *Exemplo:* ${prefix + command} Back to Black`);
+            return reply(`╭━━━⊱ 🎵 *YOUTUBE MP3* 🎵 ⊱━━━╮
+│
+│ 📝 Digite o nome da música ou
+│    um link do YouTube
+│
+│ � *Exemplos:*
+│ ${prefix + command} Back to Black
+│ ${prefix + command} https://youtube.com/...
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
           }
 
           // Verificar se tem API key
@@ -11919,7 +12102,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'dono':
         try {
           const numeroDonoFormatado = numerodono ? String(numerodono).replace(/\D/g, '') : 'Não configurado';
-          const TextinDonoInfo = `╭⊰ 🌸 『 *INFORMAÇÕES DONO* 』\n┊\n┊👤 *Dono*: ${nomedono}\n┊📱 *Número Dono*: wa.me/${numeroDonoFormatado}\n┊\n╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯`;
+          const TextinDonoInfo = `╭━━━⊱ 👑 *DONO DO BOT* 👑 ⊱━━━╮
+│
+│ 👤 *Nome:* ${nomedono}
+│ 📱 *Contato:* wa.me/${numeroDonoFormatado}
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━╯`;
           await reply(TextinDonoInfo);
         } catch (e) {
           console.error(e);
@@ -11929,7 +12117,14 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
 
       case 'criador':
         try {
-          const TextinCriadorInfo = `╭⊰ 🌸 『 *INFORMAÇÕES DO CRIADOR* 』\n┊\n┊👨‍💻 *Criador*: Hiudy\n┊📱 *Número*: wa.me/553399285117\n┊🌐 *GitHub*: github.com/hiudyy\n┊📸 *Instagram*: instagram.com/hiudyyy_\n┊\n╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯`;
+          const TextinCriadorInfo = `╭━━━⊱ 👨‍💻 *CRIADOR* 👨‍💻 ⊱━━━╮
+│
+│ 💎 *Nome:* Hiudy
+│ 📱 *WhatsApp:* wa.me/553399285117
+│ 🌐 *GitHub:* github.com/hiudyy
+│ 📸 *Instagram:* instagram.com/hiudyyy_
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━╯`;
           await reply(TextinCriadorInfo);
         } catch (e) {
           console.error(e);
@@ -11957,16 +12152,16 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             statusTexto = 'Ruim';
           }
           
-          const mensagem = `╭─「 ⚡ *STATUS* ⚡ 」
-┊
-┊ 📡 *Conexão*
-┊ ├─ ${statusEmoji} Latência: *${speedConverted.toFixed(3)}s*
-┊ └─ 📊 Status: *${statusTexto}*
-┊
-┊ ⏱️ *Tempo Online*
-┊ └─ 🟢 Uptime: *${uptimeBot}*
-┊
-╰─「 ${nomebot} 」`;
+          const mensagem = `╭━━━⊱ ⚡ *STATUS* ⚡ ⊱━━━╮
+│
+│ 📡 *Conexão*
+│ ├─ ${statusEmoji} Latência: *${speedConverted.toFixed(3)}s*
+│ └─ 📊 Status: *${statusTexto}*
+│
+│ ⏱️ *Tempo Online*
+│ └─ 🟢 Uptime: *${uptimeBot}*
+│
+╰━━━━━━━━━━━━━━━━━━━━━╯`;
           
           await reply(mensagem);
         } catch (e) {
@@ -11975,7 +12170,15 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         }
         break;
       case 'toimg':
-        if (!isQuotedSticker) return reply('Por favor, *mencione um sticker* para executar o comando.');
+        if (!isQuotedSticker) return reply(`╭━━━⊱ 🖼️ *CONVERTER* 🖼️ ⊱━━━╮
+│
+│ ❌ Marque uma figurinha para
+│    converter em imagem!
+│
+│ 💡 Responda uma figurinha com:
+│ ${prefix}toimg
+│
+╰━━━━━━━━━━━━━━━━━━━━━━╯`);
         try {
           var buff;
           buff = await getFileBuffer(info.message.extendedTextMessage.contextInfo.quotedMessage.stickerMessage, 'sticker');
@@ -14760,7 +14963,7 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
 
       case 'casal':
         try {
-          if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
+          if (!isGroup) return reply("╭━━━⊱ 💔 *ERRO* 💔 ⊱━━━╮\n│\n│ ❌ Este comando só funciona\n│    em grupos!\n│\n╰━━━━━━━━━━━━━━━━━━━━╯");
           if (!isModoBn) return reply('❌ O modo brincadeira não está ativo nesse grupo.');
           if (AllgroupMembers.length < 2) return reply('❌ Preciso de pelo menos 2 membros no grupo!');
           let path = buildGroupFilePath(from);
@@ -14784,7 +14987,22 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
                            shipLevel >= 60 ? '😍 Ship promissor!' : 
                            shipLevel >= 40 ? '😊 Rolou uma química!' : 
                            shipLevel >= 20 ? '🤔 Meio forçado...' : '😅 Só na amizade!';
-          await reply(`💘 *${comentario}* 💘\n\n👑 **CASAL DO MOMENTO** �\n@${getUserName(membro1)} ❤️ @${getUserName(membro2)}\n\n� **Nível de ship:** *${shipLevel}%*\n🎯 **Chance de dar certo:** *${chance}%*\n\n${statusShip}\n\n${chance >= 70 ? '🎉 Já podem marcar o casamento!' : chance >= 50 ? '👀 Vale a pena investir!' : '😂 Melhor ficar só na amizade!'}`, {
+          await reply(`╭━━━⊱ 💘 *CASAL* 💘 ⊱━━━╮
+│
+│ 💫 *${comentario}*
+│
+│ 👑 *CASAL DO MOMENTO*
+│ @${getUserName(membro1)} ❤️ @${getUserName(membro2)}
+│
+│ 📊 *Estatísticas*
+│ └─ 💖 Ship: *${shipLevel}%*
+│ └─ 🎯 Chance: *${chance}%*
+│
+│ ${statusShip}
+│
+│ ${chance >= 70 ? '🎉 Já podem marcar o casamento!' : chance >= 50 ? '👀 Vale a pena investir!' : '😂 Melhor ficar só na amizade!'}
+│
+╰━━━━━━━━━━━━━━━━━━━━━━╯`, {
             mentions: [membro1, membro2]
           });
         } catch (e) {
@@ -14794,9 +15012,17 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
         break;
       case 'shipo':
         try {
-          if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
+          if (!isGroup) return reply("╭━━━⊱ 💔 *ERRO* 💔 ⊱━━━╮\n│\n│ ❌ Este comando só funciona\n│    em grupos!\n│\n╰━━━━━━━━━━━━━━━━━━━━╯");
           if (!isModoBn) return reply('❌ O modo brincadeira não está ativo nesse grupo.');
-          if (!menc_os2) return reply('Marque alguém para eu encontrar um par! Exemplo: ' + prefix + 'shipo @fulano');
+          if (!menc_os2) return reply(`╭━━━⊱ 💘 *SHIPO* 💘 ⊱━━━╮
+│
+│ ❌ Marque alguém para
+│    encontrar um par!
+│
+│ 💡 *Exemplo:*
+│ ${prefix}shipo @fulano
+│
+╰━━━━━━━━━━━━━━━━━━━━╯`);
           if (AllgroupMembers.length < 2) return reply('❌ Preciso de pelo menos 2 membros no grupo!');
           let path = buildGroupFilePath(from);
           let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {
@@ -14821,7 +15047,24 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
                            shipLevel >= 70 ? '🎆 Ship de qualidade!' : 
                            shipLevel >= 50 ? '😊 Tem potencial!' : 
                            shipLevel >= 30 ? '🤔 Pode rolar...' : '😅 Força demais!';
-          await reply(`${emoji} *${comentario}* ${emoji}\n\n👑 **SHIP SELECIONADO** �\n@${getUserName(menc_os2)} ✨ @${getUserName(par)}\n\n💫 **Ship name:** *${nomeShip}*\n� **Nível de ship:** *${shipLevel}%*\n🎯 **Compatibilidade:** *${chance}%*\n\n${statusShip}\n\n${chance >= 75 ? '🎉 Relacionamento dos sonhos!' : chance >= 50 ? '👀 Merece uma chance!' : '😂 Melhor só shippar mesmo!'}`, {
+          await reply(`╭━━━⊱ ${emoji} *SHIPO* ${emoji} ⊱━━━╮
+│
+│ 💫 *${comentario}*
+│
+│ 👑 *SHIP SELECIONADO*
+│ @${getUserName(menc_os2)} ✨ @${getUserName(par)}
+│
+│ 💫 *Ship name:* ${nomeShip}
+│
+│ 📊 *Estatísticas*
+│ └─ 💖 Ship: *${shipLevel}%*
+│ └─ 🎯 Compatibilidade: *${chance}%*
+│
+│ ${statusShip}
+│
+│ ${chance >= 75 ? '🎉 Relacionamento dos sonhos!' : chance >= 50 ? '👀 Merece uma chance!' : '😂 Melhor só shippar mesmo!'}
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━╯`, {
             mentions: [menc_os2, par]
           });
         } catch (e) {
