@@ -11,7 +11,7 @@ const crypto = require('crypto');
 const PerformanceOptimizer = require('./utils/performanceOptimizer');
 const cron = require('node-cron');
 const ia = require('./funcs/private/ia');
-const { formatUptime, normalizar, isGroupId, isUserId, isValidLid, isValidJid, getUserName, getLidFromJid, buildUserId, getBotId, ensureDirectoryExists, ensureJsonFileExists, loadJsonFile } = require('./utils/helpers');
+const { formatUptime, normalizar, isGroupId, isUserId, isValidLid, isValidJid, getUserName, getLidFromJid, buildUserId, getBotId, ensureDirectoryExists, ensureJsonFileExists, loadJsonFile, initJidLidCache, saveJidLidCache, getLidFromJidCached, normalizeUserId } = require('./utils/helpers');
 const {
   loadMsgPrefix,
   saveMsgPrefix,
@@ -144,7 +144,8 @@ const {
   BOT_STATE_FILE,
   AUTO_HORARIOS_FILE,
   AUTO_MENSAGENS_FILE,
-  MODO_LITE_FILE
+  MODO_LITE_FILE,
+  JID_LID_CACHE_FILE
 } = require('./utils/paths');
 const API_KEY_REQUIRED_MESSAGE = 'Este comando precisa de API key para funcionar. Meu dono já foi notificado! 😺';
 const OWNER_ONLY_MESSAGE = '🚫 Este comando é apenas para o dono do bot!';
@@ -225,6 +226,14 @@ try {
   console.error('Erro ao ler package.json:', e.message);
 }
 const botVersion = packageJson.version;
+
+// Inicializa o cache JID→LID
+initJidLidCache(JID_LID_CACHE_FILE);
+
+// Salva cache periodicamente (a cada 5 minutos)
+setInterval(() => {
+  saveJidLidCache();
+}, 5 * 60 * 1000);
   
 async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirationManager = null) {
   // Log de início de processamento para debug paralelo
@@ -233,6 +242,13 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
 
   let config = loadJsonFile(CONFIG_FILE, {});
   ensureDatabaseIntegrity({ log: Boolean(config?.debug) });
+  
+  // Log de debug aprimorado para rastreamento de IDs
+  const debugLog = (msg, data = null) => {
+    if (config?.debug) {
+      console.log(`[DEBUG] ${msg}`, data || '');
+    }
+  };
   
   async function getCachedGroupMetadata(groupId) {
     try {
@@ -475,13 +491,37 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     if (!info.key.participant && !info.key.remoteJid) return;
     let sender;
     if (isGroup) {
-      const participants = Object.keys(info.key).filter(k => k.startsWith("participant")).map(k => info.key[k]).filter(Boolean);
-      if (participants.length) {
-        sender = participants.find(p => p.includes("lid")) || participants[0];
-      };
+      // Prioriza participant, depois busca por LID, com fallback para JID
+      sender = info.key.participant || info.message?.participant;
+      
+      if (!sender) {
+        const participants = Object.keys(info.key).filter(k => k.startsWith("participant")).map(k => info.key[k]).filter(Boolean);
+        if (participants.length) {
+          sender = participants.find(p => p.includes("@lid")) || participants.find(p => p.includes("@s.whatsapp.net")) || participants[0];
+        }
+      }
+      
+      // Se ainda não encontrou, tenta extrair do contextInfo
+      if (!sender && info.message?.extendedTextMessage?.contextInfo?.participant) {
+        sender = info.message.extendedTextMessage.contextInfo.participant;
+      }
+      
+      // Se for JID, converte para LID usando cache
+      if (sender && isValidJid(sender)) {
+        sender = await getLidFromJidCached(nazu, sender);
+      }
     } else {
       sender = info.key.remoteJid;
-    };
+      
+      // Se for JID no PV, converte para LID usando cache
+      if (sender && isValidJid(sender)) {
+        sender = await getLidFromJidCached(nazu, sender);
+      }
+    }
+    
+    // Debug: log do sender identificado
+    debugLog('Sender identificado:', { sender, isGroup, from: from?.substring(0, 20) });
+    
     const pushname = info.pushName || '';
     const isStatus = from?.endsWith('@broadcast') || false;
     const nmrdn = buildUserId(numerodono, config);
@@ -490,8 +530,31 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const ownerJid = `${numerodono}@s.whatsapp.net`;
     const botId = getBotId(nazu);
     const isBotSender = sender === botId || sender === nazu.user?.id?.split(':')[0] + '@s.whatsapp.net' || sender === nazu.user?.id?.split(':')[0] + '@lid';
-    const isOwner = nmrdn === sender || ownerJid === sender || (lidowner && lidowner === sender) || info.key.fromMe || isBotSender;
+    
+    // Verificação melhorada de dono (compara base do número sem sufixo)
+    const senderBase = sender.split('@')[0];
+    const ownerBase = String(numerodono);
+    const lidOwnerBase = lidowner ? lidowner.split('@')[0] : null;
+    
+    const isOwner = senderBase === ownerBase || 
+                    sender === nmrdn || 
+                    sender === ownerJid || 
+                    (lidowner && sender === lidowner) || 
+                    (lidOwnerBase && senderBase === lidOwnerBase) ||
+                    info.key.fromMe || 
+                    isBotSender;
+    
     const isOwnerOrSub = isOwner || isSubOwner;
+    
+    // Debug: log das verificações de permissão
+    debugLog('Verificações de permissão:', { 
+      sender: sender?.substring(0, 30), 
+      senderBase, 
+      ownerBase, 
+      isOwner, 
+      isSubOwner 
+    });
+    
     const type = getContentType(info.message);
     const isMedia = ["imageMessage", "videoMessage", "audioMessage"].includes(type);
     const isImage = type === 'imageMessage';
@@ -771,35 +834,35 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     // Enhanced participant ID extraction with both LID and JID support
     const extractParticipantId = (participant) => {
       if (!participant) return null;
-      // Prioritize LID format, fallback to JID format
-      return participant.lid || participant.id || null;
+      // Retorna LID se disponível, senão retorna o ID padrão
+      if (participant.lid) return participant.lid;
+      if (participant.id) return participant.id;
+      return null;
     };
 
     const AllgroupMembers = !isGroup ? [] :
       groupMetadata.participants?.map(extractParticipantId).filter(Boolean) || [];
 
     const groupAdmins = !isGroup ? [] :
-      groupMetadata.participants?.filter(p => p.admin).map(extractParticipantId).filter(Boolean) || [];
+      groupMetadata.participants?.filter(p => p.admin === 'admin' || p.admin === 'superadmin').map(extractParticipantId).filter(Boolean) || [];
 
     // Robust bot ID extraction with multiple fallback mechanisms
-    const getBotNumber = async (nazu) => {
+    const getBotNumber = (nazu) => {
       try {
+        // Tenta pegar LID primeiro
         if (nazu.user?.lid) {
-          const botId = nazu.user.lid.split(':')[0];
-          return botId ? `${botId}@lid` : null;
+          return nazu.user.lid;
         }
+        
+        // Fallback para ID padrão
         if (nazu.user?.id) {
-          const botId = (await nazu.onWhatsApp(nazu.user.id.split(':')[0])).lid;
-          return botId ? `${botId}` : null;
-        }
-
-        if (typeof getBotId === 'function') {
-          return getBotId(nazu);
-        }
-
-        if (nazu.user?.id?.split) {
           const botId = nazu.user.id.split(':')[0];
           return `${botId}@s.whatsapp.net`;
+        }
+
+        // Usa helper se disponível
+        if (typeof getBotId === 'function') {
+          return getBotId(nazu);
         }
 
         console.warn('Unable to determine bot number - user object:', nazu.user);
@@ -810,12 +873,32 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       }
     };
 
-    const botNumber = await getBotNumber(nazu);
+    const botNumber = getBotNumber(nazu);
     const isBotAdmin = !isGroup || !botNumber ? false : groupAdmins.includes(botNumber);
+    
     let isGroupAdmin = false;
     if (isGroup) {
       const isModeratorActionAllowed = groupData.moderators?.includes(sender) && groupData.allowedModCommands?.includes(command);
-      isGroupAdmin = groupAdmins.includes(sender) || isOwner || isModeratorActionAllowed;
+      
+      // Verifica admin comparando tanto LID quanto JID (compatibilidade)
+      const senderBase = sender.split('@')[0];
+      const isAdminMatch = groupAdmins.some(adminId => {
+        const adminBase = adminId.split('@')[0];
+        return adminBase === senderBase;
+      });
+      
+      isGroupAdmin = isAdminMatch || isOwner || isModeratorActionAllowed;
+      
+      // Debug: log das verificações de admin
+      debugLog('Verificação de admin:', { 
+        sender: sender?.substring(0, 30),
+        senderBase,
+        groupAdminsCount: groupAdmins.length,
+        groupAdmins: groupAdmins.map(a => a?.substring(0, 20)),
+        isAdminMatch,
+        isGroupAdmin,
+        isModerator: isModeratorActionAllowed
+      });
     }
     const isModoBn = groupData.modobrincadeira;
     const isOnlyAdmin = groupData.soadm;
@@ -16785,6 +16868,57 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
   } catch (e) {
     await reply('❌ Ocorreu um erro inesperado 😢');
     console.error(e);
+  }
+  break;
+  
+  case 'cachedebug':
+  case 'debugcache':
+  try {
+    if (!isOwnerOrSub) return reply('🚫 Apenas o dono e subdonos podem usar este comando.');
+    
+    const { saveJidLidCache } = require('./utils/helpers');
+    const cacheFilePath = JID_LID_CACHE_FILE;
+    
+    // Força salvar o cache atual
+    saveJidLidCache();
+    
+    // Lê o arquivo de cache
+    let cacheData = { mappings: {}, version: 'N/A', lastUpdate: 'N/A' };
+    try {
+      if (fs.existsSync(cacheFilePath)) {
+        cacheData = JSON.parse(fs.readFileSync(cacheFilePath, 'utf-8'));
+      }
+    } catch (e) {
+      console.error('Erro ao ler cache:', e);
+    }
+    
+    const mappings = cacheData.mappings || {};
+    const entries = Object.entries(mappings);
+    const totalEntries = entries.length;
+    
+    let msg = '📊 *Cache JID→LID Debug*\n\n';
+    msg += `📈 Total de entradas: ${totalEntries}\n`;
+    msg += `🕐 Última atualização: ${cacheData.lastUpdate || 'N/A'}\n`;
+    msg += `📦 Versão: ${cacheData.version || 'N/A'}\n\n`;
+    
+    if (totalEntries > 0) {
+      msg += '📋 *Últimas 10 entradas:*\n\n';
+      const lastTen = entries.slice(-10);
+      lastTen.forEach(([jid, lid], idx) => {
+        const jidShort = jid.substring(0, 15) + '...';
+        const lidShort = lid.substring(0, 20) + '...';
+        msg += `${idx + 1}. JID: ${jidShort}\n   LID: ${lidShort}\n\n`;
+      });
+    } else {
+      msg += '⚠️ Cache vazio - nenhuma conversão JID→LID registrada ainda.\n';
+    }
+    
+    msg += `\n💾 Arquivo: ${cacheFilePath.split('/').slice(-2).join('/')}`;
+    
+    await reply(msg);
+  } catch (e) {
+    console.error('Erro no cachedebug:', e);
+    await reply('❌ Ocorreu um erro ao acessar o cache.');
   }
   break;
 
