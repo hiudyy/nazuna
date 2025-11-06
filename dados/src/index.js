@@ -735,6 +735,16 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     var isCmd = body.trim().startsWith(groupPrefix);
     const aliases = loadCommandAliases();
     const matchedAlias = aliases.find(item => normalizar(budy2.trim().slice(groupPrefix.length).split(/ +/).shift().trim()) === item.alias);
+    
+    // Se encontrou um alias, aplicar parâmetros fixos
+    if (matchedAlias && matchedAlias.fixedParams) {
+      const userArgs = body.trim().slice(groupPrefix.length).split(/ +/).slice(1).join(' ');
+      const combinedParams = matchedAlias.fixedParams + (userArgs ? ' ' + userArgs : '');
+      q = combinedParams;
+      args.length = 0;
+      args.push(...combinedParams.split(/ +/));
+    }
+    
     var command = isCmd ? matchedAlias ? matchedAlias.command : normalizar(body.trim().slice(groupPrefix.length).split(/ +/).shift().trim()).replace(/\s+/g, '') : null;
     const isPremium = premiumListaZinha[sender] || premiumListaZinha[from] || isOwner;
     if (!isGroup) {
@@ -2577,6 +2587,15 @@ Código: *${roleCode}*`,
       if (matchedCommand) {
         var command = matchedCommand.command;
         var isCmd = true;
+        const bodyParts = body.trim().split(/ +/);
+        const dynamicArgs = bodyParts.slice(1);
+        const fixedParams = matchedCommand.fixedParams || '';
+        const allParams = fixedParams ? (fixedParams + (dynamicArgs.length > 0 ? ' ' + dynamicArgs.join(' ') : '')) : dynamicArgs.join(' ');
+        args.length = 0;
+        if (allParams) {
+          args.push(...allParams.split(/ +/));
+        }
+        q = allParams;
       }
     }
 
@@ -9041,19 +9060,25 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'addnopref':
         try {
           if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
-          if (!q || !q.includes('/')) return reply(`Por favor, forneça a mensagem e o comando separados por /. Ex: ${groupPrefix}addnoprefix 😸/ban`);
-          const [trigger, targetCommand] = q.split('/').map(s => s.trim());
-          if (!trigger || !targetCommand) return reply("Formato inválido. Use: mensagem/comando");
+          if (!q || !q.includes('/')) return reply(`Por favor, forneça a mensagem e o comando separados por /. Ex: ${groupPrefix}addnoprefix f/grupo f\nVocê pode incluir parâmetros fixos no comando!`);
+          const [trigger, ...commandParts] = q.split('/');
+          const targetCommand = commandParts.join('/').trim();
+          if (!trigger.trim() || !targetCommand) return reply("Formato inválido. Use: mensagem/comando [parâmetros]");
           const noPrefixCommands = loadNoPrefixCommands();
-          if (noPrefixCommands.some(cmd => cmd.trigger === trigger)) {
-            return reply(`A mensagem "${trigger}" já está mapeada para um comando.`);
+          if (noPrefixCommands.some(cmd => cmd.trigger === trigger.trim())) {
+            return reply(`A mensagem "${trigger.trim()}" já está mapeada para um comando.`);
           }
+          const commandWords = targetCommand.split(' ');
+          const baseCommand = normalizar(commandWords[0]);
+          const fixedParams = commandWords.slice(1).join(' ');
+          
           noPrefixCommands.push({
-            trigger,
-            command: normalizar(targetCommand)
+            trigger: trigger.trim(),
+            command: baseCommand,
+            fixedParams: fixedParams || ''
           });
           if (saveNoPrefixCommands(noPrefixCommands)) {
-            await reply(`✅ Comando sem prefixo adicionado!\nMensagem: ${trigger}\nComando: ${targetCommand}`);
+            await reply(`✅ Comando sem prefixo adicionado!\nMensagem: ${trigger.trim()}\nComando: ${targetCommand}`);
           } else {
             await reply("😥 Erro ao salvar o comando sem prefixo. Tente novamente!");
           }
@@ -9070,8 +9095,8 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           if (noPrefixCommands.length === 0) return reply("📜 Nenhum comando sem prefixo definido.");
           let responseText = `📜 *Comandos Sem Prefixo do Grupo ${groupName}*\n\n`;
           noPrefixCommands.forEach((item, index) => {
-            
-            responseText += `${index + 1}. Mensagem: ${item.trigger}\n   Comando: ${item.command}\n`;
+            const fullCommand = item.fixedParams ? `${item.command} ${item.fixedParams}` : item.command;
+            responseText += `${index + 1}. Mensagem: ${item.trigger}\n   Comando: ${fullCommand}\n`;
           });
           await reply(responseText);
         } catch (e) {
@@ -9101,19 +9126,25 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'addalias':
         try {
           if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
-          if (!q || !q.includes('/')) return reply(`Por favor, forneça o apelido e o comando separados por /. Ex: ${groupPrefix}addalias h/hidetag`);
-          const [alias, targetCommand] = q.split('/').map(s => s.trim());
-          if (!alias || !targetCommand) return reply("Formato inválido. Use: apelido/comando");
+          if (!q || !q.includes('/')) return reply(`Por favor, forneça o apelido e o comando separados por /. Ex: ${groupPrefix}addalias h/hidetag\nVocê pode incluir parâmetros fixos no comando!`);
+          const [alias, ...commandParts] = q.split('/');
+          const targetCommand = commandParts.join('/').trim();
+          if (!alias.trim() || !targetCommand) return reply("Formato inválido. Use: apelido/comando [parâmetros]");
           const aliases = loadCommandAliases();
-          if (aliases.some(item => item.alias === normalizar(alias))) {
-            return reply(`O apelido "${alias}" já está em uso.`);
+          if (aliases.some(item => item.alias === normalizar(alias.trim()))) {
+            return reply(`O apelido "${alias.trim()}" já está em uso.`);
           }
+          const commandWords = targetCommand.split(' ');
+          const baseCommand = normalizar(commandWords[0]);
+          const fixedParams = commandWords.slice(1).join(' ');
+          
           aliases.push({
-            alias: normalizar(alias),
-            command: normalizar(targetCommand)
+            alias: normalizar(alias.trim()),
+            command: baseCommand,
+            fixedParams: fixedParams || ''
           });
           if (saveCommandAliases(aliases)) {
-            await reply(`✅ Apelido adicionado!\nApelido: ${groupPrefix}${alias}\nComando: ${groupPrefix}${targetCommand}`);
+            await reply(`✅ Apelido adicionado!\nApelido: ${groupPrefix}${alias.trim()}\nComando: ${groupPrefix}${targetCommand}`);
           } else {
             await reply("😥 Erro ao salvar o apelido. Tente novamente!");
           }
@@ -9129,8 +9160,8 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           if (aliases.length === 0) return reply("📜 Nenhum apelido de comando definido.");
           let responseText = `📜 *Apelidos de Comandos do Grupo ${groupName}*\n\n`;
           aliases.forEach((item, index) => {
-            
-            responseText += `${index + 1}. Apelido: ${groupPrefix}${item.alias}\n   Comando: ${groupPrefix}${item.command}\n`;
+            const fullCommand = item.fixedParams ? `${item.command} ${item.fixedParams}` : item.command;
+            responseText += `${index + 1}. Apelido: ${groupPrefix}${item.alias}\n   Comando: ${groupPrefix}${fullCommand}\n`;
           });
           await reply(responseText);
         } catch (e) {
