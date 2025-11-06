@@ -95,6 +95,12 @@ ${middleBorder}${menuItemIcon}${prefix}addpremium
 ${middleBorder}${menuItemIcon}${prefix}delpremium
 ${middleBorder}${menuItemIcon}${prefix}listprem
 ${middleBorder}${menuItemIcon}${prefix}resetgold
+${middleBorder}
+${middleBorder}${menuTitleIcon} *INDICAÇÕES* ${menuTitleIcon}
+${middleBorder}${menuItemIcon}${prefix}addindicacao
+${middleBorder}${menuItemIcon}${prefix}topindica
+${middleBorder}${menuItemIcon}${prefix}delindicacao
+${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}bangp
 ${middleBorder}${menuItemIcon}${prefix}unbangp
 ${middleBorder}${menuItemIcon}${prefix}listbangp

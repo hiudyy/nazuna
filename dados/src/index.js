@@ -2385,7 +2385,7 @@ Código: *${roleCode}*`,
       commandStats.trackCommandUsage(command, sender);
     }
     if (budy2.match(/^(\d+)d(\d+)$/)) reply(+budy2.match(/^(\d+)d(\d+)$/)[1] > 50 || +budy2.match(/^(\d+)d(\d+)$/)[2] > 100 ? "❌ Limite: max 50 dados e 100 lados" : "🎲 Rolando " + budy2.match(/^(\d+)d(\d+)$/)[1] + "d" + budy2.match(/^(\d+)d(\d+)$/)[2] + "...\n🎯 Resultados: " + (r = [...Array(+budy2.match(/^(\d+)d(\d+)$/)[1])].map(_ => 1 + Math.floor(Math.random() * +budy2.match(/^(\d+)d(\d+)$/)[2]))).join(", ") + "\n📊 Total: " + r.reduce((a, b) => a + b, 0));
-    
+
     const _botShort = (nazu && nazu.user && (nazu.user.id || nazu.user.lid)) ? String((nazu.user.id || nazu.user.lid).split(':')[0]) : '';
     if (!info.key.fromMe && isAssistente && !isCmd && ((_botShort && budy2.includes(_botShort)) || (menc_os2 && menc_os2 == await getBotNumber(nazu))) && KeyCog) {
       if (budy2.replaceAll('@' + _botShort, '').length > 2) {
@@ -11169,6 +11169,134 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           await reply('😔 Ops, algo deu errado. Tente novamente mais tarde!');
         }
         break;
+      
+      // SISTEMA DE INDICAÇÕES
+      case 'addindicacao':
+      case 'addindicar':
+      case 'addindica':
+        try {
+          if (!isOwner) return reply("🚫 Este comando é apenas para o dono do bot!");
+          
+          if (!menc_os2) return reply("❌ Você precisa marcar alguém para adicionar uma indicação!\n\n💡 Exemplo: " + prefix + "addindicacao @usuario");
+          
+          const indicacoesFile = pathz.join(DATABASE_DIR, 'indicacoes.json');
+          let indicacoesData = loadJsonFile(indicacoesFile, { users: {} });
+          
+          if (!indicacoesData.users[menc_os2]) {
+            indicacoesData.users[menc_os2] = {
+              count: 0,
+              addedBy: [],
+              createdAt: new Date().toISOString()
+            };
+          }
+          
+          indicacoesData.users[menc_os2].count += 1;
+          indicacoesData.users[menc_os2].addedBy.push({
+            by: sender,
+            at: new Date().toISOString()
+          });
+          indicacoesData.users[menc_os2].lastUpdate = new Date().toISOString();
+          
+          writeJsonFile(indicacoesFile, indicacoesData);
+          
+          await nazu.sendMessage(from, {
+            text: `✅ *Indicação adicionada com sucesso!*\n\n👤 @${getUserName(menc_os2)} agora tem *${indicacoesData.users[menc_os2].count}* indicação(ões)! 🎉`,
+            mentions: [menc_os2]
+          }, { quoted: info });
+          
+        } catch (e) {
+          console.error('Erro no comando addindicacao:', e);
+          reply("❌ Ocorreu um erro ao adicionar a indicação.");
+        }
+        break;
+        
+      case 'topindica':
+      case 'topindicacao':
+      case 'rankindicacao':
+      case 'rankindicacoes':
+        try {
+          const indicacoesFile = pathz.join(DATABASE_DIR, 'indicacoes.json');
+          let indicacoesData = loadJsonFile(indicacoesFile, { users: {} });
+          
+          const usersArray = Object.entries(indicacoesData.users)
+            .map(([userId, data]) => ({ userId, count: data.count }))
+            .sort((a, b) => b.count - a.count);
+          
+          if (usersArray.length === 0) {
+            return reply("📊 Ainda não há indicações registradas no sistema.");
+          }
+          
+          let mensagem = '🏆 *TOP INDICAÇÕES DA BOT* 🏆\n\n';
+          mensagem += '═══════════════════\n\n';
+          
+          const topEmojis = ['🥇', '🥈', '🥉'];
+          const maxShow = Math.min(usersArray.length, 10);
+          
+          for (let i = 0; i < maxShow; i++) {
+            const emoji = i < 3 ? topEmojis[i] : `${i + 1}.`;
+            const user = usersArray[i];
+            mensagem += `${emoji} @${getUserName(user.userId)}\n`;
+            mensagem += `   └─ 📈 *${user.count}* indicação(ões)\n\n`;
+          }
+          
+          mensagem += '═══════════════════\n';
+          mensagem += `📊 Total de usuários: ${usersArray.length}\n`;
+          mensagem += `📊 Total de indicações: ${usersArray.reduce((sum, u) => sum + u.count, 0)}`;
+          
+          const mentions = usersArray.slice(0, maxShow).map(u => u.userId);
+          
+          await nazu.sendMessage(from, {
+            text: mensagem,
+            mentions: mentions
+          }, { quoted: info });
+          
+        } catch (e) {
+          console.error('Erro no comando topindica:', e);
+          reply("❌ Ocorreu um erro ao buscar o ranking de indicações.");
+        }
+        break;
+        
+      case 'delindicacao':
+      case 'rmindicacao':
+      case 'removerindicacao':
+        try {
+          if (!isOwner) return reply("🚫 Este comando é apenas para o dono do bot!");
+          
+          if (!menc_os2) return reply("❌ Você precisa marcar alguém para remover a indicação!\n\n💡 Exemplo: " + prefix + "delindicacao @usuario");
+          
+          const indicacoesFile = pathz.join(DATABASE_DIR, 'indicacoes.json');
+          let indicacoesData = loadJsonFile(indicacoesFile, { users: {} });
+          
+          if (!indicacoesData.users[menc_os2] || indicacoesData.users[menc_os2].count === 0) {
+            return reply("❌ Este usuário não possui indicações registradas!");
+          }
+          
+          const countBefore = indicacoesData.users[menc_os2].count;
+          
+          if (q && !isNaN(q)) {
+            const removeCount = parseInt(q);
+            indicacoesData.users[menc_os2].count = Math.max(0, indicacoesData.users[menc_os2].count - removeCount);
+          } else {
+            delete indicacoesData.users[menc_os2];
+          }
+          
+          writeJsonFile(indicacoesFile, indicacoesData);
+          
+          const finalMsg = q && !isNaN(q) 
+            ? `✅ Removidas *${Math.min(parseInt(q), countBefore)}* indicação(ões) de @${getUserName(menc_os2)}!\n\n📊 Total restante: *${indicacoesData.users[menc_os2]?.count || 0}*`
+            : `✅ Todas as indicações de @${getUserName(menc_os2)} foram removidas! (Total: *${countBefore}*)`;
+          
+          await nazu.sendMessage(from, {
+            text: finalMsg,
+            mentions: [menc_os2]
+          }, { quoted: info });
+          
+        } catch (e) {
+          console.error('Erro no comando delindicacao:', e);
+          reply("❌ Ocorreu um erro ao remover a indicação.");
+        }
+        break;
+      
       //COMANDOS GERAIS
       case 'rvisu':
       case 'open':
