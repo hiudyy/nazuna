@@ -1009,9 +1009,6 @@ async function createBotSocket(authDir) {
                     
                 try {
                     const msgCount = m.messages.length;
-                    if (msgCount > 0) {
-                        console.log(`📥 Recebendo ${msgCount} mensagem(ns) - Adicionando à fila para processamento paralelo...`);
-                    }
                     
                     const messageProcessingPromises = m.messages.map(info =>
                         messageQueue.add(info, processMessage).catch(err => {

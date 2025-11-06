@@ -16634,9 +16634,6 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
         };
     };
     
-    // Log de conclusão de processamento
-    console.log(`✅ [${msgId}] Processamento concluído`);
-    
   } catch (error) {
     console.error(`❌ [${msgId}] ERRO NO PROCESSAMENTO DA MENSAGEM`);
     console.error('Tipo de erro:', error.name);
