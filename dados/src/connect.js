@@ -90,7 +90,7 @@ class MessageQueue {
     }
 
     async processQueue() {
-        // Processa mensagens em lotes paralelos de forma não bloqueante
+        // Processa mensagens em lotes paralelos
         while (this.isProcessing && this.queue.length > 0) {
             // Calcula quantos lotes podemos processar
             const availableBatches = Math.min(
@@ -115,66 +115,52 @@ class MessageQueue {
 
             this.stats.currentQueueLength = this.queue.length;
 
-            // Processa todos os lotes em paralelo sem esperar (fire-and-forget)
+            // Processa todos os lotes em paralelo
             const batchStartTime = Date.now();
-            batches.forEach(batch => {
-                this.processBatch(batch).catch(err => {
-                    console.error(`❌ Batch processing error: ${err.message}`);
-                });
-            });
+            await Promise.allSettled(
+                batches.map(batch => this.processBatch(batch))
+            );
             
             const batchDuration = Date.now() - batchStartTime;
             this.stats.batchesProcessed++;
             this.stats.avgBatchTime = 
                 (this.stats.avgBatchTime * (this.stats.batchesProcessed - 1) + batchDuration) / 
                 this.stats.batchesProcessed;
-            
-            // Pequeno delay para não sobrecarregar o event loop
-            await new Promise(resolve => setImmediate(resolve));
         }
 
         if (this.queue.length === 0) {
             this.stopProcessing();
-        } else if (this.isProcessing) {
-            // Se ainda há mensagens, continua processando
-            setImmediate(() => this.processQueue());
         }
     }
 
     async processBatch(batchItems) {
-        // Inicia processamento de todas as mensagens do lote em paralelo (fire-and-forget)
-        batchItems.forEach(item => {
-            this.processItem(item)
-                .then(() => {
-                    this.stats.totalProcessed++;
-                })
-                .catch(err => {
-                    this.stats.totalErrors++;
-                    console.error(`❌ Batch item error: ${err.message}`);
-                });
-        });
+        // Processa todas as mensagens do lote em paralelo
+        const batchPromises = batchItems.map(item => this.processItem(item));
         
-        // Retorna imediatamente sem esperar processamento
-        return Promise.resolve();
+        const results = await Promise.allSettled(batchPromises);
+        
+        // Contabiliza resultados
+        results.forEach((result, index) => {
+            if (result.status === 'fulfilled') {
+                this.stats.totalProcessed++;
+            } else {
+                this.stats.totalErrors++;
+            }
+        });
     }
 
     async processItem(item) {
         const { message, processor, resolve, reject } = item;
         
-        // Inicia processamento de forma não bloqueante (fire-and-forget)
-        setImmediate(() => {
-            processor(message)
-                .then(result => {
-                    resolve(result);
-                })
-                .catch(error => {
-                    this.handleProcessingError(item, error).catch(() => {});
-                    reject(error);
-                });
-        });
-        
-        // Retorna imediatamente sem esperar
-        return Promise.resolve();
+        try {
+            const result = await processor(message);
+            resolve(result);
+            return result;
+        } catch (error) {
+            await this.handleProcessingError(item, error);
+            reject(error);
+            throw error;
+        }
     }
 
     async handleProcessingError(item, error) {
@@ -259,6 +245,7 @@ class MessageQueue {
         }
         
         this.clear();
+        console.log('✅ MessageQueue finalizado');
     }
 
     pause() {
@@ -272,7 +259,7 @@ class MessageQueue {
     }
 }
 
-const messageQueue = new MessageQueue(16, 20, 5); // 16 workers, 20 lotes, 5 mensagens por lote (até 100 msgs paralelas)
+const messageQueue = new MessageQueue(8, 10, 2); // 8 workers, 10 lotes, 2 mensagens por lote
 
 const configPath = path.join(__dirname, "config.json");
 let config = JSON.parse(readFileSync(configPath, "utf8"));
@@ -1008,8 +995,6 @@ async function createBotSocket(authDir) {
                     return;
                     
                 try {
-                    const msgCount = m.messages.length;
-                    
                     const messageProcessingPromises = m.messages.map(info =>
                         messageQueue.add(info, processMessage).catch(err => {
                             console.error(`❌ Failed to queue message ${info.key?.id}: ${err.message}`);
@@ -1017,12 +1002,6 @@ async function createBotSocket(authDir) {
                     );
                     
                     await Promise.allSettled(messageProcessingPromises);
-                    
-                    // Log do status da fila
-                    const queueStatus = messageQueue.getStatus();
-                    if (queueStatus.queueLength > 0) {
-                        console.log(`⏳ Fila: ${queueStatus.queueLength} msgs aguardando | ${queueStatus.totalProcessed} processadas | ${queueStatus.errorRate}% erros`);
-                    }
                     
                 } catch (err) {
                     console.error(`❌ Error in message upsert handler: ${err.message}`);
@@ -1080,8 +1059,7 @@ async function createBotSocket(authDir) {
                 }
                 
                 console.log(`✅ Bot ${nomebot} iniciado com sucesso! Prefixo: ${prefixo} | Dono: ${nomedono}`);
-                console.log(`� MODO PARALELO ATIVO: Processamento não-bloqueante de múltiplas mensagens`);
-                console.log(`�📊 Configuração: ${messageQueue.batchSize} lotes × ${messageQueue.messagesPerBatch} msgs = até ${messageQueue.batchSize * messageQueue.messagesPerBatch} mensagens simultâneas`);
+                console.log(`📊 Configuração: ${messageQueue.batchSize} lotes de ${messageQueue.messagesPerBatch} mensagens (${messageQueue.batchSize * messageQueue.messagesPerBatch} msgs paralelas)`);
             }
             if (connection === 'close') {
                 const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
