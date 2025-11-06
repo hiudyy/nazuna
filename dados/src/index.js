@@ -14507,7 +14507,8 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
         });
         break;
       }
-      case 'namoro': {
+      case 'namoro':
+      case 'namorar': {
         if (!isGroup) {
           await reply('⚠️ Esse pedido só pode ser feito em grupos.');
           break;

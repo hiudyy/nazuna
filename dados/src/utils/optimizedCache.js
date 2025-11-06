@@ -40,9 +40,9 @@ class OptimizedCacheManager {
             forceString: false
         }));
 
-        // Cache para metadados de grupos específico do index.js (TTL de 1 minuto)
+        // Cache para metadados de grupos específico do index.js (TTL de 10 segundos)
         this.caches.set('indexGroupMeta', new NodeCache({
-            stdTTL: 60, // 1 minuto
+            stdTTL: 10, // 10 segundos
             checkperiod: 30, // Verifica a cada 30 segundos
             useClones: false,
             maxKeys: 500, // Máximo 500 grupos
@@ -110,7 +110,7 @@ class OptimizedCacheManager {
      * Define valor no cache de metadados de grupos específico do index.js
      */
     async setIndexGroupMeta(groupId, value) {
-        return await this.set('indexGroupMeta', groupId, value, 60); // 1 minuto TTL
+        return await this.set('indexGroupMeta', groupId, value, 10); // 10 segundos TTL
     }
 
     /**
