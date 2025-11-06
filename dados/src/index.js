@@ -227,6 +227,11 @@ try {
 const botVersion = packageJson.version;
   
 async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirationManager = null) {
+  // Log de início de processamento para debug paralelo
+  const msgId = info?.key?.id?.slice(-6) || 'unknown';
+  const from = info?.key?.remoteJid || 'unknown';
+  console.log(`🔄 [${msgId}] Iniciando processamento - ${from}`);
+  
   let config = loadJsonFile(CONFIG_FILE, {});
   ensureDatabaseIntegrity({ log: Boolean(config?.debug) });
   
@@ -16629,8 +16634,12 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
           await processAutoResponse(nazu, from, body, info);
         };
     };
+    
+    // Log de conclusão de processamento
+    console.log(`✅ [${msgId}] Processamento concluído`);
+    
   } catch (error) {
-    console.error('==== ERRO NO PROCESSAMENTO DA MENSAGEM ====');
+    console.error(`❌ [${msgId}] ERRO NO PROCESSAMENTO DA MENSAGEM`);
     console.error('Tipo de erro:', error.name);
     console.error('Mensagem:', error.message);
     console.error('Stack trace:', error.stack);
