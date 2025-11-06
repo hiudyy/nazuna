@@ -35,6 +35,7 @@ const BOT_STATE_FILE = path.join(DATABASE_DIR, 'botState.json');
 const AUTO_HORARIOS_FILE = path.join(DATABASE_DIR, 'autohorarios.json');
 const AUTO_MENSAGENS_FILE = path.join(DATABASE_DIR, 'automensagens.json');
 const MODO_LITE_FILE = path.join(DATABASE_DIR, 'modolite.json');
+const JID_LID_CACHE_FILE = path.join(DATABASE_DIR, 'jid_lid_cache.json');
 const SUBDONOS_FILE = path.join(DONO_DIR, 'subdonos.json');
 const ALUGUEIS_FILE = path.join(DONO_DIR, 'alugueis.json');
 const CODIGOS_ALUGUEL_FILE = path.join(DONO_DIR, 'codigos_aluguel.json');
