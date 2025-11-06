@@ -553,8 +553,16 @@ const saveSubdonos = subdonoList => {
 };
 
 const isSubdono = userId => {
+  if (!userId) return false;
   const currentSubdonos = loadSubdonos();
-  return currentSubdonos.includes(userId);
+  
+  // Verificar se o userId ou qualquer variação (com @s.whatsapp.net ou @lid) está na lista
+  const userIdBase = userId.replace(/@s\.whatsapp\.net|@lid/g, '');
+  
+  return currentSubdonos.some(subdonoId => {
+    const subdonoBase = subdonoId.replace(/@s\.whatsapp\.net|@lid/g, '');
+    return subdonoId === userId || subdonoBase === userIdBase;
+  });
 };
 
 const addSubdono = (userId, numerodono) => {
@@ -565,22 +573,39 @@ const addSubdono = (userId, numerodono) => {
     };
   }
   let currentSubdonos = loadSubdonos();
-  if (currentSubdonos.includes(userId)) {
+  
+  // Verificar se já existe (comparando base do número)
+  const userIdBase = userId.replace(/@s\.whatsapp\.net|@lid/g, '');
+  const alreadyExists = currentSubdonos.some(subdonoId => {
+    const subdonoBase = subdonoId.replace(/@s\.whatsapp\.net|@lid/g, '');
+    return subdonoBase === userIdBase;
+  });
+  
+  if (alreadyExists) {
     return {
       success: false,
       message: '✨ Este usuário já é um subdono!'
     };
   }
+  
   // Carrega config localmente para não depender de variável global
   const config = loadJsonFile(CONFIG_FILE, {});
   const nmrdn_check = buildUserId(numerodono, config);
   const ownerJid = `${numerodono}@s.whatsapp.net`;
-  if (userId === nmrdn_check || userId === ownerJid || (config.lidowner && userId === config.lidowner)) {
+  const ownerBase = numerodono.toString().replace(/\D/g, '');
+  const userBase = userId.replace(/\D/g, '');
+  
+  // Verificar se está tentando adicionar o dono
+  if (userId === nmrdn_check || 
+      userId === ownerJid || 
+      (config.lidowner && userId === config.lidowner) ||
+      userBase === ownerBase) {
     return {
       success: false,
       message: '🤔 O Dono principal já tem todos os superpoderes! Não dá pra adicionar como subdono. 😉'
     };
   }
+  
   currentSubdonos.push(userId);
   if (saveSubdonos(currentSubdonos)) {
     return {
@@ -603,14 +628,28 @@ const removeSubdono = userId => {
     };
   }
   let currentSubdonos = loadSubdonos();
-  if (!currentSubdonos.includes(userId)) {
+  
+  // Verificar se existe (comparando base do número)
+  const userIdBase = userId.replace(/@s\.whatsapp\.net|@lid/g, '');
+  const foundSubdono = currentSubdonos.find(subdonoId => {
+    const subdonoBase = subdonoId.replace(/@s\.whatsapp\.net|@lid/g, '');
+    return subdonoBase === userIdBase;
+  });
+  
+  if (!foundSubdono) {
     return {
       success: false,
       message: '🤔 Este usuário não está na lista de subdonos.'
     };
   }
+  
   const initialLength = currentSubdonos.length;
-  currentSubdonos = currentSubdonos.filter(id => id !== userId);
+  // Remover pelo ID encontrado
+  currentSubdonos = currentSubdonos.filter(id => {
+    const idBase = id.replace(/@s\.whatsapp\.net|@lid/g, '');
+    return idBase !== userIdBase;
+  });
+  
   if (currentSubdonos.length === initialLength) {
     return {
       success: false,

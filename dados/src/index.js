@@ -7824,16 +7824,58 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         }
         break;
       case 'addsubdono':
-        if (!isOwner || isSubOwner) return reply("🚫 Apenas o Dono principal pode adicionar subdonos!");
+        if (!isOwner) return reply("🚫 Apenas o Dono principal pode adicionar subdonos!");
+        if (isSubOwner && !isOwner) return reply("🚫 Subdonos não podem adicionar outros subdonos!");
         try {
           let targetUserId;
           
           if (menc_jid2 && menc_jid2.length > 0) {
+            // Pegar o LID do usuário mencionado
             targetUserId = menc_jid2[0];
+            
+            // Tentar obter o LID real do participante
+            if (isGroup && groupMetadata?.participants) {
+              const participant = groupMetadata.participants.find(p => 
+                p.id === targetUserId || p.lid === targetUserId
+              );
+              if (participant && participant.lid) {
+                targetUserId = participant.lid;
+              }
+            } else {
+              // Se não for grupo, usar onWhatsApp para pegar LID
+              try {
+                const [result] = await nazu.onWhatsApp(targetUserId.replace(/@s\.whatsapp\.net|@lid/g, ''));
+                if (result && result.jid) {
+                  targetUserId = result.jid;
+                }
+              } catch (err) {
+                console.log('Não foi possível obter LID via onWhatsApp:', err.message);
+              }
+            }
           } else if (q && q.trim()) {
             const cleanNumber = q.replace(/\D/g, '');
             if (cleanNumber.length >= 10) {
               targetUserId = `${cleanNumber}@s.whatsapp.net`;
+              
+              // Tentar buscar LID
+              if (isGroup && groupMetadata?.participants) {
+                const participant = groupMetadata.participants.find(p => 
+                  p.id === targetUserId
+                );
+                if (participant && participant.lid) {
+                  targetUserId = participant.lid;
+                }
+              } else {
+                // Se não for grupo, usar onWhatsApp para pegar LID
+                try {
+                  const [result] = await nazu.onWhatsApp(cleanNumber);
+                  if (result && result.jid) {
+                    targetUserId = result.jid;
+                  }
+                } catch (err) {
+                  console.log('Não foi possível obter LID via onWhatsApp:', err.message);
+                }
+              }
             } else {
               return reply("❌ Número inválido! Use um número completo (ex: 5511999998888)");
             }
@@ -7850,16 +7892,57 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         break;
       case 'remsubdono':
       case 'rmsubdono':
-        if (!isOwner || isSubOwner) return reply("🚫 Apenas o Dono principal pode remover subdonos!");
+        if (!isOwner) return reply("🚫 Apenas o Dono principal pode remover subdonos!");
+        if (isSubOwner && !isOwner) return reply("🚫 Subdonos não podem remover outros subdonos!");
         try {
           let targetUserId;
           
           if (menc_jid2 && menc_jid2.length > 0) {
             targetUserId = menc_jid2[0];
+            
+            // Tentar obter o LID real
+            if (isGroup && groupMetadata?.participants) {
+              const participant = groupMetadata.participants.find(p => 
+                p.id === targetUserId || p.lid === targetUserId
+              );
+              if (participant && participant.lid) {
+                targetUserId = participant.lid;
+              }
+            } else {
+              // Se não for grupo, usar onWhatsApp para pegar LID
+              try {
+                const [result] = await nazu.onWhatsApp(targetUserId.replace(/@s\.whatsapp\.net|@lid/g, ''));
+                if (result && result.jid) {
+                  targetUserId = result.jid;
+                }
+              } catch (err) {
+                console.log('Não foi possível obter LID via onWhatsApp:', err.message);
+              }
+            }
           } else if (q && q.trim()) {
             const cleanNumber = q.replace(/\D/g, '');
             if (cleanNumber.length >= 10) {
               targetUserId = `${cleanNumber}@s.whatsapp.net`;
+              
+              // Tentar buscar LID
+              if (isGroup && groupMetadata?.participants) {
+                const participant = groupMetadata.participants.find(p => 
+                  p.id === targetUserId
+                );
+                if (participant && participant.lid) {
+                  targetUserId = participant.lid;
+                }
+              } else {
+                // Se não for grupo, usar onWhatsApp para pegar LID
+                try {
+                  const [result] = await nazu.onWhatsApp(cleanNumber);
+                  if (result && result.jid) {
+                    targetUserId = result.jid;
+                  }
+                } catch (err) {
+                  console.log('Não foi possível obter LID via onWhatsApp:', err.message);
+                }
+              }
             } else {
               const subdonos = getSubdonos();
               const index = parseInt(q) - 1;
