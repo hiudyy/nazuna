@@ -2385,11 +2385,13 @@ Código: *${roleCode}*`,
       commandStats.trackCommandUsage(command, sender);
     }
     if (budy2.match(/^(\d+)d(\d+)$/)) reply(+budy2.match(/^(\d+)d(\d+)$/)[1] > 50 || +budy2.match(/^(\d+)d(\d+)$/)[2] > 100 ? "❌ Limite: max 50 dados e 100 lados" : "🎲 Rolando " + budy2.match(/^(\d+)d(\d+)$/)[1] + "d" + budy2.match(/^(\d+)d(\d+)$/)[2] + "...\n🎯 Resultados: " + (r = [...Array(+budy2.match(/^(\d+)d(\d+)$/)[1])].map(_ => 1 + Math.floor(Math.random() * +budy2.match(/^(\d+)d(\d+)$/)[2]))).join(", ") + "\n📊 Total: " + r.reduce((a, b) => a + b, 0));
-    if (!info.key.fromMe && isAssistente && !isCmd && (budy2.includes(nazu.user.id.split(':')[0]) || (budy2.includes(nazu.user.lid.split(':')[0])) || menc_os2 && menc_os2 == await getBotNumber(nazu)) && KeyCog) {
-      if (budy2.replaceAll('@' + nazu.user.id.split(':')[0], '').length > 2) {
+    // Segurança: evita chamar .split em valores undefined (p.ex. quando nazu.user não está inicializado)
+    const _botShort = (nazu && nazu.user && (nazu.user.id || nazu.user.lid)) ? String((nazu.user.id || nazu.user.lid).split(':')[0]) : '';
+    if (!info.key.fromMe && isAssistente && !isCmd && ((_botShort && budy2.includes(_botShort)) || (menc_os2 && menc_os2 == await getBotNumber(nazu))) && KeyCog) {
+      if (budy2.replaceAll('@' + _botShort, '').length > 2) {
         try {
           const jSoNzIn = {
-            texto: budy2.replaceAll('@' + nazu.user.id.split(':')[0], '').trim(),
+            texto: budy2.replaceAll('@' + _botShort, '').trim(),
             id_enviou: sender,
             nome_enviou: pushname,
             id_grupo: isGroup ? from : false,
