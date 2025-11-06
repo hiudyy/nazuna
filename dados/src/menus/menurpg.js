@@ -156,7 +156,7 @@ ${middleBorder}${menuItemIcon}${prefix}alimentar <nº> - Dar comida
 ${middleBorder}${menuItemIcon}${prefix}treinar <nº> - Treinar
 ${middleBorder}${menuItemIcon}${prefix}evoluir <nº> - Evoluir
 ${middleBorder}${menuItemIcon}${prefix}batalha <nº> - Batalhar
-${middleBorder}${menuItemIcon}${prefix}renomear <nº> <nome>
+${middleBorder}${menuItemIcon}${prefix}renomearpet <nº> <nome>
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${reputationMenuTitle}*

@@ -5167,8 +5167,8 @@ Código: *${roleCode}*`,
         break;
       }
 
-      case 'renomear':
-      case 'rename': {
+      case 'renomearpet':
+      case 'renamepet': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
         
