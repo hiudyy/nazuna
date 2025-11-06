@@ -8480,7 +8480,37 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         };
         const nextLevelXp = calculateNextLevelXp(userDataLevel.level);
         const xpToNextLevel = nextLevelXp - userDataLevel.xp;
-        await reply(`🎚️ *Seu Nível*\n\n` + `🏅 *Nível:* ${userDataLevel.level}\n` + `🔹 *XP:* ${userDataLevel.xp} / ${nextLevelXp}\n` + `🎖️ *Patente:* ${userDataLevel.patent}\n` + `📈 *Falta para o próximo nível:* ${xpToNextLevel} XP\n`);
+        const percentProgress = Math.floor((userDataLevel.xp / nextLevelXp) * 100);
+        const progressBar = '█'.repeat(Math.floor(percentProgress / 10)) + '░'.repeat(10 - Math.floor(percentProgress / 10));
+        
+        let levelText = `╭━━━⊱ 📊 *STATUS DE NÍVEL* ⊱━━━╮\n`;
+        levelText += `│\n`;
+        levelText += `│ 👤 *Jogador:* ${pushname}\n`;
+        levelText += `│\n`;
+        levelText += `├─────────────────────\n`;
+        levelText += `│\n`;
+        levelText += `│ 🏅 *Nível Atual:* ${userDataLevel.level}\n`;
+        levelText += `│ 🎖️ *Patente:* ${userDataLevel.patent}\n`;
+        levelText += `│\n`;
+        levelText += `├─────────────────────\n`;
+        levelText += `│\n`;
+        levelText += `│ ✨ *Experiência:*\n`;
+        levelText += `│ └─ ${userDataLevel.xp} / ${nextLevelXp} XP\n`;
+        levelText += `│\n`;
+        levelText += `│ 📈 *Progresso:*\n`;
+        levelText += `│ └─ [${progressBar}] ${percentProgress}%\n`;
+        levelText += `│\n`;
+        levelText += `│ 🎯 *Falta:* ${xpToNextLevel} XP\n`;
+        levelText += `│\n`;
+        levelText += `├─────────────────────\n`;
+        levelText += `│\n`;
+        levelText += `│ 💬 *Mensagens:* ${userDataLevel.messages || 0}\n`;
+        levelText += `│ ⚡ *Comandos:* ${userDataLevel.commands || 0}\n`;
+        levelText += `│\n`;
+        levelText += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        levelText += `💡 Continue ativo para ganhar XP!`;
+        
+        await reply(levelText);
         break;
       case 'addxp':
         if (!isOwner) return reply("Apenas o dono pode usar este comando.");
@@ -12157,8 +12187,8 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const subject = meta.subject || "—";
           const desc = meta.desc?.toString() || "Sem descrição";
           const createdAt = meta.creation ? new Date(meta.creation * 1000).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : "Desconhecida";
-          const ownerJid = meta.owner || meta.participants.find(p => p.admin && p.isCreator)?.lid || meta.participants.find(p => p.admin && p.isCreator)?.id || buildUserId("unknown");
-          const ownerTag = `@${getUserName(ownerJid)}`;
+          const ownerJid = meta.owner || meta.participants.find(p => p.admin && p.isCreator)?.lid || meta.participants.find(p => p.admin && p.isCreator)?.id || "Desconhecido";
+          const ownerTag = ownerJid !== "Desconhecido" ? `@${getUserName(ownerJid)}` : "Desconhecido";
           const totalMembers = meta.participants.length;
           const totalAdmins = groupAdmins.length;
           let totalMsgs = 0,
@@ -12254,7 +12284,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           ].join('\n');
           const fullCaption = (lines + schedLines + '\n' + extrasLines).trim();
 
-          await reply(fullCaption, { mentions: [ownerJid] });
+          await reply(fullCaption, { mentions: ownerJid !== "Desconhecido" ? [ownerJid] : [] });
         } catch (e) {
           console.error("Erro em statusgp:", e);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
