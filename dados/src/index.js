@@ -12585,26 +12585,42 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
 │
 ╰━━━━━━━━━━━━━━━━━━━━━━╯`);
         try {
-          const buff = await getFileBuffer(info.message.extendedTextMessage.contextInfo.quotedMessage.stickerMessage, 'sticker');
+          const quotedMsg = info.message.extendedTextMessage.contextInfo.quotedMessage;
+          const buff = await getFileBuffer(quotedMsg.stickerMessage, 'sticker');
           
-          // Salvar temporariamente o WebP
+          // Verificar se é WebP animado pelo buffer
+          const isAnimatedWebp = buff.toString('hex', 12, 16) === '414e494d'; // "ANIM" em hex
+          
+          if (!isAnimatedWebp) {
+            return reply("❌ Esta figurinha não é animada! Use este comando apenas com figurinhas animadas.");
+          }
+          
           const tmpWebp = pathz.join(__dirname, '../database/tmp', `${Date.now()}.webp`);
           const tmpMp4 = pathz.join(__dirname, '../database/tmp', `${Date.now()}.mp4`);
           
           await fs.promises.writeFile(tmpWebp, buff);
           
-          // Converter WebP para MP4 usando ffmpeg
+          // Converter WebP animado para MP4
           await new Promise((resolve, reject) => {
-            require('fluent-ffmpeg')(tmpWebp)
+            const ffmpeg = require('fluent-ffmpeg');
+            ffmpeg(tmpWebp)
+              .inputFormat('webp')
               .outputOptions([
-                '-vf', 'scale=320:-1:flags=lanczos',
                 '-c:v', 'libx264',
                 '-pix_fmt', 'yuv420p',
-                '-movflags', '+faststart'
+                '-vf', 'scale=320:-2',
+                '-movflags', '+faststart',
+                '-preset', 'fast',
+                '-crf', '23'
               ])
+              .noAudio()
               .format('mp4')
-              .on('error', reject)
-              .on('end', resolve)
+              .on('error', (err) => {
+                reject(err);
+              })
+              .on('end', () => {
+                resolve();
+              })
               .save(tmpMp4);
           });
           
