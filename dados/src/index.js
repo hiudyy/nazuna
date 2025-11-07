@@ -12574,6 +12574,57 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         }
         break;
+      case 'togif':
+        if (!isQuotedSticker) return reply(`╭━━━⊱ 🎬 *CONVERTER* 🎬 ⊱━━━╮
+│
+│ ❌ Marque uma figurinha animada
+│    para converter em GIF!
+│
+│ 💡 Responda uma figurinha com:
+│ ${prefix}togif
+│
+╰━━━━━━━━━━━━━━━━━━━━━━╯`);
+        try {
+          const buff = await getFileBuffer(info.message.extendedTextMessage.contextInfo.quotedMessage.stickerMessage, 'sticker');
+          
+          // Salvar temporariamente o WebP
+          const tmpWebp = pathz.join(__dirname, '../../database/tmp', `${Date.now()}.webp`);
+          const tmpMp4 = pathz.join(__dirname, '../../database/tmp', `${Date.now()}.mp4`);
+          
+          await fs.promises.writeFile(tmpWebp, buff);
+          
+          // Converter WebP para MP4 usando ffmpeg
+          await new Promise((resolve, reject) => {
+            require('fluent-ffmpeg')(tmpWebp)
+              .outputOptions([
+                '-vf', 'scale=320:-1:flags=lanczos',
+                '-c:v', 'libx264',
+                '-pix_fmt', 'yuv420p',
+                '-movflags', '+faststart'
+              ])
+              .format('mp4')
+              .on('error', reject)
+              .on('end', resolve)
+              .save(tmpMp4);
+          });
+          
+          const mp4Buffer = await fs.promises.readFile(tmpMp4);
+          
+          await nazu.sendMessage(from, {
+            video: mp4Buffer,
+            gifPlayback: true
+          }, {
+            quoted: info
+          });
+          
+          // Limpar arquivos temporários
+          await fs.promises.unlink(tmpWebp).catch(() => {});
+          await fs.promises.unlink(tmpMp4).catch(() => {});
+        } catch (error) {
+          console.error("Erro no togif:", error);
+          await reply("❌ Ocorreu um erro ao converter. Certifique-se de marcar uma figurinha animada.");
+        }
+        break;
       case 'qc':
         try {
           if (!q) return reply('Falta o texto.');

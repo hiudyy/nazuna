@@ -41,20 +41,16 @@ async function convertToWebp(mediaBuffer, isVideo = false, forceSquare = false) 
   if (!isVideo &&
       mediaBuffer.slice(0, 4).toString() === "RIFF" &&
       mediaBuffer.slice(8, 12).toString() === "WEBP") {
-    console.log("Entrada já é WebP estático. Pulando conversão.");
     return mediaBuffer;
   }
 
   // Arquivo de entrada temporário
   const inExt = isVideo ? "mp4" : detectImageExtension(mediaBuffer);
   const tmpIn = generateTempFileName(isVideo ? "mp4" : inExt);
-  const tmpOut = generateTempFileName("webp");
 
   await fs.writeFile(tmpIn, mediaBuffer);
   const st = await fs.stat(tmpIn);
   if (st.size === 0) throw new Error("Arquivo temporário de entrada vazio");
-
-  console.log(`[convert] Iniciando (${isVideo ? "vídeo" : "imagem"}) -> WebP. Input=${tmpIn} (${st.size} bytes)`);
 
   const vfBase = forceSquare
     ? "scale=320:320"
@@ -62,48 +58,70 @@ async function convertToWebp(mediaBuffer, isVideo = false, forceSquare = false) 
 
   const filters = isVideo ? `${vfBase},fps=15` : vfBase;
 
-  const cmdOptions = [
-    "-vf", filters,
-    "-c:v", "libwebp",
-    "-lossless", "0",
-    "-compression_level", "6",
-    "-preset", "default",
-    ...(isVideo
-      ? ["-q:v", "45", "-loop", "0", "-an", "-vsync", "0", "-t", "8"]
-      : ["-q:v", "75"])
-  ];
+  // Limites de tamanho e qualidade
+  const MAX_SIZE = 990000; // Menos de 1MB com margem de segurança (~966KB)
+  const MIN_QUALITY = isVideo ? 15 : 25;
+  let quality = isVideo ? 45 : 75;
+  let outBuffer = null;
+  let attempts = 0;
+  const MAX_ATTEMPTS = 8;
 
-  await new Promise((resolve, reject) => {
-    ffmpeg(tmpIn)
-      .outputOptions(cmdOptions)
-      .format("webp")
-      .on("start", c => console.log("[ffmpeg] START:", c))
-      .on("progress", p => {
-        if (p.percent) console.log(`[ffmpeg] ${Math.round(p.percent)}%`);
-      })
-      .on("error", err => {
-        console.error("[ffmpeg] ERROR:", err.message);
-        reject(err);
-      })
-      .on("end", () => {
-        console.log("[ffmpeg] END");
-        resolve();
-      })
-      .save(tmpOut);
-  });
+  while (attempts < MAX_ATTEMPTS) {
+    attempts++;
+    const tmpOut = generateTempFileName("webp");
 
-  const outStat = await fs.stat(tmpOut).catch(() => null);
-  if (!outStat || outStat.size === 0) {
-    await fs.unlink(tmpIn).catch(()=>{});
-    throw new Error("Conversão falhou: saída vazia");
+    const cmdOptions = [
+      "-vf", filters,
+      "-c:v", "libwebp",
+      "-lossless", "0",
+      "-compression_level", "6",
+      "-preset", "default",
+      ...(isVideo
+        ? ["-q:v", String(quality), "-loop", "0", "-an", "-vsync", "0", "-t", "8"]
+        : ["-q:v", String(quality)])
+    ];
+
+    await new Promise((resolve, reject) => {
+      ffmpeg(tmpIn)
+        .outputOptions(cmdOptions)
+        .format("webp")
+        .on("error", err => reject(err))
+        .on("end", () => resolve())
+        .save(tmpOut);
+    });
+
+    const outStat = await fs.stat(tmpOut).catch(() => null);
+    if (!outStat || outStat.size === 0) {
+      await fs.unlink(tmpOut).catch(()=>{});
+      throw new Error("Conversão falhou: saída vazia");
+    }
+
+    outBuffer = await fs.readFile(tmpOut);
+    await fs.unlink(tmpOut).catch(()=>{});
+
+    // Verifica se está dentro do limite
+    if (outBuffer.length <= MAX_SIZE) {
+      break;
+    }
+
+    // Se ainda está grande, reduz qualidade
+    if (quality <= MIN_QUALITY) {
+      break;
+    }
+
+    // Reduz qualidade progressivamente
+    const reductionFactor = outBuffer.length / MAX_SIZE;
+    if (reductionFactor > 1.5) {
+      quality = Math.max(MIN_QUALITY, Math.floor(quality * 0.6));
+    } else if (reductionFactor > 1.2) {
+      quality = Math.max(MIN_QUALITY, Math.floor(quality * 0.75));
+    } else {
+      quality = Math.max(MIN_QUALITY, quality - 10);
+    }
   }
-
-  const outBuffer = await fs.readFile(tmpOut);
-  console.log(`[convert] WebP gerado (${outBuffer.length} bytes).`);
 
   // Limpeza
   await fs.unlink(tmpIn).catch(()=>{});
-  await fs.unlink(tmpOut).catch(()=>{});
 
   return outBuffer;
 }
@@ -133,7 +151,6 @@ async function writeExif(webpBuffer, metadata) {
     img.exif = exif;
     return await img.save(null);
   } catch (e) {
-    console.error("[exif] Falha ao inserir EXIF:", e.message);
     return webpBuffer;
   }
 }
@@ -174,8 +191,6 @@ const sendSticker = async (nazu, jid, {
     throw new Error("Buffer inválido/vazio");
   }
 
-  console.log(`[sticker] Recebido type=${type} size=${buffer.length} bytes`);
-
   let webpBuffer = await convertToWebp(buffer, type === "video", forceSquare);
 
   if (packname || author) {
@@ -183,7 +198,6 @@ const sendSticker = async (nazu, jid, {
   }
 
   await nazu.sendMessage(jid, { sticker: webpBuffer }, { quoted });
-  console.log("[sticker] Enviado com sucesso");
   return webpBuffer;
 };
 
