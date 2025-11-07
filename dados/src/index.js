@@ -12588,8 +12588,8 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const buff = await getFileBuffer(info.message.extendedTextMessage.contextInfo.quotedMessage.stickerMessage, 'sticker');
           
           // Salvar temporariamente o WebP
-          const tmpWebp = pathz.join(__dirname, '../../database/tmp', `${Date.now()}.webp`);
-          const tmpMp4 = pathz.join(__dirname, '../../database/tmp', `${Date.now()}.mp4`);
+          const tmpWebp = pathz.join(__dirname, '../database/tmp', `${Date.now()}.webp`);
+          const tmpMp4 = pathz.join(__dirname, '../database/tmp', `${Date.now()}.mp4`);
           
           await fs.promises.writeFile(tmpWebp, buff);
           
