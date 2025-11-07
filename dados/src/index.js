@@ -12588,19 +12588,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const quotedMsg = info.message.extendedTextMessage.contextInfo.quotedMessage;
           const buff = await getFileBuffer(quotedMsg.stickerMessage, 'sticker');
           
-          // Verificar se é WebP animado pelo buffer
-          const isAnimatedWebp = buff.toString('hex', 12, 16) === '414e494d'; // "ANIM" em hex
-          
-          if (!isAnimatedWebp) {
-            return reply("❌ Esta figurinha não é animada! Use este comando apenas com figurinhas animadas.");
-          }
-          
           const tmpWebp = pathz.join(__dirname, '../database/tmp', `${Date.now()}.webp`);
           const tmpMp4 = pathz.join(__dirname, '../database/tmp', `${Date.now()}.mp4`);
           
           await fs.promises.writeFile(tmpWebp, buff);
           
-          // Converter WebP animado para MP4
+          // Converter WebP para MP4
           await new Promise((resolve, reject) => {
             const ffmpeg = require('fluent-ffmpeg');
             ffmpeg(tmpWebp)
