@@ -1,4 +1,4 @@
-const { default: makeWASocket } = require('whaileys');
+const { default: makeWASocket } = require('whaileys/lib/Socket');
 const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require('whaileys');
 const { Boom } = require('@hapi/boom');
 const NodeCache = require('node-cache');
