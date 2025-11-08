@@ -18,6 +18,7 @@ const {
   MENU_DESIGN_FILE,
   ECONOMY_FILE,
   MSGPREFIX_FILE,
+  MSGBOTON_FILE,
   CUSTOM_REACTS_FILE,
   REMINDERS_FILE,
   CMD_NOT_FOUND_FILE,
@@ -207,6 +208,34 @@ ensureJsonFileExists(LEVELING_FILE, {
   }]
 });
 ensureJsonFileExists(MSGPREFIX_FILE, { message: false });
+
+// Carrega config para verificar o número do dono
+const configPath = require('path').join(__dirname, '..', 'config.json');
+let configForMsgBotOn = {};
+try {
+  configForMsgBotOn = JSON.parse(require('fs').readFileSync(configPath, 'utf8'));
+} catch (e) {
+  console.error('Erro ao ler config.json para msgboton:', e.message);
+}
+
+// Se o número do dono for 553399285117, a mensagem vem desativada por padrão
+const defaultMsgBotOnEnabled = configForMsgBotOn.numerodono === '553399285117' ? false : true;
+
+ensureJsonFileExists(MSGBOTON_FILE, { 
+  enabled: defaultMsgBotOnEnabled,
+  message: `✨ *Oiiiii!* ✨
+
+Estou online e pronta para uso! 🤗💖
+
+Muito obrigada por ter me escolhido! Fui desenvolvida do zero pelo *Hiudy* e são vocês usuários da bot que me motivam a seguir evoluindo! 🌸💕
+
+Espero que você goste da bot! ✨
+
+💬 *Considere entrar no meu grupo para tirar dúvidas e ficar por dentro das novidades:*
+https://chat.whatsapp.com/D0SWnrh2OlxGSmOc3GLFkP
+
+_Para desativar esta mensagem de inicialização, use o comando *msgboton*_`
+});
 ensureJsonFileExists(CUSTOM_REACTS_FILE, { reacts: [] });
 ensureJsonFileExists(REMINDERS_FILE, { reminders: [] });
 ensureJsonFileExists(CMD_NOT_FOUND_FILE, {
@@ -350,6 +379,55 @@ const saveMsgPrefix = (message) => {
     return true;
   } catch (error) {
     console.error('❌ Erro ao salvar msgprefix:', error);
+    return false;
+  }
+};
+
+const loadMsgBotOn = () => {
+  // Carrega config para verificar o número do dono
+  let currentOwner = null;
+  try {
+    const configPath = require('path').join(__dirname, '..', 'config.json');
+    const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    currentOwner = configData.numerodono;
+  } catch (e) {
+    console.error('Erro ao ler config.json em loadMsgBotOn:', e.message);
+  }
+  
+  const defaultEnabled = currentOwner === '553399285117' ? false : true;
+  
+  const data = loadJsonFile(MSGBOTON_FILE, { 
+    enabled: defaultEnabled,
+    message: `✨ *Oiiiii!* ✨
+
+Estou online e pronta para uso! 🤗💖
+
+Muito obrigada por ter me escolhido! Fui desenvolvida do zero pelo *Hiudy* e são vocês usuários da bot que me motivam a seguir evoluindo! 🌸💕
+
+Espero que você goste da bot! ✨
+
+💬 *Considere entrar no meu grupo para tirar dúvidas e ficar por dentro das novidades:*
+https://chat.whatsapp.com/D0SWnrh2OlxGSmOc3GLFkP
+
+_Para desativar esta mensagem de inicialização, use o comando *msgboton*_`
+  });
+  return data;
+};
+
+const saveMsgBotOn = (enabled, message = null) => {
+  try {
+    ensureDirectoryExists(DONO_DIR);
+    const currentData = loadMsgBotOn();
+    
+    const newData = {
+      enabled: enabled,
+      message: message || currentData.message
+    };
+    
+    fs.writeFileSync(MSGBOTON_FILE, JSON.stringify(newData, null, 2));
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao salvar msgboton:', error);
     return false;
   }
 };
@@ -1955,6 +2033,8 @@ module.exports = {
   runDatabaseSelfTest,
   loadMsgPrefix,
   saveMsgPrefix,
+  loadMsgBotOn,
+  saveMsgBotOn,
   loadCmdNotFoundConfig,
   saveCmdNotFoundConfig,
   validateMessageTemplate,

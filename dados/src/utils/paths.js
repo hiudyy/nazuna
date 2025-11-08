@@ -21,6 +21,7 @@ const GLOBAL_BLACKLIST_FILE = path.join(DONO_DIR, 'globalBlacklist.json');
 const MENU_DESIGN_FILE = path.join(DONO_DIR, 'menuDesign.json');
 const ECONOMY_FILE = path.join(DATABASE_DIR, 'economy.json');
 const MSGPREFIX_FILE = path.join(DONO_DIR, 'msgprefix.json');
+const MSGBOTON_FILE = path.join(DONO_DIR, 'msgboton.json');
 const CUSTOM_REACTS_FILE = path.join(DATABASE_DIR, 'customReacts.json');
 const REMINDERS_FILE = path.join(DATABASE_DIR, 'reminders.json');
 const CMD_NOT_FOUND_FILE = path.join(DONO_DIR, 'cmdNotFound.json');
@@ -64,6 +65,7 @@ module.exports = {
   MENU_DESIGN_FILE,
   ECONOMY_FILE,
   MSGPREFIX_FILE,
+  MSGBOTON_FILE,
   CUSTOM_REACTS_FILE,
   REMINDERS_FILE,
   CMD_NOT_FOUND_FILE,

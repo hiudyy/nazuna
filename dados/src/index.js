@@ -15,6 +15,8 @@ const { formatUptime, normalizar, isGroupId, isUserId, isValidLid, isValidJid, g
 const {
   loadMsgPrefix,
   saveMsgPrefix,
+  loadMsgBotOn,
+  saveMsgBotOn,
   loadCmdNotFoundConfig,
   saveCmdNotFoundConfig,
   validateMessageTemplate,
@@ -16835,6 +16837,25 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
   } catch (e) {
     console.error('Erro no msgprefix:', e);
     await reply('Ocorreu um erro 💔');
+  }
+  break;
+  
+  case 'msgboton':
+  try {
+    if (!isOwner) return reply('🚫 Apenas o dono pode alterar esta configuração!');
+    
+    const currentConfig = loadMsgBotOn();
+    const newStatus = !currentConfig.enabled;
+    
+    if (saveMsgBotOn(newStatus)) {
+      const statusText = newStatus ? '✅ ativada' : '❌ desativada';
+      await reply(`🔔 *Mensagem de inicialização ${statusText}!*\n\nAgora, quando o bot ligar, ${newStatus ? 'você receberá' : 'NÃO receberá'} uma mensagem de boas-vindas no seu privado.`);
+    } else {
+      await reply('❌ Erro ao salvar configuração.');
+    }
+  } catch (e) {
+    console.error('Erro no msgboton:', e);
+    await reply('❌ Ocorreu um erro ao processar sua solicitação.');
   }
   break;
   

@@ -15,6 +15,8 @@ const crypto = require('crypto');
 
 const PerformanceOptimizer = require('./utils/performanceOptimizer.js');
 const RentalExpirationManager = require('./utils/rentalExpirationManager.js');
+const { loadMsgBotOn } = require('./utils/database.js');
+const { buildUserId } = require('./utils/helpers.js');
 
 class MessageQueue {
     constructor(maxWorkers = 4, batchSize = 10, messagesPerBatch = 2) {
@@ -1046,6 +1048,30 @@ async function createBotSocket(authDir) {
                 
                 attachMessagesListener();
                 startCacheCleanup(); // Inicia o sistema de limpeza de cache
+                
+                // Envia mensagem de boas-vindas para o dono
+                try {
+                    const msgBotOnConfig = loadMsgBotOn();
+                    
+                    if (msgBotOnConfig.enabled) {
+                        // Aguarda 3 segundos para garantir que o bot está totalmente conectado
+                        setTimeout(async () => {
+                            try {
+                                const ownerJid = buildUserId(numerodono, config);
+                                await NazunaSock.sendMessage(ownerJid, { 
+                                    text: msgBotOnConfig.message 
+                                });
+                                console.log('✅ Mensagem de inicialização enviada para o dono');
+                            } catch (sendError) {
+                                console.error('❌ Erro ao enviar mensagem de inicialização:', sendError.message);
+                            }
+                        }, 3000);
+                    } else {
+                        console.log('ℹ️ Mensagem de inicialização desativada');
+                    }
+                } catch (msgError) {
+                    console.error('❌ Erro ao processar mensagem de inicialização:', msgError.message);
+                }
                 
                 // Inicializa sub-bots automaticamente
                 try {
