@@ -17,6 +17,7 @@ ${menuTopBorder}${separatorIcon} *${createStickerMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}emojimix
 ${middleBorder}${menuItemIcon}${prefix}ttp
+${middleBorder}${menuItemIcon}${prefix}attp
 ${middleBorder}${menuItemIcon}${prefix}sticker
 ${middleBorder}${menuItemIcon}${prefix}sticker2
 ${middleBorder}${menuItemIcon}${prefix}qc

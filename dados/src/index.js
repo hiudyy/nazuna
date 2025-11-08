@@ -12887,9 +12887,32 @@ ${prefix}togglecmdvip premium_ia off`);
           cores = cor[Math.floor(Math.random() * cor.length)];
           var fontes;
           fontes = fonte[Math.floor(Math.random() * fonte.length)];
+          
+          // Função para quebrar texto em linhas
+          function breakText(text, maxCharsPerLine = 20) {
+            const words = text.split(' ');
+            const lines = [];
+            let currentLine = '';
+            
+            for (const word of words) {
+              if ((currentLine + word).length <= maxCharsPerLine) {
+                currentLine += (currentLine ? ' ' : '') + word;
+              } else {
+                if (currentLine) lines.push(currentLine);
+                currentLine = word;
+              }
+            }
+            if (currentLine) lines.push(currentLine);
+            
+            return lines.join('%0A'); // %0A = quebra de linha na URL
+          }
+          
+          // Aplicar quebra de linha para textos longos
+          let processedText = q.length > 20 ? breakText(q, 20) : q;
+          
           await sendSticker(nazu, from, {
             sticker: {
-              url: `https://huratera.sirv.com/PicsArt_08-01-10.00.42.png?profile=Example-Text&text.0.text=${q}&text.0.outline.color=000000&text.0.outline.blur=0&text.0.outline.opacity=55&text.0.color=${cores}&text.0.font.family=${fontes}&text.0.background.color=ff0000`
+              url: `https://huratera.sirv.com/PicsArt_08-01-10.00.42.png?profile=Example-Text&text.0.text=${encodeURIComponent(processedText)}&text.0.outline.color=000000&text.0.outline.blur=0&text.0.outline.opacity=55&text.0.color=${cores}&text.0.font.family=${fontes}&text.0.font.weight=bold&text.0.background.color=ff0000`
             },
             author: `『${pushname}』\n『${nomebot}』\n『${nomedono}』\n『cognima.com.br』`,
             packname: '👤 Usuario(a)ᮀ۟❁’￫\n🤖 Botᮀ۟❁’￫\n👑 Donoᮀ۟❁’￫\n🌐 Siteᮀ۟❁’￫',
@@ -12900,6 +12923,111 @@ ${prefix}togglecmdvip premium_ia off`);
         } catch (e) {
           console.error(e);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
+        }
+        break;
+      case 'attp':
+        try {
+          if (!q) return reply('Cadê o texto?');
+          
+          const fs = require('fs');
+          const path = require('path');
+          const axios = require('axios');
+          const { exec } = require('child_process');
+          const { promisify } = require('util');
+          const execAsync = promisify(exec);
+          
+          // Função para quebrar texto em linhas
+          function breakText(text, maxCharsPerLine = 20) {
+            const words = text.split(' ');
+            const lines = [];
+            let currentLine = '';
+            
+            for (const word of words) {
+              if ((currentLine + word).length <= maxCharsPerLine) {
+                currentLine += (currentLine ? ' ' : '') + word;
+              } else {
+                if (currentLine) lines.push(currentLine);
+                currentLine = word;
+              }
+            }
+            if (currentLine) lines.push(currentLine);
+            
+            return lines.join('%0A');
+          }
+          
+          // Processar texto
+          let processedText = q.length > 20 ? breakText(q, 20) : q;
+          
+          // Cores disponíveis
+          const cores = ["f702ff", "ff0202", "00ff2e", "efff00", "00ecff", "3100ff", "ffb400", "ff00b0", "00ff95", "9d00ff", "ff6b00", "00fff7", "ff00d4", "a8ff00", "ff0062", "00b3ff", "d4ff00", "ff009d"];
+          
+          // Selecionar uma fonte aleatória
+          const fontes = ["Days%20One", "Domine", "Exo", "Fredoka%20One", "Gentium%20Basic", "Gloria%20Hallelujah", "Great%20Vibes", "Orbitron", "PT%20Serif", "Pacifico"];
+          const fonteEscolhida = fontes[Math.floor(Math.random() * fontes.length)];
+          
+          // Diretório temporário
+          const tempDir = path.join(__dirname, '../midias/temp_attp_' + Date.now());
+          if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+          }
+          
+          await reply('⏳ Gerando sticker animado... aguarde!');
+          
+          // Baixar 18 imagens com cores diferentes
+          const numFrames = 18;
+          const downloadPromises = [];
+          
+          for (let i = 0; i < numFrames; i++) {
+            const cor = cores[i % cores.length];
+            const imageUrl = `https://huratera.sirv.com/PicsArt_08-01-10.00.42.png?profile=Example-Text&text.0.text=${encodeURIComponent(processedText)}&text.0.outline.color=000000&text.0.outline.blur=0&text.0.outline.opacity=55&text.0.color=${cor}&text.0.font.family=${fonteEscolhida}&text.0.font.weight=bold&text.0.background.color=ff0000`;
+            const imagePath = path.join(tempDir, `frame_${String(i).padStart(3, '0')}.png`);
+            
+            downloadPromises.push(
+              axios({
+                url: imageUrl,
+                method: 'GET',
+                responseType: 'arraybuffer'
+              }).then(response => {
+                fs.writeFileSync(imagePath, response.data);
+              })
+            );
+          }
+          
+          // Aguardar download de todas as imagens
+          await Promise.all(downloadPromises);
+          
+          // Criar vídeo com ffmpeg
+          const outputVideo = path.join(tempDir, 'output.mp4');
+          const ffmpegCmd = `ffmpeg -framerate 10 -i ${path.join(tempDir, 'frame_%03d.png')} -vf "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white" -c:v libx264 -pix_fmt yuv420p -t 2 ${outputVideo}`;
+          
+          await execAsync(ffmpegCmd);
+          
+          // Converter para webp animado
+          const outputWebp = path.join(tempDir, 'output.webp');
+          const webpCmd = `ffmpeg -i ${outputVideo} -vcodec libwebp -filter:v fps=fps=15 -lossless 0 -compression_level 6 -q:v 50 -loop 0 -preset picture -an -vsync 0 ${outputWebp}`;
+          
+          await execAsync(webpCmd);
+          
+          // Enviar sticker
+          await sendSticker(nazu, from, {
+            sticker: fs.readFileSync(outputWebp),
+            author: `『${pushname}』\n『${nomebot}』\n『${nomedono}』\n『cognima.com.br』`,
+            packname: `👤 Usuario(a)ᮀ۟❁'￫\n🤖 Botᮀ۟❁'￫\n👑 Donoᮀ۟❁'￫\n🌐 Siteᮀ۟❁'￫`,
+            type: 'image'
+          }, {
+            quoted: info
+          });
+          
+          // Limpar arquivos temporários
+          try {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+          } catch (cleanupError) {
+            console.error('Erro ao limpar arquivos temporários:', cleanupError);
+          }
+          
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro ao criar o sticker animado. Tente novamente em alguns minutos.");
         }
         break;
       case 'brat':
