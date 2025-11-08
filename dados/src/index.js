@@ -11454,32 +11454,10 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'vip':
       case 'vipmenu':
         try {
-          const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
-          const menuText = await menuVIP.menuVIP(prefix, nomebot, pushname, customDesign);
-          
-          const menuVipVideoPath = __dirname + '/../midias/menuvip.mp4';
-          const menuVipImagePath = __dirname + '/../midias/menuvip.jpg';
-          
-          let mediaBuffer = null;
-          let useVideo = false;
-          
-          if (fs.existsSync(menuVipVideoPath)) {
-            mediaBuffer = fs.readFileSync(menuVipVideoPath);
-            useVideo = true;
-          } else if (fs.existsSync(menuVipImagePath)) {
-            mediaBuffer = fs.readFileSync(menuVipImagePath);
-          }
-          
-          if (mediaBuffer) {
-            await nazu.sendMessage(from, {
-              [useVideo ? 'video' : 'image']: mediaBuffer,
-              caption: menuText,
-              gifPlayback: useVideo,
-              mimetype: useVideo ? 'video/mp4' : 'image/jpeg'
-            }, { quoted: info });
-          } else {
-            await reply(menuText);
-          }
+          await sendMenuWithMedia('vip', async () => {
+            const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
+            return await menuVIP.menuVIP(prefix, nomebot, pushname, customDesign);
+          });
         } catch (error) {
           console.error('Erro ao enviar menu VIP:', error);
           await reply(`❌ Erro ao carregar menu VIP. Use ${prefix}infovip para mais informações.`);
@@ -11589,8 +11567,8 @@ ${prefix}removecmdvip premium_ia`);
             return reply('🚫 Este comando é apenas para o dono ou usuários VIP!');
           }
           
-          const { listVIPCommands } = menuVIP;
-          const listText = listVIPCommands(prefix);
+          const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
+          const listText = await menuVIP.listVIPCommands(prefix, nomebot, pushname, customDesign);
           
           await reply(listText);
         } catch (error) {
