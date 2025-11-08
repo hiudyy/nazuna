@@ -14,6 +14,7 @@ async function menuDono(prefix, botName = "MeuBot", userName = "Usuário", {
     userManagementMenuTitle = "👥 GERENCIAMENTO DE USUÁRIOS",
     rentalSystemMenuTitle = "💰 SISTEMA DE ALUGUEL",
     subBotsMenuTitle = "🤖 GERENCIAMENTO DE SUB-BOTS",
+    vipSystemMenuTitle = "💎 SISTEMA VIP/PREMIUM",
     botControlMenuTitle = "⚡ CONTROLE & MANUTENÇÃO",
     monitoringMenuTitle = "📊 MONITORAMENTO & ANÁLISE"
 } = {}) {
@@ -126,6 +127,17 @@ ${middleBorder}${menuItemIcon}${prefix}listarsubbots
 ${middleBorder}${menuItemIcon}${prefix}conectarsubbot
 ${middleBorder}
 ${middleBorder}🔑 Sub-bot use: ${prefix}gerarcodigo
+${bottomBorder}
+
+${menuTopBorder}${separatorIcon} *${vipSystemMenuTitle}*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}addcmdvip
+${middleBorder}${menuItemIcon}${prefix}removecmdvip
+${middleBorder}${menuItemIcon}${prefix}listcmdvip
+${middleBorder}${menuItemIcon}${prefix}togglecmdvip
+${middleBorder}${menuItemIcon}${prefix}statsvip
+${middleBorder}${menuItemIcon}${prefix}menuvip
+${middleBorder}${menuItemIcon}${prefix}infovip
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${botControlMenuTitle}*

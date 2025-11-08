@@ -14,7 +14,8 @@ const menuModules = {
     menuSticker: "./menufig.js",
     menuIa: "./menuia.js",
     menuTopCmd: "./topcmd.js",
-    menuRPG: "./menurpg.js"
+    menuRPG: "./menurpg.js",
+    menuVIP: "./menuvip.js"
 };
 
 /**

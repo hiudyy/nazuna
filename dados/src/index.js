@@ -11,6 +11,7 @@ const crypto = require('crypto');
 const PerformanceOptimizer = require('./utils/performanceOptimizer');
 const cron = require('node-cron');
 const ia = require('./funcs/private/ia');
+const vipCommandsManager = require('./utils/vipCommandsManager');
 const { formatUptime, normalizar, isGroupId, isUserId, isValidLid, isValidJid, getUserName, getLidFromJid, buildUserId, getBotId, ensureDirectoryExists, ensureJsonFileExists, loadJsonFile, initJidLidCache, saveJidLidCache, getLidFromJidCached, normalizeUserId, convertIdsToLid, idsMatch, idInArray } = require('./utils/helpers');
 const {
   loadMsgPrefix,
@@ -428,7 +429,8 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
   menuAlterador,
   menuLogos,
   menuTopCmd,
-  menuRPG
+  menuRPG,
+  menuVIP
   } = menus;
   const prefix = prefixo;
   const numerodonoStr = String(numerodono);
@@ -2793,6 +2795,28 @@ Código: *${roleCode}*`,
       const globalLimitCheck = checkCommandLimit(command, sender);
       if (globalLimitCheck.limited) {
         return reply(globalLimitCheck.message);
+      }
+    }
+
+    // Verificação de comandos VIP
+    if (isCmd && vipCommandsManager.isVipCommand(command)) {
+      if (!isPremium) {
+        await reply(`🔒 *Comando VIP Exclusivo*
+
+Este comando está disponível apenas para usuários VIP/Premium!
+
+💎 *Benefícios VIP:*
+• Acesso a comandos exclusivos
+• Sem limites de uso
+• Prioridade no atendimento
+• Recursos premium
+
+📞 *Como ser VIP?*
+Entre em contato com o dono do bot:
+• Use: ${prefix}dono
+
+✨ Use ${prefix}menuvip para ver todos os comandos VIP disponíveis!`);
+        return;
       }
     }
 
@@ -11422,6 +11446,231 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         } catch (e) {
           console.error(e);
           await reply('😔 Ops, algo deu errado. Tente novamente mais tarde!');
+        }
+        break;
+      
+      // ============= SISTEMA DE COMANDOS VIP =============
+      case 'menuvip':
+      case 'vip':
+      case 'vipmenu':
+        try {
+          const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
+          const menuText = await menuVIP.menuVIP(prefix, nomebot, pushname, customDesign);
+          
+          const menuVipVideoPath = __dirname + '/../midias/menuvip.mp4';
+          const menuVipImagePath = __dirname + '/../midias/menuvip.jpg';
+          
+          let mediaBuffer = null;
+          let useVideo = false;
+          
+          if (fs.existsSync(menuVipVideoPath)) {
+            mediaBuffer = fs.readFileSync(menuVipVideoPath);
+            useVideo = true;
+          } else if (fs.existsSync(menuVipImagePath)) {
+            mediaBuffer = fs.readFileSync(menuVipImagePath);
+          }
+          
+          if (mediaBuffer) {
+            await nazu.sendMessage(from, {
+              [useVideo ? 'video' : 'image']: mediaBuffer,
+              caption: menuText,
+              gifPlayback: useVideo,
+              mimetype: useVideo ? 'video/mp4' : 'image/jpeg'
+            }, { quoted: info });
+          } else {
+            await reply(menuText);
+          }
+        } catch (error) {
+          console.error('Erro ao enviar menu VIP:', error);
+          await reply(`❌ Erro ao carregar menu VIP. Use ${prefix}infovip para mais informações.`);
+        }
+        break;
+
+      case 'infovip':
+      case 'vipinfo':
+        try {
+          const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
+          const infoText = await menuVIP.menuVIPInfo(prefix, nomebot, pushname, customDesign);
+          await reply(infoText);
+        } catch (error) {
+          console.error('Erro ao enviar info VIP:', error);
+          await reply('❌ Erro ao carregar informações VIP.');
+        }
+        break;
+
+      case 'addcmdvip':
+      case 'addvipcommand':
+      case 'adicionarcmdvip':
+        try {
+          if (!isOwner) return reply('🚫 Este comando é apenas para o dono do bot!');
+          
+          if (!q) {
+            return reply(`📝 *Como adicionar comandos VIP:*
+
+*Formato:*
+${prefix}addcmdvip <comando> | <descrição> | <categoria>
+
+*Categorias disponíveis:*
+• download - Downloads
+• diversao - Diversão/Jogos
+• utilidade - Utilidades
+• ia - Inteligência Artificial
+• editor - Editores
+• info - Informação
+• outros - Outros
+
+*Exemplo:*
+${prefix}addcmdvip premium_ia | IA avançada exclusiva | ia
+
+*Opcional - com exemplo de uso:*
+${prefix}addcmdvip premium_ia | IA avançada exclusiva | ia | premium_ia <pergunta>`);
+          }
+          
+          const parts = q.split('|').map(p => p.trim());
+          
+          if (parts.length < 2) {
+            return reply('❌ Formato inválido! Use:\n' + prefix + 'addcmdvip <comando> | <descrição> | <categoria>');
+          }
+          
+          const cmdName = parts[0];
+          const cmdDesc = parts[1];
+          const cmdCategory = parts[2] || 'outros';
+          const cmdUsage = parts[3] || '';
+          
+          const result = vipCommandsManager.addVipCommand(cmdName, cmdDesc, cmdCategory, cmdUsage);
+          
+          await reply(result.message);
+          
+          if (result.success) {
+            console.log(`[VIP CMD] Comando "${cmdName}" adicionado por ${pushname} (${sender})`);
+          }
+        } catch (error) {
+          console.error('Erro ao adicionar comando VIP:', error);
+          await reply('❌ Erro ao adicionar comando VIP.');
+        }
+        break;
+
+      case 'removecmdvip':
+      case 'removevipcommand':
+      case 'rmcmdvip':
+      case 'delcmdvip':
+        try {
+          if (!isOwner) return reply('🚫 Este comando é apenas para o dono do bot!');
+          
+          if (!q) {
+            return reply(`📝 *Como remover comandos VIP:*
+
+*Formato:*
+${prefix}removecmdvip <comando>
+
+*Exemplo:*
+${prefix}removecmdvip premium_ia`);
+          }
+          
+          const cmdName = q.trim();
+          const result = vipCommandsManager.removeVipCommand(cmdName);
+          
+          await reply(result.message);
+          
+          if (result.success) {
+            console.log(`[VIP CMD] Comando "${cmdName}" removido por ${pushname} (${sender})`);
+          }
+        } catch (error) {
+          console.error('Erro ao remover comando VIP:', error);
+          await reply('❌ Erro ao remover comando VIP.');
+        }
+        break;
+
+      case 'listcmdvip':
+      case 'listvipcommands':
+      case 'comandosvip':
+        try {
+          if (!isOwner && !isPremium) {
+            return reply('🚫 Este comando é apenas para o dono ou usuários VIP!');
+          }
+          
+          const { listVIPCommands } = menuVIP;
+          const listText = listVIPCommands(prefix);
+          
+          await reply(listText);
+        } catch (error) {
+          console.error('Erro ao listar comandos VIP:', error);
+          await reply('❌ Erro ao listar comandos VIP.');
+        }
+        break;
+
+      case 'togglecmdvip':
+      case 'ativarcmdvip':
+      case 'desativarcmdvip':
+        try {
+          if (!isOwner) return reply('🚫 Este comando é apenas para o dono do bot!');
+          
+          if (!args[0] || !args[1]) {
+            return reply(`📝 *Como ativar/desativar comandos VIP:*
+
+*Formato:*
+${prefix}togglecmdvip <comando> <on/off>
+
+*Exemplo:*
+${prefix}togglecmdvip premium_ia on
+${prefix}togglecmdvip premium_ia off`);
+          }
+          
+          const cmdName = args[0].trim();
+          const action = args[1].toLowerCase();
+          
+          if (!['on', 'off', 'ativar', 'desativar'].includes(action)) {
+            return reply('❌ Use "on" para ativar ou "off" para desativar!');
+          }
+          
+          const enabled = ['on', 'ativar'].includes(action);
+          const result = vipCommandsManager.toggleVipCommand(cmdName, enabled);
+          
+          await reply(result.message);
+          
+          if (result.success) {
+            console.log(`[VIP CMD] Comando "${cmdName}" ${enabled ? 'ativado' : 'desativado'} por ${pushname} (${sender})`);
+          }
+        } catch (error) {
+          console.error('Erro ao alternar comando VIP:', error);
+          await reply('❌ Erro ao alternar status do comando VIP.');
+        }
+        break;
+
+      case 'statsvip':
+      case 'vipstats':
+      case 'estatisticasvip':
+        try {
+          if (!isOwner) return reply('🚫 Este comando é apenas para o dono do bot!');
+          
+          const stats = vipCommandsManager.getVipStats();
+          
+          let statsText = `📊 *ESTATÍSTICAS DO SISTEMA VIP*\n\n`;
+          statsText += `╭─────────────────╮\n`;
+          statsText += `│ 📈 *RESUMO GERAL*\n`;
+          statsText += `╰─────────────────╯\n\n`;
+          statsText += `• Total de comandos: ${stats.total}\n`;
+          statsText += `• Comandos ativos: ${stats.active}\n`;
+          statsText += `• Comandos inativos: ${stats.inactive}\n`;
+          statsText += `• Total de categorias: ${stats.categories}\n\n`;
+          
+          if (stats.byCategory && stats.byCategory.length > 0) {
+            statsText += `╭─────────────────╮\n`;
+            statsText += `│ 📂 *POR CATEGORIA*\n`;
+            statsText += `╰─────────────────╯\n\n`;
+            
+            stats.byCategory.forEach(cat => {
+              statsText += `• ${cat.category}: ${cat.count}\n`;
+            });
+          }
+          
+          statsText += `\n━━━━━━━━━━━━━━━━\n\n`;
+          statsText += `💡 Use ${prefix}listcmdvip para ver todos os comandos`;
+          
+          await reply(statsText);
+        } catch (error) {
+          console.error('Erro ao obter estatísticas VIP:', error);
+          await reply('❌ Erro ao obter estatísticas VIP.');
         }
         break;
       
