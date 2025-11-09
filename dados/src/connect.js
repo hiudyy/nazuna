@@ -912,11 +912,11 @@ async function createBotSocket(authDir) {
         });
 
         if (codeMode && !NazunaSock.authState.creds.registered) {
-            console.log('📱 Insira o número de telefone (com código de país, ex: +5511999999999): ');
+            console.log('📱 Insira o número de telefone (com código de país, ex: +14155552671 ou +551199999999): ');
             let phoneNumber = await ask('--> ');
             phoneNumber = phoneNumber.replace(/\D/g, '');
-            if (!/^\d{10,15}$/.test(phoneNumber) || !phoneNumber.startsWith('55')) {
-                console.log('⚠️ Número inválido! Use um número válido com código de país (ex: +5511999999999).');
+            if (!/^\d{10,15}$/.test(phoneNumber)) {
+                console.log('⚠️ Número inválido! Use um número válido com código de país (ex: +14155552671 ou +551199999999).');
                 process.exit(1);
             }
             const code = await NazunaSock.requestPairingCode(phoneNumber.replaceAll('+', '').replaceAll(' ', '').replaceAll('-', ''));
