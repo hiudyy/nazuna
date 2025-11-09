@@ -12834,7 +12834,7 @@ ${prefix}togglecmdvip premium_ia off`);
             }]
           };
           var res;
-          res = await axios.post('https://bot.lyo.su/quote/generate', json, {
+          res = await axios.post('https://cognima-quote.onrender.com//quote/generate', json, {
             headers: {
               'Content-Type': 'application/json'
             }
