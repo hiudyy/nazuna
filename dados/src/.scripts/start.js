@@ -180,7 +180,7 @@ async function checkPrerequisites() {
 }
 
 function startBot(codeMode = false) {
-  const args = ['-r', 'esm', '--expose-gc', CONNECT_FILE];
+  const args = ['--expose-gc', CONNECT_FILE];
   if (codeMode) args.push('--code');
 
   info(`📷 Iniciando com ${codeMode ? 'código de pareamento' : 'QR Code'}`);
