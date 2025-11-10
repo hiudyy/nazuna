@@ -488,7 +488,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     VerifyUpdate,
     temuScammer,
     relationshipManager
-  } = modules;
+  } = modules.default;
   const antipvData = loadJsonFile(DATABASE_DIR + '/antipv.json');
   const premiumListaZinha = loadJsonFile(DONO_DIR + '/premium.json');
   const banGpIds = loadJsonFile(DONO_DIR + '/bangp.json');
