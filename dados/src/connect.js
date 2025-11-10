@@ -448,6 +448,8 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
             console.error('❌ Erro: ID do grupo não encontrado nos dados do evento.');
             return;
         }
+
+        console.log(inf.participants)
         
         // Valida se são participantes válidos
         if (!inf.participants || !Array.isArray(inf.participants) || inf.participants.length === 0) {
