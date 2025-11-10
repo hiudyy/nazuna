@@ -10454,7 +10454,8 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'menubrincadeiras':
       case 'gamemenu':
         try {
-          let menuContent = await menubn(prefix, nomebot, pushname, isModoLite);
+          const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
+          let menuContent = await menubn(prefix, nomebot, pushname, isModoLite, customDesign);
           await sendMenuWithMedia('brincadeiras', async () => menuContent);
         } catch (error) {
           console.error('Erro ao enviar menu de brincadeiras:', error);
