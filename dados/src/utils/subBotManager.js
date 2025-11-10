@@ -1,10 +1,14 @@
-const { default: makeWASocket } = require('whaileys/lib/Socket');
-const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require('whaileys');
-const { Boom } = require('@hapi/boom');
-const NodeCache = require('node-cache');
-const pino = require('pino');
-const fs = require('fs');
-const path = require('path');
+import makeWASocket from 'whaileys/lib/Socket/index.js';
+import { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } from 'whaileys';
+import { Boom } from '@hapi/boom';
+import NodeCache from 'node-cache';
+import pino from 'pino';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const SUBBOTS_FILE = path.join(__dirname, '../../database/subbots.json');
 const SUBBOTS_DIR = path.join(__dirname, '../../database/subbots');
@@ -255,10 +259,10 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber, generatePairing
                     
                     try {
                         // Carrega o módulo de processamento
-                        const indexModule = require('../index.js');
+                        const indexModule = await import('../index.js');
                         
                         // Cria um cache simples para este sub-bot
-                        const NodeCache = require('node-cache');
+                        // NodeCache already imported at top
                         const messagesCache = new NodeCache({ stdTTL: 300 });
                         
                         if (info.key?.id) {
@@ -701,7 +705,7 @@ async function generatePairingCodeForSubBot(userLid) {
     }
 }
 
-module.exports = {
+export {
     addSubBot,
     removeSubBot,
     listSubBots,

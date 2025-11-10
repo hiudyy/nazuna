@@ -1,6 +1,10 @@
-const fs = require('fs/promises');
-const path = require('path');
-const cron = require('node-cron');
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import cron from 'node-cron';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class RentalExpirationManager {
   constructor(nazu, config = {}) {
@@ -420,4 +424,4 @@ O aluguel deste grupo expirou e o bot está saindo agora. Para voltar a usar o b
   }
 }
 
-module.exports = RentalExpirationManager;
+export default RentalExpirationManager;

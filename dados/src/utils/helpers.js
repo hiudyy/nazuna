@@ -1,5 +1,5 @@
-const fs = require('fs');
-const pathz = require('path');
+import fs from 'fs';
+import pathz from 'path';
 
 // Cache global de JID → LID em memória (para acesso rápido)
 let jidLidMemoryCache = new Map();
@@ -264,7 +264,7 @@ const loadJsonFile = (path, defaultValue = {}) => {
   }
 };
 
-module.exports = {
+export {
   formatUptime,
   normalizar,
   isGroupId,

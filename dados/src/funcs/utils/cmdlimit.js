@@ -1,10 +1,10 @@
-const {
+import {
   addCommandLimit,
   removeCommandLimit,
   getCommandLimits,
   checkCommandLimit,
   formatTimeLeft
-} = require('../../utils/database.js');
+} from '../../utils/database.js';
 
 async function cmdLimitAdd(nazu, from, q, reply, prefix, isOwnerOrSub) {
   if (!isOwnerOrSub) return reply("🚫 Apenas o Dono e Subdonos podem limitar comandos!");
@@ -63,7 +63,7 @@ async function cmdLimitList(nazu, from, q, reply, prefix, isOwnerOrSub) {
   return reply(message);
 }
 
-module.exports = {
+export {
   cmdLimitAdd,
   cmdLimitRemove,
   cmdLimitList

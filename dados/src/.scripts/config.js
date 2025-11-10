@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-const fs = require('fs/promises');
-const fsSync = require('fs');
-const path = require('path');
-const { exec, spawn } = require('child_process');
-const readline = require('readline');
-const os = require('os');
-const { promisify } = require('util');
+import fs from 'fs/promises';
+import fsSync from 'fs';
+import path from 'path';
+import { exec, spawn } from 'child_process';
+import readline from 'readline';
+import os from 'os';
+import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 

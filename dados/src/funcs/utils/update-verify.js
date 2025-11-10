@@ -1,4 +1,4 @@
-const axios = require('axios');
+import axios from 'axios';
 
 async function makeRequest(url, params = {}, headers = {}) {
   try {
@@ -97,4 +97,4 @@ async function RenderUpdates(repo, quantidade, ignorarDescricao = 'Update on') {
   }
 }
 
-module.exports = RenderUpdates;
+export default RenderUpdates;

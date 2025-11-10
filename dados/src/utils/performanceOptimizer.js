@@ -1,9 +1,9 @@
-const SystemMonitor = require('./systemMonitor.js');
-const MediaCleaner = require('./mediaCleaner.js');
-const AutoRestarter = require('./autoRestarter.js');
-const OptimizedCacheManager = require('./optimizedCache.js');
-const MediaCompressor = require('./mediaCompressor.js');
-const path = require('path');
+import SystemMonitor from './systemMonitor.js';
+import MediaCleaner from './mediaCleaner.js';
+import AutoRestarter from './autoRestarter.js';
+import OptimizedCacheManager from './optimizedCache.js';
+import MediaCompressor from './mediaCompressor.js';
+import path from 'path';
 
 class PerformanceOptimizer {
     constructor() {
@@ -362,4 +362,4 @@ class PerformanceOptimizer {
     }
 }
 
-module.exports = PerformanceOptimizer;
+export default PerformanceOptimizer;

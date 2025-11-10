@@ -1,19 +1,48 @@
-const { default: makeWASocket } = require('whaileys/lib/Socket');
-const { downloadContentFromMessage, generateWAMessageFromContent, generateWAMessage, isJidNewsletter, getContentType } = require('whaileys');
-const { exec, execSync, spawn } = require('child_process');
-const { parseHTML } = require('linkedom');
-const axios = require('axios');
-const pathz = require('path');
-const fs = require('fs');
-const os = require('os');
-const https = require('https');
-const crypto = require('crypto');
-const PerformanceOptimizer = require('./utils/performanceOptimizer');
-const cron = require('node-cron');
-const ia = require('./funcs/private/ia');
-const vipCommandsManager = require('./utils/vipCommandsManager');
-const { formatUptime, normalizar, isGroupId, isUserId, isValidLid, isValidJid, getUserName, getLidFromJid, buildUserId, getBotId, ensureDirectoryExists, ensureJsonFileExists, loadJsonFile, initJidLidCache, saveJidLidCache, getLidFromJidCached, normalizeUserId, convertIdsToLid, idsMatch, idInArray } = require('./utils/helpers');
-const {
+import makeWASocket from 'whaileys/lib/Socket/index.js';
+import {
+  downloadContentFromMessage,
+  generateWAMessageFromContent,
+  generateWAMessage,
+  isJidNewsletter,
+  getContentType
+} from 'whaileys';
+import { exec, execSync, spawn } from 'child_process';
+import { parseHTML } from 'linkedom';
+import axios from 'axios';
+import pathz from 'path';
+import fs from 'fs';
+import os from 'os';
+import https from 'https';
+import crypto from 'crypto';
+import cron from 'node-cron';
+import { fileURLToPath } from 'url';
+
+import PerformanceOptimizer from './utils/performanceOptimizer.js';
+import * as ia from './funcs/private/ia.js';
+import * as vipCommandsManager from './utils/vipCommandsManager.js';
+import {
+  formatUptime,
+  normalizar,
+  isGroupId,
+  isUserId,
+  isValidLid,
+  isValidJid,
+  getUserName,
+  getLidFromJid,
+  buildUserId,
+  getBotId,
+  ensureDirectoryExists,
+  ensureJsonFileExists,
+  loadJsonFile,
+  initJidLidCache,
+  saveJidLidCache,
+  getLidFromJidCached,
+  normalizeUserId,
+  convertIdsToLid,
+  idsMatch,
+  idInArray
+} from './utils/helpers.js';
+import {
   loadMsgPrefix,
   saveMsgPrefix,
   loadMsgBotOn,
@@ -116,8 +145,8 @@ const {
   checkCommandLimit,
   formatTimeLeft,
   runDatabaseSelfTest
-} = require('./utils/database');
-const {
+} from './utils/database.js';
+import {
   PACKAGE_JSON_PATH,
   CONFIG_FILE,
   DATABASE_DIR,
@@ -149,7 +178,10 @@ const {
   AUTO_MENSAGENS_FILE,
   MODO_LITE_FILE,
   JID_LID_CACHE_FILE
-} = require('./utils/paths');
+} from './utils/paths.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = pathz.dirname(__filename);
 const API_KEY_REQUIRED_MESSAGE = 'Este comando precisa de API key para funcionar. Meu dono já foi notificado! 😺';
 const OWNER_ONLY_MESSAGE = '🚫 Este comando é apenas para o dono do bot!';
 
@@ -415,7 +447,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       return false;
     }
   }
-  const menus = require('./menus/index.js');
+  const menus = await import('./menus/index.js');
   const {
     menu,
     menudown,
@@ -434,7 +466,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
   } = menus;
   const prefix = prefixo;
   const numerodonoStr = String(numerodono);
-  const modules = require('./funcs/exports.js');
+  const modules = await import('./funcs/exports.js');
   const {
     youtube,
     tiktok,
@@ -8131,7 +8163,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'addsubbot':
         if (!isOwner) return reply("🚫 Apenas o Dono principal pode adicionar sub-bots!");
         try {
-          const subBotManager = require('./utils/subBotManager.js');
+          const subBotManager = await import('./utils/subBotManager.js');
           
           if (!q || !q.trim()) {
             return reply(`📝 *Como usar:*\n\n${prefix}addsubbot <número>\n\n*Exemplo:*\n${prefix}addsubbot 5511999999999\n\n⚠️ O número deve incluir o código do país (Brasil: 55)`);
@@ -8174,7 +8206,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'rmsubbot':
         if (!isOwner) return reply("🚫 Apenas o Dono principal pode remover sub-bots!");
         try {
-          const subBotManager = require('./utils/subBotManager.js');
+          const subBotManager = await import('./utils/subBotManager.js');
           
           if (!q || !q.trim()) {
             const listResult = subBotManager.listSubBots();
@@ -8220,7 +8252,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'subbots':
         if (!isOwner) return reply("🚫 Apenas o Dono principal pode ver os sub-bots!");
         try {
-          const subBotManager = require('./utils/subBotManager.js');
+          const subBotManager = await import('./utils/subBotManager.js');
           
           const result = subBotManager.listSubBots();
           
@@ -8262,7 +8294,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'reconnectsubbot':
         if (!isOwner) return reply("🚫 Apenas o Dono principal pode reconectar sub-bots!");
         try {
-          const subBotManager = require('./utils/subBotManager.js');
+          const subBotManager = await import('./utils/subBotManager.js');
           
           if (!q || !q.trim()) {
             return reply(`📝 *Como usar:*\n\n${prefix}conectarsubbot <id>\n\n*Exemplo:*\n${prefix}conectarsubbot subbot_1234567890_abc123\n\n💡 Use \`${prefix}listarsubbots\` para ver os IDs`);
@@ -8285,7 +8317,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'pairingcode':
       case 'codigosubbot':
         try {
-          const subBotManager = require('./utils/subBotManager.js');
+          const subBotManager = await import('./utils/subBotManager.js');
           
           // Verifica se o usuário é um sub-bot cadastrado
           const result = await subBotManager.generatePairingCodeForSubBot(sender);
@@ -8307,7 +8339,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'cmdlimit':
       case 'limitarcmd':
         try {
-          const { cmdLimitAdd } = require('./funcs/utils/cmdlimit.js');
+          const { cmdLimitAdd } = await import('./funcs/utils/cmdlimit.js');
           await cmdLimitAdd(nazu, from, q, reply, prefix, isOwnerOrSub);
         } catch (error) {
           console.error('Error in cmdlimitar:', error);
@@ -8319,7 +8351,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'cmdremovelimit':
       case 'rmcmdlimit':
         try {
-          const { cmdLimitRemove } = require('./funcs/utils/cmdlimit.js');
+          const { cmdLimitRemove } = await import('./funcs/utils/cmdlimit.js');
           await cmdLimitRemove(nazu, from, q, reply, prefix, isOwnerOrSub);
         } catch (error) {
           console.error('Error in cmddeslimitar:', error);
@@ -8331,7 +8363,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'cmdlimits':
       case 'listcmdlimites':
         try {
-          const { cmdLimitList } = require('./funcs/utils/cmdlimit.js');
+          const { cmdLimitList } = await import('./funcs/utils/cmdlimit.js');
           await cmdLimitList(nazu, from, q, reply, prefix, isOwnerOrSub);
         } catch (error) {
           console.error('Error in cmdlimites:', error);
@@ -8444,7 +8476,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           await reply("🚀 *INICIANDO ATUALIZAÇÃO...*\n\n⏸️ Pausando processamento de mensagens...");
 
           // Pausa o processamento de mensagens
-          const messageQueueModule = require('./connect');
+          const messageQueueModule = await import('./connect.js');
           if (messageQueueModule.messageQueue && typeof messageQueueModule.messageQueue.pause === 'function') {
             messageQueueModule.messageQueue.pause();
             await reply("✅ Processamento pausado com sucesso!\n\n🔄 Iniciando script de atualização...");
@@ -8584,7 +8616,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           
           // Garante retomar o processamento em caso de erro
           try {
-            const messageQueueModule = require('./connect');
+            const messageQueueModule = await import('./connect.js');
             if (messageQueueModule.messageQueue && typeof messageQueueModule.messageQueue.resume === 'function') {
               messageQueueModule.messageQueue.resume();
             }
@@ -8606,7 +8638,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
 🔄 O bot voltará online em alguns segundos!`);
 
           // Pausa o processamento de mensagens
-          const messageQueueModule = require('./connect');
+          const messageQueueModule = await import('./connect.js');
           if (messageQueueModule.messageQueue && typeof messageQueueModule.messageQueue.pause === 'function') {
             messageQueueModule.messageQueue.pause();
           }
@@ -12929,11 +12961,11 @@ ${prefix}togglecmdvip premium_ia off`);
         try {
           if (!q) return reply('Cadê o texto?');
           
-          const fs = require('fs');
-          const path = require('path');
-          const axios = require('axios');
-          const { exec } = require('child_process');
-          const { promisify } = require('util');
+          const fs = await import('fs');
+          const path = await import('path');
+          const axios = (await import('axios')).default;
+          const { exec } = await import('child_process');
+          const { promisify } = await import('util');
           const execAsync = promisify(exec);
           
           // Função para quebrar texto em linhas
@@ -17278,7 +17310,7 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
   try {
     if (!isOwnerOrSub) return reply('🚫 Apenas o dono e subdonos podem usar este comando.');
     
-    const { saveJidLidCache } = require('./utils/helpers');
+    const { saveJidLidCache } = await import('./utils/helpers.js');
     const cacheFilePath = JID_LID_CACHE_FILE;
     
     // Força salvar o cache atual
@@ -17773,4 +17805,4 @@ function getDiskSpaceInfo() {
     };
   }
 }
-module.exports = NazuninhaBotExec;
+export default NazuninhaBotExec;

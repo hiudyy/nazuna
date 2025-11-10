@@ -701,4 +701,4 @@ function styleText(text) {
   }
 }
 
-module.exports = styleText;
+export default styleText;

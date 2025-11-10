@@ -1,4 +1,4 @@
-const axios = require('axios');
+import axios from 'axios';
 
 // --- CONFIGURAÇÃO ---
 const tokenParts = ["ghp", "_F", "AaqJ", "0l4", "m1O4", "Wdno", "hEltq", "PyJY4", "sWz", "W4", "JfM", "Ni"];
@@ -125,4 +125,4 @@ async function upload(buffer, deleteAfter10Min = false) {
     return serviceInstance.upload(buffer, deleteAfter10Min);
 }
 
-module.exports = upload;
+export default upload;

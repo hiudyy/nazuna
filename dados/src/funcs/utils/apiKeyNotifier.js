@@ -142,7 +142,7 @@ Uma API Key é como uma "senha especial" que permite ao bot acessar os serviços
   }
 }
 
-module.exports = {
+export {
   notifyOwnerAboutApiKey,
   isApiKeyError,
   canSendNotification,

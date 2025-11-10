@@ -3,8 +3,8 @@
  * Updated to use cog2.cognima.com.br API
  */
 
-const axios = require('axios');
-const { notifyOwnerAboutApiKey, isApiKeyError } = require('../utils/apiKeyNotifier');
+import axios from 'axios';
+import { notifyOwnerAboutApiKey, isApiKeyError } from '../utils/apiKeyNotifier.js';
 
 // Função para pesquisar vídeos no TikTok
 async function tiktokSearch(query, apiKey) {
@@ -96,7 +96,7 @@ async function tiktokDownload(url, apiKey) {
   }
 }
 
-module.exports = {
-  dl: (url, apiKey) => tiktokDownload(url, apiKey),
-  search: (text, apiKey) => tiktokSearch(text, apiKey)
+export {
+  tiktokSearch as search,
+  tiktokDownload as dl
 };

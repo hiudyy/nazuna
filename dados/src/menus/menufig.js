@@ -35,4 +35,4 @@ ${middleBorder}${menuItemIcon}${prefix}toimg
 ${bottomBorder}
 `;
 }
-module.exports = menuSticker;
+export default menuSticker;

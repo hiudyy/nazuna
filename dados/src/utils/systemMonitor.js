@@ -1,7 +1,11 @@
-const fs = require('fs/promises');
-const { execSync } = require('child_process');
-const path = require('path');
-const zlib = require('zlib');
+import fs from 'fs/promises';
+import { execSync } from 'child_process';
+import path from 'path';
+import zlib from 'zlib';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class SystemMonitor {
     constructor() {
@@ -364,4 +368,4 @@ class SystemMonitor {
     }
 }
 
-module.exports = SystemMonitor;
+export default SystemMonitor;

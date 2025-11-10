@@ -179,4 +179,4 @@ ${middleBorder}${menuItemIcon}${prefix}msgprefix
 ${bottomBorder}
 `;
 }
-module.exports = menuDono;
+export default menuDono;

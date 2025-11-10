@@ -1,6 +1,10 @@
-const fs = require('fs').promises;
-const path = require('path');
-const STATS_FILE = path.join(path.dirname(__filename), '../../../database/commandStats.json');
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const STATS_FILE = path.join(__dirname, '../../../database/commandStats.json');
 
 let statsCache = null;
 let isWriting = false;
@@ -60,4 +64,4 @@ async function getCommandStats(command) {
 
 initializeStats();
 
-module.exports = { trackCommandUsage, getMostUsedCommands, getCommandStats };
+export { trackCommandUsage, getMostUsedCommands, getCommandStats };

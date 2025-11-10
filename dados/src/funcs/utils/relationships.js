@@ -1,5 +1,5 @@
-const { loadRelationships, saveRelationships } = require('../../utils/database');
-const { getUserName, normalizar } = require('../../utils/helpers');
+import { loadRelationships, saveRelationships } from '../../utils/database.js';
+import { getUserName, normalizar } from '../../utils/helpers.js';
 
 const REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
 const MARRIAGE_REQUIRED_MS = 48 * 60 * 60 * 1000;
@@ -969,4 +969,4 @@ class RelationshipManager {
   }
 }
 
-module.exports = new RelationshipManager();
+export default new RelationshipManager();

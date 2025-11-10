@@ -3,8 +3,8 @@
  * Updated to use cog2.cognima.com.br API
  */
 
-const axios = require('axios');
-const { notifyOwnerAboutApiKey, isApiKeyError } = require('../utils/apiKeyNotifier');
+import axios from 'axios';
+import { notifyOwnerAboutApiKey, isApiKeyError } from '../utils/apiKeyNotifier.js';
 
 // Função para baixar post do Instagram
 async function igdl(url, apiKey) {
@@ -79,6 +79,6 @@ async function igdl(url, apiKey) {
   }
 }
 
-module.exports = {
-  dl: (url, apiKey) => igdl(url, apiKey)
+export {
+  igdl as dl
 };

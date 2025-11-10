@@ -1,9 +1,12 @@
-const fs = require('fs/promises');
-const path = require('path');
-const { exec } = require('child_process');
-const { promisify } = require('util');
-const zlib = require('zlib');
+import fs from 'fs/promises';
+import path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import zlib from 'zlib';
+import { fileURLToPath } from 'url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const execAsync = promisify(exec);
 
 class MediaCleaner {
@@ -464,4 +467,4 @@ class MediaCleaner {
     }
 }
 
-module.exports = MediaCleaner;
+export default MediaCleaner;

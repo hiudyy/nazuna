@@ -1,8 +1,8 @@
-const fs = require('fs');
-const pathz = require('path');
-const crypto = require('crypto');
-const { ensureDirectoryExists, ensureJsonFileExists, loadJsonFile, normalizar, getUserName, isGroupId, isUserId, isValidLid, isValidJid, buildUserId } = require('./helpers');
-const {
+import fs from 'fs';
+import pathz from 'path';
+import crypto from 'crypto';
+import { ensureDirectoryExists, ensureJsonFileExists, loadJsonFile, normalizar, getUserName, isGroupId, isUserId, isValidLid, isValidJid, buildUserId } from './helpers.js';
+import {
   DATABASE_DIR,
   GRUPOS_DIR,
   USERS_DIR,
@@ -37,7 +37,7 @@ const {
   RELATIONSHIPS_FILE,
   CUSTOM_COMMANDS_FILE,
   CONFIG_FILE
-} = require('./paths');
+} from './paths.js';
 
 ensureDirectoryExists(GRUPOS_DIR);
 ensureDirectoryExists(USERS_DIR);
@@ -210,10 +210,16 @@ ensureJsonFileExists(LEVELING_FILE, {
 ensureJsonFileExists(MSGPREFIX_FILE, { message: false });
 
 // Carrega config para verificar o número do dono
-const configPath = require('path').join(__dirname, '..', 'config.json');
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const configPath = path.join(__dirname, '..', 'config.json');
 let configForMsgBotOn = {};
 try {
-  configForMsgBotOn = JSON.parse(require('fs').readFileSync(configPath, 'utf8'));
+  configForMsgBotOn = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 } catch (e) {
   console.error('Erro ao ler config.json para msgboton:', e.message);
 }
@@ -387,7 +393,7 @@ const loadMsgBotOn = () => {
   // Carrega config para verificar o número do dono
   let currentOwner = null;
   try {
-    const configPath = require('path').join(__dirname, '..', 'config.json');
+    const configPath = path.join(__dirname, '..', 'config.json');
     const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     currentOwner = configData.numerodono;
   } catch (e) {
@@ -2029,7 +2035,7 @@ const formatTimeLeft = (milliseconds) => {
   }
 };
 
-module.exports = {
+export {
   runDatabaseSelfTest,
   loadMsgPrefix,
   saveMsgPrefix,

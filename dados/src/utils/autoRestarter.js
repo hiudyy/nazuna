@@ -1,6 +1,10 @@
-const { spawn } = require('child_process');
-const fs = require('fs/promises');
-const path = require('path');
+import { spawn } from 'child_process';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class AutoRestarter {
     constructor() {
@@ -213,7 +217,7 @@ class AutoRestarter {
             
             for (const tempPattern of tempDirs) {
                 try {
-                    const { exec } = require('child_process');
+                    const { exec } = await import('child_process');
                     exec(`rm -rf ${tempPattern}`, { timeout: 5000 }, (error) => {
                         if (error && !error.message.includes('No such file')) {
                             console.warn(`⚠️ Erro na limpeza de ${tempPattern}:`, error.message);
@@ -457,4 +461,4 @@ class AutoRestarter {
     }
 }
 
-module.exports = AutoRestarter;
+export default AutoRestarter;

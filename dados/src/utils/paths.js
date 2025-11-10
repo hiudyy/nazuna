@@ -1,4 +1,9 @@
-const path = require('path');
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const SRC_DIR = path.join(__dirname, '..');
 const ROOT_DIR = path.join(SRC_DIR, '..');
@@ -47,7 +52,7 @@ const CONFIG_FILE = process.env.CONFIG_PATH || path.join(SRC_DIR, 'config.json')
 
 const PACKAGE_JSON_PATH = path.join(ROOT_DIR, '..', 'package.json');
 
-module.exports = {
+export {
   ROOT_DIR, 
   SRC_DIR,
   DATABASE_DIR,

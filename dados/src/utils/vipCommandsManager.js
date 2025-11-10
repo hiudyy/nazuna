@@ -1,5 +1,9 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Caminho do arquivo de comandos VIP
 const VIP_COMMANDS_FILE = path.join(__dirname, '../../database/dono/vipCommands.json');
@@ -305,7 +309,7 @@ function getVipStats() {
   };
 }
 
-module.exports = {
+export {
   addVipCommand,
   removeVipCommand,
   isVipCommand,

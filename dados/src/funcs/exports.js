@@ -1,7 +1,18 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Configuração de caminhos para o ambiente CommonJS
+// Em ESM, definimos __dirname manualmente
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/**
+ * Carrega um módulo JavaScript local de forma síncrona usando require disponível globalmente
+ * em tempo de execução (Node >= 22 com --experimental-require-module, ou via createRequire).
+ * Para manter compatibilidade, usamos createRequire.
+ */
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 
 /**
  * Carrega um módulo JavaScript local de forma síncrona.
@@ -59,7 +70,7 @@ const localModulePaths = {
     temuScammer: "./private/temuScammer.js",
 };
 
-module.exports = (() => {
+const modules = (() => {
     try {
         // Carrega todos os módulos locais de forma síncrona
         const loadedResources = {};
@@ -71,7 +82,7 @@ module.exports = (() => {
         loadedResources.toolsJson = loadJsonSync("json/tools.json");
         loadedResources.vabJson = loadJsonSync("json/vab.json");
 
-        // Monta o objeto final para exportação
+        // Monta o objeto final para exportação (shape compatível com o CommonJS anterior)
         return {
             ...loadedResources,
             sendSticker: loadedResources.stickerModule?.sendSticker,
@@ -85,3 +96,5 @@ module.exports = (() => {
         process.exit(1);
     }
 })();
+
+export default modules;

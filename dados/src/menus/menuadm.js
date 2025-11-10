@@ -1,4 +1,4 @@
-module.exports = async function menuadm(prefix, botName = "MeuBot", userName = "Usuário", {
+export default async function menuadm(prefix, botName = "MeuBot", userName = "Usuário", {
     header = `╭┈⊰ 🌸 『 *${botName}* 』\n┊Olá, #user#!\n╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯`,
     menuTopBorder = "╭┈",
     bottomBorder = "╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯",

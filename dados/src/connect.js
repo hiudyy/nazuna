@@ -1,22 +1,24 @@
-const { default: makeWASocket } = require('whaileys/lib/Socket');
-const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require('whaileys');
-const { Boom } = require('@hapi/boom');
-const NodeCache = require('node-cache');
-const readline = require('readline');
-const pino = require('pino');
-const fs = require('fs/promises');
-const path = require('path');
-const qrcode = require('qrcode-terminal');
-const { readFile } = require('fs/promises');
-const { readFileSync } = require('fs');
-const { fileURLToPath } = require('url');
-const { dirname, join } = require('path');
-const crypto = require('crypto');
+import { default as makeWASocket } from 'whaileys/lib/Socket/index.js';
+import { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } from 'whaileys';
+import { Boom } from '@hapi/boom';
+import NodeCache from 'node-cache';
+import readline from 'readline';
+import pino from 'pino';
+import fs from 'fs/promises';
+import path, { dirname, join } from 'path';
+import qrcode from 'qrcode-terminal';
+import { readFile } from 'fs/promises';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import crypto from 'crypto';
 
-const PerformanceOptimizer = require('./utils/performanceOptimizer.js');
-const RentalExpirationManager = require('./utils/rentalExpirationManager.js');
-const { loadMsgBotOn } = require('./utils/database.js');
-const { buildUserId } = require('./utils/helpers.js');
+import PerformanceOptimizer from './utils/performanceOptimizer.js';
+import RentalExpirationManager from './utils/rentalExpirationManager.js';
+import { loadMsgBotOn } from './utils/database.js';
+import { buildUserId } from './utils/helpers.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 class MessageQueue {
     constructor(maxWorkers = 4, batchSize = 10, messagesPerBatch = 2) {
@@ -266,7 +268,7 @@ const messageQueue = new MessageQueue(8, 10, 2); // 8 workers, 10 lotes, 2 mensa
 const configPath = path.join(__dirname, "config.json");
 let config = JSON.parse(readFileSync(configPath, "utf8"));
 
-const indexModule = require('./index.js');
+const indexModule = (await import('./index.js')).default ?? (await import('./index.js'));
 
 const performanceOptimizer = new PerformanceOptimizer();
 
@@ -420,9 +422,9 @@ async function createGroupMessage(NazunaSock, groupMetadata, participants, setti
             profilePicUrl = await NazunaSock.profilePictureUrl(participants[0], 'image').catch(() => profilePicUrl);
         }
 
-        const modules = require('./funcs/exports.js');
+        const modules = (await import('./funcs/exports.js')).default;
         const {
-        banner,
+            banner,
         } = modules;
        
         const image = settings.image !== 'banner' ? {
@@ -878,9 +880,8 @@ async function performMigration(NazunaSock) {
 
 async function createBotSocket(authDir) {
     try {
-        const {
-            banner
-        } = require('./funcs/exports.js');
+        const modules = await import('./funcs/exports.js');
+        const { banner } = modules.default || modules;
         await fs.mkdir(path.join(DATABASE_DIR, 'grupos'), { recursive: true });
         await fs.mkdir(authDir, { recursive: true });
         const {
@@ -1074,11 +1075,12 @@ async function createBotSocket(authDir) {
                 
                 // Inicializa sub-bots automaticamente
                 try {
-                    const subBotManager = require('./utils/subBotManager.js');
+                    const subBotManagerModule = await import('./utils/subBotManager.js');
+                    const subBotManager = subBotManagerModule.default ?? subBotManagerModule;
                     console.log('🤖 Verificando sub-bots cadastrados...');
                     setTimeout(async () => {
                         await subBotManager.initializeAllSubBots();
-                    }, 5000); // Aguarda 5 segundos após bot principal conectar
+                    }, 5000);
                 } catch (error) {
                     console.error('❌ Erro ao inicializar sub-bots:', error.message);
                 }
@@ -1153,7 +1155,8 @@ process.on('SIGTERM', async () => {
     
     // Desconecta sub-bots
     try {
-        const subBotManager = require('./utils/subBotManager.js');
+        const subBotManagerModule = await import('./utils/subBotManager.js');
+        const subBotManager = subBotManagerModule.default ?? subBotManagerModule;
         await subBotManager.disconnectAllSubBots();
     } catch (error) {
         console.error('Erro ao desconectar sub-bots:', error.message);
@@ -1175,7 +1178,8 @@ process.on('SIGINT', async () => {
     
     // Desconecta sub-bots
     try {
-        const subBotManager = require('./utils/subBotManager.js');
+        const subBotManagerModule = await import('./utils/subBotManager.js');
+        const subBotManager = subBotManagerModule.default ?? subBotManagerModule;
         await subBotManager.disconnectAllSubBots();
     } catch (error) {
         console.error('Erro ao desconectar sub-bots:', error.message);
@@ -1204,6 +1208,6 @@ process.on('uncaughtException', async (error) => {
     }
 });
 
-module.exports = { rentalExpirationManager, messageQueue };
+export { rentalExpirationManager, messageQueue };
 
 startNazu();

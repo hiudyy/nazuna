@@ -1,4 +1,4 @@
-module.exports = async function menurpg(prefix, botName = "MeuBot", userName = "Usuário", {
+export default async function menurpg(prefix, botName = "MeuBot", userName = "Usuário", {
     header = `╭┈⊰ ⚔️ 『 *MODO RPG* 』\n┊Olá, #user#!\n╰─┈┈┈┈┈◜⚔️◞┈┈┈┈┈─╯`,
     menuTopBorder = "╭┈",
     bottomBorder = "╰─┈┈┈┈┈◜⚔️◞┈┈┈┈┈─╯",

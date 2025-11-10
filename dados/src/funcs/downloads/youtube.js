@@ -3,10 +3,10 @@
  * Updated to use cog2.cognima.com.br API
  */
 
-const axios = require('axios');
-const { spawn } = require('child_process');
-const { Readable } = require('stream');
-const { notifyOwnerAboutApiKey, isApiKeyError } = require('../utils/apiKeyNotifier');
+import axios from 'axios';
+import { spawn } from 'child_process';
+import { Readable } from 'stream';
+import { notifyOwnerAboutApiKey, isApiKeyError } from '../utils/apiKeyNotifier.js';
 
 // Função para buscar vídeos no YouTube
 async function search(query, apiKey) {
@@ -127,10 +127,11 @@ async function mp4(url, quality = 360, apiKey) {
   }
 }
 
-module.exports = {
-  search: (text, apiKey) => search(text, apiKey),
-  mp3: (url, q, apiKey) => mp3(url, q, apiKey),
-  mp4: (url, q, apiKey) => mp4(url, q, apiKey),
-  ytmp3: (url, q, apiKey) => mp3(url, q, apiKey),
-  ytmp4: (url, q, apiKey) => mp4(url, q, apiKey)
+export {
+  search,
+  mp3,
+  mp4
 };
+
+export const ytmp3 = mp3;
+export const ytmp4 = mp4;

@@ -1,9 +1,13 @@
-const fs = require('fs').promises;
-const fsSync = require('fs');
-const path = require('path');
-const webp = require('node-webpmux');
-const axios = require('axios');
-const ffmpeg = require('fluent-ffmpeg');
+import fs from 'fs/promises';
+import fsSync from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import webp from 'node-webpmux';
+import axios from 'axios';
+import ffmpeg from 'fluent-ffmpeg';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Diretório temporário
 function ensureTmpDir() {
@@ -201,4 +205,4 @@ const sendSticker = async (nazu, jid, {
   return webpBuffer;
 };
 
-module.exports = { sendSticker };
+export { sendSticker };

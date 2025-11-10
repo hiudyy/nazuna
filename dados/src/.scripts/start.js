@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-const fs = require('fs/promises');
-const fsSync = require('fs');
-const path = require('path');
-const { spawn, execSync } = require('child_process');
-const readline = require('readline/promises');
-const os = require('os');
+import fs from 'fs/promises';
+import fsSync from 'fs';
+import path from 'path';
+import { spawn, execSync } from 'child_process';
+import readline from 'readline/promises';
+import os from 'os';
 
 const CONFIG_PATH = path.join(process.cwd(), 'dados', 'src', 'config.json');
 const NODE_MODULES_PATH = path.join(process.cwd(), 'node_modules');

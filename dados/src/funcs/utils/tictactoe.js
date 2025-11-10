@@ -226,7 +226,7 @@ const endGame = (...args) => manager.endGame(...args);
 const hasActiveGame = (...args) => manager.hasActiveGame(...args);
 const hasPendingInvitation = (...args) => manager.hasPendingInvitation(...args);
 
-module.exports = {
+export {
   invitePlayer,
   processInvitationResponse,
   makeMove,

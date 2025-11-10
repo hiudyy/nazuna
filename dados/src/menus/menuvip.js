@@ -1,4 +1,4 @@
-const { groupVipCommandsByCategory, getVipStats } = require('../utils/vipCommandsManager');
+import { groupVipCommandsByCategory, getVipStats } from '../utils/vipCommandsManager.js';
 
 /**
  * Gera o menu VIP dinamicamente baseado nos comandos cadastrados
@@ -140,7 +140,7 @@ ${bottomBorder}
   return list;
 }
 
-module.exports = {
+export {
   menuVIP,
   menuVIPInfo,
   listVIPCommands

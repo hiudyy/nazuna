@@ -2,7 +2,7 @@
     "name": "nazuna",
     "version": "7.0.0",
     "description": "Bot de whatsapp criada por hiudy",
-    "type": "commonjs",
+    "type": "module",
     "main": "dados/src/connect.js",
     "scripts": {
         "start": "node dados/src/.scripts/start.js",
@@ -21,7 +21,7 @@
     "dependencies": {
         "node-cache": "latest",
         "@hapi/boom": "latest",
-        "whaileys": "npm:baileys-york@latest",
+        "whaileys": "npm:baileys@latest",
         "axios": "latest",
         "fluent-ffmpeg": "latest",
         "jimp": "*",

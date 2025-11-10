@@ -4,7 +4,7 @@
  * Versão: 3.0.0 - Nova API
  */
 
-const axios = require('axios');
+import axios from 'axios';
 
 // Configuração
 const CONFIG = {
@@ -65,4 +65,4 @@ async function Filmes(query, apiKey) {
   }
 }
 
-module.exports = Filmes;
+export default Filmes;

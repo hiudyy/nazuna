@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 
-const fs = require('fs/promises');
-const fsSync = require('fs');
-const path = require('path');
-const { execSync, exec } = require('child_process');
-const readline = require('readline');
-const os = require('os');
-const { promisify } = require('util');
+import fs from 'fs/promises';
+import fsSync from 'fs';
+import path from 'path';
+import { exec } from 'child_process';
+import os from 'os';
+import { promisify } from 'util';
+import { fileURLToPath } from 'url';
+
 const execAsync = promisify(exec);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const REPO_URL = 'https://github.com/hiudyy/nazuna.git';
 const BACKUP_DIR = path.join(process.cwd(), `backup_${new Date().toISOString().replace(/[:.]/g, '_').replace(/T/, '_')}`);

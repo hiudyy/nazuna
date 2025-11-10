@@ -1,4 +1,4 @@
-async function menuIa(prefix, botName = "MeuBot", userName = "Usuário", {
+export default async function menuIa(prefix, botName = "MeuBot", userName = "Usuário", {
     header = `╭┈⊰ 🌸 『 *${botName}* 』\n┊Olá, #user#!\n╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯`,
     menuTopBorder = "╭┈",
     bottomBorder = "╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯",
@@ -56,4 +56,3 @@ ${middleBorder}${menuItemIcon}${prefix}resumirurl
 ${bottomBorder}
 `;
 }
-module.exports = menuIa;

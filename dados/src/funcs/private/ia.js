@@ -1,10 +1,11 @@
-const axios = require('axios');
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
-const { fileURLToPath } = require('url');
-const userContextDB = require('../../utils/userContextDB');
-const { notifyOwnerAboutApiKey, isApiKeyError } = require('../utils/apiKeyNotifier');
+import axios from 'axios';
+import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+import userContextDB from '../../utils/userContextDB.js';
+import { notifyOwnerAboutApiKey, isApiKeyError } from '../utils/apiKeyNotifier.js';
 
 // Função para obter data/hora no fuso horário do Brasil (GMT-3)
 function getBrazilDateTime() {
@@ -2355,8 +2356,8 @@ function getNazunaResponseDelay(grupoUserId) {
 }
 
 
-module.exports = {
-  makeAssistentRequest: processUserMessages,
+export {
+  processUserMessages as makeAssistentRequest,
   makeCognimaRequest,
   Shazam,
   getHistoricoStats,

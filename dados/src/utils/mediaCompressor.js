@@ -1,9 +1,12 @@
-const fs = require('fs/promises');
-const { exec } = require('child_process');
-const { promisify } = require('util');
-const path = require('path');
-const zlib = require('zlib');
+import fs from 'fs/promises';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import path from 'path';
+import zlib from 'zlib';
+import { fileURLToPath } from 'url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const execAsync = promisify(exec);
 
 class MediaCompressor {
@@ -551,4 +554,4 @@ class MediaCompressor {
     }
 }
 
-module.exports = MediaCompressor;
+export default MediaCompressor;

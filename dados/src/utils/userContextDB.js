@@ -1,5 +1,9 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Caminho do arquivo de banco de dados
 const DB_PATH = path.join(__dirname, '../../database/userContext.json');
@@ -628,4 +632,4 @@ class UserContextDB {
 // Instância única (singleton)
 const userContextDB = new UserContextDB();
 
-module.exports = userContextDB;
+export default userContextDB;

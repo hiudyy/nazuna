@@ -1,6 +1,6 @@
-const NodeCache = require('node-cache');
-const path = require('path');
-const zlib = require('zlib');
+import NodeCache from 'node-cache';
+import path from 'path';
+import zlib from 'zlib';
 
 class OptimizedCacheManager {
     constructor() {
@@ -462,4 +462,4 @@ class OptimizedCacheManager {
     }
 }
 
-module.exports = OptimizedCacheManager;
+export default OptimizedCacheManager;

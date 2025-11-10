@@ -1,6 +1,10 @@
 // Lista central de todos os módulos de menu que queremos carregar.
 // O nome da chave será o nome no objeto final. O valor é o caminho do arquivo.
-const path = require('path');
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const menuModules = {
     menu: "./menu.js",
@@ -29,22 +33,34 @@ function loadMenus() {
 
     for (const [name, filePath] of Object.entries(menuModules)) {
         try {
-            const module = require(path.resolve(__dirname, filePath));
-            loadedMenus[name] = module;
+            // Import dinâmico síncrono via createRequire para manter o comportamento existente
+            const { createRequire } = require('module');
+            const localRequire = createRequire(import.meta.url);
+            const mod = localRequire(path.resolve(__dirname, filePath));
+            loadedMenus[name] = mod;
         } catch (error) {
-            console.error(`[${new Date().toISOString()}] Falha ao carregar o menu '${name}' de ${filePath}:`, error.message);
+            console.error(
+                `[${new Date().toISOString()}] Falha ao carregar o menu '${name}' de ${filePath}:`,
+                error.message
+            );
             invalidMenus.push(name);
         }
     }
 
-    // Se houver menus inválidos, loga um aviso claro
     if (invalidMenus.length > 0) {
-        console.warn(`[${new Date().toISOString()}] AVISO: Os seguintes menus não foram carregados corretamente: ${invalidMenus.join(', ')}.`);
-        console.error(`[${new Date().toISOString()}] ERRO CRÍTICO: A inicialização pode estar incompleta.`);
+        console.warn(
+            `[${new Date().toISOString()}] AVISO: Os seguintes menus não foram carregados corretamente: ${invalidMenus.join(
+                ', '
+            )}.`
+        );
+        console.error(
+            `[${new Date().toISOString()}] ERRO CRÍTICO: A inicialização pode estar incompleta.`
+        );
     }
 
     return loadedMenus;
 }
 
-// Carrega os menus e os exporta de forma síncrona.
-module.exports = loadMenus();
+// Em ESM, exportamos o objeto já carregado mantendo o mesmo shape do module.exports anterior
+const menus = loadMenus();
+export default menus;
