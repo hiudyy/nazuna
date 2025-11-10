@@ -453,9 +453,9 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
         // Ignora eventos do próprio bot
         const botId = NazunaSock.user.id.split(':')[0];
 
-        inf.participants = inf.participants.filter(isValidParticipant);
+        inf.participants = inf.participants.map(isValidParticipant).filter(Boolean);
 
-        if (inf.participants.some(p => p.startsWith(botId))) {
+        if (inf.participants.some(p => p && typeof p === 'string' && p.startsWith(botId))) {
             return;
         }
             
@@ -551,20 +551,28 @@ const isValidLid = (str) => /^[a-zA-Z0-9_]+@lid$/.test(str);
 const isValidUserId = (str) => isValidJid(str) || isValidLid(str);
 
 /**
- * Validates if a participant object has a valid ID
- * @param {object} participant - The participant object to validate
- * @returns {boolean} - True if participant has a valid ID, false otherwise
+ * Validates if a participant object has a valid ID and extracts the ID
+ * @param {object|string} participant - The participant object or string to validate
+ * @returns {string|boolean} - The participant ID if valid, false otherwise
  */
 function isValidParticipant(participant) {
-    if (!participant || typeof participant !== 'object') return false;
-    if (!participant.hasOwnProperty('id')) return false;
+    // If participant is already a string, validate it directly
+    if (typeof participant === 'string') {
+        if (participant.trim().length === 0) return false;
+        return participant;
+    }
     
-    const id = participant.id;
-    if (id === null || id === undefined || id === '') return false;
-    if (typeof id === 'string' && id.trim().length === 0) return false;
-    if (id === 0) return false;
+    // If participant is an object with id property
+    if (participant && typeof participant === 'object' && participant.hasOwnProperty('id')) {
+        const id = participant.id;
+        if (id === null || id === undefined || id === '') return false;
+        if (typeof id === 'string' && id.trim().length === 0) return false;
+        if (id === 0) return false;
+        
+        return id;
+    }
     
-    return true;
+    return false;
 }
 
 function collectJidsFromJson(obj, jidsSet = new Set()) {
