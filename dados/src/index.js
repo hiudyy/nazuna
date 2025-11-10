@@ -2451,30 +2451,38 @@ Código: *${roleCode}*`,
     }
     if (isGroup) {
       try {
-        if (relationshipManager.hasPendingRequest(from) && body) {
-          const relResponse = relationshipManager.processResponse(from, sender, body);
-          if (relResponse) {
-            // Apenas envia mensagem se for sucesso, ignora respostas inválidas
-            if (relResponse.success && relResponse.message) {
-              await nazu.sendMessage(from, {
-                text: relResponse.message,
-                mentions: relResponse.mentions || []
-              });
+        if (relationshipManager && relationshipManager.hasPendingRequest && relationshipManager.processResponse) {
+          try {
+            if (relationshipManager.hasPendingRequest(from) && body) {
+              const relResponse = relationshipManager.processResponse(from, sender, body);
+              if (relResponse) {
+                // Apenas envia mensagem se for sucesso, ignora respostas inválidas
+                if (relResponse.success && relResponse.message) {
+                  await nazu.sendMessage(from, {
+                    text: relResponse.message,
+                    mentions: relResponse.mentions || []
+                  });
+                }
+              }
             }
-          }
-        }
-        
-        // Processa resposta de traição
-        if (relationshipManager.hasPendingBetrayal(from) && body) {
-          const betrayalResponse = relationshipManager.processBetrayalResponse(from, sender, body, groupPrefix);
-          if (betrayalResponse) {
-            // Apenas envia mensagem se for sucesso, ignora respostas inválidas
-            if (betrayalResponse.success && betrayalResponse.message) {
-              await nazu.sendMessage(from, {
-                text: betrayalResponse.message,
-                mentions: betrayalResponse.mentions || []
-              });
+
+            // Processa resposta de traição
+            if (relationshipManager.hasPendingBetrayal && relationshipManager.processBetrayalResponse) {
+              if (relationshipManager.hasPendingBetrayal(from) && body) {
+                const betrayalResponse = relationshipManager.processBetrayalResponse(from, sender, body, groupPrefix);
+                if (betrayalResponse) {
+                  // Apenas envia mensagem se for sucesso, ignora respostas inválidas
+                  if (betrayalResponse.success && betrayalResponse.message) {
+                    await nazu.sendMessage(from, {
+                      text: betrayalResponse.message,
+                      mentions: betrayalResponse.mentions || []
+                    });
+                  }
+                }
+              }
             }
+          } catch (relError) {
+            console.warn('[RELATIONSHIP] Error processing relationship response:', relError.message);
           }
         }
         
@@ -2588,6 +2596,13 @@ Código: *${roleCode}*`,
             }
             
             console.log('🤖 Processando mensagem de assistente...');
+            
+            // Add null check for ia object
+            if (!ia || typeof ia.makeAssistentRequest !== 'function') {
+              console.warn('[IA] makeAssistentRequest not available');
+              return reply('🤖 Sistema de IA temporariamente indisponível. Tente novamente em alguns minutos.');
+            }
+            
             const respAssist = await ia.makeAssistentRequest({
               mensagens: [jSoNzIn]
             }, KeyCog, nazu, nmrdn);
@@ -10074,11 +10089,22 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             }
             return;
           } else {
-            videoInfo = await youtube.search(q, KeyCog);
-            if (!videoInfo.ok) {
-              return reply(`❌ Erro na pesquisa: ${videoInfo.msg}`);
+            // Add null check for youtube object
+            if (!youtube || typeof youtube.search !== 'function') {
+              console.warn('[YOUTUBE] search function not available');
+              return reply(`❌ Sistema de busca do YouTube não está disponível no momento.`);
             }
-            videoUrl = videoInfo.data.url;
+            
+            try {
+              videoInfo = await youtube.search(q, KeyCog);
+              if (!videoInfo.ok) {
+                return reply(`❌ Erro na pesquisa: ${videoInfo.msg}`);
+              }
+              videoUrl = videoInfo.data.url;
+            } catch (error) {
+              console.error('Erro ao buscar vídeo no YouTube:', error);
+              return reply(`❌ Erro ao buscar vídeo: ${error.message}`);
+            }
           }
 
           if (!videoInfo.ok) {
@@ -12588,6 +12614,10 @@ ${prefix}togglecmdvip premium_ia off`);
       case 'topcmds':
       case 'comandosmaisusados':
         try {
+          if (!commandStats || typeof commandStats.getMostUsedCommands !== 'function') {
+            console.warn('[COMMANDSTATS] getMostUsedCommands not available');
+            return reply("Sistema de estatísticas temporariamente indisponível.");
+          }
           const topCommands = await commandStats.getMostUsedCommands(10);
           const menuVideoPath = __dirname + '/../midias/menu.mp4';
           const menuImagePath = __dirname + '/../midias/menu.jpg';
@@ -12613,6 +12643,10 @@ ${prefix}togglecmdvip premium_ia off`);
         try {
           if (!q) return reply(`📊 *Estatísticas de Comandos*\n\n📝 *Como usar:*\n• Especifique o comando após o comando\n• Ex: ${prefix}cmdinfo menu\n• Ex: ${prefix}cmdinfo ping\n\n📈 Visualize estatísticas detalhadas de uso do comando!`);
           const cmdName = q.startsWith(prefix) ? q.slice(prefix.length) : q;
+          if (!commandStats || typeof commandStats.getCommandStats !== 'function') {
+            console.warn('[COMMANDSTATS] getCommandStats not available');
+            return reply("Sistema de estatísticas temporariamente indisponível.");
+          }
           const stats = await commandStats.getCommandStats(cmdName);
           if (!stats) {
             return reply(`❌ Comando *${cmdName}* não encontrado ou nunca foi usado.`);
@@ -15380,6 +15414,10 @@ Exemplos:
         {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           if (!menc_os2) return reply("Marque alguém 🙄");
+          if (!tictactoe || typeof tictactoe.invitePlayer !== 'function') {
+            console.warn('[TICTACTOE] invitePlayer not available');
+            return reply("Sistema de jogo da velha temporariamente indisponível.");
+          }
           const result = await tictactoe.invitePlayer(from, sender, menc_os2);
           await nazu.sendMessage(from, {
             text: result.message,

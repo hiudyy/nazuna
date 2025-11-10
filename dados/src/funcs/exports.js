@@ -58,13 +58,43 @@ async function loadModules() {
             import('./downloads/filmes.js'),
         ]);
 
+        // Download modules with null checking
         modules.youtube = youtubeMod.default ?? youtubeMod;
+        if (modules.youtube && typeof modules.youtube.search !== 'function') {
+            console.warn('[EXPORTS] YouTube search function not found, adding fallback');
+            modules.youtube.search = () => { throw new Error('YouTube search not available'); };
+        }
+
         modules.tiktok = tiktokMod.default ?? tiktokMod;
+        if (modules.tiktok && typeof modules.tiktok.dl !== 'function') {
+            console.warn('[EXPORTS] TikTok dl function not found');
+        }
+
         modules.pinterest = pinterestMod.default ?? pinterestMod;
+        if (modules.pinterest && typeof modules.pinterest.dl !== 'function') {
+            console.warn('[EXPORTS] Pinterest dl function not found');
+        }
+
         modules.igdl = igdlMod.default ?? igdlMod;
         modules.Lyrics = lyricsMod.default ?? lyricsMod;
         modules.mcPlugin = mcpluginsMod.default ?? mcpluginsMod;
         modules.FilmesDL = filmesMod.default ?? filmesMod;
+        
+        // Enhanced null checking and error handling for all modules
+        if (modules.youtube) {
+            // Ensure critical methods exist
+            const youtubeMethods = ['search', 'mp3', 'mp4'];
+            youtubeMethods.forEach(method => {
+                if (typeof modules.youtube[method] !== 'function') {
+                    console.warn(`[EXPORTS] YouTube.${method} not available, adding fallback`);
+                    modules.youtube[method] = (...args) => {
+                        throw new Error(`YouTube ${method} function not available`);
+                    };
+                }
+            });
+        } else {
+            console.warn('[EXPORTS] YouTube module not loaded');
+        }
 
         // --- utils (ESM via dynamic import) ---
         const [
@@ -87,6 +117,7 @@ async function loadModules() {
             import('./utils/relationships.js'),
         ]);
 
+        // Utils modules with null checking
         modules.styleText = styleTextMod.default ?? styleTextMod;
         modules.VerifyUpdate = verifyUpdateMod.default ?? verifyUpdateMod;
         modules.emojiMix = emojiMixMod.default ?? emojiMixMod;
@@ -96,9 +127,23 @@ async function loadModules() {
         modules.commandStats = commandStatsMod.default ?? commandStatsMod;
         modules.relationshipManager = relationshipsMod.default ?? relationshipsMod;
 
-        // expose sendSticker directly (preserving previous API shape)
+        // expose sendSticker directly (preserving previous API shape) with null check
         if (modules.stickerModule && modules.stickerModule.sendSticker) {
             modules.sendSticker = modules.stickerModule.sendSticker;
+        } else {
+            console.warn('[EXPORTS] sendSticker function not available');
+            modules.sendSticker = () => { throw new Error('sendSticker not available'); };
+        }
+
+        // Add null checks for critical utility functions
+        if (modules.upload && typeof modules.upload !== 'function') {
+            console.warn('[EXPORTS] Upload function not properly exported');
+        }
+        if (modules.tictactoe && typeof modules.tictactoe.invitePlayer !== 'function') {
+            console.warn('[EXPORTS] TicTacToe invitePlayer not available');
+        }
+        if (modules.commandStats && typeof modules.commandStats.getMostUsedCommands !== 'function') {
+            console.warn('[EXPORTS] CommandStats functions not available');
         }
 
         // --- private (ESM via dynamic import) ---
@@ -107,7 +152,31 @@ async function loadModules() {
             import('./private/temuScammer.js'),
         ]);
 
-        modules.ia = iaMod.default ?? iaMod;
+        // Private modules with null checking
+        if (iaMod.default || iaMod) {
+            modules.ia = {
+                makeAssistentRequest: iaMod.makeAssistentRequest || iaMod.processUserMessages,
+                makeCognimaRequest: iaMod.makeCognimaRequest,
+                notifyOwnerAboutApiKey: iaMod.notifyOwnerAboutApiKey,
+                ...(iaMod.default || iaMod)
+            };
+            // Add null checks for IA functions
+            if (typeof modules.ia.makeAssistentRequest !== 'function') {
+                console.warn('[EXPORTS] IA makeAssistentRequest not available');
+                modules.ia.makeAssistentRequest = () => { throw new Error('IA makeAssistentRequest not available'); };
+            }
+            if (typeof modules.ia.makeCognimaRequest !== 'function') {
+                console.warn('[EXPORTS] IA makeCognimaRequest not available');
+                modules.ia.makeCognimaRequest = () => { throw new Error('IA makeCognimaRequest not available'); };
+            }
+        } else {
+            console.warn('[EXPORTS] IA module not loaded');
+            modules.ia = {
+                makeAssistentRequest: () => { throw new Error('IA module not available'); },
+                makeCognimaRequest: () => { throw new Error('IA module not available'); }
+            };
+        }
+
         modules.temuScammer = temuScammerMod.default ?? temuScammerMod;
 
         // --- JSONs (sync read as before, exposed as functions) ---
@@ -137,4 +206,29 @@ export async function getModules() {
  * working as expected.
  */
 const modules = await loadModules();
-export default modules;
+
+// Additional safety checks at export level
+const safeModules = new Proxy(modules, {
+    get(target, prop) {
+        if (!(prop in target)) {
+            console.warn(`[EXPORTS] Module '${prop}' not found in exports`);
+            return undefined;
+        }
+        const value = target[prop];
+        if (typeof value === 'object' && value !== null) {
+            // Add property access validation for objects
+            return new Proxy(value, {
+                get(obj, key) {
+                    if (!(key in obj)) {
+                        console.warn(`[EXPORTS] Property '${key}' not found in module '${prop}'`);
+                        return undefined;
+                    }
+                    return obj[key];
+                }
+            });
+        }
+        return value;
+    }
+});
+
+export default safeModules;
