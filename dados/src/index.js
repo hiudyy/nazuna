@@ -447,7 +447,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       return false;
     }
   }
-  const menus = await import('./menus/index.js');
+  const { default: menus } = await import('./menus/index.js');
   const {
     menu,
     menudown,
@@ -458,11 +458,11 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     menuFerramentas,
     menuSticker,
     menuIa,
-  menuAlterador,
-  menuLogos,
-  menuTopCmd,
-  menuRPG,
-  menuVIP
+    menuAlterador,
+    menuLogos,
+    menuTopCmd,
+    menuRPG,
+    menuVIP
   } = menus;
   const prefix = prefixo;
   const numerodonoStr = String(numerodono);
@@ -11488,7 +11488,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           await sendMenuWithMedia('vip', async () => {
             const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
-            return await menuVIP.menuVIP(prefix, nomebot, pushname, customDesign);
+            return await menuVIP(prefix, nomebot, pushname, customDesign);
           });
         } catch (error) {
           console.error('Erro ao enviar menu VIP:', error);
@@ -11500,7 +11500,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'vipinfo':
         try {
           const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
-          const infoText = await menuVIP.menuVIPInfo(prefix, nomebot, pushname, customDesign);
+          const infoText = await menuVIP(prefix, nomebot, pushname, customDesign);
           await reply(infoText);
         } catch (error) {
           console.error('Erro ao enviar info VIP:', error);
@@ -11600,7 +11600,7 @@ ${prefix}removecmdvip premium_ia`);
           }
           
           const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
-          const listText = await menuVIP.listVIPCommands(prefix, nomebot, pushname, customDesign);
+          const listText = await menuVIP(prefix, nomebot, pushname, customDesign);
           
           await reply(listText);
         } catch (error) {
