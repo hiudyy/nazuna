@@ -481,7 +481,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     tictactoe,
     toolsJson,
     vabJson,
-    google,
     Lyrics,
     commandStats,
     ia,
