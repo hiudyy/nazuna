@@ -453,7 +453,7 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
         // Ignora eventos do próprio bot
         const botId = NazunaSock.user.id.split(':')[0];
 
-        inf.participants = inf.participants.filter(p => p.id);
+        inf.participants = inf.participants.filter(isValidParticipant);
 
         if (inf.participants.some(p => p.startsWith(botId))) {
             return;
@@ -549,6 +549,23 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
 const isValidJid = (str) => /^\d+@s\.whatsapp\.net$/.test(str);
 const isValidLid = (str) => /^[a-zA-Z0-9_]+@lid$/.test(str);
 const isValidUserId = (str) => isValidJid(str) || isValidLid(str);
+
+/**
+ * Validates if a participant object has a valid ID
+ * @param {object} participant - The participant object to validate
+ * @returns {boolean} - True if participant has a valid ID, false otherwise
+ */
+function isValidParticipant(participant) {
+    if (!participant || typeof participant !== 'object') return false;
+    if (!participant.hasOwnProperty('id')) return false;
+    
+    const id = participant.id;
+    if (id === null || id === undefined || id === '') return false;
+    if (typeof id === 'string' && id.trim().length === 0) return false;
+    if (id === 0) return false;
+    
+    return true;
+}
 
 function collectJidsFromJson(obj, jidsSet = new Set()) {
     if (Array.isArray(obj)) {
