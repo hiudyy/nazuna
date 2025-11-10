@@ -5,11 +5,11 @@
     "type": "commonjs",
     "main": "dados/src/connect.js",
     "scripts": {
-        "start": "node -r esm dados/src/.scripts/start.js",
-        "dev": "nodemon -r esm dados/src/.scripts/start.js",
-        "config": "node -r esm dados/src/.scripts/config.js",
-        "config:install": "node -r esm dados/src/.scripts/config.js --install",
-        "update": "node -r esm dados/src/.scripts/update.js"
+        "start": "node dados/src/.scripts/start.js",
+        "dev": "nodemon dados/src/.scripts/start.js",
+        "config": "node dados/src/.scripts/config.js",
+        "config:install": "node dados/src/.scripts/config.js --install",
+        "update": "node dados/src/.scripts/update.js"
     },
     "repository": {
         "type": "git",
