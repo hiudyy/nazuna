@@ -24,6 +24,7 @@
         "whaileys": "npm:baileys-york@latest",
         "axios": "latest",
         "fluent-ffmpeg": "latest",
+        "jimp": "*",
         "linkedom": "latest",
         "node-cron": "latest",
         "node-webpmux": "latest",
