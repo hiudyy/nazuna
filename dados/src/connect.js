@@ -449,8 +449,6 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
             return;
         }
 
-        console.log(inf.participants)
-        
         // Valida se são participantes válidos
         if (!inf.participants || !Array.isArray(inf.participants) || inf.participants.length === 0) {
             console.warn('⚠️ Evento de participantes sem lista válida');
