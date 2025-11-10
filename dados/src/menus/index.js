@@ -1,66 +1,76 @@
-// Lista central de todos os módulos de menu que queremos carregar.
-// O nome da chave será o nome no objeto final. O valor é o caminho do arquivo.
+// Loader ESM-safe para todos os menus.
+// Mantém a mesma API: objeto `menus` com chaves nomeadas (menu, menuAlterador, etc.)
+// e adiciona `getMenus()` para acesso explícito assíncrono.
+
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Mapa estático dos menus e seus arquivos correspondentes.
 const menuModules = {
-    menu: "./menu.js",
-    menuAlterador: "./alteradores.js",
-    menudown: "./menudown.js",
-    menuadm: "./menuadm.js",
-    menubn: "./menubn.js",
-    menuDono: "./menudono.js",
-    menuMembros: "./menumemb.js",
-    menuFerramentas: "./ferramentas.js",
-    menuSticker: "./menufig.js",
-    menuIa: "./menuia.js",
-    menuTopCmd: "./topcmd.js",
-    menuRPG: "./menurpg.js",
-    menuVIP: "./menuvip.js"
+    menu: './menu.js',
+    menuAlterador: './alteradores.js',
+    menudown: './menudown.js',
+    menuadm: './menuadm.js',
+    menubn: './menubn.js',
+    menuDono: './menudono.js',
+    menuMembros: './menumemb.js',
+    menuFerramentas: './ferramentas.js',
+    menuSticker: './menufig.js',
+    menuIa: './menuia.js',
+    menuTopCmd: './topcmd.js',
+    menuRPG: './menurpg.js',
+    menuVIP: './menuvip.js'
 };
 
-/**
- * Carrega todos os menus listados em menuModules de forma síncrona.
- * Valida se cada módulo foi carregado corretamente.
- * @returns {Object} Um objeto contendo todos os menus carregados.
- */
-function loadMenus() {
-    const loadedMenus = {};
-    const invalidMenus = [];
+let menusPromise;
 
-    for (const [name, filePath] of Object.entries(menuModules)) {
-        try {
-            // Import dinâmico síncrono via createRequire para manter o comportamento existente
-            const { createRequire } = require('module');
-            const localRequire = createRequire(import.meta.url);
-            const mod = localRequire(path.resolve(__dirname, filePath));
-            loadedMenus[name] = mod;
-        } catch (error) {
-            console.error(
-                `[${new Date().toISOString()}] Falha ao carregar o menu '${name}' de ${filePath}:`,
-                error.message
-            );
-            invalidMenus.push(name);
+async function loadMenus() {
+    if (menusPromise) return menusPromise;
+
+    menusPromise = (async () => {
+        const menus = {};
+
+        for (const [name, relPath] of Object.entries(menuModules)) {
+            try {
+                const mod = await import(new URL(relPath, import.meta.url));
+                const fn = mod.default || mod[name];
+
+                if (typeof fn === 'function') {
+                    menus[name] = fn;
+                } else {
+                    console.error(
+                        `[${new Date().toISOString()}] [AVISO] Menu '${name}' em ${relPath} não exporta função válida (esperado default function).`
+                    );
+                }
+            } catch (err) {
+                console.error(
+                    `[${new Date().toISOString()}] [AVISO] Falha ao carregar o menu '${name}' de ${relPath}: ${err.message}`
+                );
+            }
         }
-    }
 
-    if (invalidMenus.length > 0) {
-        console.warn(
-            `[${new Date().toISOString()}] AVISO: Os seguintes menus não foram carregados corretamente: ${invalidMenus.join(
-                ', '
-            )}.`
-        );
-        console.error(
-            `[${new Date().toISOString()}] ERRO CRÍTICO: A inicialização pode estar incompleta.`
-        );
-    }
+        const failed = Object.keys(menuModules).filter((name) => !menus[name]);
+        if (failed.length > 0) {
+            console.error(
+                `[${new Date().toISOString()}] [AVISO] Os seguintes menus não foram carregados corretamente: ${failed.join(', ')}.`
+            );
+            console.error(
+                `[${new Date().toISOString()}] [AVISO] Verifique se os arquivos exportam "export default function(...) { ... }" conforme esperado.`
+            );
+        }
 
-    return loadedMenus;
+        return menus;
+    })();
+
+    return menusPromise;
 }
 
-// Em ESM, exportamos o objeto já carregado mantendo o mesmo shape do module.exports anterior
-const menus = loadMenus();
+export async function getMenus() {
+    return await loadMenus();
+}
+
+const menus = await loadMenus();
 export default menus;
