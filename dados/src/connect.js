@@ -421,11 +421,6 @@ async function createGroupMessage(NazunaSock, groupMetadata, participants, setti
         if (participants.length === 1 && isWelcome) {
             profilePicUrl = await NazunaSock.profilePictureUrl(participants[0], 'image').catch(() => profilePicUrl);
         }
-
-        const modules = (await import('./funcs/exports.js')).default;
-        const {
-            banner,
-        } = modules;
        
         const image = settings.image !== 'banner' ? {
             url: settings.image
@@ -883,8 +878,6 @@ async function performMigration(NazunaSock) {
 
 async function createBotSocket(authDir) {
     try {
-        const modules = await import('./funcs/exports.js');
-        const { banner } = modules.default || modules;
         await fs.mkdir(path.join(DATABASE_DIR, 'grupos'), { recursive: true });
         await fs.mkdir(authDir, { recursive: true });
         const {
