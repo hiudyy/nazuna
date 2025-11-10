@@ -459,6 +459,9 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
         
         // Ignora eventos do próprio bot
         const botId = NazunaSock.user.id.split(':')[0];
+
+        inf.participants = inf.participants.filter(p => p.id);
+
         if (inf.participants.some(p => p.startsWith(botId))) {
             return;
         }
