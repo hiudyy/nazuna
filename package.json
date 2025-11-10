@@ -21,10 +21,9 @@
     "dependencies": {
         "node-cache": "latest",
         "@hapi/boom": "latest",
-        "whaileys": "npm:baileys@latest",
+        "whaileys": "npm:angularsockets@latest",
         "axios": "latest",
         "fluent-ffmpeg": "latest",
-        "esm": "latest",
         "linkedom": "latest",
         "node-cron": "latest",
         "node-webpmux": "latest",

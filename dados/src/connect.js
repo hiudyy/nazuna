@@ -1,4 +1,3 @@
-require = require("esm")(module)
 const { default: makeWASocket } = require('whaileys/lib/Socket');
 const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require('whaileys');
 const { Boom } = require('@hapi/boom');
