@@ -566,7 +566,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const botId = getBotId(nazu);
     const isBotSender = sender === botId || sender === nazu.user?.id?.split(':')[0] + '@s.whatsapp.net' || sender === nazu.user?.id?.split(':')[0] + '@lid';
     
-    // Verificação melhorada de dono (compara base do número sem sufixo)
     const senderBase = sender.split('@')[0];
     const ownerBase = String(numerodono);
     const lidOwnerBase = lidowner ? lidowner.split('@')[0] : null;
