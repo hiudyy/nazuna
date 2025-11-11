@@ -926,6 +926,7 @@ async function createBotSocket(authDir) {
             qrTimeout: 180000,
             keepAliveIntervalMs: 30_000,
             defaultQueryTimeoutMs: undefined,
+            browser: ['Ubuntu', 'Edge', '141.0.3537.99'],
             msgRetryCounterCache,
             auth: state,
             signalRepository,

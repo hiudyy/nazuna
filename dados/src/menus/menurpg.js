@@ -39,6 +39,7 @@ ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}perfilrpg - Ver perfil completo
 ${middleBorder}${menuItemIcon}${prefix}carteira - Moedas & recursos
 ${middleBorder}${menuItemIcon}${prefix}toprpg - Ranking de jogadores
+${middleBorder}${menuItemIcon}${prefix}ranklevel - Ranking de levels
 ${middleBorder}${menuItemIcon}${prefix}inventario - Seus itens
 ${middleBorder}${menuItemIcon}${prefix}equipamentos - Gerenciar gear
 ${middleBorder}${menuItemIcon}${prefix}conquistas - Achievements
@@ -183,6 +184,7 @@ ${middleBorder}
 ${middleBorder}📈 Evolua continuamente!
 ${middleBorder}${menuItemIcon}${prefix}evoluir - Sistema de prestige
 ${middleBorder}${menuItemIcon}${prefix}toprpg - Ranking atualizado
+${middleBorder}${menuItemIcon}${prefix}ranklevel - Ranking de levels
 ${middleBorder}${menuItemIcon}${prefix}conquistas - Novos objetivos
 ${bottomBorder}
 

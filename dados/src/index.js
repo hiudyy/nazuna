@@ -2866,6 +2866,15 @@ Entre em contato com o dono do bot:
     }
 
     switch (command) {
+      case 'ranklevel':
+      case 'ranklvl':
+      case 'rankinglevel':
+      case 'levels':
+      case 'toplevels': {
+        // O comando é tratado na seção RPG abaixo
+        break;
+      }
+      
       case 'roles':
       case 'role.lista':
       case 'listaroles': {
@@ -3800,6 +3809,11 @@ Entre em contato com o dono do bot:
       case 'ingredientes':
       case 'sementes':
       case 'toprpg':
+      case 'ranklevel':
+      case 'ranklvl':
+      case 'rankinglevel':
+      case 'levels':
+      case 'toplevels':
       case 'diario':
       case 'daily':
       case 'resetrpg':
@@ -4982,12 +4996,62 @@ Entre em contato com o dono do bot:
           if (arr.length===0) return reply('Sem dados suficientes para ranking.');
           let text = '⚔️ 🏆 *RANKING RPG* 🏆 ⚔️\n\n';
           const mentions = [];
-          arr.forEach(([id,total],i)=>{ 
+          arr.forEach(([id,total],i)=>{
             const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
-            text += `${medal} @${id.split('@')[0]} — 💰 ${fmt(total)}\n`; 
-            mentions.push(id); 
+            text += `${medal} @${id.split('@')[0]} — 💰 ${fmt(total)}\n`;
+            mentions.push(id);
           });
           text += `\n✨ Continue jogando para subir no rank!`;
+          return reply(text, { mentions });
+        }
+
+        if (sub === 'ranklevel') {
+          if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos.');
+          if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+          
+          const levelingData = loadJsonFile(LEVELING_FILE);
+          const userEntries = Object.entries(levelingData.users || {});
+          
+          // Filtra apenas usuários que estão no grupo atual
+          const groupUsers = userEntries.filter(([id, data]) => AllgroupMembers.includes(id));
+          
+          if (groupUsers.length === 0) {
+            return reply('📊 Nenhum usuário do grupo encontrado no sistema de levels.');
+          }
+          
+          // Ordena por level e experience
+          const sortedUsers = groupUsers
+            .map(([id, userData]) => {
+              return {
+                id,
+                level: userData.level || 1,
+                xp: userData.xp || 0,
+                messages: userData.messages || 0,
+                commands: userData.commands || 0,
+                patent: userData.patent || "Iniciante"
+              };
+            })
+            .sort((a, b) => {
+              if (b.level !== a.level) return b.level - a.level;
+              return b.xp - a.xp;
+            })
+            .slice(0, 15);
+          
+          let text = '🏆 *RANKING DE LEVELS DO GRUPO* 🏆\n\n';
+          const mentions = [];
+          
+          sortedUsers.forEach((user, i) => {
+            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+            const userName = user.id.split('@')[0];
+            const xpNeeded = (user.level * 100) - (user.level - 1) * 100;
+            const progress = user.xp > 0 ? ` (${user.xp}/${xpNeeded} XP)` : '';
+            
+            text += `${medal} @${userName} — *Level ${user.level}*${progress}\n`;
+            text += `   🏅 ${user.patent} | 💬 ${user.messages} msgs | ⚡ ${user.commands} cmds\n`;
+            mentions.push(user.id);
+          });
+          
+          text += '\n✨ Continue jogando e interagindo para subir no ranking!';
           return reply(text, { mentions });
         }
 
