@@ -1,4 +1,4 @@
-import { default as makeWASocket } from 'whaileys';
+import { makeWASocket } from 'whaileys';
 import { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } from 'whaileys';
 import { Boom } from '@hapi/boom';
 import NodeCache from 'node-cache';
