@@ -1,10 +1,14 @@
-import makeWASocket from 'whaileys/lib/Socket/index.js';
+import makeWASocket from 'whaileys';
 import {
   downloadContentFromMessage,
   generateWAMessageFromContent,
   generateWAMessage,
   isJidNewsletter,
-  getContentType
+  getContentType,
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  makeCacheableSignalKeyStore
 } from 'whaileys';
 import { exec, execSync, spawn } from 'child_process';
 import { parseHTML } from 'linkedom';
