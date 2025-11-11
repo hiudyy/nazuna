@@ -21,7 +21,7 @@
     "dependencies": {
         "node-cache": "latest",
         "@hapi/boom": "latest",
-        "whaileys": "npm:@ajammm/baileys@latest",
+        "whaileys": "npm:baileys@latest",
         "axios": "latest",
         "chalk": "latest",
         "fluent-ffmpeg": "latest",
