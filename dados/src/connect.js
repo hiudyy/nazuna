@@ -1,5 +1,5 @@
 import pkg from 'whaileys';
-const { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = pkg;
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = pkg;
 import { Boom } from '@hapi/boom';
 import NodeCache from 'node-cache';
 import readline from 'readline';
