@@ -1,7 +1,7 @@
 import fs from 'fs';
 import pathz from 'path';
 import crypto from 'crypto';
-import { ensureDirectoryExists, ensureJsonFileExists, loadJsonFile, normalizar, getUserName, isGroupId, isUserId, isValidLid, isValidJid, buildUserId } from './helpers.js';
+import { ensureDirectoryExists, ensureJsonFileExists, loadJsonFile, normalizar, getUserName, isGroupId, isUserId, isValidLid, isValidJid, buildUserId, getLidFromJidCached, idsMatch } from './helpers.js';
 import {
   DATABASE_DIR,
   GRUPOS_DIR,
@@ -649,12 +649,23 @@ const isSubdono = userId => {
   });
 };
 
-const addSubdono = (userId, numerodono) => {
+const addSubdono = async (userId, numerodono, nazu = null) => {
   if (!userId || typeof userId !== 'string' || (!isUserId(userId) && !isValidJid(userId))) {
     return {
       success: false,
       message: 'ID de usuário inválido. Use o LID ou marque o usuário.'
     };
+  }
+  // Normalizar JID para LID se possível
+  if (nazu && isValidJid(userId)) {
+    try {
+      const lid = await getLidFromJidCached(nazu, userId);
+      if (lid && lid.includes('@lid')) {
+        userId = lid;
+      }
+    } catch (e) {
+      console.warn('Erro ao normalizar JID para LID em addSubdono:', e.message);
+    }
   }
   let currentSubdonos = loadSubdonos();
   
@@ -704,12 +715,20 @@ const addSubdono = (userId, numerodono) => {
   }
 };
 
-const removeSubdono = userId => {
+const removeSubdono = async (userId, nazu = null) => {
   if (!userId || typeof userId !== 'string' || (!isUserId(userId) && !isValidJid(userId))) {
     return {
       success: false,
       message: 'ID de usuário inválido. Use o LID ou marque o usuário.'
     };
+  }
+  if (nazu && isValidJid(userId)) {
+    try {
+      const lid = await getLidFromJidCached(nazu, userId);
+      if (lid && lid.includes('@lid')) userId = lid;
+    } catch (e) {
+      console.warn('Erro ao normalizar JID para LID em removeSubdono:', e.message);
+    }
   }
   let currentSubdonos = loadSubdonos();
   
@@ -1668,15 +1687,26 @@ const saveGlobalBlacklist = data => {
   }
 };
 
-const addGlobalBlacklist = (userId, reason, addedBy) => {
+const addGlobalBlacklist = async (userId, reason, addedBy, nazu = null) => {
   if (!userId || typeof userId !== 'string' || (!isUserId(userId) && !isValidJid(userId))) {
     return {
       success: false,
       message: 'ID de usuário inválido. Use o LID ou marque o usuário.'
     };
   }
+  // Se userId é um JID e temos o nazu, tentamos normalizar para LID
+  if (nazu && isValidJid(userId)) {
+    try {
+      const lid = await getLidFromJidCached(nazu, userId);
+      if (lid && lid.includes('@lid')) userId = lid;
+    } catch (e) {
+      console.warn('Erro ao normalizar JID para LID em addGlobalBlacklist:', e.message);
+    }
+  }
   let blacklistData = loadGlobalBlacklist();
-  if (blacklistData.users[userId]) {
+  // Verifica se já existe (comparando base entre LID/JID)
+  const alreadyExistsKey = Object.keys(blacklistData.users).find(k => idsMatch(k, userId));
+  if (alreadyExistsKey) {
     return {
       success: false,
       message: `✨ Usuário @${getUserName(userId)} já está na blacklist global!`
@@ -1700,21 +1730,38 @@ const addGlobalBlacklist = (userId, reason, addedBy) => {
   }
 };
 
-const removeGlobalBlacklist = userId => {
+const removeGlobalBlacklist = async (userId, nazu = null) => {
   if (!userId || typeof userId !== 'string' || (!isUserId(userId) && !isValidJid(userId))) {
     return {
       success: false,
       message: 'ID de usuário inválido. Use o LID ou marque o usuário.'
     };
   }
+  // Tenta normalizar para LID se tivermos acesso ao nazu
+  if (nazu && isValidJid(userId)) {
+    try {
+      const lid = await getLidFromJidCached(nazu, userId);
+      if (lid && lid.includes('@lid')) userId = lid;
+    } catch (e) {
+      console.warn('Erro ao normalizar JID para LID em removeGlobalBlacklist:', e.message);
+    }
+  }
+
   let blacklistData = loadGlobalBlacklist();
-  if (!blacklistData.users[userId]) {
+  // permite remover por correspondência base (JID/LID)
+  let foundKey = Object.keys(blacklistData.users).find(k => idsMatch(k, userId));
+  if (!blacklistData.users[userId] && !foundKey) {
     return {
       success: false,
       message: `🤔 Usuário @${getUserName(userId)} não está na blacklist global.`
     };
   }
-  delete blacklistData.users[userId];
+  // Se encontrou por correspondência, deleta a chave encontrada
+  if (foundKey) {
+    delete blacklistData.users[foundKey];
+  } else {
+    delete blacklistData.users[userId];
+  }
   if (saveGlobalBlacklist(blacklistData)) {
     return {
       success: true,

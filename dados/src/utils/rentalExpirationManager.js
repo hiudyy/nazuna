@@ -320,12 +320,27 @@ O aluguel deste grupo expirou e o bot está saindo agora. Para voltar a usar o b
 
   async getOwnerInfo() {
     try {
-      // This should be implemented based on your bot's owner configuration
-      // For now, returning placeholder data
+      // Try to resolve owner info to LID when possible
+      const name = process.env.OWNER_NAME || 'Dono do Bot';
+      const number = process.env.OWNER_NUMBER || '5511999999999';
+      let contact = process.env.OWNER_CONTACT || `${number}@s.whatsapp.net`;
+
+      // If nazu and helpers available, try to normalize contact to LID
+      if (this.nazu && typeof this.nazu.onWhatsApp === 'function') {
+        try {
+          const [res] = await this.nazu.onWhatsApp(number.replace(/\D/g, ''));
+          if (res && res.lid) {
+            contact = res.lid;
+          }
+        } catch (e) {
+          console.warn('Não foi possível obter LID do dono:', e.message);
+        }
+      }
+
       return {
-        name: process.env.OWNER_NAME || 'Dono do Bot',
-        number: process.env.OWNER_NUMBER || '5511999999999',
-        contact: process.env.OWNER_CONTACT || '5511999999999@s.whatsapp.net'
+        name,
+        number,
+        contact
       };
     } catch (error) {
       console.error('❌ Error getting owner info:', error);

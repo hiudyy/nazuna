@@ -6,6 +6,7 @@ import pino from 'pino';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { buildUserId, getLidFromJidCached, getUserName } from './helpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -99,14 +100,15 @@ function createSubBotConfig(botId, phoneNumber, ownerNumber) {
         console.error('Erro ao ler config principal:', error);
     }
 
-    const config = {
+        const config = {
         numerodono: ownerNumber || mainConfig.numerodono || '',
         nomedono: mainConfig.nomedono || 'Dono',
         nomebot: `SubBot ${botId.substring(0, 8)}`,
         prefixo: mainConfig.prefixo || '!',
         apikey: mainConfig.apikey || '',
         debug: false,
-        lidowner: '',
+    // Se ownerNumber já for um LID, persiste aqui; index.js deve passar LID para manter DB consistente
+    lidowner: ownerNumber && ownerNumber.includes('@lid') ? ownerNumber : '',
         botNumber: phoneNumber
     };
 
@@ -193,7 +195,14 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber, generatePairing
                 if (subbots[botId]) {
                     subbots[botId].status = 'conectado';
                     subbots[botId].lastConnection = new Date().toISOString();
-                    subbots[botId].number = sock.user?.id?.split(':')[0] || phoneNumber;
+                    // Armazena o número do sub-bot em LID para consistência da DB
+                    let botNum = sock.user?.id?.split(':')[0] || phoneNumber;
+                    try {
+                        botNum = await getLidFromJidCached(sock, botNum);
+                    } catch (e) {
+                        console.warn('Não foi possível normalizar número do sub-bot para LID:', e.message);
+                    }
+                    subbots[botId].number = botNum;
                     saveSubBots(subbots);
                 }
  
@@ -302,7 +311,7 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber, generatePairing
  */
 async function addSubBot(phoneNumber, ownerNumber, subBotLid) {
     try {
-        // Valida número
+    // Valida número
         const cleanPhone = phoneNumber.replace(/\D/g, '');
         if (!/^\d{10,15}$/.test(cleanPhone)) {
             return {
@@ -347,6 +356,7 @@ async function addSubBot(phoneNumber, ownerNumber, subBotLid) {
         }
 
         // Salva as informações do sub-bot SEM inicializar ainda
+        // ownerNumber here should already be normalized to LID (index.js will pass LID).
         subbots[botId] = {
             id: botId,
             phoneNumber,

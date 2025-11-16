@@ -19,18 +19,16 @@
     "author": "Hiudy",
     "license": "ISC",
     "dependencies": {
-        "node-cache": "latest",
-        "@hapi/boom": "latest",
-        "whaileys": "latest",
-        "axios": "latest",
-        "chalk": "latest",
-        "fluent-ffmpeg": "latest",
-        "linkedom": "latest",
-        "node-cron": "latest",
-        "node-webpmux": "latest",
-        "pino": "latest",
-        "qrcode-terminal": "latest",
-        "yt-search": "latest"
+        "@hapi/boom": "^10.0.1",
+        "axios": "^1.13.2",
+        "fluent-ffmpeg": "^2.1.3",
+        "linkedom": "^0.18.12",
+        "node-cache": "^5.1.2",
+        "node-cron": "^4.2.1",
+        "node-webpmux": "^3.2.1",
+        "pino": "^10.1.0",
+        "qrcode-terminal": "^0.12.0",
+        "whaileys": "^6.3.10"
     },
     "devDependencies": {
         "nodemon": "^3.1.4"

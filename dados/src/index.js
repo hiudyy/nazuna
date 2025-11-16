@@ -8093,7 +8093,9 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
               // Se não for grupo, usar onWhatsApp para pegar LID
               try {
                 const [result] = await nazu.onWhatsApp(targetUserId.replace(/@s\.whatsapp\.net|@lid/g, ''));
-                if (result && result.jid) {
+                if (result && result.lid) {
+                  targetUserId = result.lid;
+                } else if (result && result.jid) {
                   targetUserId = result.jid;
                 }
               } catch (err) {
@@ -8117,7 +8119,9 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
                 // Se não for grupo, usar onWhatsApp para pegar LID
                 try {
                   const [result] = await nazu.onWhatsApp(cleanNumber);
-                  if (result && result.jid) {
+                  if (result && result.lid) {
+                    targetUserId = result.lid;
+                  } else if (result && result.jid) {
                     targetUserId = result.jid;
                   }
                 } catch (err) {
@@ -8131,7 +8135,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             return reply(`📝 *Como usar:*\n\n1️⃣ Marque o usuário: ${prefix}addsubdono @usuario\n2️⃣ Ou digite o número: ${prefix}addsubdono 5511999998888`);
           }
           
-          const result = addSubdono(targetUserId, numerodono);
+          const result = await addSubdono(targetUserId, numerodono, nazu);
           await reply(result.message);
         } catch (e) {
           console.error("Erro ao adicionar subdono:", e);
@@ -8160,7 +8164,9 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
               // Se não for grupo, usar onWhatsApp para pegar LID
               try {
                 const [result] = await nazu.onWhatsApp(targetUserId.replace(/@s\.whatsapp\.net|@lid/g, ''));
-                if (result && result.jid) {
+                if (result && result.lid) {
+                  targetUserId = result.lid;
+                } else if (result && result.jid) {
                   targetUserId = result.jid;
                 }
               } catch (err) {
@@ -8184,7 +8190,9 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
                 // Se não for grupo, usar onWhatsApp para pegar LID
                 try {
                   const [result] = await nazu.onWhatsApp(cleanNumber);
-                  if (result && result.jid) {
+                  if (result && result.lid) {
+                    targetUserId = result.lid;
+                  } else if (result && result.jid) {
                     targetUserId = result.jid;
                   }
                 } catch (err) {
@@ -8204,7 +8212,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             return reply(`📝 *Como usar:*\n\n1️⃣ Marque o usuário: ${prefix}remsubdono @usuario\n2️⃣ Digite o número: ${prefix}remsubdono 5511999998888\n3️⃣ Use o índice da lista: ${prefix}remsubdono 1`);
           }
           
-          const result = removeSubdono(targetUserId);
+          const result = await removeSubdono(targetUserId, nazu);
           await reply(result.message);
         } catch (e) {
           console.error("Erro ao remover subdono:", e);
@@ -8267,8 +8275,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             }
             
             const subBotLid = result.lid;
-            
-            const addResult = await subBotManager.addSubBot(phoneNumber, numerodono, subBotLid);
+
+            // Normalize owner to LID if possible before passing to subBotManager
+            const ownerCandidate = buildUserId(numerodono, config);
+            const ownerLid = await getLidFromJidCached(nazu, ownerCandidate);
+
+            const addResult = await subBotManager.addSubBot(phoneNumber, ownerLid, subBotLid);
             
             await reply(addResult.message);
           } catch (verifyError) {
@@ -9877,8 +9889,40 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           if (!isOwner) return reply("Apenas o dono pode adicionar usuários à blacklist global.");
           if (!menc_os2 && !q) return reply(`Marque o usuário ou forneça o número (ex: ${prefix}addblackglobal @usuario motivo).`);
           const reason = args.length > 1 ? args.slice(1).join(' ') : 'Não especificado';
-          const targetUser = menc_os2 || (q.split(' ')[0].includes('@') ? q.split(' ')[0] : (isValidJid(q.split(' ')[0]) || isValidLid(q.split(' ')[0])) ? q.split(' ')[0] : buildUserId(q.split(' ')[0].replace(/\D/g, ''), config));
-          const result = addGlobalBlacklist(targetUser, reason, pushname);
+          let targetUser = menc_os2 || (q.split(' ')[0].includes('@') ? q.split(' ')[0] : (isValidJid(q.split(' ')[0]) || isValidLid(q.split(' ')[0])) ? q.split(' ')[0] : null);
+
+          // Se informou apenas número, tenta obter LID via onWhatsApp/cache
+          if (!targetUser && q) {
+            const cleanNumber = q.split(' ')[0].replace(/\D/g, '');
+            if (cleanNumber.length >= 10) {
+              const candidateJid = buildUserId(cleanNumber, config);
+              // Se estamos em grupo, tentar buscar participando via metadata
+              if (isGroup && groupMetadata?.participants) {
+                const participant = groupMetadata.participants.find(p => p.id === candidateJid || p.lid === candidateJid || (p.lid && p.lid.includes(cleanNumber)));
+                if (participant && participant.lid) {
+                  targetUser = participant.lid;
+                }
+              }
+
+              if (!targetUser) {
+                // Tenta usar cache/onWhatsApp
+                try {
+                  const lid = await getLidFromJidCached(nazu, candidateJid);
+                  if (lid && lid.includes('@lid')) {
+                    targetUser = lid;
+                  } else {
+                    return reply('❌ Não foi possível obter o LID desse número. Marque o usuário ou tente novamente quando o LID estiver disponível.');
+                  }
+                } catch (err) {
+                  console.log('Erro ao obter LID via onWhatsApp:', err?.message || err);
+                  return reply('❌ Erro ao obter LID do número fornecido. Tente marcar o usuário.');
+                }
+              }
+            } else {
+              return reply('❌ Número inválido! Use um número completo (ex: 5511999998888)');
+            }
+          }
+          const result = await addGlobalBlacklist(targetUser, reason, pushname, nazu);
           await reply(result.message, {
             mentions: [targetUser]
           });
@@ -9891,8 +9935,35 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           if (!isOwner) return reply("Apenas o dono pode remover usuários da blacklist global.");
           if (!menc_os2 && !q) return reply(`Marque o usuário ou forneça o número (ex: ${prefix}remblackglobal @usuario).`);
-          const targetUser = menc_os2 || (q.split(' ')[0].includes('@') ? q.split(' ')[0] : (isValidJid(q.split(' ')[0]) || isValidLid(q.split(' ')[0])) ? q.split(' ')[0] : buildUserId(q.split(' ')[0].replace(/\D/g, ''), config));
-          const result = removeGlobalBlacklist(targetUser);
+          let targetUser = menc_os2 || (q.split(' ')[0].includes('@') ? q.split(' ')[0] : (isValidJid(q.split(' ')[0]) || isValidLid(q.split(' ')[0])) ? q.split(' ')[0] : null);
+          if (!targetUser && q) {
+            const cleanNumber = q.split(' ')[0].replace(/\D/g, '');
+            if (cleanNumber.length >= 10) {
+              const candidateJid = buildUserId(cleanNumber, config);
+              if (isGroup && groupMetadata?.participants) {
+                const participant = groupMetadata.participants.find(p => p.id === candidateJid || p.lid === candidateJid || (p.lid && p.lid.includes(cleanNumber)));
+                if (participant && participant.lid) {
+                  targetUser = participant.lid;
+                }
+              }
+              if (!targetUser) {
+                try {
+                  const lid = await getLidFromJidCached(nazu, candidateJid);
+                  if (lid && lid.includes('@lid')) {
+                    targetUser = lid;
+                  } else {
+                    return reply('❌ Não foi possível obter o LID desse número. Marque o usuário ou tente novamente quando o LID estiver disponível.');
+                  }
+                } catch (err) {
+                  console.log('Erro ao obter LID via onWhatsApp:', err?.message || err);
+                  return reply('❌ Erro ao obter LID do número fornecido. Tente marcar o usuário.');
+                }
+              }
+            } else {
+              return reply('❌ Número inválido! Use um número completo (ex: 5511999998888)');
+            }
+          }
+          const result = await removeGlobalBlacklist(targetUser, nazu);
           await reply(result.message, {
             mentions: [targetUser]
           });
@@ -14948,18 +15019,20 @@ Exemplos:
           if (!userId || isNaN(limit) || limit < 1) {
             return reply("Uso inválido. Certifique-se de marcar um usuário e especificar um limite válido (número maior que 0).");
           }
-          if (!AllgroupMembers.includes(userId)) {
+          // Normaliza o ID do usuário para LID antes de salvar (aceita JID ou LID)
+          const userIdLid = await getLidFromJidCached(nazu, userId);
+          if (!AllgroupMembers.includes(userIdLid)) {
             return reply(`@${getUserName(userId)} não está no grupo.`, {
               mentions: [userId]
             });
           }
-          parceriasData.partners[userId] = {
+          parceriasData.partners[userIdLid] = {
             limit,
             count: 0
           };
           saveParceriasData(from, parceriasData);
           await reply(`✅ @${getUserName(userId)} foi adicionado como parceiro com limite de ${limit} links de grupos.`, {
-            mentions: [userId]
+            mentions: [userIdLid]
           });
         } catch (e) {
           console.error('Erro no comando addparceria:', e);
@@ -14979,15 +15052,17 @@ Exemplos:
           } else {
             return reply("Por favor, marque um usuário ou responda a uma mensagem.");
           }
-          if (!parceriasData.partners[userId]) {
+          // Normaliza para LID e busca no map
+          const userIdLid = await getLidFromJidCached(nazu, userId);
+          if (!parceriasData.partners[userIdLid]) {
             return reply(`@${getUserName(userId)} não é um parceiro.`, {
-              mentions: [userId]
+              mentions: [userIdLid]
             });
           }
           delete parceriasData.partners[userId];
           saveParceriasData(from, parceriasData);
           await reply(`✅ @${getUserName(userId)} não é mais um parceiro.`, {
-            mentions: [userId]
+            mentions: [userIdLid]
           });
         } catch (e) {
           console.error('Erro no comando delparceria:', e);
