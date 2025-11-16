@@ -1,5 +1,5 @@
-import pkg from 'whaileys';
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = pkg;
+import a, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } from 'whaileys';
+const makeWASocket = a.default;
 import { Boom } from '@hapi/boom';
 import NodeCache from 'node-cache';
 import pino from 'pino';
