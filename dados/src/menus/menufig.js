@@ -26,7 +26,7 @@ ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${managementMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}figualetoria
+${middleBorder}${menuItemIcon}${prefix}figualeatoria
 ${middleBorder}${menuItemIcon}${prefix}figurinhas
 ${middleBorder}${menuItemIcon}${prefix}rename
 ${middleBorder}${menuItemIcon}${prefix}rgtake

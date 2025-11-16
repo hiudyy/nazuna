@@ -50,7 +50,7 @@ ${menuTopBorder}${separatorIcon} *${rankMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}rankativo
 ${middleBorder}${menuItemIcon}${prefix}rankinativo
-${middleBorder}${menuItemIcon}${prefix}rankativog
+${middleBorder}${menuItemIcon}${prefix}rankativos
 ${middleBorder}${menuItemIcon}${prefix}totalcmd
 ${middleBorder}${menuItemIcon}${prefix}topcmd
 ${bottomBorder}
