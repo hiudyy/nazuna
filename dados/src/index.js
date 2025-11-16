@@ -12372,13 +12372,10 @@ ${prefix}togglecmdvip premium_ia off`);
             if (err) throw err;
             const comandos = [...data.matchAll(/case [`'"](\w+)[`'"]/g)].map(m => m[1]);
             await nazu.sendMessage(from, {
-              image: {
-                url: `https://api.cognima.com.br/api/banner/counter?key=CognimaTeamFreeKey&num=${String(comandos.length)}&theme=miku`
-              },
-              caption: `╭〔 🤖 *Meus Comandos* 〕╮\n` + `┣ 📌 Total: *${comandos.length}* comandos\n` + `╰━━━━━━━━━━━━━━━╯`
-            }, {
-              quoted: info
-            });
+                text: `╭〔 🤖 *Meus Comandos* 〕╮\n` + `┣ 📌 Total: *${comandos.length}* comandos\n` + `╰━━━━━━━━━━━━━━━╯`
+              }, {
+                quoted: info
+              });
           });
         } catch (e) {
           console.error(e);
