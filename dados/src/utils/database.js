@@ -1215,6 +1215,11 @@ function ensureEconomyDefaults(econ) {
     fazenda: { name: 'Fazenda', price: 15000, upkeepPerDay: 150, incomeMaterialsPerDay: { pedra: 6, ferro: 1 } },
     mina_privada: { name: 'Mina Privada', price: 30000, upkeepPerDay: 400, incomeMaterialsPerDay: { pedra: 12, ferro: 3, ouro: 1 } }
   };
+  // ===== Clãs =====
+  // Estrutura usada para armazenar clãs (guilds) do modo RPG
+  // Chave: id do clã, Valor: { id, name, leader, members: [], createdAt }
+  if (!econ.clans) { econ.clans = {}; changed = true; }
+  if (typeof econ.clanCounter !== 'number') { econ.clanCounter = 1; changed = true; }
   return changed;
 }
 

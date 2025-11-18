@@ -6134,6 +6134,162 @@ Entre em contato com o dono do bot:
         break;
       }
 
+      // Criar clã
+      case 'criarcla':
+      case 'criarclã': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+
+        if (!q) return reply(`❗ Use: ${prefix}criarcla <nome do clã>`);
+        if (me.clan) return reply('❌ Você já pertence a um clã!');
+
+        const clanName = q.trim();
+        if (clanName.length < 3 || clanName.length > 24) return reply('❌ Nome do clã precisa ter entre 3 e 24 caracteres.');
+
+        // Verificar duplicado
+        const nameTaken = Object.values(econ.clans || {}).some(c => c.name && c.name.toLowerCase() === clanName.toLowerCase());
+        if (nameTaken) return reply('❌ Já existe um clã com esse nome!');
+
+        // Custo para criar clã
+        const clanCost = 20000;
+        if ((me.wallet || 0) < clanCost) return reply(`💰 Você precisa de ${clanCost.toLocaleString()} moedas para criar um clã.`);
+
+        me.wallet -= clanCost;
+
+        const id = `clan_${econ.clanCounter++}`;
+        econ.clans = econ.clans || {};
+        econ.clans[id] = { id, name: clanName, leader: sender, members: [sender], createdAt: Date.now() };
+
+        me.clan = id;
+
+        saveEconomy(econ);
+        return reply(`✅ Clã criado com sucesso!\nNome: *${clanName}*\nLíder: @${sender.split('@')[0]}`, { mentions: [sender] });
+        break;
+      }
+
+      // Info de Clã
+      case 'cla':
+      case 'claninfo': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+
+        let clanObj = null;
+        if (!q && me.clan) clanObj = econ.clans[me.clan];
+        if (q) {
+          // procurar por ID ou por nome
+          const qLower = q.trim().toLowerCase();
+          clanObj = econ.clans[q] || Object.values(econ.clans || {}).find(c => c.name && c.name.toLowerCase() === qLower);
+        }
+
+        if (!clanObj) return reply('❌ Clã não encontrado. Você pode usar: ' + prefix + 'criarcla <nome>');
+
+        let text = `╭━━━⊱ 🏰 *INFORMAÇÕES DO CLÃ* ⊱━━━╮\n`;
+        text += `│ Nome: *${clanObj.name}*\n`;
+        text += `│ ID: ${clanObj.id}\n`;
+        text += `│ Líder: @${clanObj.leader.split('@')[0]}\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `👥 Membros (${clanObj.members.length}):\n`;
+
+        const mentions = [];
+        clanObj.members.forEach(m => {
+          mentions.push(m);
+          text += `• @${m.split('@')[0]}\n`;
+        });
+
+        return reply(text, { mentions });
+        break;
+      }
+
+      // Convidar membro para o clã
+      case 'convidar':
+      case 'invite':
+      case 'convite': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+
+        if (!me.clan) return reply('❌ Você precisa estar em um clã para convidar membros!');
+
+        const clan = econ.clans[me.clan];
+        if (!clan) { me.clan = null; saveEconomy(econ); return reply('❌ Seu clã não foi encontrado.'); }
+
+        // Apenas líder pode convidar por enquanto
+        if (clan.leader !== sender) return reply('👑 Apenas o líder do clã pode convidar novos membros!');
+
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❗ Marque um membro para convidar. Ex: ${prefix}convidar @user`);
+        if (target === sender) return reply('❌ Você não pode convidar você mesmo!');
+
+        const targetUser = getEcoUser(econ, target);
+        if (targetUser.clan) return reply('❌ Esta pessoa já pertence a outro clã!');
+
+        // Adicionar ao clã
+        clan.members = clan.members || [];
+        if (!clan.members.includes(target)) clan.members.push(target);
+        targetUser.clan = clan.id;
+
+        saveEconomy(econ);
+        return reply(`✅ @${target.split('@')[0]} foi convidado para o clã *${clan.name}*!`, { mentions: [target] });
+        break;
+      }
+
+      // Sair do clã
+      case 'sair': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+
+        if (!me.clan) return reply('❌ Você não faz parte de nenhum clã.');
+
+        const clan = econ.clans[me.clan];
+        if (!clan) {
+          me.clan = null;
+          saveEconomy(econ);
+          return reply('❌ Seu clã não foi encontrado, seu status foi resetado.');
+        }
+
+        // Se for líder
+        if (clan.leader === sender) {
+          // Se houver outros membros, transferir liderança para o primeiro membro
+          const remaining = clan.members.filter(m => m !== sender);
+          if (remaining.length === 0) {
+            // Remover referência do clã em todos os membros
+            (clan.members || []).forEach(m => {
+              const u = getEcoUser(econ, m);
+              if (u.clan === clan.id) u.clan = null;
+            });
+            delete econ.clans[clan.id];
+            me.clan = null;
+            saveEconomy(econ);
+            return reply('🗑️ Você saiu e o clã foi dissolvido pois não há mais membros.');
+          } else {
+            const newLeader = remaining[0];
+            clan.leader = newLeader;
+            clan.members = remaining;
+            me.clan = null;
+            saveEconomy(econ);
+            return reply(`🔁 Você deixou o clã e a liderança foi transferida para @${newLeader.split('@')[0]}.`, { mentions: [newLeader] });
+          }
+        }
+
+        // Membro comum
+        clan.members = clan.members.filter(m => m !== sender);
+        me.clan = null;
+        saveEconomy(econ);
+        return reply('✅ Você saiu do clã.');
+        break;
+      }
+
       // Sistema de Família
       case 'familia':
       case 'family': {
