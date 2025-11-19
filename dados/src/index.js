@@ -884,6 +884,13 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       return id;
     };
 
+    // Helper para normalizar nomes de clã - remove acentos e caracteres não alfanuméricos
+    function normalizeClanName(name) {
+      if (!name) return '';
+      const n = name.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+      return n.replace(/[^a-zA-Z0-9 ]/g, '').trim().toLowerCase();
+    }
+
     // Extrai IDs dos membros (pode estar em JID)
     const rawMembers = !isGroup ? [] :
       groupMetadata.participants?.map(extractParticipantId).filter(Boolean) || [];
@@ -2780,6 +2787,30 @@ Código: *${roleCode}*`,
               .replace(/{nomebot}/gi, nomebot)
               .replace(/{user}/gi, pushname || 'Usuário')
               .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
+            
+            // Parâmetros avançados: args, posição e menções
+            const allArgs = q || '';
+            const argsList = (allArgs.trim().length > 0) ? allArgs.trim().split(/ +/) : [];
+            // {args} | {all}
+            processedResponse = processedResponse.replace(/\{(?:args|all)\}/gi, allArgs);
+            // {1}, {2}, ... (1-based index)
+            processedResponse = processedResponse.replace(/\{(\d+)\}/g, (m, idx) => {
+              const i = parseInt(idx, 10) - 1;
+              return argsList[i] || '';
+            });
+            // mentions: {mention} -> first mentioned, {mentions} -> all mentioned
+            const mentionedJids = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            let mentionsToInclude = Array.isArray(mentionedJids) ? mentionedJids : [];
+            // fallback to menc_os2 (participant/quoted participant) when no explicit mentions
+            if (!mentionsToInclude.length && typeof menc_os2 !== 'undefined' && menc_os2) {
+              mentionsToInclude = [menc_os2];
+            }
+            const mentionText = mentionsToInclude.length > 0 ? mentionsToInclude.map(m => '@' + getUserName(m)).join(' ') : '';
+            processedResponse = processedResponse.replace(/\{mention\}/gi, mentionText);
+            processedResponse = processedResponse.replace(/\{mentions\}/gi, mentionText);
+            // quoted
+            const quotedText = (quotedMessageContent && (quotedMessageContent.conversation || quotedMessageContent.extendedTextMessage?.text)) || '';
+            processedResponse = processedResponse.replace(/\{quoted\}/gi, quotedText);
           } else if (processedResponse && typeof processedResponse === 'object') {
             if (processedResponse.caption) {
               processedResponse.caption = processedResponse.caption
@@ -2790,28 +2821,93 @@ Código: *${roleCode}*`,
                 .replace(/{nomebot}/gi, nomebot)
                 .replace(/{user}/gi, pushname || 'Usuário')
                 .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
+              // placeholders extras para legenda
+              const allArgsC = q || '';
+              const argsListC = (allArgsC.trim().length > 0) ? allArgsC.trim().split(/ +/) : [];
+              processedResponse.caption = processedResponse.caption.replace(/\{(?:args|all)\}/gi, allArgsC);
+              processedResponse.caption = processedResponse.caption.replace(/\{(\d+)\}/g, (m, idx) => {
+                const i = parseInt(idx, 10) - 1;
+                return argsListC[i] || '';
+              });
+              const mentionedJidsC = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+              let mentionsToIncludeC = Array.isArray(mentionedJidsC) ? mentionedJidsC : [];
+              if (!mentionsToIncludeC.length && typeof menc_os2 !== 'undefined' && menc_os2) {
+                mentionsToIncludeC = [menc_os2];
+              }
+              const mentionTextC = mentionsToIncludeC.length > 0 ? mentionsToIncludeC.map(m => '@' + getUserName(m)).join(' ') : '';
+              processedResponse.caption = processedResponse.caption.replace(/\{mention\}/gi, mentionTextC);
+              processedResponse.caption = processedResponse.caption.replace(/\{mentions\}/gi, mentionTextC);
+              const quotedTextC = (quotedMessageContent && (quotedMessageContent.conversation || quotedMessageContent.extendedTextMessage?.text)) || '';
+              processedResponse.caption = processedResponse.caption.replace(/\{quoted\}/gi, quotedTextC);
             }
           }
           
           // Enviar resposta
           if (typeof processedResponse === 'string') {
-            await reply(processedResponse);
+            // Incluir mentions quando houver
+            const mentionedJidsExec = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            let mentionsToIncludeExec = Array.isArray(mentionedJidsExec) ? mentionedJidsExec : [];
+            if (!mentionsToIncludeExec.length && typeof menc_os2 !== 'undefined' && menc_os2) {
+              mentionsToIncludeExec = [menc_os2];
+            }
+            if (mentionsToIncludeExec.length > 0) {
+              await reply(processedResponse, { mentions: mentionsToIncludeExec });
+            } else {
+              await reply(processedResponse);
+            }
           } else if (processedResponse.type === 'text') {
-            await reply(processedResponse.content || 'Resposta personalizada');
+            // substituir placeholders em conteúdo de texto
+            let content = processedResponse.content || 'Resposta personalizada';
+            const allArgsExec = q || '';
+            const argsListExec = (allArgsExec.trim().length > 0) ? allArgsExec.trim().split(/ +/) : [];
+            content = content.replace(/\{(?:args|all)\}/gi, allArgsExec);
+            content = content.replace(/\{(\d+)\}/g, (m, idx) => {
+              const i = parseInt(idx, 10) - 1;
+              return argsListExec[i] || '';
+            });
+            // mentions
+            const mentionedJidsExec = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            let mentionsToIncludeExec = Array.isArray(mentionedJidsExec) ? mentionedJidsExec : [];
+            if (!mentionsToIncludeExec.length && typeof menc_os2 !== 'undefined' && menc_os2) {
+              mentionsToIncludeExec = [menc_os2];
+            }
+            const mentionTextExec = mentionsToIncludeExec.length > 0 ? mentionsToIncludeExec.map(m => '@' + getUserName(m)).join(' ') : '';
+            content = content.replace(/\{mention\}/gi, mentionTextExec);
+            content = content.replace(/\{mentions\}/gi, mentionTextExec);
+            const quotedEx = (quotedMessageContent && (quotedMessageContent.conversation || quotedMessageContent.extendedTextMessage?.text)) || '';
+            content = content.replace(/\{quoted\}/gi, quotedEx);
+
+            if (mentionsToIncludeExec.length > 0) {
+              await reply(content, { mentions: mentionsToIncludeExec });
+            } else {
+              await reply(content);
+            }
           } else if (processedResponse.type === 'image') {
             const imageBuffer = processedResponse.buffer ? Buffer.from(processedResponse.buffer, 'base64') : null;
             if (imageBuffer) {
+              const mentionedJidsExec = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+              let mentionsToIncludeExec = Array.isArray(mentionedJidsExec) ? mentionedJidsExec : [];
+              if (!mentionsToIncludeExec.length && typeof menc_os2 !== 'undefined' && menc_os2) {
+                mentionsToIncludeExec = [menc_os2];
+              }
               await nazu.sendMessage(from, {
                 image: imageBuffer,
-                caption: processedResponse.caption || ''
+                caption: processedResponse.caption || '',
+                mentions: mentionsToIncludeExec
               }, { quoted: info });
             }
           } else if (processedResponse.type === 'video') {
             const videoBuffer = processedResponse.buffer ? Buffer.from(processedResponse.buffer, 'base64') : null;
             if (videoBuffer) {
+              const mentionedJidsExec = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+              let mentionsToIncludeExec = Array.isArray(mentionedJidsExec) ? mentionedJidsExec : [];
+              if (!mentionsToIncludeExec.length && typeof menc_os2 !== 'undefined' && menc_os2) {
+                mentionsToIncludeExec = [menc_os2];
+              }
               await nazu.sendMessage(from, {
                 video: videoBuffer,
-                caption: processedResponse.caption || ''
+                caption: processedResponse.caption || '',
+                mentions: mentionsToIncludeExec
               }, { quoted: info });
             }
           } else if (processedResponse.type === 'audio') {
@@ -4168,20 +4264,26 @@ Entre em contato com o dono do bot:
         }
 
         if (sub === 'apostar' || sub === 'bet') {
+          const cdBet = me.cooldowns?.bet || 0;
+          if (Date.now() < cdBet) return reply(`⏳ Aguarde ${timeLeft(cdBet)} para apostar novamente.`);
           const amount = parseAmount(args[0], me.wallet);
           if (!isFinite(amount) || amount <= 0) return reply('Valor inválido.');
           if (amount > me.wallet) return reply('Saldo insuficiente.');
           const win = Math.random() < 0.47;
           if (win) { 
             me.wallet += amount; 
+            me.cooldowns.bet = Date.now() + 3*60*1000; // 3 minutos
             saveEconomy(econ); 
             return reply(`╭━━━⊱ 🍀 *VITÓRIA!* 🍀 ⊱━━━╮\n│\n│ 💰 Ganhou: *+${fmt(amount)}*\n│\n╰━━━━━━━━━━━━━━━━━━━━━╯`); 
           }
           me.wallet -= amount; 
+          me.cooldowns.bet = Date.now() + 3*60*1000; // 3 minutos
           saveEconomy(econ); 
           return reply(`╭━━━⊱ 💥 *PERDEU!* 💥 ⊱━━━╮\n│\n│ 💸 Perdeu: *-${fmt(amount)}*\n│\n╰━━━━━━━━━━━━━━━━━━━━━╯`);
         }
         if (sub === 'slots') {
+          const cdSlots = me.cooldowns?.slots || 0;
+          if (Date.now() < cdSlots) return reply(`⏳ Aguarde ${timeLeft(cdSlots)} para jogar slots novamente.`);
           const amount = parseAmount(args[0]||'100', me.wallet);
           if (!isFinite(amount) || amount <= 0) return reply('Valor inválido.');
           if (amount > me.wallet) return reply('Saldo insuficiente.');
@@ -4193,6 +4295,7 @@ Entre em contato com o dono do bot:
           const delta = Math.floor(amount * (mult-1));
           me.wallet += delta; // delta pode ser negativo
           saveEconomy(econ);
+          me.cooldowns.slots = Date.now() + 2*60*1000; // 2 minutos
           
           let slotText = `╭━━━⊱ 🎰 *SLOTS* 🎰 ⊱━━━╮\n`;
           slotText += `│\n`;
@@ -5466,6 +5569,13 @@ Entre em contato com o dono do bot:
         const econ = loadEconomy();
         const me = getEcoUser(econ, sender);
         const target = (menc_jid2 && menc_jid2[0]) || null;
+        const now = Date.now();
+        // Cooldown para batalhas de pets: 10 minutos
+        const PET_BATTLE_COOLDOWN = 10 * 60 * 1000;
+        if (me.lastPetBattle && (now - me.lastPetBattle) < PET_BATTLE_COOLDOWN) {
+          const remaining = Math.ceil((PET_BATTLE_COOLDOWN - (now - me.lastPetBattle)) / 60000);
+          return reply(`⏰ Você acabou de batalhar com seu pet. Aguarde *${remaining} minutos* antes de batalhar novamente.`);
+        }
         
         if (!target) return reply(`❌ Marque alguém para batalhar!\n\n💡 Uso: ${prefix}batalha <número> @user`);
         if (target === sender) return reply('❌ Você não pode batalhar contra si mesmo!');
@@ -5539,6 +5649,8 @@ Entre em contato com o dono do bot:
           battleLog += `💪 Treine mais e tente novamente!`;
         }
         
+        // registra cooldown e salva
+        me.lastPetBattle = Date.now();
         saveEconomy(econ);
         return reply(battleLog, { mentions: [target] });
         break;
@@ -6150,7 +6262,8 @@ Entre em contato com o dono do bot:
         if (clanName.length < 3 || clanName.length > 24) return reply('❌ Nome do clã precisa ter entre 3 e 24 caracteres.');
 
         // Verificar duplicado
-        const nameTaken = Object.values(econ.clans || {}).some(c => c.name && c.name.toLowerCase() === clanName.toLowerCase());
+  const baseNormalized = normalizeClanName(clanName);
+  const nameTaken = Object.values(econ.clans || {}).some(c => c.name && normalizeClanName(c.name) === baseNormalized);
         if (nameTaken) return reply('❌ Já existe um clã com esse nome!');
 
         // Custo para criar clã
@@ -6161,7 +6274,7 @@ Entre em contato com o dono do bot:
 
         const id = `clan_${econ.clanCounter++}`;
         econ.clans = econ.clans || {};
-        econ.clans[id] = { id, name: clanName, leader: sender, members: [sender], createdAt: Date.now() };
+  econ.clans[id] = { id, name: clanName, leader: sender, members: [sender], pendingInvites: [], createdAt: Date.now() };
 
         me.clan = id;
 
@@ -6183,8 +6296,9 @@ Entre em contato com o dono do bot:
         if (!q && me.clan) clanObj = econ.clans[me.clan];
         if (q) {
           // procurar por ID ou por nome
-          const qLower = q.trim().toLowerCase();
-          clanObj = econ.clans[q] || Object.values(econ.clans || {}).find(c => c.name && c.name.toLowerCase() === qLower);
+          const qTrim = q.trim();
+          const qNormalized = normalizeClanName(qTrim);
+          clanObj = econ.clans[qTrim] || Object.values(econ.clans || {}).find(c => c.name && normalizeClanName(c.name) === qNormalized);
         }
 
         if (!clanObj) return reply('❌ Clã não encontrado. Você pode usar: ' + prefix + 'criarcla <nome>');
@@ -6201,6 +6315,11 @@ Entre em contato com o dono do bot:
           mentions.push(m);
           text += `• @${m.split('@')[0]}\n`;
         });
+        // Mostrar convites pendentes
+        if (Array.isArray(clanObj.pendingInvites) && clanObj.pendingInvites.length > 0) {
+          text += `\n📨 Convites pendentes (${clanObj.pendingInvites.length}):\n`;
+          clanObj.pendingInvites.forEach(m => { text += `• @${m.split('@')[0]}\n`; mentions.push(m); });
+        }
 
         return reply(text, { mentions });
         break;
@@ -6223,23 +6342,45 @@ Entre em contato com o dono do bot:
 
         // Apenas líder pode convidar por enquanto
         if (clan.leader !== sender) return reply('👑 Apenas o líder do clã pode convidar novos membros!');
+    const target = (menc_jid2 && menc_jid2[0]) || null;
+    if (!target) return reply(`❗ Marque um membro para convidar. Ex: ${prefix}convidar @user`);
+    if (target === sender) return reply('❌ Você não pode convidar você mesmo!');
 
-        const target = (menc_jid2 && menc_jid2[0]) || null;
-        if (!target) return reply(`❗ Marque um membro para convidar. Ex: ${prefix}convidar @user`);
-        if (target === sender) return reply('❌ Você não pode convidar você mesmo!');
+    const targetUser = getEcoUser(econ, target);
+    if (targetUser.clan) return reply('❌ Esta pessoa já pertence a outro clã!');
 
-        const targetUser = getEcoUser(econ, target);
-        if (targetUser.clan) return reply('❌ Esta pessoa já pertence a outro clã!');
+    // Usar convites pendentes em vez de adicionar imediatamente.
+    clan.pendingInvites = clan.pendingInvites || [];
+    if (clan.pendingInvites.includes(target)) return reply('❗ Este usuário já tem um convite pendente para o clã.');
+    clan.pendingInvites.push(target);
+    saveEconomy(econ);
 
-        // Adicionar ao clã
-        clan.members = clan.members || [];
-        if (!clan.members.includes(target)) clan.members.push(target);
-        targetUser.clan = clan.id;
-
-        saveEconomy(econ);
-        return reply(`✅ @${target.split('@')[0]} foi convidado para o clã *${clan.name}*!`, { mentions: [target] });
-        break;
+    // Notificar no grupo com menção se possível
+    await reply(`📨 Convite enviado para @${target.split('@')[0]}!
+  Use ${prefix}aceitarconvite ${clan.id} para aceitar.`, { mentions: [target] });
+    break;
       }
+      
+      // Remover convite pendente (apenas líder)
+      case 'rmconvite':
+      case 'removerconvite': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        const econ2 = loadEconomy();
+        const me2 = getEcoUser(econ2, sender);
+        if (!me2.clan) return reply('❌ Você não faz parte de nenhum clã.');
+        const clan2 = econ2.clans[me2.clan];
+        if (!clan2) { me2.clan = null; saveEconomy(econ2); return reply('❌ Seu clã não foi encontrado.'); }
+        if (clan2.leader !== sender) return reply('👑 Apenas o líder pode remover convites.');
+        const target2 = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target2) return reply(`❗ Marque um usuário para remover o convite. Ex: ${prefix}rmconvite @user`);
+        if (!Array.isArray(clan2.pendingInvites) || !clan2.pendingInvites.includes(target2)) return reply('❌ Este usuário não tem um convite pendente para o seu clã.');
+        clan2.pendingInvites = clan2.pendingInvites.filter(id => id !== target2);
+        saveEconomy(econ2);
+        return reply(`🗑️ Convite removido para @${target2.split('@')[0]}.`, { mentions: [target2] });
+      }
+        break;
+      
 
       // Sair do clã
       case 'sair': {
@@ -6285,9 +6426,94 @@ Entre em contato com o dono do bot:
         // Membro comum
         clan.members = clan.members.filter(m => m !== sender);
         me.clan = null;
+        // remover convites pendentes que o membro tinha em outros clãs (limpeza)
+        for (const [k, c] of Object.entries(econ.clans || {})) {
+          if (Array.isArray(c.pendingInvites) && c.pendingInvites.includes(sender)) {
+            c.pendingInvites = c.pendingInvites.filter(x => x !== sender);
+          }
+        }
         saveEconomy(econ);
         return reply('✅ Você saiu do clã.');
         break;
+      }
+      // Aceitar convite de clã
+      case 'aceitarconvite':
+      case 'aceitar': {
+        if (!isGroup) return reply('⚔️ Comandos de clã só funcionam em grupos com Modo RPG.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+
+        // Procurar convites pendentes
+        const clansWithInvite = Object.values(econ.clans || {}).filter(c => Array.isArray(c.pendingInvites) && c.pendingInvites.includes(sender));
+        if (!q && clansWithInvite.length === 0) return reply('❌ Você não possui convites pendentes para clãs.');
+        let clanObj = null;
+        if (!q) {
+          if (clansWithInvite.length === 1) clanObj = clansWithInvite[0];
+          else return reply('🔎 Você possui múltiplos convites. Use: ' + prefix + 'aceitarconvite <clanId>');
+        } else {
+          const qLower = q.trim().toLowerCase();
+          clanObj = econ.clans[q] || Object.values(econ.clans || {}).find(c => (c.name||'').toLowerCase() === qLower);
+        }
+        if (!clanObj) return reply('❌ Clã não encontrado ou sem convite pendente.');
+        // Join
+        clanObj.members = clanObj.members || [];
+        if (!clanObj.members.includes(sender)) clanObj.members.push(sender);
+        // Remove pending invite
+        clanObj.pendingInvites = (clanObj.pendingInvites || []).filter(id => id !== sender);
+        me.clan = clanObj.id;
+        saveEconomy(econ);
+        return reply(`✅ Você entrou para o clã *${clanObj.name}*!`);
+      }
+
+      // Recusar convite
+      case 'recusarconvite':
+      case 'recusar': {
+        if (!isGroup) return reply('⚔️ Comandos de clã só funcionam em grupos com Modo RPG.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        const clansWithInvite = Object.values(econ.clans || {}).filter(c => Array.isArray(c.pendingInvites) && c.pendingInvites.includes(sender));
+        if (!q && clansWithInvite.length === 0) return reply('❌ Você não possui convites pendentes para clãs.');
+        let clanObj = null;
+        if (!q) {
+          if (clansWithInvite.length === 1) clanObj = clansWithInvite[0];
+          else return reply('🔎 Você possui múltiplos convites. Use: ' + prefix + 'recusarconvite <clanId>');
+        } else {
+          const qLower = q.trim().toLowerCase();
+          clanObj = econ.clans[q] || Object.values(econ.clans || {}).find(c => (c.name||'').toLowerCase() === qLower);
+        }
+        if (!clanObj) return reply('❌ Clã não encontrado ou sem convite pendente.');
+        clanObj.pendingInvites = (clanObj.pendingInvites || []).filter(id => id !== sender);
+        saveEconomy(econ);
+        return reply(`❗ Você recusou o convite do clã *${clanObj.name}*.`);
+      }
+
+      // Expulsar membro do clã (apenas líder)
+      case 'expulsar':
+      case 'kick': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        if (!me.clan) return reply('❌ Você não faz parte de nenhum clã.');
+        const clan = econ.clans[me.clan];
+        if (!clan) { me.clan = null; saveEconomy(econ); return reply('❌ Seu clã não foi encontrado.'); }
+        if (clan.leader !== sender) return reply('👑 Apenas o líder pode expulsar membros.');
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❗ Marque um membro para expulsar. Ex: ${prefix}expulsar @user`);
+        if (target === sender) return reply('❌ Você não pode se expulsar como líder. Use sair para demitir-se e transferir liderança.');
+        if (!clan.members || !clan.members.includes(target)) return reply('❌ Este usuário não é membro do seu clã.');
+        clan.members = clan.members.filter(m => m !== target);
+        const targetUser = getEcoUser(econ, target);
+        if (targetUser.clan === clan.id) targetUser.clan = null;
+        // cleanup pending invites anywhere
+        for (const [k,c] of Object.entries(econ.clans||{})) {
+          if (Array.isArray(c.pendingInvites) && c.pendingInvites.includes(target)) c.pendingInvites = c.pendingInvites.filter(x => x !== target);
+        }
+        saveEconomy(econ);
+        return reply(`🗑️ @${target.split('@')[0]} foi expulso do clã *${clan.name}*.`, { mentions: [target] });
       }
 
       // Sistema de Família
@@ -9858,6 +10084,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           responseText += `• ${groupPrefix}addcmdmidia <cmd> (com mídia)\n`;
           responseText += `• ${groupPrefix}delcmd <número>\n`;
           responseText += `• ${groupPrefix}testcmd <cmd>`;
+          responseText += `\n\n*Placeholders disponíveis para respostas:*
+• {args} ou {all} - Todos os argumentos passados após o gatilho
+• {1}, {2}, ... - Argumentos por posição (1-based)
+• {mention} - Menção ao primeiro usuário marcado na mensagem
+• {mentions} - Menção a todos os marcados na mensagem
+• {quoted} - Texto da mensagem citada (quando houver)`;
           
           await reply(responseText);
         } catch (e) {
@@ -9927,7 +10159,10 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             return reply(`❌ Forneça o nome do comando para testar.\n\nExemplo: ${groupPrefix}testcmd bemvindo`);
           }
           
-          const normalizedTrigger = normalizar(q.trim()).replace(/\s+/g, '');
+          const rawParts = q.trim().split(/ +/);
+          const testTrigger = rawParts[0] || '';
+          const testArgsStr = rawParts.slice(1).join(' ');
+          const normalizedTrigger = normalizar(testTrigger).replace(/\s+/g, '');
           const cmd = findCustomCommand(normalizedTrigger);
           
           if (!cmd) {
@@ -9949,10 +10184,55 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
               .replace(/{nomebot}/gi, nomebot)
               .replace(/{user}/gi, pushname || 'Usuário')
               .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
+            // extras de teste: args/posições/menção/quoted
+            const testArgs = testArgsStr || '';
+            const argsListTest = (testArgs.trim().length > 0) ? testArgs.trim().split(/ +/) : [];
+            processedResponse = processedResponse.replace(/\{(?:args|all)\}/gi, testArgs);
+            processedResponse = processedResponse.replace(/\{(\d+)\}/g, (m, idx) => {
+              const i = parseInt(idx, 10) - 1;
+              return argsListTest[i] || '';
+            });
+            const mentionedJidsTest = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            let mentionsToIncludeTest = Array.isArray(mentionedJidsTest) ? mentionedJidsTest : [];
+            if (!mentionsToIncludeTest.length && typeof menc_os2 !== 'undefined' && menc_os2) mentionsToIncludeTest = [menc_os2];
+            const mentionsTextTest = Array.isArray(mentionsToIncludeTest) && mentionsToIncludeTest.length ? mentionsToIncludeTest.map(m => '@' + getUserName(m)).join(' ') : '';
+            processedResponse = processedResponse.replace(/\{mention\}/gi, mentionsTextTest);
+            processedResponse = processedResponse.replace(/\{mentions\}/gi, mentionsTextTest);
+            const quotedTextTest = (quotedMessageContent && (quotedMessageContent.conversation || quotedMessageContent.extendedTextMessage?.text)) || '';
+            processedResponse = processedResponse.replace(/\{quoted\}/gi, quotedTextTest);
             
-            await reply(processedResponse);
+            const mentionedJidsExec = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            const mentionsToIncludeExec = Array.isArray(mentionedJidsExec) ? mentionedJidsExec : [];
+            if (mentionsToIncludeExec.length > 0) {
+              await reply(processedResponse, { mentions: mentionsToIncludeExec });
+            } else {
+              await reply(processedResponse);
+            }
           } else if (processedResponse.type === 'text') {
-            await reply(processedResponse.content || 'Resposta personalizada');
+            let content = processedResponse.content || 'Resposta personalizada';
+            // replacing with test args
+            const allArgsExec = testArgsStr || '';
+            const argsListExec = (allArgsExec.trim().length > 0) ? allArgsExec.trim().split(/ +/) : [];
+            content = content.replace(/\{(?:args|all)\}/gi, allArgsExec);
+            content = content.replace(/\{(\d+)\}/g, (m, idx) => {
+              const i = parseInt(idx, 10) - 1;
+              return argsListExec[i] || '';
+            });
+            const mentionedJidsExec = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            let mentionsToIncludeExec = Array.isArray(mentionedJidsExec) ? mentionedJidsExec : [];
+            if (!mentionsToIncludeExec.length && typeof menc_os2 !== 'undefined' && menc_os2) {
+              mentionsToIncludeExec = [menc_os2];
+            }
+            const mentionTextExec = mentionsToIncludeExec.length > 0 ? mentionsToIncludeExec.map(m => '@' + getUserName(m)).join(' ') : '';
+            content = content.replace(/\{mention\}/gi, mentionTextExec);
+            content = content.replace(/\{mentions\}/gi, mentionTextExec);
+            const quotedEx = (quotedMessageContent && (quotedMessageContent.conversation || quotedMessageContent.extendedTextMessage?.text)) || '';
+            content = content.replace(/\{quoted\}/gi, quotedEx);
+            if (mentionsToIncludeExec.length > 0) {
+              await reply(content, { mentions: mentionsToIncludeExec });
+            } else {
+              await reply(content);
+            }
           } else if (processedResponse.type === 'image') {
             const imageBuffer = processedResponse.buffer ? Buffer.from(processedResponse.buffer, 'base64') : null;
             if (imageBuffer) {
@@ -9965,11 +10245,26 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
                 .replace(/{nomebot}/gi, nomebot)
                 .replace(/{user}/gi, pushname || 'Usuário')
                 .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
+              // extras: args/posições/menção/quoted
+              caption = caption.replace(/\{(?:args|all)\}/gi, testArgsStr || '');
+              caption = caption.replace(/\{(\d+)\}/g, (m, idx) => {
+                const i = parseInt(idx, 10) - 1;
+                const list = (testArgsStr || '').trim().length ? (testArgsStr || '').trim().split(/ +/) : [];
+                return list[i] || '';
+              });
+              const mentionedJidsTest = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+              let mentionsToIncludeTest = Array.isArray(mentionedJidsTest) ? mentionedJidsTest : [];
+              if (!mentionsToIncludeTest.length && typeof menc_os2 !== 'undefined' && menc_os2) mentionsToIncludeTest = [menc_os2];
+              const mentionsTextTest = Array.isArray(mentionsToIncludeTest) && mentionsToIncludeTest.length ? mentionsToIncludeTest.map(m => '@' + getUserName(m)).join(' ') : '';
+              caption = caption.replace(/\{mention\}/gi, mentionsTextTest);
+              caption = caption.replace(/\{mentions\}/gi, mentionsTextTest);
+              const quotedTextTest = (quotedMessageContent && (quotedMessageContent.conversation || quotedMessageContent.extendedTextMessage?.text)) || '';
+              caption = caption.replace(/\{quoted\}/gi, quotedTextTest);
               
               await nazu.sendMessage(from, {
                 image: imageBuffer,
                 caption: caption
-              }, { quoted: info });
+              }, { quoted: info, mentions: mentionsToIncludeTest });
             }
           } else if (processedResponse.type === 'video') {
             const videoBuffer = processedResponse.buffer ? Buffer.from(processedResponse.buffer, 'base64') : null;
@@ -9983,11 +10278,23 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
                 .replace(/{nomebot}/gi, nomebot)
                 .replace(/{user}/gi, pushname || 'Usuário')
                 .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
+                caption = caption.replace(/\{(?:args|all)\}/gi, testArgsStr || '');
+                caption = caption.replace(/\{(\d+)\}/g, (m, idx) => {
+                  const i = parseInt(idx, 10) - 1;
+                  const list = (testArgsStr || '').trim().length ? (testArgsStr || '').trim().split(/ +/) : [];
+                  return list[i] || '';
+                });
+                const mentionedJidsTest = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+                const mentionsTextTest = Array.isArray(mentionedJidsTest) && mentionedJidsTest.length ? mentionedJidsTest.map(m => '@' + getUserName(m)).join(' ') : '';
+                caption = caption.replace(/\{mention\}/gi, mentionsTextTest);
+                caption = caption.replace(/\{mentions\}/gi, mentionsTextTest);
+                const quotedTextTest = (quotedMessageContent && (quotedMessageContent.conversation || quotedMessageContent.extendedTextMessage?.text)) || '';
+                caption = caption.replace(/\{quoted\}/gi, quotedTextTest);
               
               await nazu.sendMessage(from, {
                 video: videoBuffer,
                 caption: caption
-              }, { quoted: info });
+              }, { quoted: info, mentions: mentionsToIncludeTest });
             }
           } else if (processedResponse.type === 'audio') {
             const audioBuffer = processedResponse.buffer ? Buffer.from(processedResponse.buffer, 'base64') : null;

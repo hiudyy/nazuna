@@ -25,31 +25,24 @@ export default async function menurpg(prefix, botName = "MeuBot", userName = "Us
 } = {}) {
   const h = header.replace(/#user#/g, userName);
     return `‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎
-${h}
-
-╭─⊱ 💡 *BEM-VINDO AO MODO RPG!* ⊰─╮
-│ Um mundo de aventuras infinitas!
-│ Complete missões, batalhe, invista,
-│ evolua seu personagem e domine o
-│ ranking! Novidades diárias! ⚔️✨
-╰────────────────────────────╯
+${h} 
 
 ${menuTopBorder}${separatorIcon} *${profileMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}perfilrpg - Ver perfil completo
-${middleBorder}${menuItemIcon}${prefix}carteira - Moedas & recursos
-${middleBorder}${menuItemIcon}${prefix}toprpg - Ranking de jogadores
-${middleBorder}${menuItemIcon}${prefix}ranklevel - Ranking de levels
-${middleBorder}${menuItemIcon}${prefix}inventario - Seus itens
-${middleBorder}${menuItemIcon}${prefix}equipamentos - Gerenciar gear
-${middleBorder}${menuItemIcon}${prefix}conquistas - Achievements
+${middleBorder}${menuItemIcon}${prefix}perfilrpg
+${middleBorder}${menuItemIcon}${prefix}carteira
+${middleBorder}${menuItemIcon}${prefix}toprpg
+${middleBorder}${menuItemIcon}${prefix}ranklevel
+${middleBorder}${menuItemIcon}${prefix}inventario
+${middleBorder}${menuItemIcon}${prefix}equipamentos
+${middleBorder}${menuItemIcon}${prefix}conquistas
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${evolutionMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}evoluir - Sistema de prestige
-${middleBorder}${menuItemIcon}${prefix}streak - Ver série de dias
-${middleBorder}${menuItemIcon}${prefix}reivindicar - Pegar recompensas
+${middleBorder}${menuItemIcon}${prefix}evoluir
+${middleBorder}${menuItemIcon}${prefix}streak
+${middleBorder}${menuItemIcon}${prefix}reivindicar
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${economyMenuTitle}*
@@ -58,136 +51,136 @@ ${middleBorder}${menuItemIcon}${prefix}depositar <valor|all>
 ${middleBorder}${menuItemIcon}${prefix}sacar <valor|all>
 ${middleBorder}${menuItemIcon}${prefix}transferir @user <valor>
 ${middleBorder}${menuItemIcon}${prefix}pix @user <valor>
-${middleBorder}${menuItemIcon}${prefix}vagas - Empregos disponíveis
+${middleBorder}${menuItemIcon}${prefix}vagas
 ${middleBorder}${menuItemIcon}${prefix}emprego <vaga>
 ${middleBorder}${menuItemIcon}${prefix}demitir
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${investmentMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}investir - Ver mercado
-${middleBorder}${menuItemIcon}${prefix}investir <ação> <qtd> - Comprar
-${middleBorder}${menuItemIcon}${prefix}vender <ação> <qtd> - Vender
+${middleBorder}${menuItemIcon}${prefix}investir
+${middleBorder}${menuItemIcon}${prefix}investir <ação> <qtd>
+${middleBorder}${menuItemIcon}${prefix}vender <ação> <qtd>
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${gamblingMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}dados <valor> - Jogo de dados
+${middleBorder}${menuItemIcon}${prefix}dados <valor>
 ${middleBorder}${menuItemIcon}${prefix}coinflip <cara|coroa> <valor>
-${middleBorder}${menuItemIcon}${prefix}crash <valor> - Crash game
+${middleBorder}${menuItemIcon}${prefix}crash <valor>
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${activitiesMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}diario - Recompensa diária
-${middleBorder}${menuItemIcon}${prefix}trabalhar - Ganhar dinheiro
-${middleBorder}${menuItemIcon}${prefix}minerar - Minerar recursos
-${middleBorder}${menuItemIcon}${prefix}pescar - Pescar peixes raros
-${middleBorder}${menuItemIcon}${prefix}coletar - Coletar materiais
-${middleBorder}${menuItemIcon}${prefix}caçar - Caçar monstros
-${middleBorder}${menuItemIcon}${prefix}cultivar <planta> - Plantar
-${middleBorder}${menuItemIcon}${prefix}cozinhar <receita> - Culinária
+${middleBorder}${menuItemIcon}${prefix}diario
+${middleBorder}${menuItemIcon}${prefix}trabalhar
+${middleBorder}${menuItemIcon}${prefix}minerar
+${middleBorder}${menuItemIcon}${prefix}pescar
+${middleBorder}${menuItemIcon}${prefix}coletar
+${middleBorder}${menuItemIcon}${prefix}caçar
+${middleBorder}${menuItemIcon}${prefix}cultivar <planta>
+${middleBorder}${menuItemIcon}${prefix}cozinhar <receita>
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${adventureMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}explorar - Explorar o mundo
-${middleBorder}${menuItemIcon}${prefix}masmorra - Entrar em dungeons
-${middleBorder}${menuItemIcon}${prefix}chefe - Enfrentar boss
-${middleBorder}${menuItemIcon}${prefix}eventos - Eventos ativos
+${middleBorder}${menuItemIcon}${prefix}explorar
+${middleBorder}${menuItemIcon}${prefix}masmorra
+${middleBorder}${menuItemIcon}${prefix}chefe
+${middleBorder}${menuItemIcon}${prefix}eventos
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${combatMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}duelar @user - Duelo PvP
-${middleBorder}${menuItemIcon}${prefix}arena - Arena de batalha
-${middleBorder}${menuItemIcon}${prefix}torneio - Ver/participar
-${middleBorder}${menuItemIcon}${prefix}assaltar @user - Roubar
-${middleBorder}${menuItemIcon}${prefix}crime - Cometer crime
+${middleBorder}${menuItemIcon}${prefix}duelar @user
+${middleBorder}${menuItemIcon}${prefix}arena
+${middleBorder}${menuItemIcon}${prefix}torneio
+${middleBorder}${menuItemIcon}${prefix}assaltar @user
+${middleBorder}${menuItemIcon}${prefix}crime
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${craftingMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}forjar <item> - Forjar equip
-${middleBorder}${menuItemIcon}${prefix}encantar - Melhorar arma
-${middleBorder}${menuItemIcon}${prefix}desmontar <item> - Materiais
-${middleBorder}${menuItemIcon}${prefix}materiais - Ver recursos
+${middleBorder}${menuItemIcon}${prefix}forjar <item>
+${middleBorder}${menuItemIcon}${prefix}encantar
+${middleBorder}${menuItemIcon}${prefix}desmontar <item>
+${middleBorder}${menuItemIcon}${prefix}materiais
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${socialMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}casar @user - Propor
-${middleBorder}${menuItemIcon}${prefix}divorciar - Terminar
-${middleBorder}${menuItemIcon}${prefix}namorar @user - Pedir namoro
-${middleBorder}${menuItemIcon}${prefix}terminar - Acabar namoro
-${middleBorder}${menuItemIcon}${prefix}relacionamento - Status
-${middleBorder}${menuItemIcon}${prefix}casais - Top casais
-${middleBorder}${menuItemIcon}${prefix}abracar @user - Abraçar
-${middleBorder}${menuItemIcon}${prefix}beijar @user - Beijar
-${middleBorder}${menuItemIcon}${prefix}bater @user - Dar tapa
-${middleBorder}${menuItemIcon}${prefix}proteger @user - Proteger
+${middleBorder}${menuItemIcon}${prefix}casar @user
+${middleBorder}${menuItemIcon}${prefix}divorciar
+${middleBorder}${menuItemIcon}${prefix}namorar @user
+${middleBorder}${menuItemIcon}${prefix}terminar
+${middleBorder}${menuItemIcon}${prefix}relacionamento
+${middleBorder}${menuItemIcon}${prefix}casais
+${middleBorder}${menuItemIcon}${prefix}abracar @user
+${middleBorder}${menuItemIcon}${prefix}beijar @user
+${middleBorder}${menuItemIcon}${prefix}bater @user
+${middleBorder}${menuItemIcon}${prefix}proteger @user
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${familyMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}familia - Ver sua família
-${middleBorder}${menuItemIcon}${prefix}adotaruser @user - Adotar
-${middleBorder}${menuItemIcon}${prefix}arvore - Árvore genealógica
+${middleBorder}${menuItemIcon}${prefix}familia
+${middleBorder}${menuItemIcon}${prefix}adotaruser @user
+${middleBorder}${menuItemIcon}${prefix}arvore
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${guildMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}criarcla <nome> - Criar clã
-${middleBorder}${menuItemIcon}${prefix}cla - Info do clã
+${middleBorder}${menuItemIcon}${prefix}criarcla <nome>
+${middleBorder}${menuItemIcon}${prefix}cla
 ${middleBorder}${menuItemIcon}${prefix}convidar @user
-${middleBorder}${menuItemIcon}${prefix}sair - Sair do clã
+${middleBorder}${menuItemIcon}${prefix}sair
+${middleBorder}${menuItemIcon}${prefix}aceitarconvite <clanId|nome>
+${middleBorder}${menuItemIcon}${prefix}recusarconvite <clanId|nome>
+${middleBorder}${menuItemIcon}${prefix}expulsar @user
+${middleBorder}${menuItemIcon}${prefix}rmconvite @user
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${questMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}missoes - Ver missões diárias
-${middleBorder}${menuItemIcon}${prefix}conquistas - Achievements
+${middleBorder}${menuItemIcon}${prefix}missoes
+${middleBorder}${menuItemIcon}${prefix}conquistas
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${petsMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}pets - Seus companheiros
-${middleBorder}${menuItemIcon}${prefix}adotar <pet> - Novo pet
-${middleBorder}${menuItemIcon}${prefix}alimentar <nº> - Dar comida
-${middleBorder}${menuItemIcon}${prefix}treinar <nº> - Treinar
-${middleBorder}${menuItemIcon}${prefix}evoluir <nº> - Evoluir
-${middleBorder}${menuItemIcon}${prefix}batalha <nº> - Batalhar
+${middleBorder}${menuItemIcon}${prefix}pets
+${middleBorder}${menuItemIcon}${prefix}adotar <pet>
+${middleBorder}${menuItemIcon}${prefix}alimentar <nº>
+${middleBorder}${menuItemIcon}${prefix}treinar <nº>
+${middleBorder}${menuItemIcon}${prefix}evoluir <nº>
+${middleBorder}${menuItemIcon}${prefix}batalha <nº>
 ${middleBorder}${menuItemIcon}${prefix}renomearpet <nº> <nome>
+${middleBorder}${menuItemIcon}${prefix}apostarpet <valor> <nº> @user
+${middleBorder}${menuItemIcon}${prefix}equippet <nº> <nome do item>
+${middleBorder}${menuItemIcon}${prefix}unequippet <nº> <slot?>
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${reputationMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}reputacao - Ver sua reputação
-${middleBorder}${menuItemIcon}${prefix}votar @user - Dar reputação
+${middleBorder}${menuItemIcon}${prefix}reputacao
+${middleBorder}${menuItemIcon}${prefix}votar @user
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${eventsMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}eventos - Ver eventos ativos
+${middleBorder}${menuItemIcon}${prefix}eventos
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *💎 SISTEMA DE PROGRESSO DIÁRIO*
 ${middleBorder}
-${middleBorder}🔥 Mantenha seu streak ativo!
-${middleBorder}${menuItemIcon}${prefix}diario - Recompensa diária
-${middleBorder}${menuItemIcon}${prefix}streak - Veja sua série
-${middleBorder}${menuItemIcon}${prefix}reivindicar - Pegue prêmios
-${middleBorder}${menuItemIcon}${prefix}missoes - Quests diárias
-${middleBorder}${menuItemIcon}${prefix}investir - Mercado muda 24h
-${middleBorder}${menuItemIcon}${prefix}torneio - Competições diárias
-${middleBorder}
-${middleBorder}📈 Evolua continuamente!
-${middleBorder}${menuItemIcon}${prefix}evoluir - Sistema de prestige
-${middleBorder}${menuItemIcon}${prefix}toprpg - Ranking atualizado
-${middleBorder}${menuItemIcon}${prefix}ranklevel - Ranking de levels
-${middleBorder}${menuItemIcon}${prefix}conquistas - Novos objetivos
-${bottomBorder}
-
-🎮 *Jogue todos os dias e domine o ranking!* ⚔️
-`;
+${middleBorder}${menuItemIcon}${prefix}diario
+${middleBorder}${menuItemIcon}${prefix}streak 
+${middleBorder}${menuItemIcon}${prefix}reivindicar
+${middleBorder}${menuItemIcon}${prefix}missoes
+${middleBorder}${menuItemIcon}${prefix}investir
+${middleBorder}${menuItemIcon}${prefix}torneio
+${middleBorder}${menuItemIcon}${prefix}evoluir
+${middleBorder}${menuItemIcon}${prefix}toprpg
+${middleBorder}${menuItemIcon}${prefix}ranklevel
+${middleBorder}${menuItemIcon}${prefix}conquistas`
 }

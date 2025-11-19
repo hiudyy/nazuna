@@ -115,6 +115,12 @@ ensureJsonFileExists(ECONOMY_FILE, {
     "lamp": { name: "Lanterna", price: 600, type: "tool", effect: { exploreBonus: 0.2 } },
     "bow": { name: "Arco de Caça", price: 800, type: "tool", effect: { huntBonus: 0.25 } },
     "forge": { name: "Kit de Forja", price: 1200, type: "tool", effect: { forgeBonus: 0.25 } }
+    ,
+    // Equipamentos para pets
+    "pet_sword": { name: "Espada para Pet", price: 1200, type: "pet_equipment", slot: "weapon", attackBonus: 15, durability: 30 },
+    "pet_armor": { name: "Armadura para Pet", price: 1500, type: "pet_equipment", slot: "armor", defenseBonus: 12, durability: 40 },
+    "pet_shield": { name: "Escudo para Pet", price: 1000, type: "pet_equipment", slot: "shield", defenseBonus: 8, durability: 50 },
+    "pet_ring": { name: "Anel do Pet", price: 700, type: "pet_equipment", slot: "accessory", attackBonus: 5, defenseBonus: 5, durability: 25 }
   },
   materialsPrices: {
     pedra: 2,
@@ -1220,6 +1226,10 @@ function ensureEconomyDefaults(econ) {
   // Chave: id do clã, Valor: { id, name, leader, members: [], createdAt }
   if (!econ.clans) { econ.clans = {}; changed = true; }
   if (typeof econ.clanCounter !== 'number') { econ.clanCounter = 1; changed = true; }
+  // Garantir pendingInvites para compatibilidade com convites pendentes
+  for (const [k, c] of Object.entries(econ.clans || {})) {
+    if (!Array.isArray(c.pendingInvites)) c.pendingInvites = [];
+  }
   return changed;
 }
 
