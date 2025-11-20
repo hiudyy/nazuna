@@ -150,6 +150,7 @@ import {
   formatTimeLeft,
   runDatabaseSelfTest
 } from './utils/database.js';
+import { parseCustomCommandMeta, buildUsageFromParams } from './utils/helpers.js';
 import {
   PACKAGE_JSON_PATH,
   CONFIG_FILE,
@@ -2775,7 +2776,50 @@ Código: *${roleCode}*`,
       if (customCmd) {
         try {
           const responseData = customCmd.response;
-          
+          const settings = customCmd.settings || {};
+
+          // Verificações de permissão/contexto
+          if (settings.ownerOnly && !isOwner) {
+            return reply('🚫 Este comando só pode ser usado pelo dono do bot.');
+          }
+          if (settings.adminOnly && !isGroup) {
+            return reply('🚫 Este comando só pode ser usado por admins do grupo (em grupos apenas).');
+          }
+          if (settings.adminOnly && isGroup && !isGroupAdmin) {
+            return reply('🚫 Este comando só pode ser usado por admins do grupo.');
+          }
+          if (settings.context === 'group' && !isGroup) {
+            return reply('⚠️ Este comando está restrito a grupos.');
+          }
+          if (settings.context === 'private' && isGroup) {
+            return reply('⚠️ Este comando está restrito ao privado.');
+          }
+
+          // Verificar parâmetros obrigatórios e tipos (baseado na ordem)
+          const allArgsCheck = q || '';
+          const argsListCheck = (allArgsCheck.trim().length > 0) ? allArgsCheck.trim().split(/ +/) : [];
+          if (Array.isArray(settings.params) && settings.params.length) {
+            // find missing by index
+            const missing = [];
+            for (let i = 0; i < settings.params.length; i++) {
+              const p = settings.params[i];
+              if (p.required && (typeof argsListCheck[i] === 'undefined' || argsListCheck[i] === '')) missing.push(p.name);
+              // type checking
+              if (typeof argsListCheck[i] !== 'undefined' && argsListCheck[i] !== '') {
+                const val = argsListCheck[i];
+                if (p.type === 'number' || p.type === 'int' || p.type === 'float') {
+                  if (isNaN(Number(val))) {
+                    return reply(`❌ Parâmetro inválido: ${p.name} deve ser numérico.`);
+                  }
+                }
+              }
+            }
+            if (missing.length) {
+              const usage = customCmd.usage || buildUsageFromParams(customCmd.trigger, settings.params);
+              return reply(`❌ Parâmetros obrigatórios ausentes: ${missing.join(', ')}\nUso: ${usage}`);
+            }
+          }
+
           // Substituir parâmetros
           let processedResponse = responseData;
           if (typeof processedResponse === 'string') {
@@ -2811,6 +2855,15 @@ Código: *${roleCode}*`,
             // quoted
             const quotedText = (quotedMessageContent && (quotedMessageContent.conversation || quotedMessageContent.extendedTextMessage?.text)) || '';
             processedResponse = processedResponse.replace(/\{quoted\}/gi, quotedText);
+            // placeholders adicionais
+            const groupDescValue = (groupMetadata && groupMetadata.desc) ? groupMetadata.desc : '';
+            const latency = info?.messageTimestamp ? ((Date.now() - info.messageTimestamp * 1000) / 1000).toFixed(3) : null;
+            if (groupDescValue) {
+              processedResponse = processedResponse.replace(/\{(?:groupdesc|descricao|desc)\}/gi, groupDescValue);
+            }
+            if (latency !== null) {
+              processedResponse = processedResponse.replace(/\{(?:velocidade|speed|latency)\}/gi, `${latency}s`);
+            }
           } else if (processedResponse && typeof processedResponse === 'object') {
             if (processedResponse.caption) {
               processedResponse.caption = processedResponse.caption
@@ -2839,6 +2892,10 @@ Código: *${roleCode}*`,
               processedResponse.caption = processedResponse.caption.replace(/\{mentions\}/gi, mentionTextC);
               const quotedTextC = (quotedMessageContent && (quotedMessageContent.conversation || quotedMessageContent.extendedTextMessage?.text)) || '';
               processedResponse.caption = processedResponse.caption.replace(/\{quoted\}/gi, quotedTextC);
+              const groupDescValueC = (groupMetadata && groupMetadata.desc) ? groupMetadata.desc : '';
+              const latencyC = info?.messageTimestamp ? ((Date.now() - info.messageTimestamp * 1000) / 1000).toFixed(3) : null;
+              if (groupDescValueC) processedResponse.caption = processedResponse.caption.replace(/\{(?:groupdesc|descricao|desc)\}/gi, groupDescValueC);
+              if (latencyC !== null) processedResponse.caption = processedResponse.caption.replace(/\{(?:velocidade|speed|latency)\}/gi, `${latencyC}s`);
             }
           }
           
@@ -2876,6 +2933,10 @@ Código: *${roleCode}*`,
             content = content.replace(/\{mentions\}/gi, mentionTextExec);
             const quotedEx = (quotedMessageContent && (quotedMessageContent.conversation || quotedMessageContent.extendedTextMessage?.text)) || '';
             content = content.replace(/\{quoted\}/gi, quotedEx);
+            const groupDescValueT = (groupMetadata && groupMetadata.desc) ? groupMetadata.desc : '';
+            const latencyT = info?.messageTimestamp ? ((Date.now() - info.messageTimestamp * 1000) / 1000).toFixed(3) : null;
+            if (groupDescValueT) content = content.replace(/\{(?:groupdesc|descricao|desc)\}/gi, groupDescValueT);
+            if (latencyT !== null) content = content.replace(/\{(?:velocidade|speed|latency)\}/gi, `${latencyT}s`);
 
             if (mentionsToIncludeExec.length > 0) {
               await reply(content, { mentions: mentionsToIncludeExec });
@@ -9920,13 +9981,17 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
           
-          const args = q.trim().split(' ');
-          const trigger = args[0];
-          const responseText = args.slice(1).join(' ');
+          const allTokens = q.trim().split(/ +/);
+          const trigger = allTokens.shift();
+          // parse meta tokens like [admin], [owner], [group], [private], [param:name:required]
+          const parsed = parseCustomCommandMeta(allTokens);
+          const settings = parsed.settings || {};
+          const responseText = parsed.rest.join(' ');
+          const addcmdHelp = `📝 *Como usar o comando addcmd:*
+\n*Adicionar texto:*\n${groupPrefix}addcmd <comando> [meta...] <resposta>\n\n*Adicionar mídia:*\n${groupPrefix}addcmdmidia <comando> [meta...] (respondendo uma mídia)\n\n*Metatags / Flags suportadas:*\n• [owner] — Somente o dono do bot pode usar\n• [admin] — Somente admins do grupo podem usar (somente em grupos)\n• [group] — Restrito a grupos\n• [private] — Restrito ao privado\n• [param:name:required] — Parâmetro posicional obrigatório\n• [param:type:name:optional] — Parâmetro opcional com tipo (e.g., number)\n\n*Placeholders (na resposta):*\n• {prefixo} - Prefixo do bot\n• {nomedono} - Nome do dono\n• {numerodono} - Número do dono\n• {nomebot} - Nome do bot\n• {user} - Nome do usuário\n• {grupo} - Nome do grupo\n• {groupdesc} - Descrição do grupo (se existir)\n• {velocidade} ou {speed} - Latência do bot em segundos\n• {1}, {2}, ... - Argumentos por posição (1-based)\n• {args} ou {all} - Todos os argumentos\n\n*Exemplos:*\n${groupPrefix}addcmd saudacao [param:name:required] [admin] Olá {1}! Bem-vindo ao {grupo}!\n${groupPrefix}addcmdmidia logo [private] [param:filename:optional]`;
           
-          if (!trigger) {
+          if (!trigger) { return reply(addcmdHelp); }
             return reply(`📝 *Como usar o comando addcmd:*\n\n*Adicionar texto:*\n${groupPrefix}addcmd <comando> <resposta>\n\n*Adicionar mídia:*\n${groupPrefix}addcmdmidia <comando> (respondendo uma mídia)\n\n*Parâmetros disponíveis:*\n• {prefixo} - Prefixo do bot\n• {nomedono} - Nome do dono\n• {numerodono} - Número do dono\n• {nomebot} - Nome do bot\n• {user} - Nome do usuário\n• {grupo} - Nome do grupo\n\n*Exemplo:*\n${groupPrefix}addcmd oi Olá {user}! Seja bem-vindo ao {grupo}!`);
-          }
           
           if (!responseText && !quotedMessageContent) {
             return reply(`❌ Forneça uma resposta em texto ou responda uma mídia.\n\nExemplo: ${groupPrefix}addcmd bemvindo Seja bem-vindo ao grupo!`);
@@ -9941,16 +10006,25 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           }
           
           const commands = loadCustomCommands();
+          const usage = buildUsageFromParams(trigger, settings.params || []);
           commands.push({
             id: Date.now().toString(),
             trigger: normalizedTrigger,
             response: responseText,
             createdAt: new Date().toISOString(),
             createdBy: sender
+          , settings: settings, usage: usage
           });
           
           if (saveCustomCommands(commands)) {
-            await reply(`✅ Comando personalizado criado!\n\n*Gatilho:* ${trigger}\n*Resposta:* ${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}\n\n_Digite "${trigger}" para testar!_`);
+            const flagList = [];
+            if (settings.ownerOnly) flagList.push('Dono');
+            if (settings.adminOnly) flagList.push('Admin');
+            if (settings.context === 'group') flagList.push('Grupo');
+            if (settings.context === 'private') flagList.push('Privado');
+            const flagsStr = flagList.length ? `\n*Flags:* ${flagList.join(', ')}` : '';
+            const usageStr = usage ? `\n*Uso:* ${usage}` : '';
+            await reply(`✅ Comando personalizado criado!\n\n*Gatilho:* ${trigger}\n*Resposta:* ${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}${flagsStr}${usageStr}\n\n_Digite "${trigger}" para testar!_`);
           } else {
             await reply('❌ Erro ao salvar o comando personalizado.');
           }
@@ -9969,9 +10043,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             return reply(`📝 *Como usar o comando addcmdmidia:*\n\n1️⃣ Responda uma mídia (imagem, vídeo, áudio ou figurinha)\n2️⃣ Use: ${groupPrefix}addcmdmidia <comando> <legenda opcional>\n\n*Parâmetros disponíveis na legenda:*\n• {prefixo} - Prefixo do bot\n• {nomedono} - Nome do dono\n• {numerodono} - Número do dono\n• {nomebot} - Nome do bot\n• {user} - Nome do usuário\n• {grupo} - Nome do grupo\n\n*Exemplo:*\n${groupPrefix}addcmdmidia logo (respondendo uma imagem)`);
           }
           
-          const args = q.trim().split(' ');
-          const trigger = args[0];
-          const caption = args.slice(1).join(' ') || '';
+          const allTokens = q.trim().split(/ +/);
+          const trigger = allTokens.shift();
+          const parsed = parseCustomCommandMeta(allTokens);
+          const settings = parsed.settings || {};
+          const caption = parsed.rest.join(' ') || '';
+          const addcmdMidiaHelp = `📝 *Como usar o comando addcmdmidia:*\n\n1️⃣ Responda uma mídia (imagem, vídeo, áudio ou figurinha)\n2️⃣ Use: ${groupPrefix}addcmdmidia <comando> [meta...] <legenda opcional>\n\n*Metatags / Flags suportadas:*\n• [owner] — Somente o dono do bot pode usar\n• [admin] — Somente admins do grupo podem usar (somente em grupos)\n• [group] — Restrito a grupos\n• [private] — Restrito ao privado\n• [param:name:required] — Parâmetro posicional obrigatório\n• [param:type:name:optional] — Parâmetro opcional com tipo (e.g., number)\n\n*Placeholders (na legenda):*\n• {prefixo} - Prefixo do bot\n• {nomedono} - Nome do dono\n• {numerodono} - Número do dono\n• {nomebot} - Nome do bot\n• {user} - Nome do usuário\n• {grupo} - Nome do grupo\n\n*Exemplo:*\n${groupPrefix}addcmdmidia logo [private] (respondendo uma imagem)`;
           
           if (!trigger) {
             return reply(`❌ Forneça um nome para o comando.\n\nExemplo: ${groupPrefix}addcmdmidia logo`);
@@ -10024,16 +10101,25 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           }
           
           const commands = loadCustomCommands();
+          const usage = buildUsageFromParams(trigger, settings.params || []);
           commands.push({
             id: Date.now().toString(),
             trigger: normalizedTrigger,
             response: responseData,
             createdAt: new Date().toISOString(),
             createdBy: sender
+          , settings: settings, usage: usage
           });
           
           if (saveCustomCommands(commands)) {
-            await reply(`✅ Comando personalizado com mídia criado!\n\n*Gatilho:* ${trigger}\n*Tipo:* ${responseData.type}\n${caption ? `*Legenda:* ${caption}\n` : ''}\n_Digite "${trigger}" para testar!_`);
+            const flagList = [];
+            if (settings.ownerOnly) flagList.push('Dono');
+            if (settings.adminOnly) flagList.push('Admin');
+            if (settings.context === 'group') flagList.push('Grupo');
+            if (settings.context === 'private') flagList.push('Privado');
+            const flagsStr = flagList.length ? `\n*Flags:* ${flagList.join(', ')}` : '';
+            const usageStr = usage ? `\n*Uso:* ${usage}` : '';
+            await reply(`✅ Comando personalizado com mídia criado!\n\n*Gatilho:* ${trigger}\n*Tipo:* ${responseData.type}\n${caption ? `*Legenda:* ${caption}\n` : ''}${flagsStr}${usageStr}\n_Digite "${trigger}" para testar!_`);
           } else {
             await reply('❌ Erro ao salvar o comando personalizado.');
           }
@@ -10059,10 +10145,17 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           commands.forEach((cmd, index) => {
             const responseInfo = cmd.response;
             const displayTrigger = cmd.trigger;
+            const settings = cmd.settings || {};
+            const flags = [];
+            if (settings.ownerOnly) flags.push('🔐 Dono');
+            if (settings.adminOnly) flags.push('🔐 Admin');
+            if (settings.context === 'group') flags.push('📍 Grupo');
+            if (settings.context === 'private') flags.push('📮 Privado');
+            const flagsText = flags.length ? ` ${flags.join(' ')}` : '';
             
             if (typeof responseInfo === 'string') {
               const preview = responseInfo.length > 50 ? responseInfo.substring(0, 50) + '...' : responseInfo;
-              responseText += `${index + 1}. 📝 *${displayTrigger}*\n   ↳ ${preview}\n\n`;
+              responseText += `${index + 1}. 📝 *${displayTrigger}*${flagsText}\n   ↳ ${preview}\n${cmd.usage ? `   ↳ Uso: ${cmd.usage}\n` : ''}\n`;
             } else if (responseInfo && typeof responseInfo === 'object') {
               const typeEmoji = {
                 text: '📝',
@@ -10071,7 +10164,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
                 audio: '🎵',
                 sticker: '🎭'
               };
-              responseText += `${index + 1}. ${typeEmoji[responseInfo.type] || '📝'} *${displayTrigger}*\n   ↳ Tipo: ${responseInfo.type}`;
+              responseText += `${index + 1}. ${typeEmoji[responseInfo.type] || '📝'} *${displayTrigger}*${flagsText}\n   ↳ Tipo: ${responseInfo.type}${cmd.usage ? `\n   ↳ Uso: ${cmd.usage}` : ''}`;
               if (responseInfo.caption) {
                 responseText += `\n   ↳ Legenda: ${responseInfo.caption.substring(0, 40)}${responseInfo.caption.length > 40 ? '...' : ''}`;
               }
@@ -10164,6 +10257,16 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const testArgsStr = rawParts.slice(1).join(' ');
           const normalizedTrigger = normalizar(testTrigger).replace(/\s+/g, '');
           const cmd = findCustomCommand(normalizedTrigger);
+          const settings = cmd?.settings || {};
+          if (settings && settings.params && settings.params.length) {
+            const argsForTest = testArgsStr || '';
+            const argsListTest = argsForTest.trim().length > 0 ? argsForTest.trim().split(/ +/) : [];
+            const missingTest = settings.params.filter((p, idx) => p.required && !argsListTest[idx]);
+            if (missingTest.length) {
+              const usage = cmd.usage || buildUsageFromParams(cmd.trigger, settings.params);
+              return reply(`❌ Faltam parâmetros obrigatórios: ${missingTest.map(m => m.name).join(', ')}\nUso: ${usage}`);
+            }
+          }
           
           if (!cmd) {
             return reply(`❌ Comando "${q}" não encontrado.\n\nUse ${groupPrefix}listcmd para ver todos os comandos.`);
@@ -10200,6 +10303,10 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             processedResponse = processedResponse.replace(/\{mentions\}/gi, mentionsTextTest);
             const quotedTextTest = (quotedMessageContent && (quotedMessageContent.conversation || quotedMessageContent.extendedTextMessage?.text)) || '';
             processedResponse = processedResponse.replace(/\{quoted\}/gi, quotedTextTest);
+            const groupDescTest = (groupMetadata && groupMetadata.desc) ? groupMetadata.desc : '';
+            const latencyTest = info?.messageTimestamp ? ((Date.now() - info.messageTimestamp * 1000) / 1000).toFixed(3) : null;
+            if (groupDescTest) processedResponse = processedResponse.replace(/\{(?:groupdesc|descricao|desc)\}/gi, groupDescTest);
+            if (latencyTest !== null) processedResponse = processedResponse.replace(/\{(?:velocidade|speed|latency)\}/gi, `${latencyTest}s`);
             
             const mentionedJidsExec = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
             const mentionsToIncludeExec = Array.isArray(mentionedJidsExec) ? mentionedJidsExec : [];
@@ -10228,6 +10335,10 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             content = content.replace(/\{mentions\}/gi, mentionTextExec);
             const quotedEx = (quotedMessageContent && (quotedMessageContent.conversation || quotedMessageContent.extendedTextMessage?.text)) || '';
             content = content.replace(/\{quoted\}/gi, quotedEx);
+            const groupDescText = (groupMetadata && groupMetadata.desc) ? groupMetadata.desc : '';
+            const latencyText = info?.messageTimestamp ? ((Date.now() - info.messageTimestamp * 1000) / 1000).toFixed(3) : null;
+            if (groupDescText) content = content.replace(/\{(?:groupdesc|descricao|desc)\}/gi, groupDescText);
+            if (latencyText !== null) content = content.replace(/\{(?:velocidade|speed|latency)\}/gi, `${latencyText}s`);
             if (mentionsToIncludeExec.length > 0) {
               await reply(content, { mentions: mentionsToIncludeExec });
             } else {
@@ -10260,6 +10371,10 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
               caption = caption.replace(/\{mentions\}/gi, mentionsTextTest);
               const quotedTextTest = (quotedMessageContent && (quotedMessageContent.conversation || quotedMessageContent.extendedTextMessage?.text)) || '';
               caption = caption.replace(/\{quoted\}/gi, quotedTextTest);
+              const groupDescMediaTest = (groupMetadata && groupMetadata.desc) ? groupMetadata.desc : '';
+              const latencyMediaTest = info?.messageTimestamp ? ((Date.now() - info.messageTimestamp * 1000) / 1000).toFixed(3) : null;
+              if (groupDescMediaTest) caption = caption.replace(/\{(?:groupdesc|descricao|desc)\}/gi, groupDescMediaTest);
+              if (latencyMediaTest !== null) caption = caption.replace(/\{(?:velocidade|speed|latency)\}/gi, `${latencyMediaTest}s`);
               
               await nazu.sendMessage(from, {
                 image: imageBuffer,

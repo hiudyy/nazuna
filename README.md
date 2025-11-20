@@ -632,6 +632,28 @@ Hiudy é um entusiasta de tecnologia que se dedica a criar soluções práticas,
 | **Posso usar meu número de telefone principal com o bot?** | **Não é recomendado**. O uso de automação no WhatsApp pode violar os termos de serviço da plataforma, e há um risco real de banimento da sua conta. Para sua segurança, utilize sempre um número de telefone secundário e dedicado exclusivamente ao bot. |
 | **O bot funciona se meu celular estiver offline?** | **Sim!** Graças ao modo multi-dispositivos do WhatsApp, após a configuração inicial, o bot funciona de forma independente e não requer que seu celular esteja conectado à internet. |
 | **Como posso personalizar os comandos e as respostas do bot?** | A personalização é um dos pontos fortes do nazuna Bot! Você pode editar o arquivo `config.json` após a instalação para alterar o prefixo, as mensagens de boas-vindas e outras configurações. Para personalizações mais avançadas, você pode editar diretamente os arquivos de comando na pasta do projeto. |
+
+### 📌 Comandos personalizados (Dono)
+
+Os donos do bot podem criar comandos personalizados avançados que suportam flags, parâmetros obrigatórios/opcionais e restrições de contexto/permissão.
+
+Exemplos de uso:
+- `addcmd saudacao [param:name:required] [admin] Olá {1}, bem-vindo ao {grupo}!` — cria um comando `saudacao` apenas para admins com um parâmetro obrigatório `name`.
+- `addcmdmidia logo [private] [param:filename:optional]` — cria um comando de mídia disponível apenas no privado do bot.
+
+Flags e metas suportadas:
+- `[owner]` — limita o comando ao dono do bot.
+- `[admin]` — limita o comando a administradores do grupo (quando em grupos).
+- `[group]` — o comando só pode ser usado em grupos.
+- `[private]` — o comando só pode ser usado no privado.
+- `[param:name:required]` — define parâmetros posicionalmente, podendo ser `required` ou `optional` e também suportando tipos numéricos: `[param:number:age:required]`.
+
+Placeholders adicionais disponíveis nas respostas:
+- `{groupdesc}` — descrição atual do grupo (se existir)
+- `{velocidade}` ou `{speed}` — latência do bot em segundos
+
+Use `listcmd` para ver os comandos criados, seus flags e o uso (quando definido).
+
 | **O que fazer se meu servidor Pterodactyl travar ou o bot parar de responder?** | Primeiro, verifique os logs do bot no console do Pterodactyl para identificar possíveis erros. Em seguida, tente reiniciar o servidor. Se o problema persistir, verifique se há recursos suficientes (RAM/CPU) alocados para o bot e considere atualizar o bot para a versão mais recente. |
 | **O bot é compatível com outros sistemas além do WhatsApp?** | Atualmente, o nazuna Bot é desenvolvido exclusivamente para WhatsApp. No entanto, nossa arquitetura modular permite que futuras integrações com outras plataformas sejam consideradas. Fique atento às atualizações para possíveis novos recursos! |
 | **Como posso contribuir para o desenvolvimento do nazuna Bot?** | Adoramos contribuições da comunidade! Você pode contribuir de várias formas: reportando bugs, sugerindo novas funcionalidades, traduzindo o bot para outros idiomas, melhorando a documentação, ou mesmo enviando pull requests com melhorias de código. Visite nosso repositório no GitHub para mais detalhes. |

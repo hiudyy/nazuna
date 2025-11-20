@@ -286,3 +286,104 @@ export {
   idsMatch,
   idInArray
 };
+
+/**
+ * Parse custom command meta tokens provided as tokens array (e.g., ['[admin]','[param:name:required]','rest','of','response'])
+ * Returns an object with settings and the remaining tokens
+ */
+function parseCustomCommandMeta(tokens) {
+  const settings = {
+    ownerOnly: false,
+    adminOnly: false,
+    context: 'both', // 'group' | 'private' | 'both'
+    params: [], // { name, required, type }
+    placeholders: {}
+  };
+
+  const rest = [];
+
+  const metaRegex = /^\[(.*)\]$/;
+
+  // consume meta tokens from the start
+  let idx = 0;
+  while (idx < tokens.length) {
+    const t = tokens[idx];
+    const m = t.match(metaRegex);
+    if (!m) break;
+    const content = m[1].trim();
+    if (!content) { idx++; continue; }
+    const parts = content.split(':');
+    const directive = parts[0].toLowerCase();
+    switch (directive) {
+      case 'admin':
+        settings.adminOnly = true;
+        break;
+      case 'owner':
+        settings.ownerOnly = true;
+        break;
+      case 'group':
+        settings.context = 'group';
+        break;
+      case 'private':
+        settings.context = 'private';
+        break;
+      case 'both':
+        settings.context = 'both';
+        break;
+      case 'param': {
+        // syntax: param[:type]:name:required|optional
+        // Examples:
+        // [param:name:required]
+        // [param:number:age:optional]
+        const parts2 = parts.slice(1);
+        let type = 'string';
+        let name = '';
+        let required = false;
+        if (parts2.length === 2) {
+          name = parts2[0];
+          required = parts2[1].toLowerCase() === 'required';
+        } else if (parts2.length === 3) {
+          type = parts2[0].toLowerCase();
+          name = parts2[1];
+          required = parts2[2].toLowerCase() === 'required';
+        } else if (parts2.length === 1) {
+          name = parts2[0];
+        }
+        if (name) {
+          settings.params.push({ name: normalizar(name), required: !!required, type });
+        }
+        break;
+      }
+      case 'placeholder': {
+        // syntax: placeholder:key=value
+        const restParts = content.split(':').slice(1).join(':');
+        const eqIndex = restParts.indexOf('=');
+        if (eqIndex > -1) {
+          const key = restParts.slice(0, eqIndex).trim();
+          const val = restParts.slice(eqIndex + 1).trim();
+          if (key) settings.placeholders[key] = val;
+        }
+        break;
+      }
+      default:
+        // unknown token -> treat as placeholder name or ignore
+        break;
+    }
+    idx++;
+  }
+
+  // remaining tokens
+  for (let j = idx; j < tokens.length; j++) {
+    rest.push(tokens[j]);
+  }
+
+  return { settings, rest };
+}
+
+function buildUsageFromParams(trigger, params = []) {
+  // params = [{ name, required, type }]
+  const parts = params.map(p => p.required ? `<${p.name}>` : `[${p.name}]`);
+  return `${trigger}${parts.length ? ' ' + parts.join(' ') : ''}`;
+}
+
+export { parseCustomCommandMeta, buildUsageFromParams };
