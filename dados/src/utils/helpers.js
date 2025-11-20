@@ -325,7 +325,8 @@ function parseCustomCommandMeta(tokens) {
       partsToProcess = [content];
     }
     for (const raw of partsToProcess) {
-      const contentPart = raw.trim();
+      // Remove any surrounding [ ] from tokens (they may persist in angle groups)
+      const contentPart = ('' + raw).trim().replace(/^\[|\]$/g, '').trim();
       if (!contentPart) continue;
       const parts = contentPart.split(':');
       const directive = parts[0].toLowerCase();
@@ -455,3 +456,11 @@ function parseArgsFromString(input) {
 }
 
 export { parseArgsFromString };
+
+// Escapes a string to be used safely in RegExp construction
+function escapeRegExp(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export { escapeRegExp };

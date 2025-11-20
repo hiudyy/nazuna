@@ -150,7 +150,7 @@ import {
   formatTimeLeft,
   runDatabaseSelfTest
 } from './utils/database.js';
-import { parseCustomCommandMeta, buildUsageFromParams, parseArgsFromString } from './utils/helpers.js';
+import { parseCustomCommandMeta, buildUsageFromParams, parseArgsFromString, escapeRegExp } from './utils/helpers.js';
 import {
   PACKAGE_JSON_PATH,
   CONFIG_FILE,
@@ -2855,8 +2855,12 @@ Código: *${roleCode}*`,
               if (!Object.prototype.hasOwnProperty.call(paramsMap, nm)) continue;
               const val = paramsMap[nm];
               if (typeof val === 'undefined' || val === '') continue;
-              const re = new RegExp('\\{' + nm + '\\}', 'gi');
-              processedResponse = processedResponse.replace(re, val);
+              try {
+                const re = new RegExp('\\{' + escapeRegExp(nm) + '\\}', 'gi');
+                processedResponse = processedResponse.replace(re, val);
+              } catch (err) {
+                console.warn('Warn: Invalid param name during regex replace:', nm, err.message);
+              }
             }
             // mentions: {mention} -> first mentioned, {mentions} -> all mentioned
             const mentionedJids = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
@@ -2909,8 +2913,12 @@ Código: *${roleCode}*`,
                 if (!Object.prototype.hasOwnProperty.call(paramsMapC, nm)) continue;
                 const val = paramsMapC[nm];
                 if (typeof val === 'undefined' || val === '') continue;
-                const re = new RegExp('\\{' + nm + '\\}', 'gi');
-                processedResponse.caption = processedResponse.caption.replace(re, val);
+                try {
+                  const re = new RegExp('\\{' + escapeRegExp(nm) + '\\}', 'gi');
+                  processedResponse.caption = processedResponse.caption.replace(re, val);
+                } catch (err) {
+                  console.warn('Warn: Invalid param name during caption regex replace:', nm, err.message);
+                }
               }
               const mentionedJidsC = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
               let mentionsToIncludeC = Array.isArray(mentionedJidsC) ? mentionedJidsC : [];
@@ -2964,7 +2972,7 @@ Código: *${roleCode}*`,
               if (!Object.prototype.hasOwnProperty.call(paramsMapExec, nm)) continue;
               const val = paramsMapExec[nm];
               if (typeof val === 'undefined' || val === '') continue;
-              const re = new RegExp('\\{' + nm + '\\}', 'gi');
+              const re = new RegExp('\\{' + escapeRegExp(nm) + '\\}', 'gi');
               content = content.replace(re, val);
             }
             // mentions
@@ -10349,8 +10357,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
               if (!Object.prototype.hasOwnProperty.call(paramsMapTest, nm)) continue;
               const val = paramsMapTest[nm];
               if (typeof val === 'undefined' || val === '') continue;
-              const re = new RegExp('\\{' + nm + '\\}', 'gi');
-              processedResponse = processedResponse.replace(re, val);
+              try {
+                const re = new RegExp('\\{' + escapeRegExp(nm) + '\\}', 'gi');
+                processedResponse = processedResponse.replace(re, val);
+              } catch (err) {
+                console.warn('Warn: Invalid param name during test regex replace:', nm, err.message);
+              }
             }
             const mentionedJidsTest = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
             let mentionsToIncludeTest = Array.isArray(mentionedJidsTest) ? mentionedJidsTest : [];
@@ -10394,8 +10406,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
               if (!Object.prototype.hasOwnProperty.call(paramsMapExec, nm)) continue;
               const val = paramsMapExec[nm];
               if (typeof val === 'undefined' || val === '') continue;
-              const re = new RegExp('\\{' + nm + '\\}', 'gi');
-              content = content.replace(re, val);
+              try {
+                const re = new RegExp('\\{' + escapeRegExp(nm) + '\\}', 'gi');
+                content = content.replace(re, val);
+              } catch (err) {
+                console.warn('Warn: Invalid param name during exec regex replace:', nm, err.message);
+              }
             }
             const mentionedJidsExec = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
             let mentionsToIncludeExec = Array.isArray(mentionedJidsExec) ? mentionedJidsExec : [];
@@ -10439,8 +10455,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
                 if (!Object.prototype.hasOwnProperty.call(paramsMapTest, nm)) continue;
                 const val = paramsMapTest[nm];
                 if (typeof val === 'undefined' || val === '') continue;
-                const re = new RegExp('\\{' + nm + '\\}', 'gi');
-                caption = caption.replace(re, val);
+                try {
+                  const re = new RegExp('\\{' + escapeRegExp(nm) + '\\}', 'gi');
+                  caption = caption.replace(re, val);
+                } catch (err) {
+                  console.warn('Warn: Invalid param name during caption test regex replace:', nm, err.message);
+                }
               }
               const mentionedJidsTest = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
               let mentionsToIncludeTest = Array.isArray(mentionedJidsTest) ? mentionedJidsTest : [];
@@ -10482,8 +10502,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
                   if (!Object.prototype.hasOwnProperty.call(paramsMapTest, nm)) continue;
                   const val = paramsMapTest[nm];
                   if (typeof val === 'undefined' || val === '') continue;
-                  const re = new RegExp('\\{' + nm + '\\}', 'gi');
-                  caption = caption.replace(re, val);
+                  try {
+                    const re = new RegExp('\\{' + escapeRegExp(nm) + '\\}', 'gi');
+                    caption = caption.replace(re, val);
+                  } catch (err) {
+                    console.warn('Warn: Invalid param name during video caption test regex replace:', nm, err.message);
+                  }
                 }
                 const mentionedJidsTest = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
                 const mentionsTextTest = Array.isArray(mentionedJidsTest) && mentionedJidsTest.length ? mentionedJidsTest.map(m => '@' + getUserName(m)).join(' ') : '';
