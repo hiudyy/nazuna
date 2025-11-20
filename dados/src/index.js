@@ -150,7 +150,7 @@ import {
   formatTimeLeft,
   runDatabaseSelfTest
 } from './utils/database.js';
-import { parseCustomCommandMeta, buildUsageFromParams } from './utils/helpers.js';
+import { parseCustomCommandMeta, buildUsageFromParams, parseArgsFromString } from './utils/helpers.js';
 import {
   PACKAGE_JSON_PATH,
   CONFIG_FILE,
@@ -2797,7 +2797,7 @@ Código: *${roleCode}*`,
 
           // Verificar parâmetros obrigatórios e tipos (baseado na ordem)
           const allArgsCheck = q || '';
-          const argsListCheck = (allArgsCheck.trim().length > 0) ? allArgsCheck.trim().split(/ +/) : [];
+          const argsListCheck = parseArgsFromString(allArgsCheck);
           if (Array.isArray(settings.params) && settings.params.length) {
             // find missing by index
             const missing = [];
@@ -2820,7 +2820,7 @@ Código: *${roleCode}*`,
             }
           }
 
-          // Substituir parâmetros
+          // Substituir parâmetros (posicionais e por nome)
           let processedResponse = responseData;
           if (typeof processedResponse === 'string') {
             processedResponse = processedResponse
@@ -2832,9 +2832,17 @@ Código: *${roleCode}*`,
               .replace(/{user}/gi, pushname || 'Usuário')
               .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
             
-            // Parâmetros avançados: args, posição e menções
+            // Parâmetros avançados: args, posição, named params e menções
             const allArgs = q || '';
-            const argsList = (allArgs.trim().length > 0) ? allArgs.trim().split(/ +/) : [];
+            const argsList = parseArgsFromString(allArgs);
+            // Map named params for replacement
+            const paramsMap = {};
+            if (Array.isArray(settings.params)) {
+              for (let i = 0; i < settings.params.length; i++) {
+                const p = settings.params[i];
+                paramsMap[p.name] = argsList[i] || '';
+              }
+            }
             // {args} | {all}
             processedResponse = processedResponse.replace(/\{(?:args|all)\}/gi, allArgs);
             // {1}, {2}, ... (1-based index)
@@ -2842,6 +2850,14 @@ Código: *${roleCode}*`,
               const i = parseInt(idx, 10) - 1;
               return argsList[i] || '';
             });
+            // Named parameters replacement: {name}
+            for (const nm in paramsMap) {
+              if (!Object.prototype.hasOwnProperty.call(paramsMap, nm)) continue;
+              const val = paramsMap[nm];
+              if (typeof val === 'undefined' || val === '') continue;
+              const re = new RegExp('\\{' + nm + '\\}', 'gi');
+              processedResponse = processedResponse.replace(re, val);
+            }
             // mentions: {mention} -> first mentioned, {mentions} -> all mentioned
             const mentionedJids = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
             let mentionsToInclude = Array.isArray(mentionedJids) ? mentionedJids : [];
@@ -2876,12 +2892,26 @@ Código: *${roleCode}*`,
                 .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
               // placeholders extras para legenda
               const allArgsC = q || '';
-              const argsListC = (allArgsC.trim().length > 0) ? allArgsC.trim().split(/ +/) : [];
+              const argsListC = parseArgsFromString(allArgsC);
+              const paramsMapC = {};
+              if (Array.isArray(settings.params)) {
+                for (let i = 0; i < settings.params.length; i++) {
+                  const p = settings.params[i];
+                  paramsMapC[p.name] = argsListC[i] || '';
+                }
+              }
               processedResponse.caption = processedResponse.caption.replace(/\{(?:args|all)\}/gi, allArgsC);
               processedResponse.caption = processedResponse.caption.replace(/\{(\d+)\}/g, (m, idx) => {
                 const i = parseInt(idx, 10) - 1;
                 return argsListC[i] || '';
               });
+              for (const nm in paramsMapC) {
+                if (!Object.prototype.hasOwnProperty.call(paramsMapC, nm)) continue;
+                const val = paramsMapC[nm];
+                if (typeof val === 'undefined' || val === '') continue;
+                const re = new RegExp('\\{' + nm + '\\}', 'gi');
+                processedResponse.caption = processedResponse.caption.replace(re, val);
+              }
               const mentionedJidsC = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
               let mentionsToIncludeC = Array.isArray(mentionedJidsC) ? mentionedJidsC : [];
               if (!mentionsToIncludeC.length && typeof menc_os2 !== 'undefined' && menc_os2) {
@@ -2916,12 +2946,27 @@ Código: *${roleCode}*`,
             // substituir placeholders em conteúdo de texto
             let content = processedResponse.content || 'Resposta personalizada';
             const allArgsExec = q || '';
-            const argsListExec = (allArgsExec.trim().length > 0) ? allArgsExec.trim().split(/ +/) : [];
+            const argsListExec = parseArgsFromString(allArgsExec);
+            const paramsMapExec = {};
+            if (Array.isArray(settings.params)) {
+              for (let i = 0; i < settings.params.length; i++) {
+                const p = settings.params[i];
+                paramsMapExec[p.name] = argsListExec[i] || '';
+              }
+            }
             content = content.replace(/\{(?:args|all)\}/gi, allArgsExec);
             content = content.replace(/\{(\d+)\}/g, (m, idx) => {
               const i = parseInt(idx, 10) - 1;
               return argsListExec[i] || '';
             });
+            // Named parameter replacement for {name}
+            for (const nm in paramsMapExec) {
+              if (!Object.prototype.hasOwnProperty.call(paramsMapExec, nm)) continue;
+              const val = paramsMapExec[nm];
+              if (typeof val === 'undefined' || val === '') continue;
+              const re = new RegExp('\\{' + nm + '\\}', 'gi');
+              content = content.replace(re, val);
+            }
             // mentions
             const mentionedJidsExec = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
             let mentionsToIncludeExec = Array.isArray(mentionedJidsExec) ? mentionedJidsExec : [];
@@ -9988,7 +10033,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const settings = parsed.settings || {};
           const responseText = parsed.rest.join(' ');
           const addcmdHelp = `📝 *Como usar o comando addcmd:*
-\n*Adicionar texto:*\n${groupPrefix}addcmd <comando> [meta...] <resposta>\n\n*Adicionar mídia:*\n${groupPrefix}addcmdmidia <comando> [meta...] (respondendo uma mídia)\n\n*Metatags / Flags suportadas:*\n• [owner] — Somente o dono do bot pode usar\n• [admin] — Somente admins do grupo podem usar (somente em grupos)\n• [group] — Restrito a grupos\n• [private] — Restrito ao privado\n• [param:name:required] — Parâmetro posicional obrigatório\n• [param:type:name:optional] — Parâmetro opcional com tipo (e.g., number)\n\n*Placeholders (na resposta):*\n• {prefixo} - Prefixo do bot\n• {nomedono} - Nome do dono\n• {numerodono} - Número do dono\n• {nomebot} - Nome do bot\n• {user} - Nome do usuário\n• {grupo} - Nome do grupo\n• {groupdesc} - Descrição do grupo (se existir)\n• {velocidade} ou {speed} - Latência do bot em segundos\n• {1}, {2}, ... - Argumentos por posição (1-based)\n• {args} ou {all} - Todos os argumentos\n\n*Exemplos:*\n${groupPrefix}addcmd saudacao [param:name:required] [admin] Olá {1}! Bem-vindo ao {grupo}!\n${groupPrefix}addcmdmidia logo [private] [param:filename:optional]`;
+\n*Adicionar texto:*\n${groupPrefix}addcmd <comando> [meta...] <resposta>\n\n*Adicionar mídia:*\n${groupPrefix}addcmdmidia <comando> [meta...] (respondendo uma mídia)\n\n*Metatags / Flags suportadas:*\n• [owner] — Somente o dono do bot pode usar\n• [admin] — Somente admins do grupo podem usar (somente em grupos)\n• [group] — Restrito a grupos\n• [private] — Restrito ao privado\n• [param:name:required] — Parâmetro posicional obrigatório\n• [param:type:name:optional] — Parâmetro opcional com tipo (e.g., number)\n\n*Placeholders (na resposta):*\n• {prefixo} - Prefixo do bot\n• {nomedono} - Nome do dono\n• {numerodono} - Número do dono\n• {nomebot} - Nome do bot\n• {user} - Nome do usuário\n• {grupo} - Nome do grupo\n• {groupdesc} - Descrição do grupo (se existir)\n• {velocidade} ou {speed} - Latência do bot em segundos\n• {1}, {2}, ... - Argumentos por posição (1-based)\n• {args} ou {all} - Todos os argumentos\n\n*Exemplos:*\n${groupPrefix}addcmd saudacao [param:name:required] [admin] Olá {1}! Bem-vindo ao {grupo}!\n${groupPrefix}addcmdmidia logo [private] [param:filename:optional]\n\n*Formato de execução dos parâmetros (quando definido em múltiplos):*\n• Use separadores: "/" ou "|" ou espaço.\n• Exemplo de execução: ${groupPrefix}meucomando valor1/valor2 ou ${groupPrefix}meucomando valor1 | valor2 ou ${groupPrefix}meucomando valor1 valor2.\n• Se o comando foi criado com: ${groupPrefix}addcmd nomecmd <[sla:required]/[sla2:required]>, para executar: ${groupPrefix}nomecmd abc/123 que preencherá {sla} com abc e {sla2} com 123.`;
           
           if (!responseText && !quotedMessageContent) {
             return reply(`❌ Forneça uma resposta em texto ou responda uma mídia.\n\nExemplo: ${groupPrefix}addcmd bemvindo Seja bem-vindo ao grupo!`);
@@ -10257,7 +10302,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const settings = cmd?.settings || {};
           if (settings && settings.params && settings.params.length) {
             const argsForTest = testArgsStr || '';
-            const argsListTest = argsForTest.trim().length > 0 ? argsForTest.trim().split(/ +/) : [];
+            const argsListTest = parseArgsFromString(argsForTest);
             const missingTest = settings.params.filter((p, idx) => p.required && !argsListTest[idx]);
             if (missingTest.length) {
               const usage = cmd.usage || buildUsageFromParams(cmd.trigger, settings.params);
@@ -10286,12 +10331,27 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
               .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
             // extras de teste: args/posições/menção/quoted
             const testArgs = testArgsStr || '';
-            const argsListTest = (testArgs.trim().length > 0) ? testArgs.trim().split(/ +/) : [];
+            const argsListTest = parseArgsFromString(testArgs);
+            const paramsMapTest = {};
+            if (Array.isArray(settings.params)) {
+              for (let i = 0; i < settings.params.length; i++) {
+                const p = settings.params[i];
+                paramsMapTest[p.name] = argsListTest[i] || '';
+              }
+            }
             processedResponse = processedResponse.replace(/\{(?:args|all)\}/gi, testArgs);
             processedResponse = processedResponse.replace(/\{(\d+)\}/g, (m, idx) => {
               const i = parseInt(idx, 10) - 1;
               return argsListTest[i] || '';
             });
+            // Named param replacements in test mode
+            for (const nm in paramsMapTest) {
+              if (!Object.prototype.hasOwnProperty.call(paramsMapTest, nm)) continue;
+              const val = paramsMapTest[nm];
+              if (typeof val === 'undefined' || val === '') continue;
+              const re = new RegExp('\\{' + nm + '\\}', 'gi');
+              processedResponse = processedResponse.replace(re, val);
+            }
             const mentionedJidsTest = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
             let mentionsToIncludeTest = Array.isArray(mentionedJidsTest) ? mentionedJidsTest : [];
             if (!mentionsToIncludeTest.length && typeof menc_os2 !== 'undefined' && menc_os2) mentionsToIncludeTest = [menc_os2];
@@ -10316,12 +10376,27 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             let content = processedResponse.content || 'Resposta personalizada';
             // replacing with test args
             const allArgsExec = testArgsStr || '';
-            const argsListExec = (allArgsExec.trim().length > 0) ? allArgsExec.trim().split(/ +/) : [];
+            const argsListExec = parseArgsFromString(allArgsExec);
+            const paramsMapExec = {};
+            if (Array.isArray(settings.params)) {
+              for (let i = 0; i < settings.params.length; i++) {
+                const p = settings.params[i];
+                paramsMapExec[p.name] = argsListExec[i] || '';
+              }
+            }
             content = content.replace(/\{(?:args|all)\}/gi, allArgsExec);
             content = content.replace(/\{(\d+)\}/g, (m, idx) => {
               const i = parseInt(idx, 10) - 1;
               return argsListExec[i] || '';
             });
+            // replace named params
+            for (const nm in paramsMapExec) {
+              if (!Object.prototype.hasOwnProperty.call(paramsMapExec, nm)) continue;
+              const val = paramsMapExec[nm];
+              if (typeof val === 'undefined' || val === '') continue;
+              const re = new RegExp('\\{' + nm + '\\}', 'gi');
+              content = content.replace(re, val);
+            }
             const mentionedJidsExec = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
             let mentionsToIncludeExec = Array.isArray(mentionedJidsExec) ? mentionedJidsExec : [];
             if (!mentionsToIncludeExec.length && typeof menc_os2 !== 'undefined' && menc_os2) {
@@ -10357,9 +10432,16 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
               caption = caption.replace(/\{(?:args|all)\}/gi, testArgsStr || '');
               caption = caption.replace(/\{(\d+)\}/g, (m, idx) => {
                 const i = parseInt(idx, 10) - 1;
-                const list = (testArgsStr || '').trim().length ? (testArgsStr || '').trim().split(/ +/) : [];
-                return list[i] || '';
+                return argsListTest[i] || '';
               });
+              // Named param replacements in caption for media
+              for (const nm in paramsMapTest) {
+                if (!Object.prototype.hasOwnProperty.call(paramsMapTest, nm)) continue;
+                const val = paramsMapTest[nm];
+                if (typeof val === 'undefined' || val === '') continue;
+                const re = new RegExp('\\{' + nm + '\\}', 'gi');
+                caption = caption.replace(re, val);
+              }
               const mentionedJidsTest = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
               let mentionsToIncludeTest = Array.isArray(mentionedJidsTest) ? mentionedJidsTest : [];
               if (!mentionsToIncludeTest.length && typeof menc_os2 !== 'undefined' && menc_os2) mentionsToIncludeTest = [menc_os2];
@@ -10393,9 +10475,16 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
                 caption = caption.replace(/\{(?:args|all)\}/gi, testArgsStr || '');
                 caption = caption.replace(/\{(\d+)\}/g, (m, idx) => {
                   const i = parseInt(idx, 10) - 1;
-                  const list = (testArgsStr || '').trim().length ? (testArgsStr || '').trim().split(/ +/) : [];
-                  return list[i] || '';
+                  return argsListTest[i] || '';
                 });
+                // Named param replacements in video caption
+                for (const nm in paramsMapTest) {
+                  if (!Object.prototype.hasOwnProperty.call(paramsMapTest, nm)) continue;
+                  const val = paramsMapTest[nm];
+                  if (typeof val === 'undefined' || val === '') continue;
+                  const re = new RegExp('\\{' + nm + '\\}', 'gi');
+                  caption = caption.replace(re, val);
+                }
                 const mentionedJidsTest = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
                 const mentionsTextTest = Array.isArray(mentionedJidsTest) && mentionedJidsTest.length ? mentionedJidsTest.map(m => '@' + getUserName(m)).join(' ') : '';
                 caption = caption.replace(/\{mention\}/gi, mentionsTextTest);

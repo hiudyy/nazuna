@@ -303,18 +303,33 @@ function parseCustomCommandMeta(tokens) {
   const rest = [];
 
   const metaRegex = /^\[(.*)\]$/;
+  const angleRegex = /^<(.*)>$/;
 
   // consume meta tokens from the start
   let idx = 0;
   while (idx < tokens.length) {
     const t = tokens[idx];
-    const m = t.match(metaRegex);
-    if (!m) break;
-    const content = m[1].trim();
-    if (!content) { idx++; continue; }
-    const parts = content.split(':');
-    const directive = parts[0].toLowerCase();
-    switch (directive) {
+    // support angle brackets grouping: <[param:a:required]/[param:b:optional]>
+    const angleMatch = ('' + t).match(angleRegex);
+    let partsToProcess = [];
+    if (angleMatch) {
+      // split inside by delimiters: / or | or , or space
+      const inner = angleMatch[1].trim();
+      // split tokens inside - they might be bracket tokens
+      const innerParts = inner.split(/\s*[/|,]+\s*|\s+/).filter(Boolean);
+      partsToProcess = innerParts;
+    } else {
+      const m = t.match(metaRegex);
+      if (!m) break;
+      const content = m[1].trim();
+      partsToProcess = [content];
+    }
+    for (const raw of partsToProcess) {
+      const contentPart = raw.trim();
+      if (!contentPart) continue;
+      const parts = contentPart.split(':');
+      const directive = parts[0].toLowerCase();
+      switch (directive) {
       case 'admin':
         settings.adminOnly = true;
         break;
@@ -365,9 +380,40 @@ function parseCustomCommandMeta(tokens) {
         }
         break;
       }
-      default:
-        // unknown token -> treat as placeholder name or ignore
+      default: {
+        // unknown token -> fallback to param parsing if it looks like a param
+        // Accept patterns like: name:required OR type:name:required OR name:type:required OR name
+        const fallbackParts = parts;
+        // Determine required by last part
+        const last = fallbackParts[fallbackParts.length - 1].toLowerCase();
+        const required = last === 'required' || last === 'optional' ? last === 'required' : false;
+        // find type if any
+        let type = 'string';
+        let name = null;
+        // remove last if it's required/optional
+        const coreParts = required ? fallbackParts.slice(0, -1) : fallbackParts.slice();
+        // find a recognized type token
+        const recognizedTypes = ['number', 'int', 'float', 'string'];
+        let idxType = coreParts.findIndex(p => recognizedTypes.includes(p.toLowerCase()));
+        if (idxType !== -1) {
+          type = coreParts[idxType].toLowerCase();
+          // remove type from coreParts
+          coreParts.splice(idxType, 1);
+        }
+        // the remaining part(s) likely hold the name; prefer the first non-empty
+        for (const p2 of coreParts) {
+          if (p2 && !recognizedTypes.includes(p2.toLowerCase())) {
+            name = p2;
+            break;
+          }
+        }
+        if (!name && coreParts.length > 0) name = coreParts[0];
+        if (name) {
+          settings.params.push({ name: normalizar(name), required: !!required, type });
+        }
         break;
+      }
+    }
     }
     idx++;
   }
@@ -387,3 +433,25 @@ function buildUsageFromParams(trigger, params = []) {
 }
 
 export { parseCustomCommandMeta, buildUsageFromParams };
+
+/**
+ * Parse argument string using delimiters like | or / or spaces and supports angle bracket wrap <...>
+ * Returns array of tokens
+ */
+function parseArgsFromString(input) {
+  const s = (input || '').trim();
+  if (!s) return [];
+  let inner = s;
+  if (inner.startsWith('<') && inner.endsWith('>')) {
+    inner = inner.slice(1, -1).trim();
+  }
+  if (inner.includes('|')) {
+    return inner.split(/\s*\|\s*/).map(x => x.trim()).filter(Boolean);
+  }
+  if (inner.includes('/')) {
+    return inner.split(/\s*\/\s*/).map(x => x.trim()).filter(Boolean);
+  }
+  return inner.split(/\s+/).filter(Boolean);
+}
+
+export { parseArgsFromString };

@@ -652,6 +652,10 @@ Placeholders adicionais disponíveis nas respostas:
 - `{groupdesc}` — descrição atual do grupo (se existir)
 - `{velocidade}` ou `{speed}` — latência do bot em segundos
 
+Execução de parâmetros:
+- Se você definiu múltiplos parâmetros, os usuários podem passá-los usando `/`, `|` ou espaços.
+- Exemplo: Se o comando foi criado assim: `addcmd nomecmd <[sla:required]/[sla2:required]>`, o usuário pode executar com: `nomecmd valor1/valor2`, `nomecmd valor1 | valor2` ou `nomecmd valor1 valor2`.
+
 Use `listcmd` para ver os comandos criados, seus flags e o uso (quando definido).
 
 | **O que fazer se meu servidor Pterodactyl travar ou o bot parar de responder?** | Primeiro, verifique os logs do bot no console do Pterodactyl para identificar possíveis erros. Em seguida, tente reiniciar o servidor. Se o problema persistir, verifique se há recursos suficientes (RAM/CPU) alocados para o bot e considere atualizar o bot para a versão mais recente. |
