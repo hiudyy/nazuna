@@ -351,22 +351,66 @@ function parseCustomCommandMeta(tokens) {
         // Examples:
         // [param:name:required]
         // [param:number:age:optional]
-        const parts2 = parts.slice(1);
+        const parts2 = parts.slice(1).filter(Boolean);
         let type = 'string';
         let name = '';
         let required = false;
-        if (parts2.length === 2) {
-          name = parts2[0];
-          required = parts2[1].toLowerCase() === 'required';
-        } else if (parts2.length === 3) {
-          type = parts2[0].toLowerCase();
-          name = parts2[1];
-          required = parts2[2].toLowerCase() === 'required';
-        } else if (parts2.length === 1) {
-          name = parts2[0];
+        let restFlag = false;
+        let min = undefined;
+        let max = undefined;
+        let def = undefined;
+        let regex = undefined;
+        let enumVals = undefined;
+        // parts2 can contain type/name/required/rest/min=.../max=.../default=.../regex=.../enum=val1|val2
+        for (let tok of parts2) {
+          tok = tok.trim();
+          if (!tok) continue;
+          const tl = tok.toLowerCase();
+          if (tl === 'required') {
+            required = true;
+            continue;
+          }
+          if (tl === 'optional') {
+            required = false;
+            continue;
+          }
+          if (tl === 'rest' || tl === '...') {
+            restFlag = true;
+            continue;
+          }
+          // key=value
+          if (tok.includes('=')) {
+            const [k, ...restParts2] = tok.split('=');
+            const v = restParts2.join('=');
+            const key = k.trim().toLowerCase();
+            if (key === 'min') min = Number(v);
+            else if (key === 'max') max = Number(v);
+            else if (key === 'default' || key === 'def') def = v;
+            else if (key === 'regex' || key === 'pattern') regex = v;
+            else if (key === 'enum') {
+              enumVals = v.split('|').map(x => x.trim()).filter(Boolean);
+            }
+            continue;
+          }
+          // if recognized types
+          const recognizedTypes = ['number', 'int', 'float', 'string', 'boolean', 'regex', 'enum'];
+          if (recognizedTypes.includes(tl)) {
+            type = tl;
+            continue;
+          }
+          // fallback: treat as name
+          if (!name) name = tok;
         }
+        if (!name && parts2.length > 0) name = parts2[0];
         if (name) {
-          settings.params.push({ name: normalizar(name), required: !!required, type });
+          const pName = normalizeParamName(name);
+          const paramObj = { name: pName, required: !!required, type, rest: !!restFlag };
+          if (min !== undefined) paramObj.min = min;
+          if (max !== undefined) paramObj.max = max;
+          if (def !== undefined) paramObj.default = def;
+          if (regex !== undefined) paramObj.pattern = regex;
+          if (enumVals !== undefined) paramObj.enum = enumVals;
+          settings.params.push(paramObj);
         }
         break;
       }
@@ -428,8 +472,16 @@ function parseCustomCommandMeta(tokens) {
 }
 
 function buildUsageFromParams(trigger, params = []) {
-  // params = [{ name, required, type }]
-  const parts = params.map(p => p.required ? `<${p.name}>` : `[${p.name}]`);
+  // params = [{ name, required, type, default, min, max, rest, enum }]
+  const parts = params.map(p => {
+    const type = (p.type || 'string');
+    const rest = p.rest ? '...' : '';
+    const def = typeof p.default !== 'undefined' ? `=${p.default}` : '';
+    const minMax = (typeof p.min !== 'undefined' || typeof p.max !== 'undefined') ? `:${p.min || ''}-${p.max || ''}` : '';
+    const enumList = Array.isArray(p.enum) && p.enum.length ? `:${p.enum.join('|')}` : '';
+    const core = `${p.name}:${type}${rest}${def}${minMax}${enumList}`;
+    return p.required ? `<${core}>` : `[${core}]`;
+  });
   return `${trigger}${parts.length ? ' ' + parts.join(' ') : ''}`;
 }
 
@@ -464,3 +516,67 @@ function escapeRegExp(str) {
 }
 
 export { escapeRegExp };
+
+// Ensure a parameter name is valid: lowercase, diacritics stripped, spaces -> underscores, only a-z0-9_ chars
+function normalizeParamName(name) {
+  if (!name || typeof name !== 'string') return '';
+  const n = normalizar(name || '');
+  // replace non-alphanumeric/underscore with underscore
+  return n.replace(/[^a-z0-9_]/g, '_');
+}
+
+// Validate a parameter value against its definition
+function validateParamValue(value, def = {}) {
+  if (typeof def !== 'object') return { ok: true };
+  const t = def.type || 'string';
+  if ((typeof value === 'undefined' || value === null || value === '') && typeof def.default !== 'undefined') {
+    value = def.default;
+  }
+  if ((typeof value === 'undefined' || value === null || value === '') && def.required) {
+    return { ok: false, message: `Parâmetro ${def.name} é obrigatório.` };
+  }
+  if (typeof value === 'undefined' || value === null || value === '') return { ok: true };
+  switch (t) {
+    case 'int': {
+      const n = Number(value);
+      if (isNaN(n) || !Number.isInteger(n)) return { ok: false, message: `Parâmetro ${def.name} deve ser um inteiro.` };
+      if (def.min !== undefined && n < def.min) return { ok: false, message: `Parâmetro ${def.name} deve ser >= ${def.min}.` };
+      if (def.max !== undefined && n > def.max) return { ok: false, message: `Parâmetro ${def.name} deve ser <= ${def.max}.` };
+      return { ok: true };
+    }
+    case 'float':
+    case 'number': {
+      const n = Number(value);
+      if (isNaN(n)) return { ok: false, message: `Parâmetro ${def.name} deve ser numérico.` };
+      if (def.min !== undefined && n < def.min) return { ok: false, message: `Parâmetro ${def.name} deve ser >= ${def.min}.` };
+      if (def.max !== undefined && n > def.max) return { ok: false, message: `Parâmetro ${def.name} deve ser <= ${def.max}.` };
+      return { ok: true };
+    }
+    case 'boolean': {
+      const lv = ('' + value).toLowerCase();
+      if (!['true', 'false', '1', '0', 'yes', 'no', 'sim', 'nao', 'não'].includes(lv)) {
+        return { ok: false, message: `Parâmetro ${def.name} deve ser booleano (true/false).` };
+      }
+      return { ok: true };
+    }
+    case 'regex': {
+      try {
+        const re = new RegExp(def.pattern);
+        return re.test(value) ? { ok: true } : { ok: false, message: `Parâmetro ${def.name} não corresponde ao padrão.` };
+      } catch (e) {
+        return { ok: false, message: `Padrão regex inválido: ${def.pattern}` };
+      }
+    }
+    case 'enum': {
+      if (Array.isArray(def.enum) && def.enum.length && !def.enum.includes(value)) {
+        return { ok: false, message: `Parâmetro ${def.name} deve ser um de: ${def.enum.join(', ')}` };
+      }
+      return { ok: true };
+    }
+    default:
+      // string, default accepts
+      return { ok: true };
+  }
+}
+
+export { normalizeParamName, validateParamValue };

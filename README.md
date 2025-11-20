@@ -638,8 +638,14 @@ Hiudy é um entusiasta de tecnologia que se dedica a criar soluções práticas,
 Os donos do bot podem criar comandos personalizados avançados que suportam flags, parâmetros obrigatórios/opcionais e restrições de contexto/permissão.
 
 Exemplos de uso:
-- `addcmd saudacao [param:name:required] [admin] Olá {1}, bem-vindo ao {grupo}!` — cria um comando `saudacao` apenas para admins com um parâmetro obrigatório `name`.
-- `addcmdmidia logo [private] [param:filename:optional]` — cria um comando de mídia disponível apenas no privado do bot.
+- `addcmd saudacao [param:string:name:required] [admin] Olá {name}, bem-vindo ao {grupo}!` — cria um comando `saudacao` apenas para admins com um parâmetro obrigatório `name`.
+- `addcmd roll [param:number:count:required:min=1:max=100] Sorteando {count} vezes...` — comando que aceita apenas números e verifica limites.
+- `addcmd cor [param:enum:color:required:enum=red|green|blue] Você escolheu {color}.` — apenas permite valores do conjunto enum.
+- `addcmd bio [param:string:description:rest:optional] Novo perfil: {description}` — o parâmetro `description` captura o restante da mensagem (útil para textos com espaços).
+- `addcmd pin [param:regex:pin:required:pattern=^\\d{4}$] PIN configurado: {pin}` — valida por regex (ex: PIN com 4 dígitos).
+- `addcmd allow [param:boolean:enabled:optional] Status: {enabled}` — aceita booleanos.
+- `addcmdmidia logo [private] [param:string:filename:optional]` — cria um comando de mídia disponível apenas no privado do bot, o parâmetro `filename` pode ser usado na legenda.
+- `addcmd saudacao [param:string:name:required] Olá {name}!` — edita o comando `saudacao`, atualizando a meta e a resposta.
 
 Flags e metas suportadas:
 - `[owner]` — limita o comando ao dono do bot.
@@ -657,6 +663,8 @@ Execução de parâmetros:
 - Exemplo: Se o comando foi criado assim: `addcmd nomecmd <[sla:required]/[sla2:required]>`, o usuário pode executar com: `nomecmd valor1/valor2`, `nomecmd valor1 | valor2` ou `nomecmd valor1 valor2`.
 
 Use `listcmd` para ver os comandos criados, seus flags e o uso (quando definido).
+
+Nota: Os `name` dos parâmetros são normalizados para minúsculas e underscores; ex: `First Name` vira `{first_name}`.
 
 | **O que fazer se meu servidor Pterodactyl travar ou o bot parar de responder?** | Primeiro, verifique os logs do bot no console do Pterodactyl para identificar possíveis erros. Em seguida, tente reiniciar o servidor. Se o problema persistir, verifique se há recursos suficientes (RAM/CPU) alocados para o bot e considere atualizar o bot para a versão mais recente. |
 | **O bot é compatível com outros sistemas além do WhatsApp?** | Atualmente, o nazuna Bot é desenvolvido exclusivamente para WhatsApp. No entanto, nossa arquitetura modular permite que futuras integrações com outras plataformas sejam consideradas. Fique atento às atualizações para possíveis novos recursos! |

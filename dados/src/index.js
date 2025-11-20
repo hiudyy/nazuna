@@ -150,7 +150,7 @@ import {
   formatTimeLeft,
   runDatabaseSelfTest
 } from './utils/database.js';
-import { parseCustomCommandMeta, buildUsageFromParams, parseArgsFromString, escapeRegExp } from './utils/helpers.js';
+import { parseCustomCommandMeta, buildUsageFromParams, parseArgsFromString, escapeRegExp, validateParamValue } from './utils/helpers.js';
 import {
   PACKAGE_JSON_PATH,
   CONFIG_FILE,
@@ -2797,20 +2797,30 @@ Código: *${roleCode}*`,
 
           // Verificar parâmetros obrigatórios e tipos (baseado na ordem)
           const allArgsCheck = q || '';
-          const argsListCheck = parseArgsFromString(allArgsCheck);
+          let argsListCheck = parseArgsFromString(allArgsCheck);
           if (Array.isArray(settings.params) && settings.params.length) {
-            // find missing by index
+            // Handle rest params: if last param has rest: true, capture remainder
+            const restIndex = settings.params.findIndex(p => p.rest);
+            if (restIndex !== -1 && restIndex < settings.params.length) {
+              if (argsListCheck.length > restIndex) {
+                const restVal = argsListCheck.slice(restIndex).join(' ');
+                argsListCheck = argsListCheck.slice(0, restIndex);
+                argsListCheck[restIndex] = restVal;
+              }
+            }
             const missing = [];
             for (let i = 0; i < settings.params.length; i++) {
               const p = settings.params[i];
-              if (p.required && (typeof argsListCheck[i] === 'undefined' || argsListCheck[i] === '')) missing.push(p.name);
-              // type checking
-              if (typeof argsListCheck[i] !== 'undefined' && argsListCheck[i] !== '') {
-                const val = argsListCheck[i];
-                if (p.type === 'number' || p.type === 'int' || p.type === 'float') {
-                  if (isNaN(Number(val))) {
-                    return reply(`❌ Parâmetro inválido: ${p.name} deve ser numérico.`);
-                  }
+              let val = typeof argsListCheck[i] !== 'undefined' ? argsListCheck[i] : '';
+              if ((val === '' || typeof val === 'undefined') && typeof p.default !== 'undefined') {
+                val = p.default;
+                argsListCheck[i] = val;
+              }
+              if (p.required && (typeof val === 'undefined' || val === '')) missing.push(p.name);
+              if (typeof val !== 'undefined' && val !== '') {
+                const check = validateParamValue(val, p);
+                if (!check.ok) {
+                  return reply(`❌ Parâmetro inválido: ${check.message}`);
                 }
               }
             }
@@ -2822,6 +2832,45 @@ Código: *${roleCode}*`,
 
           // Substituir parâmetros (posicionais e por nome)
           let processedResponse = responseData;
+          const allArgs = q || '';
+          let argsList = typeof argsListCheck !== 'undefined' ? argsListCheck : parseArgsFromString(allArgs);
+          // Support named args like key=value
+          if (Array.isArray(argsList) && argsList.some(t => t.includes('='))) {
+            const namedMap = {};
+            const remainingPositional = [];
+            for (const t of argsList) {
+              const idxEq = t.indexOf('=');
+              if (idxEq > 0) {
+                const k = normalizar(t.slice(0, idxEq)).replace(/\s+/g, '_');
+                const v = t.slice(idxEq + 1);
+                namedMap[k] = v;
+              } else {
+                remainingPositional.push(t);
+              }
+            }
+            const remArgs = [];
+            if (Array.isArray(settings.params) && settings.params.length) {
+              for (let i = 0; i < settings.params.length; i++) {
+                const p = settings.params[i];
+                const nm = p.name;
+                if (Object.prototype.hasOwnProperty.call(namedMap, nm)) {
+                  remArgs[i] = namedMap[nm];
+                } else {
+                  remArgs[i] = remainingPositional.length ? remainingPositional.shift() : '';
+                }
+              }
+            } else {
+              // no param meta, just keep positional
+              remArgs.push(...remainingPositional);
+            }
+            // handle rest param capturing: if rest param found as last
+            const restIndexLocal = (settings.params || []).findIndex(p => p.rest);
+            if (restIndexLocal !== -1 && restIndexLocal < remArgs.length) {
+              const restVal = remArgs.slice(restIndexLocal).join(' ');
+              remArgs.splice(restIndexLocal, remArgs.length - restIndexLocal, restVal);
+            }
+            argsList = remArgs;
+          }
           if (typeof processedResponse === 'string') {
             processedResponse = processedResponse
               .replace(/{prefixo}/gi, groupPrefix)
@@ -2834,7 +2883,8 @@ Código: *${roleCode}*`,
             
             // Parâmetros avançados: args, posição, named params e menções
             const allArgs = q || '';
-            const argsList = parseArgsFromString(allArgs);
+            // re-use processed argsList from validation phase if available (argsListCheck), otherwise parse
+            let argsList = typeof argsListCheck !== 'undefined' ? argsListCheck : parseArgsFromString(allArgs);
             // Map named params for replacement
             const paramsMap = {};
             if (Array.isArray(settings.params)) {
@@ -2895,8 +2945,7 @@ Código: *${roleCode}*`,
                 .replace(/{user}/gi, pushname || 'Usuário')
                 .replace(/{grupo}/gi, isGroup ? groupName : 'Privado');
               // placeholders extras para legenda
-              const allArgsC = q || '';
-              const argsListC = parseArgsFromString(allArgsC);
+              const argsListC = argsList;
               const paramsMapC = {};
               if (Array.isArray(settings.params)) {
                 for (let i = 0; i < settings.params.length; i++) {
@@ -2953,8 +3002,7 @@ Código: *${roleCode}*`,
           } else if (processedResponse.type === 'text') {
             // substituir placeholders em conteúdo de texto
             let content = processedResponse.content || 'Resposta personalizada';
-            const allArgsExec = q || '';
-            const argsListExec = parseArgsFromString(allArgsExec);
+            const argsListExec = argsList;
             const paramsMapExec = {};
             if (Array.isArray(settings.params)) {
               for (let i = 0; i < settings.params.length; i++) {
@@ -10040,8 +10088,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const parsed = parseCustomCommandMeta(allTokens);
           const settings = parsed.settings || {};
           const responseText = parsed.rest.join(' ');
-          const addcmdHelp = `📝 *Como usar o comando addcmd:*
-\n*Adicionar texto:*\n${groupPrefix}addcmd <comando> [meta...] <resposta>\n\n*Adicionar mídia:*\n${groupPrefix}addcmdmidia <comando> [meta...] (respondendo uma mídia)\n\n*Metatags / Flags suportadas:*\n• [owner] — Somente o dono do bot pode usar\n• [admin] — Somente admins do grupo podem usar (somente em grupos)\n• [group] — Restrito a grupos\n• [private] — Restrito ao privado\n• [param:name:required] — Parâmetro posicional obrigatório\n• [param:type:name:optional] — Parâmetro opcional com tipo (e.g., number)\n\n*Placeholders (na resposta):*\n• {prefixo} - Prefixo do bot\n• {nomedono} - Nome do dono\n• {numerodono} - Número do dono\n• {nomebot} - Nome do bot\n• {user} - Nome do usuário\n• {grupo} - Nome do grupo\n• {groupdesc} - Descrição do grupo (se existir)\n• {velocidade} ou {speed} - Latência do bot em segundos\n• {1}, {2}, ... - Argumentos por posição (1-based)\n• {args} ou {all} - Todos os argumentos\n\n*Exemplos:*\n${groupPrefix}addcmd saudacao [param:name:required] [admin] Olá {1}! Bem-vindo ao {grupo}!\n${groupPrefix}addcmdmidia logo [private] [param:filename:optional]\n\n*Formato de execução dos parâmetros (quando definido em múltiplos):*\n• Use separadores: "/" ou "|" ou espaço.\n• Exemplo de execução: ${groupPrefix}meucomando valor1/valor2 ou ${groupPrefix}meucomando valor1 | valor2 ou ${groupPrefix}meucomando valor1 valor2.\n• Se o comando foi criado com: ${groupPrefix}addcmd nomecmd <[sla:required]/[sla2:required]>, para executar: ${groupPrefix}nomecmd abc/123 que preencherá {sla} com abc e {sla2} com 123.`;
+          const addcmdHelp = `📝 *Como usar o comando addcmd:*\n\n*Adicionar texto:*\n${groupPrefix}addcmd <comando> [meta...] <resposta>\n\n*Adicionar mídia:*\n${groupPrefix}addcmdmidia <comando> [meta...] (respondendo uma mídia)\n\n*Metatags / Flags suportadas:*\n• [owner] — Somente o dono do bot pode usar\n• [admin] — Somente admins do grupo podem usar (somente em grupos)\n• [group] — Restrito a grupos\n• [private] — Restrito ao privado\n• [param:type:name:required] — Parâmetro posicional (informe type e name).\n• [param:type:name:rest] — Define que o parâmetro captura o resto da mensagem (último parâmetro).\n• [param:type:name:min=1:max=10:default=5] — Números com limites e valor padrão.\n• [param:regex:name:pattern=^\\\d+$] — Validação por regex.\n• [param:enum:name:enum=a|b|c] — Valor deve ser um dos listados (enum).\n\n*Placeholders (na resposta):*\n• {prefixo} - Prefixo do bot\n• {nomedono} - Nome do dono\n• {numerodono} - Número do dono\n• {nomebot} - Nome do bot\n• {user} - Nome do usuário\n• {grupo} - Nome do grupo\n• {groupdesc} - Descrição do grupo (se existir)\n• {velocidade} ou {speed} - Latência do bot em segundos\n• {1}, {2}, ... - Argumentos por posição (1-based)\n• {args} ou {all} - Todos os argumentos\n\n*Exemplos:*\n• Texto simples:\n${groupPrefix}addcmd saudacao [param:string:name:required] [admin] Olá {name}! Bem-vindo ao {grupo}!\n• Parâmetro numérico com min/max:\n${groupPrefix}addcmd roll [param:number:count:required:min=1:max=100] Sorteando {count} vezes...\n• Parâmetro enum (apenas valores permitidos):\n${groupPrefix}addcmd cor [param:enum:color:required:enum=red|green|blue] Você escolheu {color}.\n• Parâmetro rest (captura texto com espaços):\n${groupPrefix}addcmd bio [param:string:description:rest:optional] Novo perfil: {description}\n• Regex validation (PIN de 4 dígitos):\n${groupPrefix}addcmd pin [param:regex:pin:required:pattern=^\\\d{4}$] PIN configurado: {pin}\n• Parâmetro booleano (aceita true/false/yes/no):\n${groupPrefix}addcmd allow [param:boolean:enabled:optional] Status: {enabled}\n• Edição de comando:\n${groupPrefix}edcmd saudacao [param:string:name:required] Olá {name}! (altera resposta e meta do comando existente)\n• Mídia com legenda e parâmetro:\n${groupPrefix}addcmdmidia logo [private] [param:string:filename:optional] (responder uma imagem com legenda que aceita {filename})\n\n*Formato de execução dos parâmetros (quando definidos em múltiplos):*\n• Use separadores: "/" ou "|" ou espaço.\n• Exemplo de execução: ${groupPrefix}meucomando valor1/valor2 ou ${groupPrefix}meucomando valor1 | valor2 ou ${groupPrefix}meucomando valor1 valor2.\n• Se o comando foi criado com: ${groupPrefix}addcmd nomecmd <[sla:required]/[sla2:required]>, para executar: ${groupPrefix}nomecmd abc/123 que preencherá {sla} com abc e {sla2} com 123.`;
           
           if (!responseText && !quotedMessageContent) {
             return reply(addcmdHelp);
@@ -10084,6 +10131,95 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         }
         break;
 
+      case 'edcmd':
+      case 'editcmd':
+        try {
+          if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
+          if (!q) return reply(`❌ Forneça o gatilho do comando a ser editado. Ex: ${groupPrefix}edcmd saudacao [param:name:required] Nova resposta aqui`);
+          const allTokens = q.trim().split(/ +/);
+          const trigger = allTokens.shift();
+          if (!trigger) return reply(`❌ Forneça o gatilho do comando a ser editado.`);
+          const normalizedTrigger = normalizar(trigger).replace(/\s+/g, '');
+          const existingCmd = findCustomCommand(normalizedTrigger);
+          if (!existingCmd) return reply(`❌ Comando ${trigger} não encontrado.`);
+          const parsed = parseCustomCommandMeta(allTokens);
+          const settings = parsed.settings || existingCmd.settings || {};
+          const responseText = parsed.rest.join(' ');
+          const updatedCmd = { ...existingCmd };
+          if (responseText) updatedCmd.response = responseText;
+          updatedCmd.settings = settings;
+          updatedCmd.usage = buildUsageFromParams(updatedCmd.trigger, settings.params || []);
+          const commands = loadCustomCommands();
+          const idx = commands.findIndex(c => c.trigger === existingCmd.trigger);
+          if (idx !== -1) {
+            commands[idx] = updatedCmd;
+            if (saveCustomCommands(commands)) {
+              await reply(`✅ Comando atualizado: ${trigger}\n*Uso:* ${updatedCmd.usage}`);
+            } else {
+              await reply('❌ Erro ao salvar edição do comando.');
+            }
+          } else {
+            return reply('❌ Não foi possível localizar o comando para editar.');
+          }
+        } catch (e) {
+          console.error('Erro no comando edcmd:', e);
+          await reply('❌ Ocorreu um erro ao editar o comando.');
+        }
+        break;
+
+      case 'edcmdmidia':
+      case 'editcmdmidia':
+        try {
+          if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
+          if (!q) return reply(`❌ Forneça o gatilho do comando a ser editado. Ex: ${groupPrefix}edcmdmidia logo (responda imagem)`);
+          const allTokens = q.trim().split(/ +/);
+          const trigger = allTokens.shift();
+          if (!trigger) return reply(`❌ Forneça o gatilho do comando a ser editado.`);
+          const normalizedTrigger = normalizar(trigger).replace(/\s+/g, '');
+          const existingCmd = findCustomCommand(normalizedTrigger);
+          if (!existingCmd) return reply(`❌ Comando ${trigger} não encontrado.`);
+          const parsed = parseCustomCommandMeta(allTokens);
+          const settings = parsed.settings || existingCmd.settings || {};
+          const caption = parsed.rest.join(' ');
+          if (!quotedMessageContent) return reply('❌ Por favor responda uma mídia para atualizar a resposta do comando.');
+          let responseData = null;
+          if (isQuotedImage) {
+            const imageBuffer = await getFileBuffer(quotedMessageContent.imageMessage, 'image');
+            responseData = { type: 'image', buffer: imageBuffer.toString('base64'), caption };
+          } else if (isQuotedVideo) {
+            const videoBuffer = await getFileBuffer(quotedMessageContent.videoMessage, 'video');
+            responseData = { type: 'video', buffer: videoBuffer.toString('base64'), caption };
+          } else if (isQuotedAudio) {
+            const audioBuffer = await getFileBuffer(quotedMessageContent.audioMessage, 'audio');
+            responseData = { type: 'audio', buffer: audioBuffer.toString('base64'), ptt: quotedMessageContent.audioMessage.ptt || false };
+          } else if (isQuotedSticker) {
+            const stickerBuffer = await getFileBuffer(quotedMessageContent.stickerMessage, 'sticker');
+            responseData = { type: 'sticker', buffer: stickerBuffer.toString('base64') };
+          } else {
+            return reply('❌ Por favor, responda a uma mídia válida (imagem, vídeo, áudio ou sticker)!');
+          }
+          const updatedCmd = { ...existingCmd };
+          if (responseData) updatedCmd.response = responseData;
+          updatedCmd.settings = settings;
+          updatedCmd.usage = buildUsageFromParams(updatedCmd.trigger, settings.params || []);
+          const commands = loadCustomCommands();
+          const idx = commands.findIndex(c => c.trigger === existingCmd.trigger);
+          if (idx !== -1) {
+            commands[idx] = updatedCmd;
+            if (saveCustomCommands(commands)) {
+              await reply(`✅ Comando de mídia atualizado: ${trigger}\n*Uso:* ${updatedCmd.usage}`);
+            } else {
+              await reply('❌ Erro ao salvar edição do comando de mídia.');
+            }
+          } else {
+            return reply('❌ Não foi possível localizar o comando para editar.');
+          }
+        } catch (e) {
+          console.error('Erro no comando edcmdmidia:', e);
+          await reply('❌ Ocorreu um erro ao editar o comando de mídia.');
+        }
+        break;
+
       case 'addcmdmidia':
       case 'addcmdmedia':
         try {
@@ -10098,10 +10234,10 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const parsed = parseCustomCommandMeta(allTokens);
           const settings = parsed.settings || {};
           const caption = parsed.rest.join(' ') || '';
-          const addcmdMidiaHelp = `📝 *Como usar o comando addcmdmidia:*\n\n1️⃣ Responda uma mídia (imagem, vídeo, áudio ou figurinha)\n2️⃣ Use: ${groupPrefix}addcmdmidia <comando> [meta...] <legenda opcional>\n\n*Metatags / Flags suportadas:*\n• [owner] — Somente o dono do bot pode usar\n• [admin] — Somente admins do grupo podem usar (somente em grupos)\n• [group] — Restrito a grupos\n• [private] — Restrito ao privado\n• [param:name:required] — Parâmetro posicional obrigatório\n• [param:type:name:optional] — Parâmetro opcional com tipo (e.g., number)\n\n*Placeholders (na legenda):*\n• {prefixo} - Prefixo do bot\n• {nomedono} - Nome do dono\n• {numerodono} - Número do dono\n• {nomebot} - Nome do bot\n• {user} - Nome do usuário\n• {grupo} - Nome do grupo\n\n*Exemplo:*\n${groupPrefix}addcmdmidia logo [private] (respondendo uma imagem)`;
+          const addcmdMidiaHelp = `📝 *Como usar o comando addcmdmidia:*\n\n1️⃣ Responda uma mídia (imagem, vídeo, áudio ou figurinha)\n2️⃣ Use: ${groupPrefix}addcmdmidia <comando> [meta...] <legenda opcional>\n\n*Metatags / Flags suportadas:*\n• [owner] — Somente o dono do bot pode usar\n• [admin] — Somente admins do grupo podem usar (somente em grupos)\n• [group] — Restrito a grupos\n• [private] — Restrito ao privado\n• [param:type:name:required] — Parâmetro posicional\n• [param:type:name:rest] — Captura resto da mensagem para legenda\n• [param:type:name:min=1:max=10:default=5] — Min/max/default para números\n• [param:regex:name:pattern=^\\\d+$] — Regex para validar\n\n*Placeholders (na legenda):*\n• {prefixo} - Prefixo do bot\n• {nomedono} - Nome do dono\n• {numerodono} - Número do dono\n• {nomebot} - Nome do bot\n• {user} - Nome do usuário\n• {grupo} - Nome do grupo\n• {1}, {2}, ... - Argumentos por posição (1-based)\n• {args} ou {all} - Todos os argumentos\n\n*Exemplos:*\n• Responder imagem com legenda que usa parâmetro de arquivo:\n${groupPrefix}addcmdmidia logo [private] [param:string:filename:optional] (responder uma imagem com legenda que aceita {filename})`;
           
           if (!trigger) {
-            return reply(`❌ Forneça um nome para o comando.\n\nExemplo: ${groupPrefix}addcmdmidia logo`);
+            return reply(addcmdMidiaHelp);
           }
           
           const normalizedTrigger = normalizar(trigger).replace(/\s+/g, '');
@@ -10310,8 +10446,56 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const settings = cmd?.settings || {};
           if (settings && settings.params && settings.params.length) {
             const argsForTest = testArgsStr || '';
-            const argsListTest = parseArgsFromString(argsForTest);
-            const missingTest = settings.params.filter((p, idx) => p.required && !argsListTest[idx]);
+            let argsListTest = parseArgsFromString(argsForTest);
+            const restIndexTest = settings.params.findIndex(p => p.rest);
+            if (restIndexTest !== -1 && restIndexTest < settings.params.length) {
+              if (argsListTest.length > restIndexTest) {
+                const restVal = argsListTest.slice(restIndexTest).join(' ');
+                argsListTest = argsListTest.slice(0, restIndexTest);
+                argsListTest[restIndexTest] = restVal;
+              }
+            }
+            // Support named args in test mode (key=value)
+            if (Array.isArray(argsListTest) && argsListTest.some(t => t.includes('='))) {
+              const namedMapTest = {};
+              const remainingPos = [];
+              for (const t of argsListTest) {
+                const idxEq = t.indexOf('=');
+                if (idxEq > 0) {
+                  const k = normalizar(t.slice(0, idxEq)).replace(/\s+/g, '_');
+                  const v = t.slice(idxEq + 1);
+                  namedMapTest[k] = v;
+                } else {
+                  remainingPos.push(t);
+                }
+              }
+              const finalTestArgs = [];
+              for (let i = 0; i < settings.params.length; i++) {
+                const p = settings.params[i];
+                if (Object.prototype.hasOwnProperty.call(namedMapTest, p.name)) finalTestArgs[i] = namedMapTest[p.name];
+                else finalTestArgs[i] = remainingPos.length ? remainingPos.shift() : '';
+              }
+              // join rest if any
+              if (restIndexTest !== -1) {
+                const restVal = finalTestArgs.slice(restIndexTest).join(' ');
+                finalTestArgs.splice(restIndexTest, finalTestArgs.length - restIndexTest, restVal);
+              }
+              argsListTest = finalTestArgs;
+            }
+            const missingTest = [];
+            for (let i = 0; i < settings.params.length; i++) {
+              const p = settings.params[i];
+              let val = typeof argsListTest[i] !== 'undefined' ? argsListTest[i] : '';
+              if ((val === '' || typeof val === 'undefined') && typeof p.default !== 'undefined') {
+                val = p.default;
+                argsListTest[i] = val;
+              }
+              if (p.required && (typeof val === 'undefined' || val === '')) missingTest.push(p.name);
+              if (typeof val !== 'undefined' && val !== '') {
+                const check = validateParamValue(val, p);
+                if (!check.ok) return reply(`❌ Parâmetro inválido: ${check.message}`);
+              }
+            }
             if (missingTest.length) {
               const usage = cmd.usage || buildUsageFromParams(cmd.trigger, settings.params);
               return reply(`❌ Faltam parâmetros obrigatórios: ${missingTest.map(m => m.name).join(', ')}\nUso: ${usage}`);
@@ -12380,8 +12564,6 @@ ${prefix}addcmdvip <comando> | <descrição> | <categoria>
 
 *Exemplo:*
 ${prefix}addcmdvip premium_ia | IA avançada exclusiva | ia
-
-*Opcional - com exemplo de uso:*
 ${prefix}addcmdvip premium_ia | IA avançada exclusiva | ia | premium_ia <pergunta>`);
           }
           
