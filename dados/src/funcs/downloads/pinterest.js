@@ -1,209 +1,91 @@
 /**
- * Sistema de Download e Pesquisa Pinterest Otimizado
- * Desenvolvido por Hiudy
- * Versão: 2.0.0
+ * Pinterest API-only helper for Cognima (cog2.cognima.com.br)
+ * Author: Hiudy (adapted)
+ * Version: 3.0.0
+ *
+ * This module now exclusively uses Cognima endpoints for Pinterest search and download.
+ * If no API key is provided to the functions, they return an error consistent with the rest
+ * of the project's helper modules.
  */
 
 import axios from 'axios';
-import { parseHTML } from 'linkedom';
+import { isApiKeyError } from '../utils/apiKeyNotifier.js';
 
-// Configurações
-const CONFIG = {
-  API: {
-    BASE_URL: 'https://br.pinterest.com',
-    TIMEOUT: 30000,
-    HEADERS: {
-      MOBILE: {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.152 Mobile Safari/537.36'
-      },
-      DESKTOP: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    }
-  },
-  MEDIA: {
-    IMAGE_SIZES: {
-      THUMBNAIL: '236x',
-      MEDIUM: '474x',
-      LARGE: '736x',
-      ORIGINAL: 'originals'
-    },
-    MAX_RESULTS: 50
-  },
-  CACHE: {
-    MAX_SIZE: 1000,
-    EXPIRE_TIME: 30 * 60 * 1000 // 30 minutos
-  },
-  RETRY: {
-    MAX_ATTEMPTS: 3,
-    DELAY: 1000
-  }
-};
+const API_BASE = 'https://cog2.cognima.com.br/api/v1';
 
-// Cache para resultados
-class PinterestCache {
-  constructor() {
-    this.cache = new Map();
+// Simple LRU-ish cache shared across calls
+class SimpleCache {
+  constructor(maxEntries = 500, ttl = 30 * 60 * 1000) {
+    this.map = new Map();
+    this.maxEntries = maxEntries;
+    this.ttl = ttl;
   }
 
-  getKey(type, input) {
-    return `${type}:${input.toLowerCase()}`;
-  }
-
-  get(type, input) {
-    const key = this.getKey(type, input);
-    const cached = this.cache.get(key);
-    
-    if (!cached) return null;
-    
-    if (Date.now() - cached.timestamp > CONFIG.CACHE.EXPIRE_TIME) {
-      this.cache.delete(key);
+  get(key) {
+    const item = this.map.get(key);
+    if (!item) return null;
+    if (Date.now() - item.ts > this.ttl) {
+      this.map.delete(key);
       return null;
     }
-    
-    return cached.data;
+    return item.val;
   }
 
-  set(type, input, data) {
-    if (this.cache.size >= CONFIG.CACHE.MAX_SIZE) {
-      const oldestKey = Array.from(this.cache.keys())[0];
-      this.cache.delete(oldestKey);
+  set(key, val) {
+    if (this.map.size >= this.maxEntries) {
+      const oldestKey = this.map.keys().next().value;
+      this.map.delete(oldestKey);
     }
-
-    const key = this.getKey(type, input);
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now()
-    });
+    this.map.set(key, { val, ts: Date.now() });
   }
 }
 
-// Cliente Pinterest
-class PinterestClient {
-  constructor() {
-    this.axios = axios.create({
-      baseURL: CONFIG.API.BASE_URL,
-      timeout: CONFIG.API.TIMEOUT
-    });
-  }
-
-  async request(config, attempt = 1) {
-    try {
-      return await this.axios.request(config);
-    } catch (error) {
-      if (attempt < CONFIG.RETRY.MAX_ATTEMPTS) {
-        await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY.DELAY * attempt));
-        return this.request(config, attempt + 1);
-      }
-      throw error;
-    }
-  }
-
-  async search(query) {
-    const response = await this.request({
-      method: 'GET',
-      url: `/search/pins/?q=${encodeURIComponent(query)}`,
-      headers: CONFIG.API.HEADERS.MOBILE
-    });
-
-    const { document } = parseHTML(response.data);
-    return this.extractImagesFromDOM(document);
-  }
-
-  extractImagesFromDOM(document) {
-    const images = new Set();
-    
-    document.querySelectorAll('.hCL').forEach(el => {
-      const src = el.getAttribute('src');
-      if (src) {
-        const enhancedSrc = this.enhanceImageQuality(src);
-        images.add(enhancedSrc);
-      }
-    });
-
-    return Array.from(images);
-  }
-
-  enhanceImageQuality(url) {
-    return url
-      .replace(/236x/g, CONFIG.MEDIA.IMAGE_SIZES.LARGE)
-      .replace(/60x60/g, CONFIG.MEDIA.IMAGE_SIZES.LARGE);
-  }
-
-  async downloadPin(pinId) {
-    const params = {
-      source_url: `/pin/${pinId}/`,
-      data: {
-        options: {
-          id: pinId,
-          field_set_key: 'auth_web_main_pin',
-          noCache: true,
-          fetch_visual_search_objects: true
-        },
-        context: {}
-      }
-    };
-
-    const response = await this.request({
-      method: 'GET',
-      url: `/resource/PinResource/get/?${new URLSearchParams({
-        source_url: params.source_url,
-        data: JSON.stringify(params.data)
-      })}`,
-      headers: CONFIG.API.HEADERS.DESKTOP
-    });
-
-    return response.data.resource_response.data;
-  }
-}
-
-// Validador de URL
-class URLValidator {
-  static PIN_REGEX = /^https?:\/\/(?:[a-zA-Z0-9-]+\.)?pinterest\.\w{2,6}(?:\.\w{2})?\/pin\/\d+|https?:\/\/pin\.it\/[a-zA-Z0-9]+/;
-
-  static isValidPinURL(url) {
-    return this.PIN_REGEX.test(url);
-  }
-
-  static extractPinId(url) {
-    const match = url.match(/(?:\/pin\/(\d+)|\/pin\/([a-zA-Z0-9]+))/);
-    return match ? match[1] || match[2] : null;
-  }
-}
-
-// Cache e cliente instanciados uma única vez
-const cache = new PinterestCache();
-const client = new PinterestClient();
+const cache = new SimpleCache(500, 30 * 60 * 1000);
 
 /**
- * Pesquisa imagens no Pinterest
- * @param {string} query - Termo de pesquisa
- * @returns {Promise<Object>} Resultados da pesquisa
+ * Searches Pinterest using Cognima API. API Key is required.
+ * @param {string} query
+ * @param {string} apiKey
+ * @returns {Promise<Object>} - { ok: true, urls: [...], type: 'image'|'video', mime, criador, count, query }
  */
-async function pinterestSearch(query) {
+async function pinterestSearch(query, apiKey) {
   try {
     if (!query || typeof query !== 'string') {
       return { ok: false, msg: 'Termo de pesquisa inválido' };
     }
-
-    const cached = cache.get('search', query);
+    const cached = cache.get(`search:${query.toLowerCase()}`);
     if (cached) return cached;
 
-    const images = await client.search(query);
-
-    if (images.length === 0) {
-      return { ok: false, msg: 'Nenhuma imagem encontrada.' };
+    if (!apiKey) {
+      return { ok: false, msg: 'API key não configurada' };
     }
 
+    const response = await axios.post(`${API_BASE}/pinterest/search`, {
+      query: query
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey
+      },
+      timeout: 30000
+    });
+
+    if (!response.data || !response.data.success || !response.data.data) {
+      throw new Error('Resposta inválida da API');
+    }
+
+    const data = response.data.data;
     const result = {
       ok: true,
-      criador: 'Hiudy',
-      type: 'image',
-      mime: 'image/jpeg',
-      urls: images
+      criador: data.criador || 'Hiudy',
+      type: data.type || 'image',
+      mime: data.mime || 'image/jpeg',
+      query: data.query || query,
+      count: Number(data.count || (Array.isArray(data.urls) ? data.urls.length : 0)),
+      urls: Array.isArray(data.urls) ? data.urls : []
     };
 
-    cache.set('search', query, result);
+    cache.set(`search:${query.toLowerCase()}`, result);
     return result;
   } catch (error) {
     console.error('Erro na pesquisa Pinterest:', error);
@@ -216,47 +98,72 @@ async function pinterestSearch(query) {
  * @param {string} url - URL do pin
  * @returns {Promise<Object>} Resultado do download
  */
-async function pinterestDL(url) {
+/**
+ * Downloads the pin using Cognima API. API Key is required.
+ * @param {string} url
+ * @param {string} apiKey
+ * @returns {Promise<Object>} - { ok: true, title, type, mime, urls: [] }
+ */
+async function pinterestDL(url, apiKey) {
   try {
-    if (!URLValidator.isValidPinURL(url)) {
-      return { ok: false, msg: 'URL inválida. Certifique-se de que é um link de pin do Pinterest.' };
+    if (!url || typeof url !== 'string') {
+      return { ok: false, msg: 'URL inválida' };
     }
 
-    const cached = cache.get('download', url);
+    const cached = cache.get(`download:${url}`);
     if (cached) return cached;
 
-    const pinId = URLValidator.extractPinId(url);
-    if (!pinId) {
-      return { ok: false, msg: 'Não foi possível extrair o ID do pin.' };
+    if (!apiKey) {
+      return { ok: false, msg: 'API key não configurada' };
     }
 
-    const pinData = await client.downloadPin(pinId);
-    const videos = pinData.videos?.video_list;
-    const images = pinData.images;
+    // If apiKey provided, use API endpoint
+    if (apiKey) {
+      try {
+        const response = await axios.post(`${API_BASE}/pinterest/download`, {
+          url: url
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': apiKey
+          },
+          timeout: 30000
+        });
 
-    let result = [];
+        if (!response.data || !response.data.success || !response.data.data) {
+          throw new Error('Resposta inválida da API');
+        }
 
-    if (videos) {
-      Object.values(videos).forEach(video => result.push(video.url));
+        const data = response.data.data;
+        let urls = [];
+        if (Array.isArray(data.urls)) {
+          urls = data.urls.map(u => typeof u === 'string' ? u : u.url || '').filter(Boolean);
+        }
+
+        if (urls.length === 0) {
+          return { ok: false, msg: 'Nenhum conteúdo encontrado.' };
+        }
+
+        const responseObj = {
+          ok: true,
+          criador: data.criador || 'Hiudy',
+          title: data.title || '',
+          type: data.type || (data.urls?.[0]?.quality && data.urls[0].quality.includes('video') ? 'video' : 'image'),
+          mime: data.mime || (data.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+          urls: urls
+        };
+
+        cache.set(`download:${url}`, responseObj);
+        return responseObj;
+      } catch (error) {
+        console.error('Erro no download Pinterest (API):', error.message || error);
+        if (isApiKeyError(error)) {
+          throw new Error(`API key inválida ou expirada: ${error.response?.data?.message || error.message}`);
+        }
+        return { ok: false, msg: 'Ocorreu um erro ao baixar o conteúdo.' };
+      }
     }
-
-    if (images) {
-      Object.values(images).forEach(image => result.push(image.url));
-    }
-
-    if (result.length === 0) {
-      return { ok: false, msg: 'Nenhum conteúdo encontrado.' };
-    }
-
-    const response = {
-      ok: true,
-      type: videos ? 'video' : 'image',
-      mime: videos ? 'video/mp4' : 'image/jpeg',
-      urls: [result[0]]
-    };
-
-    cache.set('download', url, response);
-    return response;
+    // No fallback -- API-only
   } catch (error) {
     console.error('Erro no download Pinterest:', error);
     return { ok: false, msg: 'Ocorreu um erro ao baixar o conteúdo.' };

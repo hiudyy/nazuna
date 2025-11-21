@@ -395,56 +395,78 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
           return false;
         }
         
-        const datinha = await tiktok.dl(url, KeyCog);
-        if (datinha.ok) {
-          await nazu.sendMessage(from, {
-            [datinha.type]: {
-              url: datinha.urls[0]
-            },
-            caption: '🎵 Download automático do TikTok!'
-          }, {
-            quoted: info
+        return tiktok.dl(url, KeyCog)
+          .then(async (datinha) => {
+            if (datinha.ok) {
+              await nazu.sendMessage(from, {
+                [datinha.type]: {
+                  url: datinha.urls[0]
+                },
+                caption: '🎵 Download automático do TikTok!'
+              }, {
+                quoted: info
+              });
+              return true;
+            } else {
+              console.warn(`⚠️ TikTok autodl falhou: ${datinha.msg}`);
+              return false;
+            }
+          })
+          .catch((err) => {
+            console.error('Erro no autodl TikTok (promise):', err);
+            return false;
           });
-          return true;
-        } else {
-          console.warn(`⚠️ TikTok autodl falhou: ${datinha.msg}`);
-          return false;
-        }
       } else if (url.includes('instagram.com')) {
         if (!KeyCog) {
           console.warn('⚠️ Instagram autodl ignorado: API Key não configurada');
           return false;
         }
         
-        const datinha = await igdl.dl(url, KeyCog);
-        if (datinha.ok) {
-          await nazu.sendMessage(from, {
-            [datinha.data[0].type]: datinha.data[0].buff,
-            caption: '📸 Download automático do Instagram!'
-          }, {
-            quoted: info
+        return igdl.dl(url, KeyCog)
+          .then(async (datinha) => {
+            if (datinha.ok) {
+              await nazu.sendMessage(from, {
+                [datinha.data[0].type]: datinha.data[0].buff,
+                caption: '📸 Download automático do Instagram!'
+              }, {
+                quoted: info
+              });
+              return true;
+            } else {
+              console.warn(`⚠️ Instagram autodl falhou: ${datinha.msg}`);
+              return false;
+            }
+          })
+          .catch((err) => {
+            console.error('Erro no autodl Instagram (promise):', err);
+            return false;
           });
-          return true;
-        } else {
-          console.warn(`⚠️ Instagram autodl falhou: ${datinha.msg}`);
-          return false;
-        }
       } else if (url.includes('pinterest.com') || url.includes('pin.it')) {
-        const datinha = await pinterest.dl(url);
-        if (datinha.ok) {
-          await nazu.sendMessage(from, {
-            [datinha.type]: {
-              url: datinha.urls[0]
-            },
-            caption: '📌 Download automático do Pinterest!'
-          }, {
-            quoted: info
-          });
-          return true;
-        } else {
-          console.warn(`⚠️ Pinterest autodl falhou: ${datinha.msg}`);
+        if (!KeyCog) {
+          console.warn('⚠️ Pinterest autodl ignorado: API Key não configurada');
           return false;
         }
+        return pinterest.dl(url, KeyCog)
+          .then(async (datinha) => {
+            if (datinha.ok) {
+              await nazu.sendMessage(from, {
+                [datinha.type]: {
+                  url: datinha.urls[0]
+                },
+                caption: '📌 Download automático do Pinterest!'
+              }, {
+                quoted: info
+              });
+              return true;
+            } else {
+              console.warn(`⚠️ Pinterest autodl falhou: ${datinha.msg}`);
+              return false;
+            }
+          })
+          .catch((err) => {
+            console.error('Erro no autodl Pinterest (promise):', err);
+            return false;
+          });
       }
       return false;
     } catch (e) {
@@ -10961,44 +10983,53 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             await reply('Aguarde um momentinho... ☀️');
             const buffi = await getFileBuffer(muk, 'audio');
             const Slakzin = await ia.Shazam(buffi);
-            const videoInfo = await youtube.search(`${Slakzin.result.title} - ${Slakzin.result.artist}`);
-            const views = typeof videoInfo.data.views === 'number' ? videoInfo.data.views.toLocaleString('pt-BR') : videoInfo.data.views;
-            const description = videoInfo.data.description ? videoInfo.data.description.slice(0, 100) + (videoInfo.data.description.length > 100 ? '...' : '') : 'Sem descrição disponível';
-            const caption = `🎵 *Música Encontrada* 🎵\n\n📌 *Título:* ${videoInfo.data.title}\n👤 *Artista/Canal:* ${videoInfo.data.author.name}\n⏱ *Duração:* ${videoInfo.data.timestamp} (${videoInfo.data.seconds} segundos)\n👀 *Visualizações:* ${views}\n📅 *Publicado:* ${videoInfo.data.ago}\n📜 *Descrição:* ${description}\n🔗 *Link:* ${videoInfo.data.url}\n\n🎧 *Baixando e processando sua música, aguarde...*`;
-            await nazu.sendMessage(from, {
-              image: {
-                url: videoInfo.data.thumbnail
-              },
-              caption: caption,
-              footer: `${nomebot} • Versão ${botVersion}`
-            }, {
-              quoted: info
-            });
-            const dlRes = await youtube.mp3(videoInfo.data.url);
-            if (!dlRes.ok) {
-              return reply(`❌ Erro ao baixar o áudio: ${dlRes.msg}`);
-            }
-            try {
-              await nazu.sendMessage(from, {
-                audio: dlRes.buffer,
-                mimetype: 'audio/mpeg'
-              }, {
-                quoted: info
-              });
-            } catch (audioError) {
-              if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
-                await reply('📦 Arquivo muito grande para enviar como áudio, enviando como documento...');
+            youtube.search(`${Slakzin.result.title} - ${Slakzin.result.artist}`, KeyCog)
+              .then(async (videoInfo) => {
+                const views = typeof videoInfo.data.views === 'number' ? videoInfo.data.views.toLocaleString('pt-BR') : videoInfo.data.views;
+                const description = videoInfo.data.description ? videoInfo.data.description.slice(0, 100) + (videoInfo.data.description.length > 100 ? '...' : '') : 'Sem descrição disponível';
+                const caption = `🎵 *Música Encontrada* 🎵\n\n📌 *Título:* ${videoInfo.data.title}\n👤 *Artista/Canal:* ${videoInfo.data.author.name}\n⏱ *Duração:* ${videoInfo.data.timestamp} (${videoInfo.data.seconds} segundos)\n👀 *Visualizações:* ${views}\n📅 *Publicado:* ${videoInfo.data.ago}\n📜 *Descrição:* ${description}\n🔗 *Link:* ${videoInfo.data.url}\n\n🎧 *Baixando e processando sua música, aguarde...*`;
                 await nazu.sendMessage(from, {
-                  document: dlRes.buffer,
-                  fileName: `${dlRes.filename}`,
-                  mimetype: 'audio/mpeg'
+                  image: {
+                    url: videoInfo.data.thumbnail
+                  },
+                  caption: caption,
+                  footer: `${nomebot} • Versão ${botVersion}`
                 }, {
                   quoted: info
                 });
-              } else {
-                throw audioError;
-              }
-            }
+
+                return youtube.mp3(videoInfo.data.url, 128, KeyCog);
+              })
+              .then(async (dlRes) => {
+                if (!dlRes.ok) {
+                  return reply(`❌ Erro ao baixar o áudio: ${dlRes.msg}`);
+                }
+                try {
+                  await nazu.sendMessage(from, {
+                    audio: dlRes.buffer,
+                    mimetype: 'audio/mpeg'
+                  }, {
+                    quoted: info
+                  });
+                } catch (audioError) {
+                  if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
+                    await reply('📦 Arquivo muito grande para enviar como áudio, enviando como documento...');
+                    await nazu.sendMessage(from, {
+                      document: dlRes.buffer,
+                      fileName: `${dlRes.filename}`,
+                      mimetype: 'audio/mpeg'
+                    }, {
+                      quoted: info
+                    });
+                  } else {
+                    throw audioError;
+                  }
+                }
+              })
+              .catch((err) => {
+                console.error('Erro no Shazam->YouTube flow (promise):', err);
+                reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
+              });
           } else {
             await reply('Use o comando marcando um audio... ☀️');
           }
@@ -11085,84 +11116,73 @@ case 'ytmp3':
       return reply(`❌ Sistema de busca do YouTube não está disponível no momento.`);
     }
 
-    try {
-      videoInfo = await youtube.search(q, KeyCog);
-      if (!videoInfo.ok)
-        return reply(`❌ Erro na pesquisa: ${videoInfo.msg}`);
+    // Usando .then em vez de await para a pesquisa do YouTube
+    youtube.search(q, KeyCog)
+        .then((result) => {
+          if (!result.ok) return reply(`❌ Erro na pesquisa: ${result.msg}`);
+          videoInfo = result;
+          videoUrl = result.data.url;
 
-      videoUrl = videoInfo.data.url;
-    } catch (error) {
-      console.error('Erro ao buscar vídeo no YouTube:', error);
-      return reply(`❌ Erro ao buscar vídeo: ${error.message}`);
-    }
+          if (videoInfo.data.seconds > 1800) return reply(`⚠️ Este vídeo é muito longo (${videoInfo.data.timestamp}).\nPor favor, escolha um vídeo com menos de 30 minutos.`);
 
-    if (!videoInfo.ok)
-      return reply(`❌ Não foi possível encontrar informações sobre o vídeo: ${videoInfo.msg}`);
+          const views = typeof videoInfo.data.views === 'number'
+            ? videoInfo.data.views.toLocaleString('pt-BR')
+            : videoInfo.data.views;
 
-    if (videoInfo.data.seconds > 1800)
-      return reply(`⚠️ Este vídeo é muito longo (${videoInfo.data.timestamp}).\nPor favor, escolha um vídeo com menos de 30 minutos.`);
+          const description = videoInfo.data.description
+            ? videoInfo.data.description.slice(0, 100) + (videoInfo.data.description.length > 100 ? '...' : '')
+            : 'Sem descrição disponível';
 
-    const views = typeof videoInfo.data.views === 'number'
-      ? videoInfo.data.views.toLocaleString('pt-BR')
-      : videoInfo.data.views;
+          const caption = `🎵 *Música Encontrada* 🎵\n\n📌 *Título:* ${videoInfo.data.title}\n👤 *Artista/Canal:* ${videoInfo.data.author.name}\n⏱ *Duração:* ${videoInfo.data.timestamp} (${videoInfo.data.seconds} segundos)\n👀 *Visualizações:* ${views}\n📅 *Publicado:* ${videoInfo.data.ago}\n📜 *Descrição:* ${description}\n🔗 *Link:* ${videoInfo.data.url}\n\n🎧 *Baixando e processando sua música, aguarde...*`;
 
-    const description = videoInfo.data.description
-      ? videoInfo.data.description.slice(0, 100) + (videoInfo.data.description.length > 100 ? '...' : '')
-      : 'Sem descrição disponível';
+          nazu.sendMessage(from, {
+            image: { url: videoInfo.data.thumbnail },
+            caption,
+            footer: `${nomebot} • Versão ${botVersion}`
+          }, { quoted: info }).catch((sendErr) => console.error('Erro ao enviar mensagem de resultado (busca):', sendErr));
 
-    const caption = `🎵 *Música Encontrada* 🎵
+          youtube.mp3(videoUrl, 128, KeyCog)
+            .then(async (dlRes) => {
+              if (!dlRes.ok) return nazu.sendMessage(from, { text: `❌ Erro ao baixar o áudio: ${dlRes.msg}` }, { quoted: info });
 
-📌 *Título:* ${videoInfo.data.title}
-👤 *Artista/Canal:* ${videoInfo.data.author.name}
-⏱ *Duração:* ${videoInfo.data.timestamp} (${videoInfo.data.seconds} segundos)
-👀 *Visualizações:* ${views}
-📅 *Publicado:* ${videoInfo.data.ago}
-📜 *Descrição:* ${description}
-🔗 *Link:* ${videoInfo.data.url}
+              try {
+                await nazu.sendMessage(from, {
+                  audio: dlRes.buffer,
+                  mimetype: 'audio/mpeg'
+                }, { quoted: info });
+              } catch (audioError) {
+                if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
+                  await nazu.sendMessage(from, { text: '📦 Arquivo muito grande para enviar como áudio, enviando como documento...' }, { quoted: info });
+                  await nazu.sendMessage(from, {
+                    document: dlRes.buffer,
+                    fileName: `${dlRes.filename}`,
+                    mimetype: 'audio/mpeg'
+                  }, { quoted: info });
+                } else {
+                  console.error('Erro ao enviar áudio (busca):', audioError);
+                  nazu.sendMessage(from, { text: '❌ Ocorreu um erro ao enviar o áudio.' }, { quoted: info });
+                }
+              }
+            })
+            .catch((downloadError) => {
+              console.error('Erro no download (busca):', downloadError);
+              if (downloadError.message?.includes('API key inválida')) {
+                youtube.notifyOwnerAboutApiKey(nazu, numerodono, downloadError.message, command);
+                nazu.sendMessage(from, { text: '🤖 *Sistema de YouTube temporariamente indisponível*' }, { quoted: info });
+              } else if (String(downloadError).includes("age")) {
+                nazu.sendMessage(from, { text: `🔞 Este conteúdo possui restrição de idade e não pode ser baixado.` }, { quoted: info });
+              } else {
+                nazu.sendMessage(from, { text: `❌ Ocorreu um erro ao baixar o áudio: ${downloadError.message}` }, { quoted: info });
+              }
+            });
+        })
+        .catch((error) => {
+          console.error('Erro ao buscar vídeo no YouTube:', error);
+          return reply(`❌ Erro ao buscar vídeo: ${error.message}`);
+        });
 
-🎧 *Baixando e processando sua música, aguarde...*`;
-
-    await nazu.sendMessage(from, {
-      image: { url: videoInfo.data.thumbnail },
-      caption,
-      footer: `${nomebot} • Versão ${botVersion}`
-    }, { quoted: info });
-
-    youtube.mp3(videoUrl, 128, KeyCog)
-      .then(async (dlRes) => {
-        if (!dlRes.ok)
-          return nazu.sendMessage(from, { text: `❌ Erro ao baixar o áudio: ${dlRes.msg}` }, { quoted: info });
-
-        try {
-          await nazu.sendMessage(from, {
-            audio: dlRes.buffer,
-            mimetype: 'audio/mpeg'
-          }, { quoted: info });
-        } catch (audioError) {
-          if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
-            await nazu.sendMessage(from, { text: '📦 Arquivo muito grande para enviar como áudio, enviando como documento...' }, { quoted: info });
-            await nazu.sendMessage(from, {
-              document: dlRes.buffer,
-              fileName: `${dlRes.filename}`,
-              mimetype: 'audio/mpeg'
-            }, { quoted: info });
-          } else {
-            console.error('Erro ao enviar áudio (busca):', audioError);
-            nazu.sendMessage(from, { text: '❌ Ocorreu um erro ao enviar o áudio.' }, { quoted: info });
-          }
-        }
-      })
-      .catch((downloadError) => {
-        console.error('Erro no download (busca):', downloadError);
-        if (downloadError.message?.includes('API key inválida')) {
-          youtube.notifyOwnerAboutApiKey(nazu, numerodono, downloadError.message, command);
-          nazu.sendMessage(from, { text: '🤖 *Sistema de YouTube temporariamente indisponível*' }, { quoted: info });
-        } else if (String(downloadError).includes("age")) {
-          nazu.sendMessage(from, { text: `🔞 Este conteúdo possui restrição de idade e não pode ser baixado.` }, { quoted: info });
-        } else {
-          nazu.sendMessage(from, { text: `❌ Ocorreu um erro ao baixar o áudio: ${downloadError.message}` }, { quoted: info });
-        }
-      });
+      // Retornar após iniciar a pesquisa em modo promisse para não continuar executando o bloco
+      return;
 
   } catch (error) {
     console.error('Erro no comando play/ytmp3 (bloco principal):', error);
@@ -11194,89 +11214,94 @@ case 'ytmp3':
           if (q.includes('youtube.com') || q.includes('youtu.be')) {
             videoUrl = q;
             await reply('Aguarde um momentinho... ☀️');
-            const dlRes = await youtube.mp4(videoUrl, 360, KeyCog);
-            if (!dlRes.ok) return reply(dlRes.msg);
-            
-            try {
-              await nazu.sendMessage(from, {
-                video: dlRes.buffer,
-                fileName: `${dlRes.filename}`,
-                mimetype: 'video/mp4'
-              }, {
-                quoted: info
+            youtube.mp4(videoUrl, 360, KeyCog)
+              .then(async (dlRes) => {
+                if (!dlRes.ok) return reply(dlRes.msg);
+
+                try {
+                  await nazu.sendMessage(from, {
+                    video: dlRes.buffer,
+                    fileName: `${dlRes.filename}`,
+                    mimetype: 'video/mp4'
+                  }, {
+                    quoted: info
+                  });
+                } catch (videoError) {
+                  if (String(videoError).includes("ENOSPC") || String(videoError).includes("size")) {
+                    await reply('Arquivo muito grande, enviando como documento...');
+                    await nazu.sendMessage(from, {
+                      document: dlRes.buffer,
+                      fileName: `${dlRes.filename}`,
+                      mimetype: 'video/mp4'
+                    }, {
+                      quoted: info
+                    });
+                  } else {
+                    throw videoError;
+                  }
+                }
+              })
+              .catch((e) => {
+                console.error('Erro ao baixar/enviar vídeo direto (promise):', e);
+                if (e.message?.includes('API key inválida')) {
+                  youtube.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+                  return reply('🤖 *Sistema de YouTube temporariamente indisponível*');
+                }
+                reply('❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.');
               });
-            } catch (videoError) {
-              if (String(videoError).includes("ENOSPC") || String(videoError).includes("size")) {
-                await reply('Arquivo muito grande, enviando como documento...');
-                await nazu.sendMessage(from, {
-                  document: dlRes.buffer,
-                  fileName: `${dlRes.filename}`,
-                  mimetype: 'video/mp4'
-                }, {
-                  quoted: info
-                });
-              } else {
-                throw videoError;
-              }
-            }
             return;
           } else {
-            const searchResult = await youtube.search(q, KeyCog);
-            if (!searchResult.ok) return reply(searchResult.msg);
-            videoUrl = searchResult.data.url;
-          }
-          
-          const videoInfo = await youtube.search(q, KeyCog);
-          if (!videoInfo.ok) return reply(videoInfo.msg);
-          
-          const caption = `
-🎬 *Vídeo Encontrado* 🎬
+            // Use Promise .then for search
+            youtube.search(q, KeyCog)
+              .then((videoInfo) => {
+                if (!videoInfo.ok) return reply(videoInfo.msg);
+                videoUrl = videoInfo.data.url;
 
-📌 *Título:* ${videoInfo.data.title}
-👤 *Artista/Canal:* ${videoInfo.data.author.name}
-⏱ *Duração:* ${videoInfo.data.timestamp} (${videoInfo.data.seconds} segundos)
-👀 *Visualizações:* ${videoInfo.data.views.toLocaleString()}
-📅 *Publicado:* ${videoInfo.data.ago}
-📜 *Descrição:* ${videoInfo.data.description.slice(0, 100)}${videoInfo.data.description.length > 100 ? '...' : ''}
-🔗 *Link:* ${videoInfo.data.url}
+                const caption = `\n🎬 *Vídeo Encontrado* 🎬\n\n📌 *Título:* ${videoInfo.data.title}\n👤 *Artista/Canal:* ${videoInfo.data.author.name}\n⏱ *Duração:* ${videoInfo.data.timestamp} (${videoInfo.data.seconds} segundos)\n👀 *Visualizações:* ${videoInfo.data.views.toLocaleString()}\n📅 *Publicado:* ${videoInfo.data.ago}\n📜 *Descrição:* ${videoInfo.data.description.slice(0, 100)}${videoInfo.data.description.length > 100 ? '...' : ''}\n🔗 *Link:* ${videoInfo.data.url}\n\n📹 *Enviando seu vídeo, aguarde!*`;
 
-📹 *Enviando seu vídeo, aguarde!*`;
-          
-          await nazu.sendMessage(from, {
-            image: {
-              url: videoInfo.data.thumbnail
-            },
-            caption: caption,
-            footer: `By: ${nomebot}`
-          }, {
-            quoted: info
-          });
-          
-          const dlRes = await youtube.mp4(videoUrl, 360, KeyCog);
-          if (!dlRes.ok) return reply(dlRes.msg);
-          
-          try {
-            await nazu.sendMessage(from, {
-              video: dlRes.buffer,
-              fileName: `${dlRes.filename}`,
-              mimetype: 'video/mp4'
-            }, {
-              quoted: info
-            });
-          } catch (videoError) {
-            if (String(videoError).includes("ENOSPC") || String(videoError).includes("size")) {
-              await reply('Arquivo muito grande, enviando como documento...');
-              await nazu.sendMessage(from, {
-                document: dlRes.buffer,
-                fileName: `${dlRes.filename}`,
-                mimetype: 'video/mp4'
-              }, {
-                quoted: info
+                nazu.sendMessage(from, {
+                  image: { url: videoInfo.data.thumbnail },
+                  caption: caption,
+                  footer: `By: ${nomebot}`
+                }, { quoted: info }).catch((sendErr) => console.error('Erro ao enviar mensagem de resultado (playvid):', sendErr));
+
+                return youtube.mp4(videoUrl, 360, KeyCog);
+              })
+              .then(async (dlRes) => {
+                if (!dlRes.ok) return reply(dlRes.msg);
+
+                try {
+                  await nazu.sendMessage(from, {
+                    video: dlRes.buffer,
+                    fileName: `${dlRes.filename}`,
+                    mimetype: 'video/mp4'
+                  }, { quoted: info });
+                } catch (videoError) {
+                  if (String(videoError).includes("ENOSPC") || String(videoError).includes("size")) {
+                    await reply('Arquivo muito grande, enviando como documento...');
+                    await nazu.sendMessage(from, {
+                      document: dlRes.buffer,
+                      fileName: `${dlRes.filename}`,
+                      mimetype: 'video/mp4'
+                    }, { quoted: info });
+                  } else {
+                    throw videoError;
+                  }
+                }
+              })
+              .catch((e) => {
+                console.error('Erro no download/playvid:', e);
+                if (e.message && e.message.includes('API key inválida')) {
+                  youtube.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+                  return reply('🤖 *Sistema de YouTube temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+                }
+                reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
               });
-            } else {
-              throw videoError;
-            }
+
+            return;
           }
+          
+          // O fluxo de busca/baixar já foi tratado via promessas acima.
         } catch (e) {
           console.error('Erro no comando playvid/ytmp4:', e);
           
@@ -11318,28 +11343,42 @@ case 'ytmp3':
 
           await reply('Aguarde um momentinho... ☀️');
           let isTikTokUrl = q.includes('tiktok');
-          let datinha = await (isTikTokUrl ? tiktok.dl(q, KeyCog) : tiktok.search(q, KeyCog));
-          
-          if (!datinha.ok) return reply(datinha.msg);
-          
-          for (const urlz of datinha.urls) {
-            await nazu.sendMessage(from, {
-              [datinha.type]: {
-                url: urlz
+          const tiktokPromise = isTikTokUrl ? tiktok.dl(q, KeyCog) : tiktok.search(q, KeyCog);
+
+          tiktokPromise
+            .then(async (datinha) => {
+              if (!datinha.ok) return reply(datinha.msg);
+
+              for (const urlz of datinha.urls) {
+                await nazu.sendMessage(from, {
+                  [datinha.type]: {
+                    url: urlz
+                  }
+                }, {
+                  quoted: info
+                });
               }
-            }, {
-              quoted: info
+
+              if (datinha.audio) await nazu.sendMessage(from, {
+                audio: {
+                  url: datinha.audio
+                },
+                mimetype: 'audio/mp4'
+              }, {
+                quoted: info
+              });
+            })
+            .catch(async (e) => {
+              console.error('Erro no comando TikTok (promise):', e);
+              if (e.message && e.message.includes('API key inválida')) {
+                await tiktok.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+                return reply('🤖 *Sistema de TikTok temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+              }
+
+              reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
             });
-          }
-          
-          if (datinha.audio) await nazu.sendMessage(from, {
-            audio: {
-              url: datinha.audio
-            },
-            mimetype: 'audio/mp4'
-          }, {
-            quoted: info
-          });
+
+          return;
         } catch (e) {
           console.error('Erro no comando TikTok:', e);
           
@@ -11367,16 +11406,27 @@ case 'ytmp3':
           }
 
           await reply('Aguarde um momentinho... ☀️');
-          const datinha = await igdl.dl(q, KeyCog);
-          if (!datinha.ok) return reply(datinha.msg);
-          
-          for (const item of datinha.data) {
-            await nazu.sendMessage(from, {
-              [item.type]: item.buff
-            }, {
-              quoted: info
+          igdl.dl(q, KeyCog)
+            .then(async (datinha) => {
+              if (!datinha.ok) return reply(datinha.msg);
+
+              for (const item of datinha.data) {
+                await nazu.sendMessage(from, {
+                  [item.type]: item.buff
+                }, {
+                  quoted: info
+                });
+              }
+            })
+            .catch(async (e) => {
+              console.error('Erro no comando Instagram (promise):', e);
+              if (e.message && e.message.includes('API key inválida')) {
+                await igdl.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+                return reply('🤖 *Sistema de Instagram temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+              }
+              reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
             });
-          }
+          return;
         } catch (e) {
           console.error('Erro no comando Instagram:', e);
           
@@ -11413,20 +11463,42 @@ case 'ytmp3':
           }
 
           const isPinUrl = PIN_URL_REGEX.test(searchTerm);
-          const datinha = await (isPinUrl ? pinterest.dl(searchTerm) : pinterest.search(searchTerm));
-          if (!datinha.ok || !datinha.urls || datinha.urls.length === 0) {
-            return reply(isPinUrl ? 'Não foi possível baixar este link do Pinterest. 😕' : 'Nenhuma imagem encontrada para o termo pesquisado. 😕');
+          // Ensure API key is configured
+          if (!KeyCog) {
+            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            return reply(API_KEY_REQUIRED_MESSAGE);
           }
+          const pinPromise = isPinUrl ? pinterest.dl(searchTerm, KeyCog) : pinterest.search(searchTerm, KeyCog);
 
-          const itemsToSend = datinha.urls.slice(0, maxImages);
-          for (const url of itemsToSend) {
+          pinPromise
+            .then(async (datinha) => {
+              if (!datinha.ok || !datinha.urls || datinha.urls.length === 0) {
+                return reply(isPinUrl ? 'Não foi possível baixar este link do Pinterest. 😕' : 'Nenhuma imagem encontrada para o termo pesquisado. 😕');
+              }
+
+              const itemsToSend = datinha.urls.slice(0, maxImages);
+              for (const url of itemsToSend) {
             const message = isPinUrl && datinha.type === 'video'
               ? { video: { url }, caption: '📌 Download do Pinterest' }
               : { image: { url }, caption: isPinUrl ? '📌 Download do Pinterest' : `📌 Resultado da pesquisa por "${searchTerm}"` };
             await nazu.sendMessage(from, message, { quoted: info });
-          }
+              }
+            })
+            .catch(async (e) => {
+              console.error('Erro no comando pinterest (promise):', e);
+              if (e.message && e.message.includes('API key inválida')) {
+                await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+                return reply('🤖 *Sistema de Pinterest temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+              }
+              reply("Ocorreu um erro ao processar o Pinterest 💔");
+            });
+          return;
         } catch (e) {
           console.error('Erro no comando pinterest:', e);
+          if (e.message && e.message.includes('API key inválida')) {
+            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+            return reply('🤖 *Sistema de Pinterest temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+          }
           await reply("Ocorreu um erro ao processar o Pinterest 💔");
         }
         break;
