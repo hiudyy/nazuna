@@ -4505,12 +4505,22 @@ Entre em contato com o dono do bot:
         }
 
         if (sub === 'vagas') {
-          const jobs = econ.jobCatalog||{}; 
-          let txt='╭━━━⊱ 💼 *VAGAS DE EMPREGO* 💼 ⊱━━━╮\n│\n';
-          Object.entries(jobs).forEach(([k,j])=>{ 
-            txt += `│ 🔹 *${k}*\n│   ${j.name}\n│   💰 ${fmt(j.min)}-${fmt(j.max)}\n│\n`; 
+          let jobs = econ.jobCatalog || {};
+          // Se não houver vagas no arquivo de economia, usar catálogo padrão embutido
+          if (!jobs || Object.keys(jobs).length === 0) {
+            jobs = {
+              "estagiario": { name: "Estagiário", min: 80, max: 140 },
+              "designer": { name: "Designer", min: 150, max: 250 },
+              "programador": { name: "Programador", min: 200, max: 350 },
+              "gerente": { name: "Gerente", min: 260, max: 420 }
+            };
+          }
+
+          let txt = '╭━━━⊱ 💼 *VAGAS DE EMPREGO* 💼 ⊱━━━╮\n│\n';
+          Object.entries(jobs).forEach(([k, j]) => {
+            txt += `│ 🔹 *${k}*\n│   ${j.name}\n│   💰 ${fmt(j.min)}-${fmt(j.max)}\n│\n`;
           });
-          txt += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n💡 Use: ${prefix}emprego <vaga>`; 
+          txt += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n💡 Use: ${prefix}emprego <vaga>`;
           return reply(txt);
         }
         if (sub === 'emprego') {
