@@ -4524,7 +4524,7 @@ Entre em contato com o dono do bot:
           return reply(txt);
         }
         if (sub === 'emprego') {
-          const key = (args[0]||'').toLowerCase(); 
+          const key = (args[0]||'').toLowerCase();
           if (!key) return reply(`╭━━━⊱ 💼 *EMPREGO* 💼 ⊱━━━╮
 │
 │ ❌ Informe a vaga desejada
@@ -4535,10 +4535,25 @@ Entre em contato com o dono do bot:
 │ ${prefix}emprego vendedor
 │
 ╰━━━━━━━━━━━━━━━━━━━━━╯`);
-          const job = (econ.jobCatalog||{})[key]; 
+
+          const defaultJobs = {
+            "estagiario": { name: "Estagiário", min: 80, max: 140 },
+            "designer": { name: "Designer", min: 150, max: 250 },
+            "programador": { name: "Programador", min: 200, max: 350 },
+            "gerente": { name: "Gerente", min: 260, max: 420 }
+          };
+
+          const jobCatalog = (econ.jobCatalog && Object.keys(econ.jobCatalog).length) ? econ.jobCatalog : defaultJobs;
+          const job = jobCatalog[key];
           if (!job) return reply('❌ Vaga inexistente.');
-          me.job = key; 
-          saveEconomy(econ); 
+
+          // If economy file had no jobCatalog, persist defaults so future queries find them
+          if (!econ.jobCatalog || Object.keys(econ.jobCatalog).length === 0) {
+            econ.jobCatalog = jobCatalog;
+          }
+
+          me.job = key;
+          saveEconomy(econ);
           return reply(`╭━━━⊱ ✅ *CONTRATADO!* ✅ ⊱━━━╮
 │
 │ 💼 Emprego: ${job.name}
