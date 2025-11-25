@@ -28,6 +28,7 @@ ${middleBorder}${menuItemIcon}${prefix}ping
 ${middleBorder}${menuItemIcon}${prefix}statusbot
 ${middleBorder}${menuItemIcon}${prefix}statusgp
 ${middleBorder}${menuItemIcon}${prefix}regras
+${middleBorder}${menuItemIcon}${prefix}zipbot
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${personalMenuTitle}*

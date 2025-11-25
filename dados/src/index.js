@@ -2582,87 +2582,105 @@ Código: *${roleCode}*`,
     if (budy2.match(/^(\d+)d(\d+)$/)) reply(+budy2.match(/^(\d+)d(\d+)$/)[1] > 50 || +budy2.match(/^(\d+)d(\d+)$/)[2] > 100 ? "❌ Limite: max 50 dados e 100 lados" : "🎲 Rolando " + budy2.match(/^(\d+)d(\d+)$/)[1] + "d" + budy2.match(/^(\d+)d(\d+)$/)[2] + "...\n🎯 Resultados: " + (r = [...Array(+budy2.match(/^(\d+)d(\d+)$/)[1])].map(_ => 1 + Math.floor(Math.random() * +budy2.match(/^(\d+)d(\d+)$/)[2]))).join(", ") + "\n📊 Total: " + r.reduce((a, b) => a + b, 0));
 
     const _botShort = (nazu && nazu.user && (nazu.user.id || nazu.user.lid)) ? String((nazu.user.id || nazu.user.lid).split(':')[0]) : '';
-    if (!info.key.fromMe && isAssistente && !isCmd && ((_botShort && budy2.includes(_botShort)) || (menc_os2 && menc_os2 == await getBotNumber(nazu))) && KeyCog) {
-      if (budy2.replaceAll('@' + _botShort, '').length > 2) {
-        try {
-          const jSoNzIn = {
-            texto: budy2.replaceAll('@' + _botShort, '').trim(),
-            id_enviou: sender,
-            nome_enviou: pushname,
-            id_grupo: isGroup ? from : false,
-            nome_grupo: isGroup ? groupName : false,
-            tem_midia: isMedia,
-            marcou_mensagem: false,
-            marcou_sua_mensagem: false,
-            mensagem_marcada: false,
-            id_enviou_marcada: false,
-            tem_midia_marcada: false,
-            id_mensagem: info.key.id,
-            data_atual: new Date().toLocaleString('pt-BR', {
-              timeZone: 'America/Sao_Paulo'
-            }),
-            data_mensagem: new Date(info.messageTimestamp * 1000).toLocaleString('pt-BR', {
-              timeZone: 'America/Sao_Paulo'
-            })
-          };
-          let {
-            participant,
-            quotedMessage
-          } = info.message?.extendedTextMessage?.contextInfo || {};
-          let jsonO = {
-            participant,
-            quotedMessage,
-            texto: quotedMessage?.conversation || quotedMessage?.extendedTextMessage?.text || quotedMessage?.imageMessage?.caption || quotedMessage?.videoMessage?.caption || quotedMessage?.documentMessage?.caption || ""
-          };
-          if (jsonO && jsonO.participant && jsonO.texto && jsonO.texto.length > 0) {
-            jSoNzIn.marcou_mensagem = true;
-            jSoNzIn.mensagem_marcada = jsonO.texto;
-            jSoNzIn.id_enviou_marcada = jsonO.participant;
-            jSoNzIn.marcou_sua_mensagem = jsonO.participant == getBotId(nazu);
+    if (!info.key.fromMe && isAssistente && !isCmd && KeyCog) {
+      getBotNumber(nazu).then((botNumber) => {
+        if (!((_botShort && budy2.includes(_botShort)) || (menc_os2 && menc_os2 == botNumber))) return;
+        if (budy2.replaceAll('@' + _botShort, '').length <= 2) return;
+        
+        const jSoNzIn = {
+          texto: budy2.replaceAll('@' + _botShort, '').trim(),
+          id_enviou: sender,
+          nome_enviou: pushname,
+          id_grupo: isGroup ? from : false,
+          nome_grupo: isGroup ? groupName : false,
+          tem_midia: isMedia,
+          marcou_mensagem: false,
+          marcou_sua_mensagem: false,
+          mensagem_marcada: false,
+          id_enviou_marcada: false,
+          tem_midia_marcada: false,
+          id_mensagem: info.key.id,
+          data_atual: new Date().toLocaleString('pt-BR', {
+            timeZone: 'America/Sao_Paulo'
+          }),
+          data_mensagem: new Date(info.messageTimestamp * 1000).toLocaleString('pt-BR', {
+            timeZone: 'America/Sao_Paulo'
+          })
+        };
+        let {
+          participant,
+          quotedMessage
+        } = info.message?.extendedTextMessage?.contextInfo || {};
+        let jsonO = {
+          participant,
+          quotedMessage,
+          texto: quotedMessage?.conversation || quotedMessage?.extendedTextMessage?.text || quotedMessage?.imageMessage?.caption || quotedMessage?.videoMessage?.caption || quotedMessage?.documentMessage?.caption || ""
+        };
+        if (jsonO && jsonO.participant && jsonO.texto && jsonO.texto.length > 0) {
+          jSoNzIn.marcou_mensagem = true;
+          jSoNzIn.mensagem_marcada = jsonO.texto;
+          jSoNzIn.id_enviou_marcada = jsonO.participant;
+          jSoNzIn.marcou_sua_mensagem = jsonO.participant == getBotId(nazu);
+        }
+        if (!KeyCog) {
+          nazu.sendMessage(nmrdn, {
+            text: '🤖 *Sistema de IA desativado*\n\n😅 O sistema de IA está desativado porque a API key não foi configurada.\n\n⚙️ Para configurar, use o comando: `!apikey SUA_API_KEY`\n📞 Suporte: wa.me/553399285117'
+          });
+          return;
+        }
+        
+        console.log('🤖 Processando mensagem de assistente...');
+        
+        // Add null check for ia object
+        if (!ia || typeof ia.makeAssistentRequest !== 'function') {
+          console.warn('[IA] makeAssistentRequest not available');
+          reply('🤖 Sistema de IA temporariamente indisponível. Tente novamente em alguns minutos.');
+          return;
+        }
+        
+        ia.makeAssistentRequest({
+          mensagens: [jSoNzIn]
+        }, KeyCog, nazu, nmrdn).then((respAssist) => {
+          if (respAssist.erro === 'Sistema de IA temporariamente desativado') {
+            return;
           }
-            if (!KeyCog) {
-              await nazu.sendMessage(nmrdn, {
-                text: '🤖 *Sistema de IA desativado*\n\n😅 O sistema de IA está desativado porque a API key não foi configurada.\n\n⚙️ Para configurar, use o comando: `!apikey SUA_API_KEY`\n📞 Suporte: wa.me/553399285117'
-              });
-              return;
-            }
-            
-            console.log('🤖 Processando mensagem de assistente...');
-            
-            // Add null check for ia object
-            if (!ia || typeof ia.makeAssistentRequest !== 'function') {
-              console.warn('[IA] makeAssistentRequest not available');
-              return reply('🤖 Sistema de IA temporariamente indisponível. Tente novamente em alguns minutos.');
-            }
-            
-            const respAssist = await ia.makeAssistentRequest({
-              mensagens: [jSoNzIn]
-            }, KeyCog, nazu, nmrdn);
-            
-            if (respAssist.erro === 'Sistema de IA temporariamente desativado') {
-              return;
-            }
-            
-            console.log('✅ Assistente processado com sucesso');
           
+          console.log('✅ Assistente processado com sucesso');
+        
           if (respAssist.apiKeyInvalid) {
-            await reply(respAssist.message || '🤖 Sistema de IA temporariamente indisponível. Tente novamente mais tarde.');
+            reply(respAssist.message || '🤖 Sistema de IA temporariamente indisponível. Tente novamente mais tarde.');
             return;
           }
           
           if (respAssist.resp && respAssist.resp.length > 0) {
-            for (const msgza of respAssist.resp) {
-              if (msgza.react) await nazu.react(msgza.react.replaceAll(' ', '').replaceAll('\n', ''), {
-                key: info.key
-              });
-              if (msgza.resp && msgza.resp.length > 0) await reply(msgza.resp);
-            }
+            const processResponses = (index) => {
+              if (index >= respAssist.resp.length) return;
+              const msgza = respAssist.resp[index];
+              const processNext = () => processResponses(index + 1);
+              
+              if (msgza.react) {
+                nazu.react(msgza.react.replaceAll(' ', '').replaceAll('\n', ''), {
+                  key: info.key
+                }).then(() => {
+                  if (msgza.resp && msgza.resp.length > 0) {
+                    reply(msgza.resp).then(processNext);
+                  } else {
+                    processNext();
+                  }
+                });
+              } else if (msgza.resp && msgza.resp.length > 0) {
+                reply(msgza.resp).then(processNext);
+              } else {
+                processNext();
+              }
+            };
+            processResponses(0);
           }
-        } catch (assistentError) {
+        }).catch((assistentError) => {
           console.error('Erro no assistente virtual:', assistentError.message);
-          await reply('🤖 Erro técnico no assistente virtual. Tente novamente em alguns minutos.');
-        }
-      }
+          reply('🤖 Erro técnico no assistente virtual. Tente novamente em alguns minutos.');
+        });
+      });
     }
     //ANTI FLOOD DE MENSAGENS
     if (isGroup && groupData.messageLimit?.enabled && !isGroupAdmin && !isOwnerOrSub && !info.key.fromMe) {
@@ -7942,519 +7960,502 @@ Entre em contato com o dono do bot:
       case 'gemma':
         if (!q) return reply(`🤔 Qual sua dúvida para o Gemma? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Gemma... ✨`);
-          const response = await ia.makeCognimaRequest('google/gemma-7b', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Gemma:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Gemma! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Gemma... ✨`).then(() => {
+          ia.makeCognimaRequest('google/gemma-7b', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Gemma:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Gemma! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'phi':
       case 'phi3':
         if (!q) return reply(`🤔 Qual sua dúvida para o Phi? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Phi... ✨`);
-          const response = await ia.makeCognimaRequest('microsoft/phi-3-medium-4k-instruct', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Phi:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Phi! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Phi... ✨`).then(() => {
+          ia.makeCognimaRequest('microsoft/phi-3-medium-4k-instruct', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Phi:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Phi! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'qwen2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Qwen2? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Qwen2... ✨`);
-          const response = await ia.makeCognimaRequest('qwen/qwen2-7b-instruct', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Qwen2:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Qwen2! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Qwen2... ✨`).then(() => {
+          ia.makeCognimaRequest('qwen/qwen2-7b-instruct', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Qwen2:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Qwen2! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'qwen':
       case 'qwen3':
         if (!q) return reply(`🤔 Qual sua dúvida para o Qwen? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Qwen... ✨`);
-          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Qwen:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Qwen! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Qwen... ✨`).then(() => {
+          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Qwen:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Qwen! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'llama':
       case 'llama3':
         if (!q) return reply(`🤔 Qual sua dúvida para o Llama? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Llama... ✨`);
-          const response = await ia.makeCognimaRequest('abacusai/dracarys-llama-3.1-70b-instruct', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Llama:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Llama! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Llama... ✨`).then(() => {
+          ia.makeCognimaRequest('abacusai/dracarys-llama-3.1-70b-instruct', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Llama:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Llama! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'baichuan':
       case 'baichuan2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Baichuan? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Baichuan... ✨`);
-          const response = await ia.makeCognimaRequest('baichuan-inc/baichuan2-13b-chat', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Baichuan:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Baichuan! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Baichuan... ✨`).then(() => {
+          ia.makeCognimaRequest('baichuan-inc/baichuan2-13b-chat', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Baichuan:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Baichuan! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'marin':
         if (!q) return reply(`🤔 Qual sua dúvida para o Marin? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Marin... ✨`);
-          const response = await ia.makeCognimaRequest('marin/marin-8b-instruct', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Marin:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Marin! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Marin... ✨`).then(() => {
+          ia.makeCognimaRequest('marin/marin-8b-instruct', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Marin:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Marin! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'kimi':
       case 'kimik2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Kimi? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Kimi... ✨`);
-          const response = await ia.makeCognimaRequest('moonshotai/kimi-k2-instruct', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Kimi:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Kimi! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Kimi... ✨`).then(() => {
+          ia.makeCognimaRequest('moonshotai/kimi-k2-instruct', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Kimi:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Kimi! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'mistral':
         if (!q) return reply(`🤔 Qual sua dúvida para o Mistral? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Mistral... ✨`);
-          const response = await ia.makeCognimaRequest('mistralai/mistral-small-24b-instruct', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Mistral:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Mistral! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Mistral... ✨`).then(() => {
+          ia.makeCognimaRequest('mistralai/mistral-small-24b-instruct', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Mistral:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Mistral! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'magistral':
         if (!q) return reply(`🤔 Qual sua dúvida para o Magistral? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Magistral... ✨`);
-          const response = await ia.makeCognimaRequest('mistralai/magistral-small-2506', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Magistral:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Magistral! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Magistral... ✨`).then(() => {
+          ia.makeCognimaRequest('mistralai/magistral-small-2506', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Magistral:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Magistral! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'rakutenai':
       case 'rocket':
         if (!q) return reply(`🤔 Qual sua dúvida para o RakutenAI? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o RakutenAI... ✨`);
-          const response = await ia.makeCognimaRequest('rakuten/rakutenai-7b-instruct', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API RakutenAI:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o RakutenAI! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o RakutenAI... ✨`).then(() => {
+          ia.makeCognimaRequest('rakuten/rakutenai-7b-instruct', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API RakutenAI:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o RakutenAI! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'yi':
         if (!q) return reply(`🤔 Qual sua dúvida para o Yi? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Yi... ✨`);
-          const response = await ia.makeCognimaRequest('01-ai/yi-large', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Yi:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Yi! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Yi... ✨`).then(() => {
+          ia.makeCognimaRequest('01-ai/yi-large', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Yi:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Yi! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'gemma2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Gemma2? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Gemma2... ✨`);
-          const response = await ia.makeCognimaRequest('google/gemma-2-27b-it', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Gemma2:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Gemma2! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Gemma2... ✨`).then(() => {
+          ia.makeCognimaRequest('google/gemma-2-27b-it', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Gemma2:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Gemma2! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'swallow':
         if (!q) return reply(`🤔 Qual sua dúvida para o Swallow? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Swallow... ✨`);
-          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Swallow:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Swallow! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Swallow... ✨`).then(() => {
+          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Swallow:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Swallow! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'falcon':
         if (!q) return reply(`🤔 Qual sua dúvida para o Falcon? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Falcon... ✨`);
-          const response = await ia.makeCognimaRequest('tiiuae/falcon3-7b-instruct', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Falcon:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Falcon! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Falcon... ✨`).then(() => {
+          ia.makeCognimaRequest('tiiuae/falcon3-7b-instruct', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Falcon:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Falcon! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'qwencoder':
         if (!q) return reply(`🤔 Qual sua dúvida para o Qwencoder? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o Qwencoder... ✨`);
-          const response = await ia.makeCognimaRequest('qwen/qwen2.5-coder-32b-instruct', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API Qwencoder:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o Qwencoder! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o Qwencoder... ✨`).then(() => {
+          ia.makeCognimaRequest('qwen/qwen2.5-coder-32b-instruct', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API Qwencoder:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o Qwencoder! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'codegemma':
         if (!q) return reply(`🤔 Qual sua dúvida para o CodeGemma? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply(`⏳ Só um segundinho, estou consultando o CodeGemma... ✨`);
-          const response = await ia.makeCognimaRequest('google/codegemma-7b', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API CodeGemma:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply(`😓 Poxa, algo deu errado com o CodeGemma! Tente novamente em alguns instantes, tá? 🌈`);
-          }
-        }
+        reply(`⏳ Só um segundinho, estou consultando o CodeGemma... ✨`).then(() => {
+          ia.makeCognimaRequest('google/codegemma-7b', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API CodeGemma:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply(`😓 Poxa, algo deu errado com o CodeGemma! Tente novamente em alguns instantes, tá? 🌈`);
+            }
+          });
+        });
         break;
       case 'resumir':
         if (!q) return reply(`📝 *Resumidor de Texto*\n\n💡 *Como usar:*\n• Envie o texto que deseja resumir após o comando\n• Ex: ${prefix}resumir [seu texto aqui]\n\n✨ O texto será resumido de forma clara e objetiva!`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply('⏳ Aguarde enquanto preparo um resumo bem caprichado... ✨');
+        reply('⏳ Aguarde enquanto preparo um resumo bem caprichado... ✨').then(() => {
           const prompt = `Resuma o seguinte texto em poucos parágrafos, de forma clara e objetiva, destacando as informações mais importantes:\n\n${q}`;
-          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro ao resumir texto:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply('😓 Ops, não consegui resumir agora! Que tal tentar de novo? 🌟');
-          }
-        }
+          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro ao resumir texto:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply('😓 Ops, não consegui resumir agora! Que tal tentar de novo? 🌟');
+            }
+          });
+        });
         break;
       case 'resumirurl':
         if (!q) return reply(`🌐 Quer resumir uma página? Envie a URL após o comando ${prefix}resumirurl! Exemplo: ${prefix}resumirurl https://exemplo.com/artigo 😊`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          if (!q.startsWith('http://') && !q.startsWith('https://')) {
-            return reply(`🚫 Ops, parece que a URL é inválida! Certifique-se de incluir http:// ou https://. Exemplo: ${prefix}resumirurl https://exemplo.com/artigo 😊`);
-          }
-          await reply('⏳ Aguarde enquanto busco e resumo a página para você... ✨');
-          const response = await axios.get(q, {
+        if (!q.startsWith('http://') && !q.startsWith('https://')) {
+          return reply(`🚫 Ops, parece que a URL é inválida! Certifique-se de incluir http:// ou https://. Exemplo: ${prefix}resumirurl https://exemplo.com/artigo 😊`);
+        }
+        reply('⏳ Aguarde enquanto busco e resumo a página para você... ✨').then(() => {
+          axios.get(q, {
             timeout: 10000,
             headers: {
               'User-Agent': 'Mozilla/5.0 (compatible; Bot/1.0)'
             }
+          }).then((response) => {
+            const { document } = parseHTML(response.data);
+            document.querySelectorAll('script, style, noscript, iframe').forEach(el => el.remove());
+            const cleanText = document.body.textContent.replace(/\s+/g, ' ').trim();
+            if (!cleanText || cleanText.length < 50) {
+              reply(`😓 Ops, não encontrei conteúdo suficiente para resumir nessa página! Tente outra URL, tá? 🌐`);
+              return;
+            }
+            const prompt = `Resuma o seguinte conteúdo extraído de uma página web em poucos parágrafos, de forma clara e objetiva, destacando os pontos principais:\n\n${cleanText.substring(0, 5000)}`;
+            ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((iaResponse) => {
+              reply(iaResponse.data.choices[0].message.content);
+            }).catch((e) => {
+              console.error('Erro ao resumir URL (IA):', e.message);
+              if (e.message && e.message.includes('API key inválida')) {
+                ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+                reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+              } else {
+                reply('😓 Vixe, algo deu errado ao resumir a página! Tente novamente em breve, combinado? 🌈');
+              }
+            });
+          }).catch((e) => {
+            console.error('Erro ao resumir URL:', e.message);
+            if (e.code === 'ECONNABORTED') {
+              reply('😓 Ops, a página demorou muito para responder! Tente outra URL. 🌐');
+            } else if (e.response) {
+              reply(`😓 Não consegui acessar a página (código ${e.response.status}). Verifique a URL e tente novamente, tá? 🌟`);
+            } else {
+              reply('😓 Vixe, algo deu errado ao resumir a página! Tente novamente em breve, combinado? 🌈');
+            }
           });
-          const {
-            document
-          } = parseHTML(response.data);
-          document.querySelectorAll('script, style, noscript, iframe').forEach(el => el.remove());
-          const cleanText = document.body.textContent.replace(/\s+/g, ' ').trim();
-          if (!cleanText || cleanText.length < 50) {
-            return reply(`😓 Ops, não encontrei conteúdo suficiente para resumir nessa página! Tente outra URL, tá? 🌐`);
-          }
-          const prompt = `Resuma o seguinte conteúdo extraído de uma página web em poucos parágrafos, de forma clara e objetiva, destacando os pontos principais:\n\n${cleanText.substring(0, 5000)}`;
-          const iaResponse = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
-          await reply(iaResponse.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro ao resumir URL:', e.message);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else if (e.code === 'ECONNABORTED') {
-            await reply('😓 Ops, a página demorou muito para responder! Tente outra URL. 🌐');
-          } else if (e.response) {
-            await reply(`😓 Não consegui acessar a página (código ${e.response.status}). Verifique a URL e tente novamente, tá? 🌟`);
-          } else {
-            await reply('😓 Vixe, algo deu errado ao resumir a página! Tente novamente em breve, combinado? 🌈');
-          }
-        }
+        });
         break;
       case 'ideias':
       case 'ideia':
         if (!q) return reply(`💡 Quer ideias criativas? Diga o tema após o comando ${prefix}ideias! Exemplo: ${prefix}ideias nomes para um aplicativo de receitas 😊`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply('⏳ Um segundinho, estou pensando em ideias incríveis... ✨');
+        reply('⏳ Um segundinho, estou pensando em ideias incríveis... ✨').then(() => {
           const prompt = `Gere 15 ideias criativas e detalhadas para o seguinte tema: ${q}`;
-          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro ao gerar ideias:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply('😓 Poxa, não consegui gerar ideias agora! Tente de novo em breve, tá? 🌈');
-          }
-        }
+          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro ao gerar ideias:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply('😓 Poxa, não consegui gerar ideias agora! Tente de novo em breve, tá? 🌈');
+            }
+          });
+        });
         break;
       case 'explicar':
       case 'explique':
         if (!q) return reply(`🤓 Quer entender algo? Diga o que deseja explicar após o comando ${prefix}explicar! Exemplo: ${prefix}explicar o que é inteligência artificial 😊`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply('⏳ Um momentinho, estou preparando uma explicação bem clara... ✨');
+        reply('⏳ Um momentinho, estou preparando uma explicação bem clara... ✨').then(() => {
           const prompt = `Explique o seguinte conceito de forma simples e clara, como se fosse para alguém sem conhecimento prévio: ${q}`;
-          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro ao explicar conceito:', e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply('😓 Vixe, não consegui explicar agora! Tente de novo em alguns instantes, tá? 🌈');
-          }
-        }
+          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro ao explicar conceito:', e);
+            if (e.message && e.message.includes('API key inválida')) {
+              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
+            } else {
+              reply('😓 Vixe, não consegui explicar agora! Tente de novo em alguns instantes, tá? 🌈');
+            }
+          });
+        });
         break;
       case 'corrigir':
       case 'correcao':
         if (!q) return reply(`✍️ Quer corrigir um texto? Envie o texto após o comando ${prefix}corrigir! Exemplo: ${prefix}corrigir Eu foi no mercado e comprei frutas. 😊`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply('⏳ Aguarde enquanto dou um polimento no seu texto... ✨');
+        reply('⏳ Aguarde enquanto dou um polimento no seu texto... ✨').then(() => {
           const prompt = `Corrija os erros gramaticais, ortográficos e de estilo no seguinte texto, mantendo o significado original: ${q}`;
-          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro ao corrigir texto:', e);
-          await reply('😓 Ops, não consegui corrigir o texto agora! Tente novamente, tá? 🌟');
-        }
+          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro ao corrigir texto:', e);
+            reply('😓 Ops, não consegui corrigir o texto agora! Tente novamente, tá? 🌟');
+          });
+        });
         break;
       case 'cog':
         if (!q) return reply(`📢 Ei, falta a pergunta! Me diga o que quer saber após o comando ${prefix}cog! 😴`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply('⏳ Um momentinho, estou pensando na melhor resposta... 🌟');
-          const response = await ia.makeCognimaRequest('cognima/CognimAI', q, null, KeyCog || null);
-          await reply(response.data.choices[0].message.content);
-        } catch (e) {
-          console.error('Erro na API CognimAI:', e);
-          await reply('😓 Vixe, algo deu errado por aqui! Tente novamente em breve, combinado? 🌈');
-        }
+        reply('⏳ Um momentinho, estou pensando na melhor resposta... 🌟').then(() => {
+          ia.makeCognimaRequest('cognima/CognimAI', q, null, KeyCog || null).then((response) => {
+            reply(response.data.choices[0].message.content);
+          }).catch((e) => {
+            console.error('Erro na API CognimAI:', e);
+            reply('😓 Vixe, algo deu errado por aqui! Tente novamente em breve, combinado? 🌈');
+          });
+        });
         break;
       case 'tradutor':
       case 'translator':
         if (!q) return reply(`🌍 Quer traduzir algo? Me diga o idioma e o texto assim: ${prefix}${command} idioma | texto
 Exemplo: ${prefix}tradutor inglês | Bom dia! 😊`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        try {
-          await reply('Aguarde um momentinho... ☀️');
+        {
           const partes = q.split('|');
           if (partes.length < 2) {
             return reply(`Formato incorreto! 😅 Use: ${prefix}tradutor idioma | texto
@@ -8462,12 +8463,15 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           }
           const idioma = partes[0].trim();
           const texto = partes.slice(1).join('|').trim();
-          const prompt = `Traduza o seguinte texto para ${idioma}:\n\n${texto}\n\nForneça apenas a tradução, sem explicações adicionais.`;
-          const bahz = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
-          await reply(`🌐✨ *Prontinho! Sua tradução para ${idioma.toUpperCase()} está aqui:*\n\n${bahz.data.choices[0].message.content}`);
-        } catch (e) {
-          console.error("Erro ao traduzir texto:", e);
-          await reply("❌ Não foi possível realizar a tradução no momento. Tente novamente mais tarde.");
+          reply('Aguarde um momentinho... ☀️').then(() => {
+            const prompt = `Traduza o seguinte texto para ${idioma}:\n\n${texto}\n\nForneça apenas a tradução, sem explicações adicionais.`;
+            ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((bahz) => {
+              reply(`🌐✨ *Prontinho! Sua tradução para ${idioma.toUpperCase()} está aqui:*\n\n${bahz.data.choices[0].message.content}`);
+            }).catch((e) => {
+              console.error("Erro ao traduzir texto:", e);
+              reply("❌ Não foi possível realizar a tradução no momento. Tente novamente mais tarde.");
+            });
+          });
         }
         break;
       case 'qrcode':
@@ -8575,52 +8579,43 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'dictionary':
         if (!q) return reply(`📔 Qual palavra você quer procurar no dicionário? Me diga após o comando ${prefix}${command}! 😊`);
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
-        reply("📔 Procurando no dicionário... Aguarde um pouquinho! ⏳");
-        try {
+        reply("📔 Procurando no dicionário... Aguarde um pouquinho! ⏳").then(() => {
           const palavra = q.trim().toLowerCase();
-          let definicaoEncontrada = false;
-          try {
-            const resp = await axios.get(`https://significado.herokuapp.com/${encodeURIComponent(palavra)}`);
+          axios.get(`https://significado.herokuapp.com/${encodeURIComponent(palavra)}`).then((resp) => {
             if (resp.data && resp.data.length > 0 && resp.data[0].meanings) {
               const significados = resp.data[0];
               let mensagem = `📘✨ *Significado de "${palavra.toUpperCase()}":*\n\n`;
               if (significados.class) {
-                
                 mensagem += `*Classe:* ${significados.class}\n\n`;
               }
               if (significados.meanings && significados.meanings.length > 0) {
-                
                 mensagem += `*Significados:*\n`;
                 significados.meanings.forEach((significado, index) => {
-                  
                   mensagem += `${index + 1}. ${significado}\n`;
                 });
-                
                 mensagem += '\n';
               }
               if (significados.etymology) {
-                
                 mensagem += `*Etimologia:* ${significados.etymology}\n\n`;
               }
-              await reply(mensagem);
-              definicaoEncontrada = true;
+              reply(mensagem);
+            } else {
+              throw new Error('Sem resultados');
             }
-          } catch (apiError) {
+          }).catch(() => {
             console.log("API primária do dicionário falhou, tentando IA...");
-          }
-          if (!definicaoEncontrada) {
             const prompt = `Defina a palavra "${palavra}" em português de forma completa e fofa. Inclua a classe gramatical, os principais significados e um exemplo de uso em uma frase curta e bonitinha.`;
-            const bahz = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null);
-            await reply(`${bahz.data.choices[0].message.content}`);
-            definicaoEncontrada = true;
-          }
-        } catch (e) {
-          console.error("Erro geral ao buscar no dicionário:", e);
-          await reply("❌ Palavra não encontrada. Verifique a ortografia e tente novamente.");
-        }
+            ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((bahz) => {
+              reply(`${bahz.data.choices[0].message.content}`);
+            }).catch((e) => {
+              console.error("Erro geral ao buscar no dicionário:", e);
+              reply("❌ Palavra não encontrada. Verifique a ortografia e tente novamente.");
+            });
+          });
+        });
         break;
       case 'updates':
         try {
@@ -10959,22 +10954,28 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           
           // Verificar se tem API key
           if (!KeyCog) {
-            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           
-          await reply('Um momento, estou buscando as informações para você 🕵️‍♂️');
-          var datyz;
-          datyz = await FilmesDL(q, KeyCog);
-          if (!datyz || !datyz.url) return reply('Desculpe, não consegui encontrar nada. Tente com outro nome de filme ou série. 😔');
-          
-          await nazu.sendMessage(from, {
-            image: { url: datyz.img },
-            caption: `Aqui está o que encontrei! 🎬\n\n*Nome*: ${datyz.name}\n🔗 *Assista:* ${datyz.url}`
-          }, { quoted: info });
+          reply('Um momento, estou buscando as informações para você 🕵️‍♂️').then(() => {
+            FilmesDL(q, KeyCog).then((datyz) => {
+              if (!datyz || !datyz.url) {
+                reply('Desculpe, não consegui encontrar nada. Tente com outro nome de filme ou série. 😔');
+                return;
+              }
+              nazu.sendMessage(from, {
+                image: { url: datyz.img },
+                caption: `Aqui está o que encontrei! 🎬\n\n*Nome*: ${datyz.name}\n🔗 *Assista:* ${datyz.url}`
+              }, { quoted: info });
+            }).catch((e) => {
+              console.error(e);
+              reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
+            });
+          });
         } catch (e) {
           console.error(e);
-          await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
+          reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         }
         break;
       case 'mcplugin':
@@ -10999,74 +11000,66 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         break;
       case 'shazam':
         if (!KeyCog) {
-          await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
           if (isMedia && !info.message.imageMessage && !info.message.videoMessage || isQuotedAudio) {
             const muk = isQuotedAudio ? info.message.extendedTextMessage.contextInfo.quotedMessage.audioMessage : info.message.audioMessage;
-            await reply('Aguarde um momentinho... ☀️');
-            const buffi = await getFileBuffer(muk, 'audio');
-            const Slakzin = await ia.Shazam(buffi);
-            youtube.search(`${Slakzin.result.title} - ${Slakzin.result.artist}`, KeyCog)
-              .then(async (videoInfo) => {
-                const views = typeof videoInfo.data.views === 'number' ? videoInfo.data.views.toLocaleString('pt-BR') : videoInfo.data.views;
-                const description = videoInfo.data.description ? videoInfo.data.description.slice(0, 100) + (videoInfo.data.description.length > 100 ? '...' : '') : 'Sem descrição disponível';
-                const caption = `🎵 *Música Encontrada* 🎵\n\n📌 *Título:* ${videoInfo.data.title}\n👤 *Artista/Canal:* ${videoInfo.data.author.name}\n⏱ *Duração:* ${videoInfo.data.timestamp} (${videoInfo.data.seconds} segundos)\n👀 *Visualizações:* ${views}\n📅 *Publicado:* ${videoInfo.data.ago}\n📜 *Descrição:* ${description}\n🔗 *Link:* ${videoInfo.data.url}\n\n🎧 *Baixando e processando sua música, aguarde...*`;
-                await nazu.sendMessage(from, {
-                  image: {
-                    url: videoInfo.data.thumbnail
-                  },
-                  caption: caption,
-                  footer: `${nomebot} • Versão ${botVersion}`
-                }, {
-                  quoted: info
-                });
-
-                return youtube.mp3(videoInfo.data.url, 128, KeyCog);
-              })
-              .then(async (dlRes) => {
-                if (!dlRes.ok) {
-                  return reply(`❌ Erro ao baixar o áudio: ${dlRes.msg}`);
-                }
-                try {
-                  await nazu.sendMessage(from, {
-                    audio: dlRes.buffer,
-                    mimetype: 'audio/mpeg'
-                  }, {
-                    quoted: info
-                  });
-                } catch (audioError) {
-                  if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
-                    await reply('📦 Arquivo muito grande para enviar como áudio, enviando como documento...');
-                    await nazu.sendMessage(from, {
-                      document: dlRes.buffer,
-                      fileName: `${dlRes.filename}`,
-                      mimetype: 'audio/mpeg'
-                    }, {
-                      quoted: info
+            reply('Aguarde um momentinho... ☀️').then(() => {
+              getFileBuffer(muk, 'audio').then((buffi) => {
+                ia.Shazam(buffi).then((Slakzin) => {
+                  youtube.search(`${Slakzin.result.title} - ${Slakzin.result.artist}`, KeyCog)
+                    .then((videoInfo) => {
+                      const views = typeof videoInfo.data.views === 'number' ? videoInfo.data.views.toLocaleString('pt-BR') : videoInfo.data.views;
+                      const description = videoInfo.data.description ? videoInfo.data.description.slice(0, 100) + (videoInfo.data.description.length > 100 ? '...' : '') : 'Sem descrição disponível';
+                      const caption = `🎵 *Música Encontrada* 🎵\n\n📌 *Título:* ${videoInfo.data.title}\n👤 *Artista/Canal:* ${videoInfo.data.author.name}\n⏱ *Duração:* ${videoInfo.data.timestamp} (${videoInfo.data.seconds} segundos)\n👀 *Visualizações:* ${views}\n📅 *Publicado:* ${videoInfo.data.ago}\n📜 *Descrição:* ${description}\n🔗 *Link:* ${videoInfo.data.url}\n\n🎧 *Baixando e processando sua música, aguarde...*`;
+                      nazu.sendMessage(from, {
+                        image: { url: videoInfo.data.thumbnail },
+                        caption: caption,
+                        footer: `${nomebot} • Versão ${botVersion}`
+                      }, { quoted: info });
+                      return youtube.mp3(videoInfo.data.url, 128, KeyCog);
+                    })
+                    .then((dlRes) => {
+                      if (!dlRes.ok) {
+                        return reply(`❌ Erro ao baixar o áudio: ${dlRes.msg}`);
+                      }
+                      nazu.sendMessage(from, {
+                        audio: dlRes.buffer,
+                        mimetype: 'audio/mpeg'
+                      }, { quoted: info }).catch((audioError) => {
+                        if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
+                          reply('📦 Arquivo muito grande para enviar como áudio, enviando como documento...');
+                          nazu.sendMessage(from, {
+                            document: dlRes.buffer,
+                            fileName: `${dlRes.filename}`,
+                            mimetype: 'audio/mpeg'
+                          }, { quoted: info });
+                        }
+                      });
+                    })
+                    .catch((err) => {
+                      console.error('Erro no Shazam->YouTube flow (promise):', err);
+                      reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
                     });
+                }).catch((e) => {
+                  console.error(e);
+                  if (e.message && e.message.includes('API key inválida')) {
+                    ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+                    reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
                   } else {
-                    throw audioError;
+                    reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
                   }
-                }
-              })
-              .catch((err) => {
-                console.error('Erro no Shazam->YouTube flow (promise):', err);
-                reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
+                });
               });
+            });
           } else {
-            await reply('Use o comando marcando um audio... ☀️');
+            reply('Use o comando marcando um audio... ☀️');
           }
         } catch (e) {
           console.error(e);
-          
-          if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          } else {
-            await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
-          }
+          reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         }
         break;
 case 'play':
@@ -11086,7 +11079,7 @@ case 'ytmp3':
     }
 
     if (!KeyCog) {
-      await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -11230,7 +11223,7 @@ case 'ytmp3':
           
           // Verificar se tem API key
           if (!KeyCog) {
-            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
 
@@ -11238,7 +11231,7 @@ case 'ytmp3':
           
           if (q.includes('youtube.com') || q.includes('youtu.be')) {
             videoUrl = q;
-            await reply('Aguarde um momentinho... ☀️');
+            reply('Aguarde um momentinho... ☀️');
             youtube.mp4(videoUrl, 360, KeyCog)
               .then(async (dlRes) => {
                 if (!dlRes.ok) return reply(dlRes.msg);
@@ -11362,11 +11355,11 @@ case 'ytmp3':
           
           // Verificar se tem API key
           if (!KeyCog) {
-            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
 
-          await reply('Aguarde um momentinho... ☀️');
+          reply('Aguarde um momentinho... ☀️');
           let isTikTokUrl = q.includes('tiktok');
           const tiktokPromise = isTikTokUrl ? tiktok.dl(q, KeyCog) : tiktok.search(q, KeyCog);
 
@@ -11426,11 +11419,11 @@ case 'ytmp3':
           
           // Verificar se tem API key
           if (!KeyCog) {
-            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
 
-          await reply('Aguarde um momentinho... ☀️');
+          reply('Aguarde um momentinho... ☀️');
           igdl.dl(q, KeyCog)
             .then(async (datinha) => {
               if (!datinha.ok) return reply(datinha.msg);
@@ -11490,7 +11483,7 @@ case 'ytmp3':
           const isPinUrl = PIN_URL_REGEX.test(searchTerm);
           // Ensure API key is configured
           if (!KeyCog) {
-            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           const pinPromise = isPinUrl ? pinterest.dl(searchTerm, KeyCog) : pinterest.search(searchTerm, KeyCog);
@@ -11509,10 +11502,10 @@ case 'ytmp3':
             await nazu.sendMessage(from, message, { quoted: info });
               }
             })
-            .catch(async (e) => {
+            .catch((e) => {
               console.error('Erro no comando pinterest (promise):', e);
               if (e.message && e.message.includes('API key inválida')) {
-                await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+                ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
                 return reply('🤖 *Sistema de Pinterest temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
               }
               reply("Ocorreu um erro ao processar o Pinterest 💔");
@@ -11521,10 +11514,34 @@ case 'ytmp3':
         } catch (e) {
           console.error('Erro no comando pinterest:', e);
           if (e.message && e.message.includes('API key inválida')) {
-            await ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+            ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
             return reply('🤖 *Sistema de Pinterest temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
           }
-          await reply("Ocorreu um erro ao processar o Pinterest 💔");
+          reply("Ocorreu um erro ao processar o Pinterest 💔");
+        }
+        break;
+      case 'zipbot':
+      case 'botzip':
+      case 'downloadbot':
+        try {
+          reply('📦 Baixando o código-fonte do bot... Aguarde!').then(() => {
+            axios.get('https://github.com/hiudyy/nazuna/archive/refs/heads/main.zip', {
+              responseType: 'arraybuffer'
+            }).then((response) => {
+              nazu.sendMessage(from, {
+                document: Buffer.from(response.data),
+                fileName: 'nazuna-bot.zip',
+                mimetype: 'application/zip',
+                caption: `📦 *Código-fonte do ${nomebot}*\n\n📖 Leia a documentação no repositório para entender melhor como instalar:\n🔗 https://github.com/hiudyy/nazuna\n\n⚠️ *Importante:* Certifique-se de ter Node.js instalado e siga os passos do README.md!`
+              }, { quoted: info });
+            }).catch((e) => {
+              console.error('Erro ao baixar zip do bot:', e);
+              reply('❌ Erro ao baixar o arquivo. Tente novamente mais tarde ou acesse diretamente: https://github.com/hiudyy/nazuna');
+            });
+          });
+        } catch (e) {
+          console.error('Erro no comando zipbot:', e);
+          reply('❌ Erro ao processar o comando. Tente novamente.');
         }
         break;
       case 'menu':
@@ -13680,10 +13697,10 @@ ${prefix}togglecmdvip premium_ia off`);
             "╰─────────────────╯"
           ].filter(line => line !== '').join('\n');
           
-          await reply(statusMessage);
+          reply(statusMessage);
         } catch (e) {
           console.error("Erro em iastatus:", e);
-          await reply("❌ Erro ao verificar status da API key.");
+          reply("❌ Erro ao verificar status da API key.");
         }
         break;
       case 'iarecovery':
@@ -13691,10 +13708,10 @@ ${prefix}togglecmdvip premium_ia off`);
         if (!isOwnerOrSub) return reply("🚫 Apenas donos e subdonos podem fazer reset da API key!");
         try {
           ia.updateApiKeyStatus();
-          await reply("✅ *Reset da API key realizado!*\n\n🔄 O sistema de IA foi reativado e irá tentar usar a API key novamente.\n\n⚠️ Certifique-se de que a key no config.json está correta e válida!");
+          reply("✅ *Reset da API key realizado!*\n\n🔄 O sistema de IA foi reativado e irá tentar usar a API key novamente.\n\n⚠️ Certifique-se de que a key no config.json está correta e válida!");
         } catch (e) {
           console.error("Erro em iarecovery:", e);
-          await reply("❌ Erro ao fazer reset da API key.");
+          reply("❌ Erro ao fazer reset da API key.");
         }
         break;
       case 'iaclear':
@@ -13702,10 +13719,10 @@ ${prefix}togglecmdvip premium_ia off`);
         if (!isOwnerOrSub) return reply("🚫 Apenas donos e subdonos podem limpar o histórico!");
         try {
           ia.clearOldHistorico(0);
-          await reply("✅ *Histórico do assistente limpo!*\n\n🗑️ Todas as conversas antigas foram removidas da memória.");
+          reply("✅ *Histórico do assistente limpo!*\n\n🗑️ Todas as conversas antigas foram removidas da memória.");
         } catch (e) {
           console.error("Erro em iaclear:", e);
-          await reply("❌ Erro ao limpar histórico.");
+          reply("❌ Erro ao limpar histórico.");
         }
         break;
       case 'topcmd':
@@ -16359,7 +16376,7 @@ Exemplos:
       case 'assistent':
         try {
           if (!KeyCog) {
-            await ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
