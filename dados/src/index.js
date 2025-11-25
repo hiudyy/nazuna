@@ -2582,11 +2582,9 @@ Código: *${roleCode}*`,
     if (budy2.match(/^(\d+)d(\d+)$/)) reply(+budy2.match(/^(\d+)d(\d+)$/)[1] > 50 || +budy2.match(/^(\d+)d(\d+)$/)[2] > 100 ? "❌ Limite: max 50 dados e 100 lados" : "🎲 Rolando " + budy2.match(/^(\d+)d(\d+)$/)[1] + "d" + budy2.match(/^(\d+)d(\d+)$/)[2] + "...\n🎯 Resultados: " + (r = [...Array(+budy2.match(/^(\d+)d(\d+)$/)[1])].map(_ => 1 + Math.floor(Math.random() * +budy2.match(/^(\d+)d(\d+)$/)[2]))).join(", ") + "\n📊 Total: " + r.reduce((a, b) => a + b, 0));
 
     const _botShort = (nazu && nazu.user && (nazu.user.id || nazu.user.lid)) ? String((nazu.user.id || nazu.user.lid).split(':')[0]) : '';
-    if (!info.key.fromMe && isAssistente && !isCmd && KeyCog) {
-      getBotNumber(nazu).then((botNumber) => {
-        if (!((_botShort && budy2.includes(_botShort)) || (menc_os2 && menc_os2 == botNumber))) return;
-        if (budy2.replaceAll('@' + _botShort, '').length <= 2) return;
-        
+    const botNumber = getBotNumber(nazu);
+    if (!info.key.fromMe && isAssistente && !isCmd && ((_botShort && budy2.includes(_botShort)) || (menc_os2 && menc_os2 == botNumber)) && KeyCog) {
+      if (budy2.replaceAll('@' + _botShort, '').length > 2) {
         const jSoNzIn = {
           texto: budy2.replaceAll('@' + _botShort, '').trim(),
           id_enviou: sender,
@@ -2680,7 +2678,7 @@ Código: *${roleCode}*`,
           console.error('Erro no assistente virtual:', assistentError.message);
           reply('🤖 Erro técnico no assistente virtual. Tente novamente em alguns minutos.');
         });
-      });
+      }
     }
     //ANTI FLOOD DE MENSAGENS
     if (isGroup && groupData.messageLimit?.enabled && !isGroupAdmin && !isOwnerOrSub && !info.key.fromMe) {
@@ -11521,8 +11519,11 @@ case 'ytmp3':
         }
         break;
       case 'zipbot':
+      case 'zip-bot':
       case 'botzip':
+      case 'bot-zip':
       case 'downloadbot':
+      case 'download-bot':
         try {
           reply('📦 Baixando o código-fonte do bot... Aguarde!').then(() => {
             axios.get('https://github.com/hiudyy/nazuna/archive/refs/heads/main.zip', {
@@ -11541,6 +11542,66 @@ case 'ytmp3':
           });
         } catch (e) {
           console.error('Erro no comando zipbot:', e);
+          reply('❌ Erro ao processar o comando. Tente novamente.');
+        }
+        break;
+      case 'gitbot':
+      case 'git-bot':
+      case 'github':
+      case 'git-hub':
+      case 'repo':
+      case 'repositorio':
+      case 'source':
+      case 'sourcecode':
+      case 'source-code':
+        try {
+          reply('🔍 Buscando informações do repositório...').then(() => {
+            axios.get('https://api.github.com/repos/hiudyy/nazuna', {
+              headers: { 'Accept': 'application/vnd.github+json' }
+            }).then((response) => {
+              const repo = response.data;
+              const createdAt = new Date(repo.created_at).toLocaleDateString('pt-BR');
+              const updatedAt = new Date(repo.updated_at).toLocaleDateString('pt-BR');
+              const pushedAt = new Date(repo.pushed_at).toLocaleDateString('pt-BR');
+              
+              const gitInfo = `╭━━━⊱ 🐙 *GITHUB INFO* ⊱━━━╮
+│
+│ 📦 *Repositório:* ${repo.name}
+│ 📝 *Descrição:* ${repo.description || 'Sem descrição'}
+│
+│ 👨‍💻 *Criador:* ${repo.owner.login}
+│ 🔗 *Perfil:* https://github.com/${repo.owner.login}
+│
+│ ⭐ *Stars:* ${repo.stargazers_count}
+│ 🍴 *Forks:* ${repo.forks_count}
+│ 👀 *Watchers:* ${repo.watchers_count}
+│ 🐛 *Issues:* ${repo.open_issues_count}
+│
+│ 💻 *Linguagem:* ${repo.language || 'N/A'}
+│ 📜 *Licença:* ${repo.license?.name || 'Sem licença'}
+│
+│ 📅 *Criado em:* ${createdAt}
+│ 🔄 *Atualizado:* ${updatedAt}
+│ 📤 *Último push:* ${pushedAt}
+│
+│ 🔗 *Links:*
+│ • Repo: ${repo.html_url}
+│ • Clone: ${repo.clone_url}
+│
+│ 📞 *Suporte:* wa.me/553399285117
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+> Use *${prefix}zipbot* para baixar o código!`;
+
+              reply(gitInfo);
+            }).catch((e) => {
+              console.error('Erro ao buscar info do GitHub:', e);
+              reply(`❌ Erro ao buscar informações. Acesse diretamente:\n🔗 https://github.com/hiudyy/nazuna\n📞 Suporte: wa.me/553399285117`);
+            });
+          });
+        } catch (e) {
+          console.error('Erro no comando gitbot:', e);
           reply('❌ Erro ao processar o comando. Tente novamente.');
         }
         break;
