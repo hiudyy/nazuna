@@ -11555,11 +11555,37 @@ case 'ytmp3':
       case 'source-code':
         try {
           reply('🔍 Buscando informações do repositório...').then(() => {
-            axios.get('https://api.github.com/repos/hiudyy/nazuna', {
-              headers: { 'Accept': 'application/vnd.github+json' }
-            }).then((response) => {
-              const repo = response.data;
-              const createdAt = new Date(repo.created_at).toLocaleDateString('pt-BR');
+            const githubHeaders = { 'Accept': 'application/vnd.github+json' };
+            
+            Promise.all([
+              axios.get('https://api.github.com/repos/hiudyy/nazuna', { headers: githubHeaders }),
+              axios.get('https://api.github.com/repos/hiudyy/nazuna/commits?per_page=1', { headers: githubHeaders })
+            ]).then(([repoResponse, commitsResponse]) => {
+              const repo = repoResponse.data;
+              
+              // Pegar total de commits do header Link
+              let totalCommits = 0;
+              const linkHeader = commitsResponse.headers.link;
+              if (linkHeader) {
+                const lastMatch = linkHeader.match(/page=(\d+)>;\s*rel="last"/);
+                if (lastMatch) totalCommits = parseInt(lastMatch[1]);
+              } else {
+                totalCommits = commitsResponse.data.length;
+              }
+              
+              // Calcular tempo desde criação
+              const createdDate = new Date(repo.created_at);
+              const now = new Date();
+              const diffMs = now - createdDate;
+              
+              const dias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+              const horas = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+              const minutos = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+              const segundos = Math.floor((diffMs % (1000 * 60)) / 1000);
+              
+              const tempoAtivo = `${dias} dias, ${horas} horas, ${minutos} minutos e ${segundos} segundos`;
+              
+              const createdAt = createdDate.toLocaleDateString('pt-BR');
               const updatedAt = new Date(repo.updated_at).toLocaleDateString('pt-BR');
               const pushedAt = new Date(repo.pushed_at).toLocaleDateString('pt-BR');
               
@@ -11573,8 +11599,9 @@ case 'ytmp3':
 │
 │ ⭐ *Stars:* ${repo.stargazers_count}
 │ 🍴 *Forks:* ${repo.forks_count}
-│ 👀 *Watchers:* ${repo.watchers_count}
+│ 👀 *Watchers:* ${repo.subscribers_count}
 │ 🐛 *Issues:* ${repo.open_issues_count}
+│ 📊 *Commits:* ${totalCommits}
 │
 │ 💻 *Linguagem:* ${repo.language || 'N/A'}
 │ 📜 *Licença:* ${repo.license?.name || 'Sem licença'}
@@ -11582,6 +11609,9 @@ case 'ytmp3':
 │ 📅 *Criado em:* ${createdAt}
 │ 🔄 *Atualizado:* ${updatedAt}
 │ 📤 *Último push:* ${pushedAt}
+│
+│ ⏱️ *Nazuna vem sendo ativamente*
+│ *mantida há:* ${tempoAtivo}
 │
 │ 🔗 *Links:*
 │ • Repo: ${repo.html_url}
