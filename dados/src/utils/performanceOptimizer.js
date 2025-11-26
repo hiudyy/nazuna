@@ -1,365 +1,465 @@
-import SystemMonitor from './systemMonitor.js';
-import MediaCleaner from './mediaCleaner.js';
-import AutoRestarter from './autoRestarter.js';
-import OptimizedCacheManager from './optimizedCache.js';
-import MediaCompressor from './mediaCompressor.js';
+import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import OptimizedCacheManager from './optimizedCache.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/**
+ * Sistema de otimização de performance
+ * Cacheia dados estáticos e otimiza operações frequentes
+ * NÃO cacheia dados críticos (economy, leveling)
+ */
 class PerformanceOptimizer {
-    constructor() {
-        this.modules = {};
-        this.isInitialized = false;
-        this.stats = {
-            startTime: Date.now(),
-            uptimeOptimized: 0,
-            totalOptimizations: 0,
-            memoryFreed: 0,
-            diskFreed: 0,
-            restartCount: 0
-        };
-        
-        this.config = {
-            enableSystemMonitor: true,
-            enableMediaCleaner: true,
-            enableAutoRestarter: true,
-            enableOptimizedCache: true,
-            enableMediaCompressor: true,
-            
-            // Configurações de limpeza
-            cleanupInterval: 10 * 60 * 1000, // 10 minutos
-            optimizationInterval: 5 * 60 * 1000, // 5 minutos
-            reportingInterval: 60 * 60 * 1000, // 1 hora
-            
-            // Configurações de sistema
-            memoryThreshold: 85, // 85% da memória
-            diskThreshold: 90, // 90% do disco
-            
-            // Configurações de cache
-            cacheOptimizationInterval: 15 * 60 * 1000, // 15 minutos
-            maxCacheSize: 500 * 1024 * 1024, // 500MB
-            
-            // Configurações de mídia
-            maxMediaSize: 50 * 1024 * 1024, // 50MB
-            compressImages: true,
-            compressVideos: true,
-            compressAudio: false
-        };
-        
-        this.timers = {};
-    }
-
-    async initialize() {
-        try {
-            // Inicializa módulos essenciais
-            await this.initializeModules();
-            
-            // Inicia timers de otimização
-            this.startAutoOptimization();
-            this.startPerformanceReporting();
-            
-            this.isInitialized = true;
-            
-            return true;
-        } catch (error) {
-            console.error('❌ Erro ao inicializar sistema de otimização:', error.message);
-            this.isInitialized = false;
-            return false;
-        }
-    }
-
-    async initializeModules() {
-        const modulesToInit = [
-            { name: 'systemMonitor', class: SystemMonitor, enabled: this.config.enableSystemMonitor },
-            { name: 'mediaCleaner', class: MediaCleaner, enabled: this.config.enableMediaCleaner },
-            { name: 'autoRestarter', class: AutoRestarter, enabled: this.config.enableAutoRestarter },
-            { name: 'cacheManager', class: OptimizedCacheManager, enabled: this.config.enableOptimizedCache },
-            { name: 'mediaCompressor', class: MediaCompressor, enabled: this.config.enableMediaCompressor }
-        ];
-
-        for (const module of modulesToInit) {
-            if (module.enabled) {
-                try {
-                    this.modules[module.name] = new module.class();
-                    
-                    // Inicializa módulo se tem método initialize
-                    if (typeof this.modules[module.name].initialize === 'function') {
-                        await this.modules[module.name].initialize();
-                    }
-                    
-                } catch (error) {
-                    console.error(`❌ Erro ao inicializar ${module.name}:`, error.message);
-                    this.modules[module.name] = null;
-                    // Continue with other modules
-                }
-            }
-        }
-    }
-
-    startAutoOptimization() {
-        // Timer de otimização automática
-        this.timers.optimization = setInterval(async () => {
-            await this.performAutoOptimization();
-        }, this.config.optimizationInterval);
-
-        // Timer de limpeza de cache
-        this.timers.cacheOptimization = setInterval(async () => {
-            await this.optimizeCaches();
-        }, this.config.cacheOptimizationInterval);
-
-    }
-
-    async performAutoOptimization() {
-        if (!this.isInitialized) return;
-
-        try {
-            const startTime = Date.now();
-            
-            // Verifica status do sistema
-            const systemStatus = await this.getSystemStatus();
-            
-            // Otimizações baseadas no status
-            if (systemStatus.memoryUsage > this.config.memoryThreshold) {
-                await this.freeMemory();
-            }
-            
-            if (systemStatus.diskUsage > this.config.diskThreshold) {
-                await this.freeDiskSpace();
-            }
-            
-            // Força garbage collection se necessário
-            if (this.shouldForceGarbageCollection()) {
-                this.forceGarbageCollection();
-            }
-            
-            const duration = Date.now() - startTime;
-            this.stats.totalOptimizations++;
-            
-            
-        } catch (error) {
-            console.error('❌ Erro na otimização automática:', error.message);
-        }
-    }
-
-    async getSystemStatus() {
-        const status = {
-            memoryUsage: 0,
-            diskUsage: 0,
-            uptime: Date.now() - this.stats.startTime,
-            isHealthy: true
-        };
-
-        try {
-            if (this.modules.systemMonitor) {
-                const memory = await this.modules.systemMonitor.getMemoryUsage();
-                const disk = await this.modules.systemMonitor.getDiskUsage();
-                
-                status.memoryUsage = memory.percentage || 0;
-                status.diskUsage = disk.percentage || 0;
-                status.isHealthy = memory.percentage < 90 && disk.percentage < 95;
-            }
-        } catch (error) {
-            console.warn('⚠️ Erro ao obter status do sistema:', error.message);
-        }
-
-        return status;
-    }
-
-    shouldForceGarbageCollection() {
-        // Força GC a cada 5 otimizações ou se memória alta
-        return this.stats.totalOptimizations % 5 === 0 || 
-               process.memoryUsage().heapUsed > 100 * 1024 * 1024; // > 100MB
-    }
-
-    forceGarbageCollection() {
-        if (global.gc) {
-            const before = process.memoryUsage().heapUsed;
-            global.gc();
-            const after = process.memoryUsage().heapUsed;
-            const freed = before - after;
-            
-            if (freed > 0) {
-                this.stats.memoryFreed += freed;
-            }
-        }
-    }
-
-    startPerformanceReporting() {
-        this.timers.reporting = setInterval(() => {
-            this.generatePerformanceReport();
-        }, this.config.reportingInterval);
-    }
-
-    generatePerformanceReport() {
-        const uptime = Date.now() - this.stats.startTime;
-        const uptimeHours = Math.round(uptime / (1000 * 60 * 60) * 100) / 100;
-        
-        const report = {
-            uptime: `${uptimeHours}h`,
-            optimizations: this.stats.totalOptimizations,
-            memoryFreed: `${Math.round(this.stats.memoryFreed / 1024 / 1024)}MB`,
-            diskFreed: `${Math.round(this.stats.diskFreed / 1024 / 1024)}MB`,
-            restarts: this.stats.restartCount,
-            modulesActive: Object.keys(this.modules).filter(k => this.modules[k] !== null).length
-        };
-        
-        return report;
-    }
-
-    async freeMemory() {
-        try {
-            // Otimiza caches
-            await this.optimizeCaches();
-            
-            // Força garbage collection
-            this.forceGarbageCollection();
-            
-        } catch (error) {
-            console.error('❌ Erro ao liberar memória:', error.message);
-        }
-    }
-
-    async freeDiskSpace() {
-        try {
-            if (this.modules.mediaCleaner) {
-                const cleaned = await this.modules.mediaCleaner.performEmergencyCleanup();
-                this.stats.diskFreed += cleaned.totalSize || 0;
-            }
-        } catch (error) {
-            console.error('❌ Erro ao liberar espaço em disco:', error.message);
-        }
-    }
-
-    async optimizeCaches() {
-        try {
-            if (this.modules.cacheManager) {
-                await this.modules.cacheManager.optimizeMemory();
-            }
-        } catch (error) {
-            console.error('❌ Erro ao otimizar caches:', error.message);
-        }
-    }
-
-    async compressMedia(filePath, options = {}) {
-        try {
-            if (this.modules.mediaCompressor) {
-                return await this.modules.mediaCompressor.compressFile(filePath, options);
-            }
-            return null;
-        } catch (error) {
-            console.error('❌ Erro na compressão de mídia:', error.message);
-            return null;
-        }
-    }
-
-    async cacheGet(type, key) {
-        try {
-            if (this.modules.cacheManager) {
-                return await this.modules.cacheManager.get(`${type}:${key}`);
-            }
-            return null;
-        } catch (error) {
-            console.error('❌ Erro ao acessar cache:', error.message);
-            return null;
-        }
-    }
-
-    async cacheSet(type, key, value, ttl = null) {
-        try {
-            if (this.modules.cacheManager) {
-                const fullKey = `${type}:${key}`;
-                const options = ttl ? { ttl } : {};
-                return await this.modules.cacheManager.set(fullKey, value, options);
-            }
-            return false;
-        } catch (error) {
-            console.error('❌ Erro ao definir cache:', error.message);
-            return false;
-        }
-    }
-
-    async forceRestart(reason = 'Reinicialização manual') {
-        try {
-            if (this.modules.autoRestarter) {
-                this.stats.restartCount++;
-                return await this.modules.autoRestarter.restartProcess(reason);
-            }
-            return false;
-        } catch (error) {
-            console.error('❌ Erro ao forçar reinicialização:', error.message);
-            return false;
-        }
-    }
-
-    async emergencyCleanup() {
+  constructor() {
+    this.cache = new OptimizedCacheManager();
     
-        try {
-            const tasks = [];
-            
-            // Limpeza de mídia
-            if (this.modules.mediaCleaner) {
-                tasks.push(this.modules.mediaCleaner.performEmergencyCleanup());
-            }
-            
-            // Otimização de cache
-            if (this.modules.cacheManager) {
-                tasks.push(this.modules.cacheManager.clearAll());
-            }
-            
-            // Executa todas as tarefas em paralelo
-            const results = await Promise.allSettled(tasks);
-            
-            // Força garbage collection
-            this.forceGarbageCollection();
-            
-            
-            return results;
-        } catch (error) {
-            console.error('❌ Erro na limpeza de emergência:', error.message);
-            throw error;
-        }
+    // Cache de dados estáticos (sem TTL, só limpa manualmente)
+    this.staticCache = new Map();
+    
+    // Regex pré-compiladas
+    this.compiledRegex = new Map();
+    
+    // Cache de arquivos estáticos com TTL
+    this.fileCache = new Map(); // { path: { data, timestamp, ttl } }
+    
+    // Estatísticas
+    this.stats = {
+      cacheHits: 0,
+      cacheMisses: 0,
+      regexCompiled: 0,
+      filesCached: 0
+    };
+    
+    this.initialize();
+  }
+
+  initialize() {
+    // Pré-compila regex comuns
+    this.precompileCommonRegex();
+    
+    // Limpa cache de arquivos periodicamente
+    setInterval(() => this.cleanupFileCache(), 5 * 60 * 1000); // 5 minutos
+    
+    return Promise.resolve();
+  }
+
+  /**
+   * Compatibilidade com código existente
+   */
+  get modules() {
+    return {
+      cacheManager: this.cache
+    };
+  }
+
+  /**
+   * Pré-compila regex comuns
+   */
+  precompileCommonRegex() {
+    const commonPatterns = {
+      // Comandos
+      commandSplit: /\s+/,
+      commandPrefix: /^[!\.\/#\$\%\&\*\+\-\.\:\;\<\=\>\?\@\[\]\^\_\{\}\|\\]/,
+      mentionRegex: /@(\d+)/g,
+      urlRegex: /https?:\/\/[^\s]+/g,
+      phoneRegex: /\d{10,15}/g,
+      
+      // Normalização
+      whitespace: /\s+/g,
+      specialChars: /[^\w\s]/g,
+      numbers: /\d+/g,
+      
+      // Validação
+      jidRegex: /^\d+@[sgl]\.whatsapp\.net$/,
+      groupIdRegex: /\d+@g\.us$/,
+      userIdRegex: /\d+@[sl]\.whatsapp\.net$/,
+      
+      // Parsing
+      jsonParse: /^[\s\S]*$/,
+      base64: /^[A-Za-z0-9+/=]+$/,
+      
+      // Strings
+      trim: /^\s+|\s+$/g,
+      multipleSpaces: /\s{2,}/g
+    };
+
+    for (const [name, pattern] of Object.entries(commonPatterns)) {
+      this.compiledRegex.set(name, pattern);
+      this.stats.regexCompiled++;
+    }
+  }
+
+  /**
+   * Obtém regex compilada
+   */
+  getRegex(name) {
+    return this.compiledRegex.get(name);
+  }
+
+  /**
+   * Compila e cacheia regex
+   */
+  compileRegex(name, pattern, flags = '') {
+    if (this.compiledRegex.has(name)) {
+      return this.compiledRegex.get(name);
+    }
+    
+    try {
+      const regex = new RegExp(pattern, flags);
+      this.compiledRegex.set(name, regex);
+      this.stats.regexCompiled++;
+      return regex;
+    } catch (error) {
+      console.error(`❌ Erro ao compilar regex ${name}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Cacheia dados estáticos (configurações, menus, etc.)
+   */
+  setStatic(key, value) {
+    this.staticCache.set(key, value);
+    return true;
+  }
+
+  /**
+   * Obtém dados estáticos
+   */
+  getStatic(key) {
+    return this.staticCache.get(key);
+  }
+
+  /**
+   * Limpa cache estático
+   */
+  clearStatic(key = null) {
+    if (key) {
+      return this.staticCache.delete(key);
+    }
+    this.staticCache.clear();
+    return true;
+  }
+
+  /**
+   * Cacheia arquivo JSON com TTL
+   * Usado para arquivos que mudam raramente (config, premium, etc.)
+   */
+  async getCachedFile(filePath, ttl = 60000, loader = null) {
+    const cacheKey = `file:${filePath}`;
+    const cached = this.fileCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < cached.ttl) {
+      this.stats.cacheHits++;
+      return cached.data;
     }
 
-    getFullStatistics() {
-        const uptime = Date.now() - this.stats.startTime;
-        
-        return {
-            optimizer: {
-                initialized: this.isInitialized,
-                startTime: this.stats.startTime,
-                uptime: uptime,
-                uptimeFormatted: `${Math.round(uptime / (1000 * 60 * 60) * 100) / 100}h`
-            },
-            stats: { ...this.stats },
-            modules: Object.keys(this.modules).reduce((acc, key) => {
-                acc[key] = this.modules[key] !== null ? 'active' : 'inactive';
-                return acc;
-            }, {}),
-            config: this.config
-        };
+    this.stats.cacheMisses++;
+    
+    try {
+      let data;
+      if (loader) {
+        data = await loader(filePath);
+      } else {
+        // Loader padrão para JSON
+        if (fs.existsSync(filePath)) {
+          const content = fs.readFileSync(filePath, 'utf-8');
+          data = JSON.parse(content);
+        } else {
+          data = {};
+        }
+      }
+      
+      this.fileCache.set(cacheKey, {
+        data,
+        timestamp: Date.now(),
+        ttl
+      });
+      
+      this.stats.filesCached++;
+      return data;
+    } catch (error) {
+      console.error(`❌ Erro ao carregar arquivo ${filePath}:`, error.message);
+      return cached?.data || {};
+    }
+  }
+
+  /**
+   * Invalida cache de arquivo
+   */
+  invalidateFile(filePath) {
+    const cacheKey = `file:${filePath}`;
+    return this.fileCache.delete(cacheKey);
+  }
+
+  /**
+   * Limpa cache de arquivos expirados
+   */
+  cleanupFileCache() {
+    const now = Date.now();
+    let cleaned = 0;
+    
+    for (const [key, cached] of this.fileCache.entries()) {
+      if (now - cached.timestamp >= cached.ttl) {
+        this.fileCache.delete(key);
+        cleaned++;
+      }
+    }
+    
+    if (cleaned > 0) {
+      // console.log(`🧹 Limpeza de cache: ${cleaned} arquivos expirados`);
+    }
+  }
+
+  /**
+   * Cacheia resultado de função com TTL
+   */
+  async memoize(key, fn, ttl = 60000) {
+    const cached = await this.cache.get('memoize', key);
+    if (cached !== undefined) {
+      this.stats.cacheHits++;
+      return cached;
     }
 
-    async shutdown() {
-        
-        // Para todos os timers
-        Object.values(this.timers).forEach(timer => {
-            if (timer) clearInterval(timer);
-        });
-        
-        // Para módulos que têm método shutdown
-        for (const [name, module] of Object.entries(this.modules)) {
-            if (module && typeof module.shutdown === 'function') {
-                try {
-                    await module.shutdown();
-                    console.log(`✅ Módulo ${name} parado`);
-                } catch (error) {
-                    console.error(`❌ Erro ao parar módulo ${name}:`, error.message);
-                }
-            }
-        }
-        
-        this.isInitialized = false;
-        console.log('✅ Sistema de otimização parado');
+    this.stats.cacheMisses++;
+    const result = await fn();
+    await this.cache.set('memoize', key, result, ttl);
+    return result;
+  }
+
+  /**
+   * Otimiza string operations
+   */
+  optimizeString(str) {
+    if (typeof str !== 'string') return str;
+    
+    // Remove espaços múltiplos
+    const multipleSpaces = this.getRegex('multipleSpaces');
+    if (multipleSpaces) {
+      str = str.replace(multipleSpaces, ' ');
     }
+    
+    return str.trim();
+  }
+
+  /**
+   * Normaliza comando (otimizado)
+   */
+  normalizeCommand(cmd) {
+    if (!cmd || typeof cmd !== 'string') return '';
+    
+    // Remove prefixo se existir
+    const prefixRegex = this.getRegex('commandPrefix');
+    if (prefixRegex && prefixRegex.test(cmd)) {
+      cmd = cmd.substring(1);
+    }
+    
+    return cmd.toLowerCase().trim();
+  }
+
+  /**
+   * Split otimizado de comandos
+   */
+  splitCommand(text) {
+    const splitRegex = this.getRegex('commandSplit');
+    if (splitRegex) {
+      return text.split(splitRegex);
+    }
+    return text.split(/\s+/);
+  }
+
+  /**
+   * Cacheia dados de grupo com TTL curto (5-10 segundos)
+   * NÃO cacheia economy/leveling
+   */
+  async getGroupDataCached(groupId, loader, ttl = 5000) {
+    const cacheKey = `group:${groupId}`;
+    
+    const cached = await this.cache.get('indexGroupMeta', cacheKey);
+    if (cached !== undefined) {
+      this.stats.cacheHits++;
+      return cached;
+    }
+
+    this.stats.cacheMisses++;
+    const data = await loader();
+    
+    // Só cacheia se não for dados críticos
+    if (data && !data.economy && !data.leveling) {
+      await this.cache.set('indexGroupMeta', cacheKey, data, ttl);
+    }
+    
+    return data;
+  }
+
+  /**
+   * Invalida cache de grupo
+   */
+  invalidateGroup(groupId) {
+    const cacheKey = `group:${groupId}`;
+    this.cache.del('indexGroupMeta', cacheKey);
+  }
+
+  /**
+   * Batch operations para múltiplos grupos
+   */
+  async batchGetGroupData(groupIds, loader, ttl = 5000) {
+    const results = {};
+    const toLoad = [];
+    
+    // Verifica cache primeiro
+    for (const groupId of groupIds) {
+      const cacheKey = `group:${groupId}`;
+      const cached = await this.cache.get('indexGroupMeta', cacheKey);
+      if (cached !== undefined) {
+        results[groupId] = cached;
+        this.stats.cacheHits++;
+      } else {
+        toLoad.push(groupId);
+      }
+    }
+    
+    // Carrega os que não estão em cache
+    if (toLoad.length > 0) {
+      const loaded = await loader(toLoad);
+      for (const groupId of toLoad) {
+        const data = loaded[groupId];
+        if (data) {
+          results[groupId] = data;
+          
+          // Cacheia se não for crítico
+          if (!data.economy && !data.leveling) {
+            const cacheKey = `group:${groupId}`;
+            await this.cache.set('indexGroupMeta', cacheKey, data, ttl);
+          }
+        }
+      }
+      this.stats.cacheMisses += toLoad.length;
+    }
+    
+    return results;
+  }
+
+  /**
+   * Obtém estatísticas
+   */
+  getStats() {
+    const hitRate = this.stats.cacheHits + this.stats.cacheMisses > 0
+      ? (this.stats.cacheHits / (this.stats.cacheHits + this.stats.cacheMisses) * 100).toFixed(2)
+      : 0;
+
+    return {
+      ...this.stats,
+      hitRate: `${hitRate}%`,
+      staticCacheSize: this.staticCache.size,
+      fileCacheSize: this.fileCache.size,
+      regexCacheSize: this.compiledRegex.size,
+      cacheStats: this.cache.getStatistics()
+    };
+  }
+
+  /**
+   * Reseta estatísticas
+   */
+  resetStats() {
+    this.stats = {
+      cacheHits: 0,
+      cacheMisses: 0,
+      regexCompiled: this.compiledRegex.size,
+      filesCached: 0
+    };
+  }
+
+  /**
+   * Cacheia verificação de existência de arquivo
+   */
+  async fileExists(filePath) {
+    const cacheKey = `exists:${filePath}`;
+    const cached = this.fileCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < 5000) { // 5 segundos
+      return cached.data;
+    }
+    
+    const exists = fs.existsSync(filePath);
+    this.fileCache.set(cacheKey, {
+      data: exists,
+      timestamp: Date.now(),
+      ttl: 5000
+    });
+    return exists;
+  }
+
+  /**
+   * Carrega JSON com cache otimizado (padrão comum: existsSync + readFileSync)
+   */
+  async loadJsonWithCache(filePath, defaultValue = {}) {
+    const cacheKey = `json:${filePath}`;
+    const cached = this.fileCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < cached.ttl) {
+      this.stats.cacheHits++;
+      return cached.data;
+    }
+
+    this.stats.cacheMisses++;
+    
+    try {
+      let data;
+      if (await this.fileExists(filePath)) {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        data = JSON.parse(content);
+      } else {
+        data = defaultValue;
+      }
+      
+      this.fileCache.set(cacheKey, {
+        data,
+        timestamp: Date.now(),
+        ttl: 10000 // 10 segundos para JSONs
+      });
+      
+      this.stats.filesCached++;
+      return data;
+    } catch (error) {
+      console.error(`❌ Erro ao carregar JSON ${filePath}:`, error.message);
+      return cached?.data || defaultValue;
+    }
+  }
+
+  /**
+   * Invalida cache de JSON específico
+   */
+  invalidateJson(filePath) {
+    const cacheKey = `json:${filePath}`;
+    const existsKey = `exists:${filePath}`;
+    this.fileCache.delete(cacheKey);
+    this.fileCache.delete(existsKey);
+  }
+
+  /**
+   * Limpa todos os caches
+   */
+  clearAll() {
+    this.staticCache.clear();
+    this.fileCache.clear();
+    this.cache.forceCleanup();
+  }
 }
 
-export default PerformanceOptimizer;
+// Exporta a classe diretamente
+export { PerformanceOptimizer };
+
+// Singleton para uso direto
+let optimizerInstance = null;
+
+export function getPerformanceOptimizer() {
+  if (!optimizerInstance) {
+    optimizerInstance = new PerformanceOptimizer();
+  }
+  return optimizerInstance;
+}
+
+export default getPerformanceOptimizer();

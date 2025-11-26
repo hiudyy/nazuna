@@ -21,7 +21,7 @@ import crypto from 'crypto';
 import cron from 'node-cron';
 import { fileURLToPath } from 'url';
 
-import PerformanceOptimizer from './utils/performanceOptimizer.js';
+import { PerformanceOptimizer, getPerformanceOptimizer } from './utils/performanceOptimizer.js';
 import * as ia from './funcs/private/ia.js';
 import * as vipCommandsManager from './utils/vipCommandsManager.js';
 import {
@@ -574,30 +574,65 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     temuScammer,
     relationshipManager
   } = modules.default;
-  const antipvData = loadJsonFile(DATABASE_DIR + '/antipv.json');
-  const premiumListaZinha = loadJsonFile(DONO_DIR + '/premium.json');
-  const banGpIds = loadJsonFile(DONO_DIR + '/bangp.json');
-  const antifloodData = loadJsonFile(DATABASE_DIR + '/antiflood.json');
+  // Otimização: Cache de dados estáticos com TTL
+  const optimizer = getPerformanceOptimizer();
   
-  const antiSpamGlobal = loadJsonFile(DATABASE_DIR + '/antispam.json', {
-    enabled: false,
-    limit: 5,
-    interval: 10,
-    blockTime: 600,
-    users: {},
-    blocks: {}
-  });
-  const globalBlocks = loadJsonFile(DATABASE_DIR + '/globalBlocks.json', {
-    commands: {},
-    users: {}
-  });
-  const botState = loadJsonFile(DATABASE_DIR + '/botState.json', {
-    status: 'on'
-  });
+  const antipvData = await optimizer.getCachedFile(
+    DATABASE_DIR + '/antipv.json',
+    30000, // 30 segundos
+    (path) => loadJsonFile(path)
+  );
+  const premiumListaZinha = await optimizer.getCachedFile(
+    DONO_DIR + '/premium.json',
+    60000, // 1 minuto
+    (path) => loadJsonFile(path)
+  );
+  const banGpIds = await optimizer.getCachedFile(
+    DONO_DIR + '/bangp.json',
+    30000, // 30 segundos
+    (path) => loadJsonFile(path)
+  );
+  const antifloodData = await optimizer.getCachedFile(
+    DATABASE_DIR + '/antiflood.json',
+    30000, // 30 segundos
+    (path) => loadJsonFile(path)
+  );
+  
+  const antiSpamGlobal = await optimizer.getCachedFile(
+    DATABASE_DIR + '/antispam.json',
+    30000, // 30 segundos
+    (path) => loadJsonFile(path, {
+      enabled: false,
+      limit: 5,
+      interval: 10,
+      blockTime: 600,
+      users: {},
+      blocks: {}
+    })
+  );
+  const globalBlocks = await optimizer.getCachedFile(
+    DATABASE_DIR + '/globalBlocks.json',
+    30000, // 30 segundos
+    (path) => loadJsonFile(path, {
+      commands: {},
+      users: {}
+    })
+  );
+  const botState = await optimizer.getCachedFile(
+    DATABASE_DIR + '/botState.json',
+    30000, // 30 segundos
+    (path) => loadJsonFile(path, {
+      status: 'on'
+    })
+  );
   const modoLiteFile = DATABASE_DIR + '/modolite.json';
-  let modoLiteGlobal = loadJsonFile(modoLiteFile, {
-    status: false
-  });
+  let modoLiteGlobal = await optimizer.getCachedFile(
+    modoLiteFile,
+    30000, // 30 segundos
+    (path) => loadJsonFile(path, {
+      status: false
+    })
+  );
   if (!fs.existsSync(modoLiteFile)) {
     writeJsonFile(modoLiteFile, modoLiteGlobal);
   };
@@ -735,7 +770,37 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const menc_os2 = (menc_jid2 && menc_jid2.length > 0) ? menc_jid2[0] : menc_prt;
     const sender_ou_n = (menc_jid2 && menc_jid2.length > 0) ? menc_jid2[0] : menc_prt || sender;
   const groupFile = buildGroupFilePath(from);
+    // Otimização: Carregar groupData com cache (TTL curto de 5 segundos)
     let groupData = {};
+    if (isGroup) {
+      try {
+        groupData = await optimizer.getGroupDataCached(
+          from,
+          () => {
+            try {
+              if (fs.existsSync(groupFile)) {
+                return JSON.parse(fs.readFileSync(groupFile, 'utf-8'));
+              }
+              return {};
+            } catch (e) {
+              console.error(`Erro ao ler groupFile ${groupFile}:`, e);
+              return {};
+            }
+          },
+          5000 // 5 segundos TTL
+        );
+      } catch (e) {
+        console.error('Erro ao carregar groupData com cache:', e);
+        try {
+          if (fs.existsSync(groupFile)) {
+            groupData = JSON.parse(fs.readFileSync(groupFile, 'utf-8'));
+          }
+        } catch (e2) {
+          console.error('Erro ao carregar groupData sem cache:', e2);
+          groupData = {};
+        }
+      }
+    }
 
     // ==== Helpers de Rolê (definidos fora de blocos para uso global dentro da função) ====
     function ensureRoleParticipants(roleData) {
@@ -837,12 +902,16 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const groupMetadata = !isGroup ? {} : await getCachedGroupMetadata(from).catch(() => ({}));
     const groupName = groupMetadata?.subject || '';
     if (isGroup) {
-      if (!fs.existsSync(groupFile)) {
+      // Otimização: Verificar existência com cache
+      const fileExists = await optimizer.fileExists(groupFile);
+      if (!fileExists) {
         writeJsonFile(groupFile, {
           mark: {},
           createdAt: new Date().toISOString(),
           groupName: groupName
         });
+        // Invalida cache de exists após criar arquivo
+        optimizer.invalidateJson(groupFile);
       }
       try {
         // Carregamento seguro de dados do grupo
@@ -923,15 +992,26 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       if (groupName && groupData.groupName !== groupName) {
         groupData.groupName = groupName;
   writeJsonFile(groupFile, groupData);
+  // Otimização: Invalida cache quando groupData é salvo
+  if (isGroup) {
+    optimizer.invalidateGroup(from);
+  }
       };
     };
+    // Otimização: Cache de parcerias
     let parceriasData = {};
     if (isGroup) {
-      parceriasData = loadParceriasData(from);
-    };
+      parceriasData = await optimizer.memoize(
+        `parcerias:${from}`,
+        () => Promise.resolve(loadParceriasData(from)),
+        10000 // 10 segundos
+      );
+    }
     const persistGroupData = () => {
       if (isGroup) {
         writeJsonFile(groupFile, groupData);
+        // Otimização: Invalida cache quando groupData é salvo
+        optimizer.invalidateGroup(from);
       }
     };
     
@@ -1236,6 +1316,10 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         });
         delete groupData.afkUsers[sender];
     writeJsonFile(groupFile, groupData);
+  // Otimização: Invalida cache quando groupData é salvo
+  if (isGroup) {
+    optimizer.invalidateGroup(from);
+  }
         await reply(`👋 *Bem-vindo(a) de volta!*\nSeu status AFK foi removido.\nVocê estava ausente desde: ${afkSince}`);
       } catch (error) {
         console.error("Erro ao processar remoção de AFK:", error);
@@ -1264,6 +1348,10 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         }
         delete groupData.mutedUsers[sender];
     writeJsonFile(groupFile, groupData);
+  // Otimização: Invalida cache quando groupData é salvo
+  if (isGroup) {
+    optimizer.invalidateGroup(from);
+  }
         return;
       } catch (error) {
         console.error("Erro ao processar usuário mutado:", error);
@@ -1326,6 +1414,10 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
           });
     }
     writeJsonFile(groupFile, groupData);
+  // Otimização: Invalida cache quando groupData é salvo
+  if (isGroup) {
+    optimizer.invalidateGroup(from);
+  }
       } catch (error) {
         console.error("Erro no sistema de contagem de mensagens:", error);
       }
@@ -1756,7 +1848,12 @@ Código: *${roleCode}*`,
         global.remindersWorkerStarted = true;
         setInterval(async () => {
           try {
-            const list = loadReminders();
+            // Otimização: Cache de reminders
+            const list = await optimizer.memoize(
+              'reminders:all',
+              () => Promise.resolve(loadReminders()),
+              5000 // 5 segundos
+            );
             if (!Array.isArray(list) || list.length === 0) return;
             const now = Date.now();
             let changed = false;
@@ -1779,7 +1876,13 @@ Código: *${roleCode}*`,
                 }
               }
             }
-            if (changed) saveReminders(list);
+            if (changed) {
+              saveReminders(list);
+          // Invalida cache após salvar
+          optimizer.clearStatic('reminders:all');
+              // Invalida cache após salvar
+              optimizer.clearStatic('reminders:all');
+            }
           } catch (err) {
           }
         }, 30 * 1000);
@@ -2815,6 +2918,10 @@ Código: *${roleCode}*`,
           }
         }
   writeJsonFile(groupFile, groupData);
+  // Otimização: Invalida cache quando groupData é salvo
+  if (isGroup) {
+    optimizer.invalidateGroup(from);
+  }
       } catch (e) {
         console.error("Erro no sistema de limite de mensagens:", e);
       }
@@ -2875,6 +2982,10 @@ Código: *${roleCode}*`,
             mentions: [sender]
           });
     writeJsonFile(groupFile, groupData);
+  // Otimização: Invalida cache quando groupData é salvo
+  if (isGroup) {
+    optimizer.invalidateGroup(from);
+  }
         } catch (error) {
           console.error("Erro no sistema antifig:", error);
           await reply(`⚠️ Erro ao processar antifig para @${getUserName(sender)}. Administradores, verifiquem!`, {
@@ -2884,8 +2995,16 @@ Código: *${roleCode}*`,
       }
     }
     if (!isCmd) {
-      const noPrefixCommands = loadNoPrefixCommands();
-      const matchedCommand = noPrefixCommands.find(item => budy2.split(' ')[0].trim() === item.trigger);
+      // Otimização: Cache de comandos sem prefixo
+      const noPrefixCommands = await optimizer.memoize(
+        `noprefix:${from}`,
+        () => Promise.resolve(loadNoPrefixCommands()),
+        10000 // 10 segundos
+      );
+      // Otimização: Usar regex pré-compilada para split
+      const splitRegex = optimizer.getRegex('commandSplit') || /\s+/;
+      const firstWord = budy2.split(splitRegex)[0]?.trim();
+      const matchedCommand = noPrefixCommands.find(item => firstWord === item.trigger);
       if (matchedCommand) {
         var command = matchedCommand.command;
         var isCmd = true;
@@ -2903,8 +3022,14 @@ Código: *${roleCode}*`,
 
     // Verificar comandos personalizados do dono
     if (isCmd && command) {
-      const normalizedTrigger = normalizar(command);
-      const customCmd = findCustomCommand(normalizedTrigger);
+      // Otimização: Normalização otimizada
+      const normalizedTrigger = optimizer.normalizeCommand(command) || normalizar(command);
+      // Otimização: Cache de comandos personalizados
+      const customCmd = await optimizer.memoize(
+        `customcmd:${from}:${normalizedTrigger}`,
+        () => Promise.resolve(findCustomCommand(normalizedTrigger)),
+        5000 // 5 segundos
+      );
       if (customCmd) {
         try {
           const responseData = customCmd.response;
@@ -4064,9 +4189,18 @@ Entre em contato com o dono do bot:
             message: message,
             status: 'pending'
           };
-          const list = loadReminders();
+          // Otimização: Cache de reminders
+          const list = await optimizer.memoize(
+            'reminders:all',
+            () => Promise.resolve(loadReminders()),
+            5000 // 5 segundos
+          );
           list.push(newReminder);
           saveReminders(list);
+          // Invalida cache após salvar
+          optimizer.clearStatic('reminders:all');
+          // Invalida cache após salvar
+          optimizer.clearStatic('reminders:all');
           await reply(`✅ Lembrete agendado para ${tzFormat(at)}.\n📝 Mensagem: ${message}`);
         } catch (e) {
           console.error('Erro ao agendar lembrete:', e);
@@ -4077,7 +4211,13 @@ Entre em contato com o dono do bot:
       case 'meuslembretes':
       case 'listalembretes': {
         try {
-          const list = loadReminders().filter(r => r.userId === sender && r.status !== 'sent');
+          // Otimização: Cache de reminders
+          const allReminders = await optimizer.memoize(
+            'reminders:all',
+            () => Promise.resolve(loadReminders()),
+            5000 // 5 segundos
+          );
+          const list = allReminders.filter(r => r.userId === sender && r.status !== 'sent');
           if (!list.length) return reply('📭 Você não tem lembretes pendentes.');
           const lines = list
             .sort((a,b)=>a.at-b.at)
@@ -4094,18 +4234,27 @@ Entre em contato com o dono do bot:
         try {
           const idArg = (q||'').trim();
           if (!idArg) return reply(`🗑️ *Uso do comando apagalembrete:*\n\n📝 *Formato:* ${prefix}apagalembrete <id|tudo>\n\n💡 *Exemplos:*\n• ${prefix}apagalembrete 123456\n• ${prefix}apagalembrete tudo`);
-          let list = loadReminders();
+          // Otimização: Cache de reminders
+          let list = await optimizer.memoize(
+            'reminders:all',
+            () => Promise.resolve(loadReminders()),
+            5000 // 5 segundos
+          );
           if (['tudo','todos','all'].includes(idArg.toLowerCase())) {
             const before = list.length;
             list = list.filter(r => !(r.userId === sender && r.status !== 'sent'));
             const removed = before - list.length;
             saveReminders(list);
+          // Invalida cache após salvar
+          optimizer.clearStatic('reminders:all');
             return reply(`🗑️ Removidos ${removed} lembrete(s) pendente(s).`);
           }
           const idx = list.findIndex(r => r.id.startsWith(idArg) && r.userId === sender && r.status !== 'sent');
           if (idx === -1) return reply('❌ Lembrete não encontrado ou já enviado. Dica: use o ID mostrado em "meuslembretes".');
           const removed = list.splice(idx,1)[0];
           saveReminders(list);
+          // Invalida cache após salvar
+          optimizer.clearStatic('reminders:all');
           await reply(`🗑️ Lembrete removido: ${removed.message}`);
         } catch (e) {
           console.error('Erro ao apagar lembrete:', e);
@@ -4120,6 +4269,10 @@ Entre em contato com o dono do bot:
         if (!isGroupAdmin) return reply('Apenas administradores podem usar este comando.');
         groupData.modorpg = !groupData.modorpg;
   writeJsonFile(groupFile, groupData);
+  // Otimização: Invalida cache quando groupData é salvo
+  if (isGroup) {
+    optimizer.invalidateGroup(from);
+  }
         await reply(`⚔️ Modo RPG ${groupData.modorpg ? 'ATIVADO' : 'DESATIVADO'} neste grupo.\n\n${groupData.modorpg ? '🎮 Agora os membros podem usar todos os comandos RPG!' : '🔒 Comandos RPG desativados.'}`);
         break;
       }
@@ -10957,6 +11110,10 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         if (!isGroupAdmin) return reply("Apenas administradores podem usar este comando.");
         groupData.levelingEnabled = !groupData.levelingEnabled;
     writeJsonFile(groupFile, groupData);
+  // Otimização: Invalida cache quando groupData é salvo
+  if (isGroup) {
+    optimizer.invalidateGroup(from);
+  }
         await reply(`🎚️ Sistema de leveling ${groupData.levelingEnabled ? 'ativado' : 'desativado'}!`);
         break;
       case 'level':
@@ -11556,7 +11713,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const [trigger, ...commandParts] = q.split('/');
           const targetCommand = commandParts.join('/').trim();
           if (!trigger.trim() || !targetCommand) return reply("Formato inválido. Use: mensagem/comando [parâmetros]");
-          const noPrefixCommands = loadNoPrefixCommands();
+          // Otimização: Cache de comandos sem prefixo
+          const noPrefixCommands = await optimizer.memoize(
+            `noprefix:${from}`,
+            () => Promise.resolve(loadNoPrefixCommands()),
+            10000 // 10 segundos
+          );
           if (noPrefixCommands.some(cmd => cmd.trigger === trigger.trim())) {
             return reply(`A mensagem "${trigger.trim()}" já está mapeada para um comando.`);
           }
@@ -11570,6 +11732,8 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             fixedParams: fixedParams || ''
           });
           if (saveNoPrefixCommands(noPrefixCommands)) {
+            // Invalida cache após salvar
+            optimizer.clearStatic(`noprefix:${from}`);
             await reply(`✅ Comando sem prefixo adicionado!\nMensagem: ${trigger.trim()}\nComando: ${targetCommand}`);
           } else {
             await reply("😥 Erro ao salvar o comando sem prefixo. Tente novamente!");
@@ -11583,7 +11747,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'listnopref':
         try {
           if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
-          const noPrefixCommands = loadNoPrefixCommands();
+          // Otimização: Cache de comandos sem prefixo
+          const noPrefixCommands = await optimizer.memoize(
+            `noprefix:${from}`,
+            () => Promise.resolve(loadNoPrefixCommands()),
+            10000 // 10 segundos
+          );
           if (noPrefixCommands.length === 0) return reply("📜 Nenhum comando sem prefixo definido.");
           let responseText = `📜 *Comandos Sem Prefixo do Grupo ${groupName}*\n\n`;
           noPrefixCommands.forEach((item, index) => {
@@ -11602,10 +11771,17 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
           if (!q || isNaN(parseInt(q))) return reply(`Por favor, forneça o número do comando sem prefixo a ser removido. Ex: ${groupPrefix}delnoprefix 1`);
           const index = parseInt(q) - 1;
-          const noPrefixCommands = loadNoPrefixCommands();
+          // Otimização: Cache de comandos sem prefixo
+          const noPrefixCommands = await optimizer.memoize(
+            `noprefix:${from}`,
+            () => Promise.resolve(loadNoPrefixCommands()),
+            10000 // 10 segundos
+          );
           if (index < 0 || index >= noPrefixCommands.length) return reply(`❌ Número inválido. Use ${groupPrefix}listnoprefix para ver a lista.`);
           const removed = noPrefixCommands.splice(index, 1)[0];
           if (saveNoPrefixCommands(noPrefixCommands)) {
+            // Invalida cache após salvar
+            optimizer.clearStatic(`noprefix:${from}`);
             await reply(`🗑️ Comando sem prefixo removido:\nMensagem: ${removed.trigger}\nComando: ${removed.command}`);
           } else {
             await reply("😥 Erro ao remover o comando sem prefixo. Tente novamente!");
@@ -11705,7 +11881,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             return reply(`❌ Já existe um comando com o gatilho "${trigger}".\nUse ${groupPrefix}delcmd ${trigger} para removê-lo primeiro.`);
           }
           
-          const commands = loadCustomCommands();
+          // Otimização: Cache de comandos personalizados
+          const commands = await optimizer.memoize(
+            `customcmds:${from}`,
+            () => Promise.resolve(loadCustomCommands()),
+            10000 // 10 segundos
+          );
           const usage = buildUsageFromParams(trigger, settings.params || []);
           commands.push({
             id: Date.now().toString(),
@@ -11717,6 +11898,8 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           });
           
           if (saveCustomCommands(commands)) {
+            // Invalida cache após salvar
+            optimizer.clearStatic(`customcmds:${from}`);
             const flagList = [];
             if (settings.ownerOnly) flagList.push('Dono');
             if (settings.adminOnly) flagList.push('Admin');
@@ -11752,11 +11935,18 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           if (responseText) updatedCmd.response = responseText;
           updatedCmd.settings = settings;
           updatedCmd.usage = buildUsageFromParams(updatedCmd.trigger, settings.params || []);
-          const commands = loadCustomCommands();
+          // Otimização: Cache de comandos personalizados
+          const commands = await optimizer.memoize(
+            `customcmds:${from}`,
+            () => Promise.resolve(loadCustomCommands()),
+            10000 // 10 segundos
+          );
           const idx = commands.findIndex(c => c.trigger === existingCmd.trigger);
           if (idx !== -1) {
             commands[idx] = updatedCmd;
             if (saveCustomCommands(commands)) {
+            // Invalida cache após salvar
+            optimizer.clearStatic(`customcmds:${from}`);
               await reply(`✅ Comando atualizado: ${trigger}\n*Uso:* ${updatedCmd.usage}`);
             } else {
               await reply('❌ Erro ao salvar edição do comando.');
@@ -11805,11 +11995,18 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           if (responseData) updatedCmd.response = responseData;
           updatedCmd.settings = settings;
           updatedCmd.usage = buildUsageFromParams(updatedCmd.trigger, settings.params || []);
-          const commands = loadCustomCommands();
+          // Otimização: Cache de comandos personalizados
+          const commands = await optimizer.memoize(
+            `customcmds:${from}`,
+            () => Promise.resolve(loadCustomCommands()),
+            10000 // 10 segundos
+          );
           const idx = commands.findIndex(c => c.trigger === existingCmd.trigger);
           if (idx !== -1) {
             commands[idx] = updatedCmd;
             if (saveCustomCommands(commands)) {
+            // Invalida cache após salvar
+            optimizer.clearStatic(`customcmds:${from}`);
               await reply(`✅ Comando de mídia atualizado: ${trigger}\n*Uso:* ${updatedCmd.usage}`);
             } else {
               await reply('❌ Erro ao salvar edição do comando de mídia.');
@@ -11889,7 +12086,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             return reply('❌ Por favor, responda a uma mídia para adicionar como comando!');
           }
           
-          const commands = loadCustomCommands();
+          // Otimização: Cache de comandos personalizados
+          const commands = await optimizer.memoize(
+            `customcmds:${from}`,
+            () => Promise.resolve(loadCustomCommands()),
+            10000 // 10 segundos
+          );
           const usage = buildUsageFromParams(trigger, settings.params || []);
           commands.push({
             id: Date.now().toString(),
@@ -11901,6 +12103,8 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           });
           
           if (saveCustomCommands(commands)) {
+            // Invalida cache após salvar
+            optimizer.clearStatic(`customcmds:${from}`);
             const flagList = [];
             if (settings.ownerOnly) flagList.push('Dono');
             if (settings.adminOnly) flagList.push('Admin');
@@ -11924,7 +12128,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         try {
           if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
           
-          const commands = loadCustomCommands();
+          // Otimização: Cache de comandos personalizados
+          const commands = await optimizer.memoize(
+            `customcmds:${from}`,
+            () => Promise.resolve(loadCustomCommands()),
+            10000 // 10 segundos
+          );
           if (commands.length === 0) {
             return reply(`📜 *Nenhum comando personalizado criado.*\n\nUse ${groupPrefix}addcmd para criar um!`);
           }
@@ -11995,7 +12204,12 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           // Tentar por número primeiro
           if (!isNaN(parseInt(arg))) {
             const index = parseInt(arg) - 1;
-            const commands = loadCustomCommands();
+            // Otimização: Cache de comandos personalizados
+          const commands = await optimizer.memoize(
+            `customcmds:${from}`,
+            () => Promise.resolve(loadCustomCommands()),
+            10000 // 10 segundos
+          );
             
             if (index < 0 || index >= commands.length) {
               return reply(`❌ Número inválido. Use ${groupPrefix}listcmd para ver a lista.`);
@@ -14717,6 +14931,10 @@ ${prefix}togglecmdvip premium_ia off`);
           
           // Save the updated data
     writeJsonFile(groupFile, groupData);
+  // Otimização: Invalida cache quando groupData é salvo
+  if (isGroup) {
+    optimizer.invalidateGroup(from);
+  }
           
           // Prepare response message
           let responseMessage = `🧹 Limpeza do rank de atividade concluída!\n\n`;
@@ -16319,9 +16537,8 @@ case 'roubar':
         if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
         try {
           let path = pathz.join(GRUPOS_DIR, `${from}.json`);
-          let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {
-            mark: {}
-          };
+          // Otimização: Usar cache para leitura de arquivo
+          let data = await optimizer.loadJsonWithCache(path, { mark: {} });
           if (!data.mark) {
             data.mark = {};
           }
@@ -16862,9 +17079,8 @@ A mensagem será enviada todos os dias às ${normalizedTime} (horário de São P
           if (!isGroup) return reply("Este comando só pode ser usado em grupos 💔");
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           let path = pathz.join(GRUPOS_DIR, `${from}.json`);
-          let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {
-            mark: {}
-          };
+          // Otimização: Usar cache para leitura de arquivo
+          let data = await optimizer.loadJsonWithCache(path, { mark: {} });
           let membros = AllgroupMembers.filter(m => !['0', 'marca'].includes(data.mark[m]));
           if (membros.length < 2) return reply('❌ Preciso de pelo menos 2 membros válidos no grupo para realizar o sorteio!');
           let numVencedores = parseInt(q) || 1;
@@ -16905,9 +17121,8 @@ A mensagem será enviada todos os dias às ${normalizedTime} (horário de São P
           var red4 = isQuotedMsg && !aud_d4 && !figu_d4 && !pink4 && !blue4 && !purple4 && !yellow4 ? rsm4.conversation : info.message?.conversation;
           var green4 = rsm4?.extendedTextMessage?.text || info?.message?.extendedTextMessage?.text;
           let path = pathz.join(GRUPOS_DIR, `${from}.json`);
-          let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {
-            mark: {}
-          };
+          // Otimização: Usar cache para leitura de arquivo
+          let data = await optimizer.loadJsonWithCache(path, { mark: {} });
           if (!data.mark) {
             data.mark = {};
           }
@@ -17008,12 +17223,19 @@ case 'setdiv':
           if (!isOwner) return reply("Apenas o dono do bot pode usar este comando.");
 
           if (!q) {
-            const config = loadDivulgacao();
+            // Otimização: Cache de divulgacao
+            const config = await optimizer.memoize(
+              'divulgacao:config',
+              () => Promise.resolve(loadDivulgacao()),
+              30000 // 30 segundos
+            );
             const currentMessage = config.savedMessage || "Nenhuma mensagem salva.";
             return reply(`*Mensagem de divulgação atual:*\n${currentMessage}`);
           }
 
           if (saveDivulgacao({ savedMessage: q })) {
+            // Invalida cache após salvar
+            optimizer.clearStatic('divulgacao:config');
             await reply(`✅ Mensagem de divulgação salva:\n\n${q}`);
           } else {
             await reply("💔 Ocorreu um erro ao salvar a mensagem.");
@@ -17329,6 +17551,10 @@ Exemplos:
           
           groupData.antiloc = !groupData.antiloc;
           writeJsonFile(groupFile, groupData);
+  // Otimização: Invalida cache quando groupData é salvo
+  if (isGroup) {
+    optimizer.invalidateGroup(from);
+  }
           await reply(`✅ Antiloc ${groupData.antiloc ? 'ativado' : 'desativado'}! Localizações enviadas resultarão em banimento.`);
         } catch (e) {
           console.error(e);
@@ -18594,9 +18820,8 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
           if (!isModoBn) return reply('❌ O modo brincadeira não está ativo nesse grupo.');
           if (AllgroupMembers.length < 2) return reply('❌ Preciso de pelo menos 2 membros no grupo!');
           let path = buildGroupFilePath(from);
-          let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {
-            mark: {}
-          };
+          // Otimização: Usar cache para leitura de arquivo
+          let data = await optimizer.loadJsonWithCache(path, { mark: {} });
           let membros = AllgroupMembers.filter(m => !['0', 'marca'].includes(data.mark[m]));
           const membro1 = membros[Math.floor(Math.random() * membros.length)];
           let membro2 = membros[Math.floor(Math.random() * membros.length)];
@@ -18652,9 +18877,8 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
 ╰━━━━━━━━━━━━━━━━━━━━╯`);
           if (AllgroupMembers.length < 2) return reply('❌ Preciso de pelo menos 2 membros no grupo!');
           let path = buildGroupFilePath(from);
-          let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {
-            mark: {}
-          };
+          // Otimização: Usar cache para leitura de arquivo
+          let data = await optimizer.loadJsonWithCache(path, { mark: {} });
           let membros = AllgroupMembers.filter(m => !['0', 'marca'].includes(data.mark[m]));
           let par = membros[Math.floor(Math.random() * membros.length)];
           while (par === menc_os2) {
@@ -18939,9 +19163,8 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
           var frasekk;
           frasekk = [`tá querendo relações sexuais a ${q}, topa?`, `quer que *${q}* pessoas venham de *chicote, algema e corda de alpinista*.`, `quer que ${q} pessoas der tapa na cara, lhe chame de cachorra e fud3r bem gostosinho...`];
           let path = buildGroupFilePath(from);
-          let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {
-            mark: {}
-          };
+          // Otimização: Usar cache para leitura de arquivo
+          let data = await optimizer.loadJsonWithCache(path, { mark: {} });
           let membros = AllgroupMembers.filter(m => !['0', 'marca'].includes(data.mark[m]));
           var context;
           context = frasekk[Math.floor(Math.random() * frasekk.length)];
