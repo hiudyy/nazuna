@@ -7,6 +7,7 @@ export default async function menubn(prefix, botName = "MeuBot", userName = "Usu
     separatorIcon = "❁",
     middleBorder = "┊",
     gamesMenuTitle = "🎮 JOGOS & DIVERSÃO 🎲",
+    phrasesMenuTitle = "💬 FRASES & TEXTOS 📜",
     interactionsMenuTitle = "💬 INTERAÇÕES SOCIAIS 🤝",
     relationshipMenuTitle = "💞 RELACIONAMENTOS ❤️",
     hotInteractionsMenuTitle = '🔥 INTERAÇÕES "PICANTES" 😏',
@@ -31,6 +32,19 @@ ${middleBorder}${menuItemIcon}${prefix}casal
 ${middleBorder}${menuItemIcon}${prefix}shipo
 ${middleBorder}${menuItemIcon}${prefix}sn
 ${middleBorder}${menuItemIcon}${prefix}ppt${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}suicidio`}
+${bottomBorder}
+
+${menuTopBorder}${separatorIcon} *${phrasesMenuTitle}*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}conselho
+${middleBorder}${menuItemIcon}${prefix}conselhobiblico
+${middleBorder}${menuItemIcon}${prefix}cantada
+${middleBorder}${menuItemIcon}${prefix}piada
+${middleBorder}${menuItemIcon}${prefix}charada
+${middleBorder}${menuItemIcon}${prefix}motivacional
+${middleBorder}${menuItemIcon}${prefix}elogio
+${middleBorder}${menuItemIcon}${prefix}reflexao
+${middleBorder}${menuItemIcon}${prefix}fato
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${interactionsMenuTitle}*

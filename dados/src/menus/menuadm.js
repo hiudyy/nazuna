@@ -51,8 +51,9 @@ ${middleBorder}${menuItemIcon}${prefix}limpar
 ${middleBorder}${menuItemIcon}${prefix}marcar
 ${middleBorder}${menuItemIcon}${prefix}hidetag
 ${middleBorder}${menuItemIcon}${prefix}sorteio
-${middleBorder}${menuItemIcon}${prefix}setname
-${middleBorder}${menuItemIcon}${prefix}setdesc
+${middleBorder}${menuItemIcon}${prefix}nomegrupo
+${middleBorder}${menuItemIcon}${prefix}descgrupo
+${middleBorder}${menuItemIcon}${prefix}fotogrupo
 ${middleBorder}${menuItemIcon}${prefix}addregra
 ${middleBorder}${menuItemIcon}${prefix}delregra
 ${middleBorder}${menuItemIcon}${prefix}role.criar

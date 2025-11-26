@@ -13232,6 +13232,474 @@ case 'ytmp3':
           reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
         }
         break;
+      case 'gdrive':
+      case 'googledrive':
+      case 'drive':
+      case 'gd':
+        try {
+          if (!q) return reply(`📁 *Google Drive Download*\n\n❌ Por favor, envie o link do arquivo do Google Drive.\n\n📝 *Uso:* ${prefix}${command} <link>\n\n📌 *Formatos suportados:*\n• https://drive.google.com/file/d/ID/view\n• https://drive.google.com/open?id=ID\n• https://drive.google.com/uc?id=ID`);
+          
+          // Validar se é um link do Google Drive
+          const gdriveRegex = /(?:https?:\/\/)?(?:drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)|docs\.google\.com\/(?:document|spreadsheets|presentation)\/d\/)([a-zA-Z0-9_-]+)/i;
+          if (!gdriveRegex.test(q)) {
+            return reply('❌ Link inválido! Por favor, envie um link válido do Google Drive.');
+          }
+          
+          if (!KeyCog) {
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+          
+          await reply('⏳ Buscando informações do arquivo...');
+          
+          // Fazer requisição para a API
+          const gdriveResponse = await axios.get('https://cog2.cognima.com.br/api/v1/gdrive/info', {
+            params: { url: q },
+            headers: { 'X-API-Key': KeyCog },
+            timeout: 30000
+          });
+          
+          if (!gdriveResponse.data.success || !gdriveResponse.data.data) {
+            return reply('❌ Não foi possível obter informações do arquivo. Verifique se o link está correto e se o arquivo é público.');
+          }
+          
+          const fileData = gdriveResponse.data.data;
+          const { fileName, fileSize, fileSizeBytes, downloadUrl, mimetype } = fileData;
+          
+          // Verificar tamanho do arquivo (limite de 100MB para envio no WhatsApp)
+          const maxSize = 100 * 1024 * 1024; // 100MB
+          if (fileSizeBytes > maxSize) {
+            return reply(`📁 *Arquivo encontrado!*\n\n📄 *Nome:* ${fileName}\n📊 *Tamanho:* ${fileSize}\n📋 *Tipo:* ${mimetype}\n\n⚠️ *Arquivo muito grande para enviar!*\nO limite do WhatsApp é 100MB.\n\n🔗 *Link direto:*\n${downloadUrl}`);
+          }
+          
+          await reply(`📁 *Baixando arquivo...*\n\n📄 *Nome:* ${fileName}\n📊 *Tamanho:* ${fileSize}\n📋 *Tipo:* ${mimetype}`);
+          
+          // Baixar o arquivo
+          const fileResponse = await axios.get(downloadUrl, {
+            responseType: 'arraybuffer',
+            timeout: 120000,
+            maxContentLength: maxSize,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+          });
+          
+          const fileBuffer = Buffer.from(fileResponse.data);
+          
+          // Determinar o tipo de mídia e enviar
+          if (mimetype.startsWith('image/')) {
+            await nazu.sendMessage(from, {
+              image: fileBuffer,
+              caption: `📁 *${fileName}*\n📊 Tamanho: ${fileSize}`,
+              mimetype: mimetype
+            }, { quoted: info });
+          } else if (mimetype.startsWith('video/')) {
+            await nazu.sendMessage(from, {
+              video: fileBuffer,
+              caption: `📁 *${fileName}*\n📊 Tamanho: ${fileSize}`,
+              mimetype: mimetype
+            }, { quoted: info });
+          } else if (mimetype.startsWith('audio/')) {
+            await nazu.sendMessage(from, {
+              audio: fileBuffer,
+              mimetype: mimetype,
+              ptt: false
+            }, { quoted: info });
+          } else {
+            // Enviar como documento para outros tipos
+            await nazu.sendMessage(from, {
+              document: fileBuffer,
+              fileName: fileName,
+              mimetype: mimetype,
+              caption: `📁 *Google Drive Download*\n📊 Tamanho: ${fileSize}`
+            }, { quoted: info });
+          }
+          
+          reply('✅ Download concluído!');
+        } catch (e) {
+          console.error('Erro no comando gdrive:', e);
+          
+          if (e.response?.status === 401 || (e.message && e.message.includes('API key'))) {
+            ia.notifyOwnerAboutApiKey(nazu, numerodono, 'API key inválida ou expirada');
+            return reply('🤖 *Sistema temporariamente indisponível*\n\n😅 Estou com problemas técnicos. O administrador já foi notificado!');
+          }
+          
+          if (e.response?.status === 404) {
+            return reply('❌ Arquivo não encontrado ou não é público.');
+          }
+          
+          if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
+            return reply('⏰ Tempo esgotado! O arquivo pode ser muito grande ou a conexão está lenta.');
+          }
+          
+          reply('❌ Ocorreu um erro ao baixar o arquivo. Verifique se o link está correto e tente novamente.');
+        }
+        break;
+      case 'mediafire':
+      case 'mf':
+        try {
+          if (!q) return reply(`📁 *MediaFire Download*\n\n❌ Por favor, envie o link do arquivo do MediaFire.\n\n📝 *Uso:* ${prefix}${command} <link>\n\n📌 *Exemplo:*\n${prefix}${command} https://www.mediafire.com/file/abc123/arquivo.zip/file`);
+          
+          // Validar se é um link do MediaFire
+          const mediafireRegex = /(?:https?:\/\/)?(?:www\.)?mediafire\.com\/(?:file|view|download)\/([a-zA-Z0-9]+)/i;
+          if (!mediafireRegex.test(q)) {
+            return reply('❌ Link inválido! Por favor, envie um link válido do MediaFire.');
+          }
+          
+          if (!KeyCog) {
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+          
+          await reply('⏳ Buscando informações do arquivo...');
+          
+          // Fazer requisição para a API
+          const mfResponse = await axios.get('https://cog2.cognima.com.br/api/v1/mediafire/info', {
+            params: { url: q },
+            headers: { 'X-API-Key': KeyCog },
+            timeout: 30000
+          });
+          
+          if (!mfResponse.data.success || !mfResponse.data.data) {
+            return reply('❌ Não foi possível obter informações do arquivo. Verifique se o link está correto.');
+          }
+          
+          const fileData = mfResponse.data.data;
+          const { fileName, fileSize, uploadDate, mimetype, extension, downloadUrl } = fileData;
+          
+          // Converter tamanho para bytes para verificação
+          const sizeMatch = fileSize.match(/([\d.]+)\s*(KB|MB|GB)/i);
+          let fileSizeBytes = 0;
+          if (sizeMatch) {
+            const size = parseFloat(sizeMatch[1]);
+            const unit = sizeMatch[2].toUpperCase();
+            if (unit === 'KB') fileSizeBytes = size * 1024;
+            else if (unit === 'MB') fileSizeBytes = size * 1024 * 1024;
+            else if (unit === 'GB') fileSizeBytes = size * 1024 * 1024 * 1024;
+          }
+          
+          // Verificar tamanho do arquivo (limite de 100MB para envio no WhatsApp)
+          const maxSize = 100 * 1024 * 1024; // 100MB
+          if (fileSizeBytes > maxSize) {
+            return reply(`📁 *Arquivo encontrado!*\n\n📄 *Nome:* ${fileName}\n📊 *Tamanho:* ${fileSize}\n📅 *Upload:* ${uploadDate || 'N/A'}\n📋 *Tipo:* ${extension || mimetype}\n\n⚠️ *Arquivo muito grande para enviar!*\nO limite do WhatsApp é 100MB.\n\n🔗 *Link direto:*\n${downloadUrl}`);
+          }
+          
+          await reply(`📁 *Baixando arquivo...*\n\n📄 *Nome:* ${fileName}\n📊 *Tamanho:* ${fileSize}\n📅 *Upload:* ${uploadDate || 'N/A'}`);
+          
+          // Baixar o arquivo
+          const fileResponse = await axios.get(downloadUrl, {
+            responseType: 'arraybuffer',
+            timeout: 120000,
+            maxContentLength: maxSize,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+          });
+          
+          const fileBuffer = Buffer.from(fileResponse.data);
+          const mimeType = mimetype || 'application/octet-stream';
+          
+          // Determinar o tipo de mídia e enviar
+          if (mimeType.startsWith('image/')) {
+            await nazu.sendMessage(from, {
+              image: fileBuffer,
+              caption: `📁 *${fileName}*\n📊 Tamanho: ${fileSize}`,
+              mimetype: mimeType
+            }, { quoted: info });
+          } else if (mimeType.startsWith('video/')) {
+            await nazu.sendMessage(from, {
+              video: fileBuffer,
+              caption: `📁 *${fileName}*\n📊 Tamanho: ${fileSize}`,
+              mimetype: mimeType
+            }, { quoted: info });
+          } else if (mimeType.startsWith('audio/')) {
+            await nazu.sendMessage(from, {
+              audio: fileBuffer,
+              mimetype: mimeType,
+              ptt: false
+            }, { quoted: info });
+          } else {
+            // Enviar como documento para outros tipos
+            await nazu.sendMessage(from, {
+              document: fileBuffer,
+              fileName: fileName,
+              mimetype: mimeType,
+              caption: `📁 *MediaFire Download*\n📊 Tamanho: ${fileSize}`
+            }, { quoted: info });
+          }
+          
+          reply('✅ Download concluído!');
+        } catch (e) {
+          console.error('Erro no comando mediafire:', e);
+          
+          if (e.response?.status === 401 || (e.message && e.message.includes('API key'))) {
+            ia.notifyOwnerAboutApiKey(nazu, numerodono, 'API key inválida ou expirada');
+            return reply('🤖 *Sistema temporariamente indisponível*\n\n😅 Estou com problemas técnicos. O administrador já foi notificado!');
+          }
+          
+          if (e.response?.status === 404) {
+            return reply('❌ Arquivo não encontrado ou foi removido.');
+          }
+          
+          if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
+            return reply('⏰ Tempo esgotado! O arquivo pode ser muito grande ou a conexão está lenta.');
+          }
+          
+          reply('❌ Ocorreu um erro ao baixar o arquivo. Verifique se o link está correto e tente novamente.');
+        }
+        break;
+      case 'twitter':
+      case 'twitterdl':
+      case 'twt':
+      case 'x':
+      case 'xdl':
+        try {
+          if (!q) return reply(`🐦 *Twitter/X Download*\n\n❌ Por favor, envie o link do tweet.\n\n📝 *Uso:* ${prefix}${command} <link>\n\n📌 *Formatos suportados:*\n• https://twitter.com/user/status/ID\n• https://x.com/user/status/ID`);
+          
+          // Validar se é um link do Twitter/X
+          const twitterRegex = /(?:https?:\/\/)?(?:www\.)?(?:twitter\.com|x\.com)\/(?:\w+\/status|i\/status)\/(\d+)/i;
+          if (!twitterRegex.test(q)) {
+            return reply('❌ Link inválido! Por favor, envie um link válido do Twitter/X.');
+          }
+          
+          if (!KeyCog) {
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+          
+          await reply('⏳ Buscando informações do tweet...');
+          
+          // Fazer requisição para a API
+          const twtResponse = await axios.get('https://cog2.cognima.com.br/api/v1/twitter/info', {
+            params: { url: q },
+            headers: { 'X-API-Key': KeyCog },
+            timeout: 30000
+          });
+          
+          if (!twtResponse.data.success || !twtResponse.data.data) {
+            return reply('❌ Não foi possível obter informações do tweet. Verifique se o link está correto.');
+          }
+          
+          const tweetData = twtResponse.data.data;
+          const { text, author, stats, media, hasMedia, type } = tweetData;
+          
+          // Formatar caption
+          const caption = `🐦 *Twitter/X Download*\n\n👤 *${author?.name || 'Usuário'}* (@${author?.username || 'unknown'})\n\n💬 ${text || ''}\n\n❤️ ${stats?.likes || 0} • 🔁 ${stats?.retweets || 0} • 💬 ${stats?.replies || 0}`;
+          
+          if (!hasMedia || !media || media.length === 0) {
+            return reply(`${caption}\n\n⚠️ Este tweet não contém mídia para download.`);
+          }
+          
+          // Enviar cada mídia
+          for (const item of media) {
+            try {
+              if (item.type === 'video') {
+                // Usar a melhor qualidade disponível
+                const videoUrl = item.bestQuality?.url || item.url;
+                
+                await nazu.sendMessage(from, {
+                  video: { url: videoUrl },
+                  caption: caption,
+                  mimetype: 'video/mp4'
+                }, { quoted: info });
+                
+              } else if (item.type === 'photo' || item.type === 'image') {
+                await nazu.sendMessage(from, {
+                  image: { url: item.url },
+                  caption: caption
+                }, { quoted: info });
+                
+              } else if (item.type === 'gif' || item.type === 'animated_gif') {
+                await nazu.sendMessage(from, {
+                  video: { url: item.url },
+                  caption: caption,
+                  gifPlayback: true
+                }, { quoted: info });
+              }
+            } catch (mediaError) {
+              console.error('Erro ao enviar mídia do Twitter:', mediaError);
+            }
+          }
+          
+          reply('✅ Download concluído!');
+        } catch (e) {
+          console.error('Erro no comando twitter:', e);
+          
+          if (e.response?.status === 401 || (e.message && e.message.includes('API key'))) {
+            ia.notifyOwnerAboutApiKey(nazu, numerodono, 'API key inválida ou expirada');
+            return reply('🤖 *Sistema temporariamente indisponível*\n\n😅 Estou com problemas técnicos. O administrador já foi notificado!');
+          }
+          
+          if (e.response?.status === 404) {
+            return reply('❌ Tweet não encontrado ou foi deletado.');
+          }
+          
+          if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
+            return reply('⏰ Tempo esgotado! Tente novamente.');
+          }
+          
+          reply('❌ Ocorreu um erro ao baixar o tweet. Verifique se o link está correto e tente novamente.');
+        }
+        break;
+      case 'google':
+      case 'pesquisar':
+      case 'buscar':
+      case 'search':
+        try {
+          if (!q) return reply(`🔍 *Pesquisa Web*\n\n❌ Digite o que deseja pesquisar.\n\n📝 *Uso:* ${prefix}${command} <termo>\n\n📌 *Exemplo:*\n${prefix}${command} inteligência artificial`);
+          
+          if (!KeyCog) {
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+          
+          await reply('🔍 Pesquisando...');
+          
+          const searchResponse = await axios.get('https://cog2.cognima.com.br/api/v1/search', {
+            params: { q: q, max: 10 },
+            headers: { 'X-API-Key': KeyCog },
+            timeout: 30000
+          });
+          
+          if (!searchResponse.data.success || !searchResponse.data.data?.results) {
+            return reply('❌ Nenhum resultado encontrado.');
+          }
+          
+          const { query, results } = searchResponse.data.data;
+          
+          let response = `🔍 *Resultados para:* "${query}"\n\n`;
+          
+          results.slice(0, 8).forEach((result, index) => {
+            response += `*${index + 1}. ${result.title}*\n`;
+            response += `📝 ${result.description?.substring(0, 150) || 'Sem descrição'}${result.description?.length > 150 ? '...' : ''}\n`;
+            response += `🔗 ${result.url}\n\n`;
+          });
+          
+          reply(response.trim());
+        } catch (e) {
+          console.error('Erro no comando google:', e);
+          
+          if (e.response?.status === 401) {
+            ia.notifyOwnerAboutApiKey(nazu, numerodono, 'API key inválida');
+            return reply('🤖 *Sistema temporariamente indisponível*');
+          }
+          
+          reply('❌ Ocorreu um erro na pesquisa. Tente novamente.');
+        }
+        break;
+      case 'noticias':
+      case 'news':
+      case 'noticia':
+        try {
+          if (!q) return reply(`📰 *Pesquisa de Notícias*\n\n❌ Digite o que deseja pesquisar.\n\n📝 *Uso:* ${prefix}${command} <termo>\n\n📌 *Exemplo:*\n${prefix}${command} tecnologia brasil`);
+          
+          if (!KeyCog) {
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+          
+          await reply('📰 Buscando notícias...');
+          
+          const newsResponse = await axios.get('https://cog2.cognima.com.br/api/v1/search/news', {
+            params: { q: q, max: 10 },
+            headers: { 'X-API-Key': KeyCog },
+            timeout: 30000
+          });
+          
+          if (!newsResponse.data.success || !newsResponse.data.data?.results) {
+            return reply('❌ Nenhuma notícia encontrada.');
+          }
+          
+          const { query: newsQuery, results: newsResults } = newsResponse.data.data;
+          
+          let newsText = `📰 *Notícias sobre:* "${newsQuery}"\n\n`;
+          
+          newsResults.slice(0, 8).forEach((news, index) => {
+            newsText += `*${index + 1}. ${news.title}*\n`;
+            newsText += `📝 ${news.description?.substring(0, 120) || 'Sem descrição'}${news.description?.length > 120 ? '...' : ''}\n`;
+            newsText += `🔗 ${news.url}\n\n`;
+          });
+          
+          reply(newsText.trim());
+        } catch (e) {
+          console.error('Erro no comando noticias:', e);
+          
+          if (e.response?.status === 401) {
+            ia.notifyOwnerAboutApiKey(nazu, numerodono, 'API key inválida');
+            return reply('🤖 *Sistema temporariamente indisponível*');
+          }
+          
+          reply('❌ Ocorreu um erro na pesquisa. Tente novamente.');
+        }
+        break;
+      case 'app':
+      case 'apps':
+      case 'playstore':
+      case 'appstore':
+      case 'buscarapp':
+        try {
+          if (!q) return reply(`📱 *Pesquisa de Apps*\n\n❌ Digite o nome do aplicativo.\n\n📝 *Uso:* ${prefix}${command} <nome do app>\n\n📌 *Exemplo:*\n${prefix}${command} whatsapp`);
+          
+          if (!KeyCog) {
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+          
+          await reply('📱 Buscando aplicativos...');
+          
+          const appResponse = await axios.get('https://cog2.cognima.com.br/api/v1/apps/search', {
+            params: { q: q, num: 5, country: 'br', lang: 'pt' },
+            headers: { 'X-API-Key': KeyCog },
+            timeout: 30000
+          });
+          
+          if (!appResponse.data.success || !appResponse.data.data) {
+            return reply('❌ Nenhum aplicativo encontrado.');
+          }
+          
+          const { playStore, appStore } = appResponse.data.data;
+          
+          let appText = `📱 *Resultados para:* "${q}"\n\n`;
+          
+          // Play Store
+          if (playStore && playStore.length > 0) {
+            appText += `🤖 *Google Play Store*\n\n`;
+            playStore.slice(0, 3).forEach((app, index) => {
+              appText += `*${index + 1}. ${app.title}*\n`;
+              appText += `👨‍💻 ${app.developer}\n`;
+              appText += `⭐ ${app.score?.toFixed(1) || 'N/A'} • ${app.price || 'Grátis'}\n`;
+              appText += `📥 ${app.installs || 'N/A'}\n`;
+              appText += `🔗 ${app.url}\n\n`;
+            });
+          }
+          
+          // App Store
+          if (appStore && appStore.length > 0) {
+            appText += `🍎 *Apple App Store*\n\n`;
+            appStore.slice(0, 3).forEach((app, index) => {
+              appText += `*${index + 1}. ${app.title}*\n`;
+              appText += `👨‍💻 ${app.developer}\n`;
+              appText += `⭐ ${app.score?.toFixed(1) || 'N/A'} • ${app.free ? 'Grátis' : `R$ ${app.price}`}\n`;
+              appText += `🔗 ${app.url}\n\n`;
+            });
+          }
+          
+          if ((!playStore || playStore.length === 0) && (!appStore || appStore.length === 0)) {
+            return reply('❌ Nenhum aplicativo encontrado com esse nome.');
+          }
+          
+          reply(appText.trim());
+        } catch (e) {
+          console.error('Erro no comando apps:', e);
+          
+          if (e.response?.status === 401) {
+            ia.notifyOwnerAboutApiKey(nazu, numerodono, 'API key inválida');
+            return reply('🤖 *Sistema temporariamente indisponível*');
+          }
+          
+          reply('❌ Ocorreu um erro na pesquisa. Tente novamente.');
+        }
+        break;
       case 'pinterest':
       case 'pin':
         try {
@@ -14111,6 +14579,26 @@ case 'ytmp3':
         } catch (e) {
           console.error(e);
           reply("ocorreu um erro 💔");
+        }
+        break;
+      case 'fotobot':
+      case 'fotoperfil':
+      case 'setppbot':
+      case 'perfilbot':
+      case 'avatarbot':
+        try {
+          if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
+          if (!isQuotedImage && !isImage) return reply('❌ Envie ou marque uma imagem para definir como foto de perfil do bot.\n\n📝 *Uso:* Envie uma imagem com o comando ou responda uma imagem com ' + prefix + 'fotobot');
+          
+          const mediaInfo = getMediaInfo(isQuotedImage ? quoted.message : info.message);
+          if (!mediaInfo || mediaInfo.type !== 'image') return reply('❌ Mídia inválida. Envie uma imagem.');
+          
+          const imageBuffer = await getFileBuffer(mediaInfo.media, 'image');
+          await nazu.updateProfilePicture(nazu.user.id, imageBuffer);
+          reply('✅ Foto de perfil do bot alterada com sucesso!');
+        } catch (e) {
+          console.error(e);
+          reply("❌ Ocorreu um erro ao alterar a foto de perfil 💔");
         }
         break;
       
@@ -16503,12 +16991,16 @@ case 'roubar':
         }
         break;
       case 'setname':
+      case 'nomegrupo':
+      case 'mudarnome':
+      case 'alterarnome':
+      case 'renomear':
         try {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Comando restrito a Administradores ou Moderadores com permissão. 💔");
           if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
           const newName = q.trim();
-          if (!newName) return reply('❌ Digite um novo nome para o grupo.');
+          if (!newName) return reply('❌ Digite um novo nome para o grupo.\n\n📝 *Uso:* ' + groupPrefix + 'nomegrupo Nome do Grupo');
           await nazu.groupUpdateSubject(from, newName);
           reply(`✅ Nome do grupo alterado para: *${newName}*`);
         } catch (e) {
@@ -16517,14 +17009,40 @@ case 'roubar':
         }
         break;
       case 'setdesc':
+      case 'descgrupo':
+      case 'mudardesc':
+      case 'alterardesc':
+      case 'descricao':
         try {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Comando restrito a Administradores ou Moderadores com permissão. 💔");
           if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
           const newDesc = q.trim();
-          if (!newDesc) return reply('❌ Digite uma nova descrição para o grupo.');
+          if (!newDesc) return reply('❌ Digite uma nova descrição para o grupo.\n\n📝 *Uso:* ' + groupPrefix + 'descgrupo Descrição do grupo aqui');
           await nazu.groupUpdateDescription(from, newDesc);
           reply(`✅ Descrição do grupo alterada!`);
+        } catch (e) {
+          console.error(e);
+          reply("ocorreu um erro 💔");
+        }
+        break;
+      case 'setfoto':
+      case 'fotogrupo':
+      case 'mudarfoto':
+      case 'alterarfoto':
+      case 'fotogp':
+        try {
+          if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
+          if (!isGroupAdmin) return reply("Comando restrito a Administradores ou Moderadores com permissão. 💔");
+          if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
+          if (!isQuotedImage && !isImage) return reply('❌ Envie ou marque uma imagem para definir como foto do grupo.\n\n📝 *Uso:* Envie uma imagem com o comando ou responda uma imagem com ' + groupPrefix + 'fotogrupo');
+          
+          const mediaInfo = getMediaInfo(isQuotedImage ? quoted.message : info.message);
+          if (!mediaInfo || mediaInfo.type !== 'image') return reply('❌ Mídia inválida. Envie uma imagem.');
+          
+          const imageBuffer = await getFileBuffer(mediaInfo.media, 'image');
+          await nazu.updateProfilePicture(from, imageBuffer);
+          reply('✅ Foto do grupo alterada com sucesso!');
         } catch (e) {
           console.error(e);
           reply("ocorreu um erro 💔");
@@ -19144,6 +19662,107 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
         } catch (e) {
           console.error(e);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
+        }
+        break;
+      case 'conselho':
+        try {
+          const conselhos = toolsJson().Conselhos;
+          const conselho = conselhos[Math.floor(Math.random() * conselhos.length)];
+          await reply(`💡 *Conselho do dia:*\n\n${conselho}`);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro ao buscar o conselho.");
+        }
+        break;
+      case 'conselhobiblico':
+      case 'versiculo':
+      case 'biblia':
+        try {
+          const conselhosBiblicos = toolsJson().ConselhosBiblicos;
+          const conselhoBiblico = conselhosBiblicos[Math.floor(Math.random() * conselhosBiblicos.length)];
+          await reply(`📖 *Conselho Bíblico:*\n\n${conselhoBiblico}`);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro ao buscar o versículo.");
+        }
+        break;
+      case 'cantada':
+      case 'cantadas':
+        try {
+          const cantadas = toolsJson().Cantadas;
+          const cantada = cantadas[Math.floor(Math.random() * cantadas.length)];
+          await reply(`💘 *Cantada:*\n\n${cantada}`);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro ao buscar a cantada.");
+        }
+        break;
+      case 'piada':
+      case 'piadas':
+        try {
+          const piadas = toolsJson().Piadas;
+          const piada = piadas[Math.floor(Math.random() * piadas.length)];
+          await reply(`😂 *Piada:*\n\n${piada}`);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro ao buscar a piada.");
+        }
+        break;
+      case 'charada':
+      case 'enigma':
+        try {
+          const charadas = toolsJson().Charadas;
+          const charada = charadas[Math.floor(Math.random() * charadas.length)];
+          await reply(`🧩 *Charada:*\n\n${charada}`);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro ao buscar a charada.");
+        }
+        break;
+      case 'motivacional':
+      case 'motivacao':
+      case 'frasemotivacional':
+        try {
+          const motivacionais = toolsJson().FrasesMotivacionais;
+          const motivacional = motivacionais[Math.floor(Math.random() * motivacionais.length)];
+          await reply(`🚀 *Frase Motivacional:*\n\n${motivacional}`);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro ao buscar a frase.");
+        }
+        break;
+      case 'elogio':
+      case 'elogiar':
+        try {
+          const elogios = toolsJson().Elogios;
+          const elogio = elogios[Math.floor(Math.random() * elogios.length)];
+          await reply(`🌟 *Elogio:*\n\n${elogio}`);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro ao buscar o elogio.");
+        }
+        break;
+      case 'reflexao':
+      case 'pensamento':
+        try {
+          const reflexoes = toolsJson().Reflexoes;
+          const reflexao = reflexoes[Math.floor(Math.random() * reflexoes.length)];
+          await reply(`🤔 *Reflexão:*\n\n${reflexao}`);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro ao buscar a reflexão.");
+        }
+        break;
+      case 'fato':
+      case 'fatocurioso':
+      case 'curiosidade':
+        try {
+          const fatos = toolsJson().curiousFacts;
+          const fato = fatos[Math.floor(Math.random() * fatos.length)];
+          await reply(`🔬 *Fato Curioso:*\n\n${fato}`);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro ao buscar o fato.");
         }
         break;
       case 'surubao':

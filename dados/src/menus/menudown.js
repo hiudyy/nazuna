@@ -19,6 +19,9 @@ ${formattedHeader}
 
 ${menuTopBorder}${separatorIcon} *${searchMenuTitle}*
 ${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}google
+${middleBorder}${menuItemIcon}${prefix}noticias
+${middleBorder}${menuItemIcon}${prefix}apps
 ${middleBorder}${menuItemIcon}${prefix}dicionario
 ${middleBorder}${menuItemIcon}${prefix}wikipedia
 ${bottomBorder}
@@ -41,6 +44,9 @@ ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}tiktok
 ${middleBorder}${menuItemIcon}${prefix}instagram
 ${middleBorder}${menuItemIcon}${prefix}igstory
+${middleBorder}${menuItemIcon}${prefix}gdrive
+${middleBorder}${menuItemIcon}${prefix}mediafire
+${middleBorder}${menuItemIcon}${prefix}twitter
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${mediaMenuTitle}*
