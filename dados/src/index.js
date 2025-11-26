@@ -14590,7 +14590,8 @@ case 'ytmp3':
           if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
           if (!isQuotedImage && !isImage) return reply('❌ Envie ou marque uma imagem para definir como foto de perfil do bot.\n\n📝 *Uso:* Envie uma imagem com o comando ou responda uma imagem com ' + prefix + 'fotobot');
           
-          const mediaInfo = getMediaInfo(isQuotedImage ? quoted.message : info.message);
+          const messageToUse = isQuotedImage ? quotedMessageContent : info.message;
+          const mediaInfo = getMediaInfo(messageToUse);
           if (!mediaInfo || mediaInfo.type !== 'image') return reply('❌ Mídia inválida. Envie uma imagem.');
           
           const imageBuffer = await getFileBuffer(mediaInfo.media, 'image');
@@ -17048,7 +17049,8 @@ case 'roubar':
           if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
           if (!isQuotedImage && !isImage) return reply('❌ Envie ou marque uma imagem para definir como foto do grupo.\n\n📝 *Uso:* Envie uma imagem com o comando ou responda uma imagem com ' + groupPrefix + 'fotogrupo');
           
-          const mediaInfo = getMediaInfo(isQuotedImage ? quoted.message : info.message);
+          const messageToUse = isQuotedImage ? quotedMessageContent : info.message;
+          const mediaInfo = getMediaInfo(messageToUse);
           if (!mediaInfo || mediaInfo.type !== 'image') return reply('❌ Mídia inválida. Envie uma imagem.');
           
           const imageBuffer = await getFileBuffer(mediaInfo.media, 'image');
