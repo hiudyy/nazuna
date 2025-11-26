@@ -21,7 +21,9 @@ export default async function menurpg(prefix, botName = "MeuBot", userName = "Us
     investmentMenuTitle = "📈 INVESTIMENTOS & BOLSA",
     gamblingMenuTitle = "🎰 CASSINO & APOSTAS",
     evolutionMenuTitle = "🌟 EVOLUÇÃO & PRESTIGE",
-    eventsMenuTitle = "🎉 EVENTOS"
+    eventsMenuTitle = "🎉 EVENTOS",
+    premiumMenuTitle = "💎 LOJA PREMIUM",
+    adminMenuTitle = "🔧 ADMIN RPG (DONO)"
 } = {}) {
   const h = header.replace(/#user#/g, userName);
     return `‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎
@@ -32,6 +34,7 @@ ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}perfilrpg
 ${middleBorder}${menuItemIcon}${prefix}carteira
 ${middleBorder}${menuItemIcon}${prefix}toprpg
+${middleBorder}${menuItemIcon}${prefix}rankglobal
 ${middleBorder}${menuItemIcon}${prefix}ranklevel
 ${middleBorder}${menuItemIcon}${prefix}inventario
 ${middleBorder}${menuItemIcon}${prefix}equipamentos
@@ -68,6 +71,14 @@ ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}dados <valor>
 ${middleBorder}${menuItemIcon}${prefix}coinflip <cara|coroa> <valor>
 ${middleBorder}${menuItemIcon}${prefix}crash <valor>
+${middleBorder}${menuItemIcon}${prefix}slots <valor>
+${middleBorder}${menuItemIcon}${prefix}roleta <valor> <cor>
+${middleBorder}${menuItemIcon}${prefix}blackjack <valor>
+${middleBorder}${menuItemIcon}${prefix}loteria
+${middleBorder}${menuItemIcon}${prefix}loteria comprar <qtd>
+${middleBorder}${menuItemIcon}${prefix}corrida <valor> <cavalo>
+${middleBorder}${menuItemIcon}${prefix}leilao
+${middleBorder}${menuItemIcon}${prefix}topriqueza
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${activitiesMenuTitle}*
@@ -171,6 +182,32 @@ ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}eventos
 ${bottomBorder}
 
+${menuTopBorder}${separatorIcon} *${premiumMenuTitle}*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}lojapremium
+${middleBorder}${menuItemIcon}${prefix}comprarpremium <item>
+${middleBorder}${menuItemIcon}${prefix}boost
+${middleBorder}${menuItemIcon}${prefix}propriedades
+${middleBorder}${menuItemIcon}${prefix}comprarpropriedade <id>
+${middleBorder}${menuItemIcon}${prefix}coletarpropriedades
+${middleBorder}${menuItemIcon}${prefix}tributos
+${middleBorder}${menuItemIcon}${prefix}meustats
+${middleBorder}${menuItemIcon}${prefix}doar <valor>
+${middleBorder}${menuItemIcon}${prefix}presente @user <item>
+${bottomBorder}
+
+${menuTopBorder}${separatorIcon} *${adminMenuTitle}*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}rpgadd @user <valor>
+${middleBorder}${menuItemIcon}${prefix}rpgremove @user <valor>
+${middleBorder}${menuItemIcon}${prefix}rpgsetlevel @user <nivel>
+${middleBorder}${menuItemIcon}${prefix}rpgadditem @user <item> <qtd>
+${middleBorder}${menuItemIcon}${prefix}rpgremoveitem @user <item> <qtd>
+${middleBorder}${menuItemIcon}${prefix}rpgresetplayer @user
+${middleBorder}${menuItemIcon}${prefix}rpgresetglobal confirmar
+${middleBorder}${menuItemIcon}${prefix}rpgstats
+${bottomBorder}
+
 ${menuTopBorder}${separatorIcon} *💎 SISTEMA DE PROGRESSO DIÁRIO*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}diario
@@ -180,6 +217,7 @@ ${middleBorder}${menuItemIcon}${prefix}missoes
 ${middleBorder}${menuItemIcon}${prefix}investir
 ${middleBorder}${menuItemIcon}${prefix}torneio
 ${middleBorder}${menuItemIcon}${prefix}evoluir
+${middleBorder}${menuItemIcon}${prefix}rankglobal
 ${middleBorder}${menuItemIcon}${prefix}toprpg
 ${middleBorder}${menuItemIcon}${prefix}ranklevel
 ${middleBorder}${menuItemIcon}${prefix}conquistas`

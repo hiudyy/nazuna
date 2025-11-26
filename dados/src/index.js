@@ -4087,9 +4087,11 @@ Entre em contato com o dono do bot:
       case 'cook':
       case 'receitas':
       case 'plantar':
+      case 'cultivar':
       case 'plant':
       case 'farm':
       case 'colher':
+      case 'coletar':
       case 'harvest':
       case 'plantacao':
       case 'plantação':
@@ -5407,6 +5409,58 @@ Entre em contato com o dono do bot:
         return reply(text);
       }
 
+      // Sistema de Conquistas
+      case 'conquistas':
+      case 'achievements':
+      case 'medalhas': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        me.achievements = me.achievements || {};
+        me.stats = me.stats || { totalMine: 0, totalWork: 0, totalFish: 0, totalHunt: 0, totalExplore: 0, totalBattles: 0, totalWins: 0, totalCrimes: 0 };
+        
+        const achievements = [
+          { id: 'minerador', name: '⛏️ Minerador', desc: 'Minere 100 vezes', req: me.stats.totalMine >= 100, progress: `${me.stats.totalMine || 0}/100` },
+          { id: 'trabalhador', name: '💼 Trabalhador', desc: 'Trabalhe 50 vezes', req: me.stats.totalWork >= 50, progress: `${me.stats.totalWork || 0}/50` },
+          { id: 'pescador', name: '🎣 Pescador', desc: 'Pesque 75 vezes', req: me.stats.totalFish >= 75, progress: `${me.stats.totalFish || 0}/75` },
+          { id: 'cacador', name: '🏹 Caçador', desc: 'Cace 50 vezes', req: me.stats.totalHunt >= 50, progress: `${me.stats.totalHunt || 0}/50` },
+          { id: 'explorador', name: '🗺️ Explorador', desc: 'Explore 100 vezes', req: me.stats.totalExplore >= 100, progress: `${me.stats.totalExplore || 0}/100` },
+          { id: 'gladiador', name: '⚔️ Gladiador', desc: 'Vença 25 batalhas', req: me.stats.totalWins >= 25, progress: `${me.stats.totalWins || 0}/25` },
+          { id: 'milionario', name: '💰 Milionário', desc: 'Tenha 1M no banco', req: (me.bank || 0) >= 1000000, progress: `${(me.bank || 0).toLocaleString()}/1.000.000` },
+          { id: 'veterano', name: '🏆 Veterano', desc: 'Alcance nível 50', req: (me.level || 1) >= 50, progress: `${me.level || 1}/50` },
+          { id: 'colecionador', name: '🐾 Colecionador', desc: 'Tenha 5 pets', req: (me.pets?.length || 0) >= 5, progress: `${me.pets?.length || 0}/5` },
+          { id: 'criminoso', name: '🦹 Criminoso', desc: 'Cometa 30 crimes', req: me.stats.totalCrimes >= 30, progress: `${me.stats.totalCrimes || 0}/30` }
+        ];
+        
+        let unlockedCount = 0;
+        let text = `╭━━━⊱ 🏅 *CONQUISTAS* ⊱━━━╮\n`;
+        text += `│ Aventureiro: *${pushname}*\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        for (const ach of achievements) {
+          const unlocked = ach.req;
+          if (unlocked && !me.achievements[ach.id]) {
+            me.achievements[ach.id] = Date.now();
+          }
+          if (unlocked) unlockedCount++;
+          
+          const status = unlocked ? '✅' : '🔒';
+          text += `${status} ${ach.name}\n`;
+          text += `   ${ach.desc}\n`;
+          text += `   📊 Progresso: ${ach.progress}\n\n`;
+        }
+        
+        text += `╭━━━━━━━━━━━━━━━━━━━━╮\n`;
+        text += `│ 🏆 Total: ${unlockedCount}/${achievements.length} conquistas\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯`;
+        
+        saveEconomy(econ);
+        return reply(text);
+      }
+
       // Sistema de Pets
       case 'pets':
       case 'meuspets': {
@@ -5880,6 +5934,145 @@ Entre em contato com o dono do bot:
         break;
       }
 
+      // Apostar com Pets
+      case 'apostarpet':
+      case 'petbet': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        
+        if (!target) return reply(`❌ Marque alguém para apostar!\n\n💡 Uso: ${prefix}apostarpet <valor> <nº pet> @user`);
+        if (target === sender) return reply('❌ Você não pode apostar contra si mesmo!');
+        
+        const argsArr = q.split(' ');
+        const betAmount = parseInt(argsArr[0]) || 0;
+        const petIndex = parseInt(argsArr[1]) - 1;
+        
+        if (betAmount <= 0) return reply('❌ Informe um valor válido para apostar!');
+        if (betAmount > me.wallet) return reply('❌ Você não tem dinheiro suficiente na carteira!');
+        
+        const opponent = getEcoUser(econ, target);
+        if (betAmount > opponent.wallet) return reply('❌ Seu oponente não tem dinheiro suficiente!');
+        
+        if (!me.pets || me.pets.length === 0) return reply('🐾 Você não tem pets!');
+        if (!opponent.pets || opponent.pets.length === 0) return reply('❌ Seu oponente não tem pets!');
+        
+        if (isNaN(petIndex) || petIndex < 0 || petIndex >= me.pets.length) {
+          return reply(`❌ Pet inválido! Use ${prefix}pets para ver seus pets.`);
+        }
+        
+        const myPet = me.pets[petIndex];
+        const oppPet = opponent.pets[Math.floor(Math.random() * opponent.pets.length)];
+        
+        // Batalha
+        let myHp = myPet.hp;
+        let oppHp = oppPet.hp;
+        
+        while (myHp > 0 && oppHp > 0) {
+          const myDmg = Math.max(1, myPet.attack - Math.floor(oppPet.defense / 2) + Math.floor(Math.random() * 10));
+          oppHp -= myDmg;
+          if (oppHp <= 0) break;
+          
+          const oppDmg = Math.max(1, oppPet.attack - Math.floor(myPet.defense / 2) + Math.floor(Math.random() * 10));
+          myHp -= oppDmg;
+        }
+        
+        const won = myHp > oppHp;
+        
+        let resultMsg = `╭━━━⊱ 🎰 *APOSTA DE PETS* ⊱━━━╮\n\n`;
+        resultMsg += `${myPet.emoji} *${myPet.name}* (Lv.${myPet.level}) VS ${oppPet.emoji} *${oppPet.name}* (Lv.${oppPet.level})\n\n`;
+        resultMsg += `💰 Aposta: ${betAmount.toLocaleString()}\n\n`;
+        
+        if (won) {
+          me.wallet += betAmount;
+          opponent.wallet -= betAmount;
+          resultMsg += `🏆 *VOCÊ VENCEU!*\n💰 Ganhou: +${betAmount.toLocaleString()}`;
+        } else {
+          me.wallet -= betAmount;
+          opponent.wallet += betAmount;
+          resultMsg += `💀 *VOCÊ PERDEU!*\n💸 Perdeu: -${betAmount.toLocaleString()}`;
+        }
+        
+        resultMsg += `\n╰━━━━━━━━━━━━━━━━━━━━━━╯`;
+        
+        saveEconomy(econ);
+        return reply(resultMsg, { mentions: [target] });
+      }
+
+      // Equipar item no Pet
+      case 'equippet':
+      case 'equiparpet': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const argsArr = q.split(' ');
+        const petIndex = parseInt(argsArr[0]) - 1;
+        const itemName = argsArr.slice(1).join(' ').toLowerCase();
+        
+        if (!me.pets || me.pets.length === 0) return reply('🐾 Você não tem pets!');
+        if (isNaN(petIndex) || petIndex < 0 || petIndex >= me.pets.length) {
+          return reply(`❌ Pet inválido!\n\n💡 Uso: ${prefix}equippet <nº pet> <nome do item>`);
+        }
+        if (!itemName) return reply(`❌ Informe o item!\n\n💡 Uso: ${prefix}equippet <nº pet> <nome do item>`);
+        
+        const pet = me.pets[petIndex];
+        const invItems = Object.keys(me.inventory || {}).filter(k => me.inventory[k] > 0);
+        const foundItem = invItems.find(i => i.toLowerCase().includes(itemName));
+        
+        if (!foundItem) return reply('❌ Você não tem esse item no inventário!');
+        
+        pet.equipment = pet.equipment || {};
+        pet.equipment.accessory = foundItem;
+        me.inventory[foundItem]--;
+        
+        // Aplicar bônus do item
+        const itemData = econ.shop?.[foundItem];
+        if (itemData?.effect) {
+          if (itemData.effect.attack) pet.attack += itemData.effect.attack;
+          if (itemData.effect.defense) pet.defense += itemData.effect.defense;
+          if (itemData.effect.hp) pet.hp += itemData.effect.hp;
+        }
+        
+        saveEconomy(econ);
+        return reply(`✅ ${pet.emoji} *${pet.name}* equipou *${foundItem}*!`);
+      }
+
+      // Desequipar item do Pet
+      case 'unequippet':
+      case 'desequiparpet': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const petIndex = parseInt(q) - 1;
+        
+        if (!me.pets || me.pets.length === 0) return reply('🐾 Você não tem pets!');
+        if (isNaN(petIndex) || petIndex < 0 || petIndex >= me.pets.length) {
+          return reply(`❌ Pet inválido!\n\n💡 Uso: ${prefix}unequippet <nº pet>`);
+        }
+        
+        const pet = me.pets[petIndex];
+        if (!pet.equipment || !pet.equipment.accessory) {
+          return reply(`❌ ${pet.emoji} *${pet.name}* não tem equipamentos!`);
+        }
+        
+        const item = pet.equipment.accessory;
+        me.inventory = me.inventory || {};
+        me.inventory[item] = (me.inventory[item] || 0) + 1;
+        delete pet.equipment.accessory;
+        
+        saveEconomy(econ);
+        return reply(`✅ *${item}* foi removido de ${pet.emoji} *${pet.name}* e devolvido ao inventário!`);
+      }
+
       // Sistema de Dungeons/Masmorras
       case 'masmorra':
       case 'dungeon':
@@ -6009,6 +6202,152 @@ Entre em contato com o dono do bot:
           return reply(text);
         }
         break;
+      }
+
+      // Sistema de Chefe/Boss
+      case 'chefe':
+      case 'boss':
+      case 'bossfight': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const now = Date.now();
+        const BOSS_COOLDOWN = 4 * 60 * 60 * 1000; // 4 horas
+        
+        if (me.lastBoss && (now - me.lastBoss) < BOSS_COOLDOWN) {
+          const remaining = Math.ceil((BOSS_COOLDOWN - (now - me.lastBoss)) / 60000);
+          const hours = Math.floor(remaining / 60);
+          const mins = remaining % 60;
+          return reply(`⏰ Você está exausto da última batalha!\n\n🕐 Aguarde *${hours}h ${mins}min*`);
+        }
+        
+        const bosses = [
+          { name: 'Dragão Ancião', emoji: '🐉', hp: 1000, attack: 80, defense: 50, reward: 15000, xp: 500 },
+          { name: 'Golem de Pedra', emoji: '🗿', hp: 1500, attack: 60, defense: 80, reward: 12000, xp: 400 },
+          { name: 'Hidra Venenosa', emoji: '🐍', hp: 800, attack: 100, defense: 30, reward: 18000, xp: 600 },
+          { name: 'Fênix Sombria', emoji: '🔥', hp: 700, attack: 90, defense: 40, reward: 20000, xp: 700 },
+          { name: 'Kraken Abissal', emoji: '🦑', hp: 1200, attack: 70, defense: 60, reward: 16000, xp: 550 }
+        ];
+        
+        const boss = bosses[Math.floor(Math.random() * bosses.length)];
+        const playerPower = (me.power || 100) + (me.level || 1) * 10;
+        
+        let bossHp = boss.hp;
+        let playerHp = 100 + (me.level || 1) * 5;
+        let turns = 0;
+        const maxTurns = 15;
+        
+        let battleLog = `╭━━━⊱ 👹 *BOSS FIGHT!* ⊱━━━╮\n\n`;
+        battleLog += `${boss.emoji} *${boss.name}*\n`;
+        battleLog += `❤️ HP: ${boss.hp} | ⚔️ ATK: ${boss.attack} | 🛡️ DEF: ${boss.defense}\n\n`;
+        battleLog += `VS\n\n`;
+        battleLog += `⚔️ *${pushname}* (Poder: ${playerPower})\n\n`;
+        battleLog += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        while (bossHp > 0 && playerHp > 0 && turns < maxTurns) {
+          // Player ataca
+          const playerDmg = Math.max(10, Math.floor(playerPower * 0.3 + Math.random() * 30 - boss.defense * 0.2));
+          bossHp -= playerDmg;
+          
+          if (bossHp <= 0) {
+            battleLog += `⚔️ Você desferiu o golpe final! (-${playerDmg} HP)\n`;
+            break;
+          }
+          
+          // Boss ataca
+          const bossDmg = Math.max(5, boss.attack - Math.floor(playerPower * 0.1) + Math.floor(Math.random() * 20));
+          playerHp -= bossDmg;
+          
+          turns++;
+        }
+        
+        me.lastBoss = Date.now();
+        me.stats = me.stats || {};
+        
+        if (bossHp <= 0) {
+          me.wallet += boss.reward;
+          me.stats.bossesDefeated = (me.stats.bossesDefeated || 0) + 1;
+          
+          battleLog += `\n╭━━━⊱ 🏆 *VITÓRIA!* ⊱━━━╮\n`;
+          battleLog += `│ Você derrotou ${boss.emoji} *${boss.name}*!\n`;
+          battleLog += `│\n`;
+          battleLog += `│ 💰 Recompensa: +${boss.reward.toLocaleString()}\n`;
+          battleLog += `│ ✨ XP: +${boss.xp}\n`;
+          battleLog += `│ 🏅 Bosses derrotados: ${me.stats.bossesDefeated}\n`;
+          battleLog += `╰━━━━━━━━━━━━━━━━━━━━╯`;
+        } else {
+          battleLog += `\n╭━━━⊱ 💀 *DERROTA!* ⊱━━━╮\n`;
+          battleLog += `│ ${boss.emoji} *${boss.name}* foi mais forte!\n`;
+          battleLog += `│\n`;
+          battleLog += `│ 💡 Fique mais forte e tente novamente!\n`;
+          battleLog += `│ 📈 Use ${prefix}evoluir para melhorar\n`;
+          battleLog += `╰━━━━━━━━━━━━━━━━━━━━╯`;
+        }
+        
+        saveEconomy(econ);
+        return reply(battleLog);
+      }
+
+      // Sistema de Eventos
+      case 'eventos':
+      case 'events':
+      case 'eventosrpg': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const hour = now.getHours();
+        
+        const weeklyEvents = [
+          { day: 0, name: '🎁 Domingo de Bônus', desc: 'Recompensas dobradas em todas atividades!', active: dayOfWeek === 0 },
+          { day: 1, name: '⛏️ Segunda da Mineração', desc: 'Bônus +50% em mineração!', active: dayOfWeek === 1 },
+          { day: 2, name: '🎣 Terça da Pescaria', desc: 'Chances de peixes raros aumentadas!', active: dayOfWeek === 2 },
+          { day: 3, name: '🏹 Quarta da Caça', desc: 'Encontre presas lendárias!', active: dayOfWeek === 3 },
+          { day: 4, name: '💰 Quinta do Trabalho', desc: 'Salários aumentados em +75%!', active: dayOfWeek === 4 },
+          { day: 5, name: '⚔️ Sexta de Batalha', desc: 'XP dobrado em duelos e arenas!', active: dayOfWeek === 5 },
+          { day: 6, name: '🎰 Sábado do Cassino', desc: 'Chances de ganhar melhoradas!', active: dayOfWeek === 6 }
+        ];
+        
+        const hourlyEvents = [
+          { start: 12, end: 14, name: '🌞 Hora do Almoço', desc: 'Cooldowns reduzidos pela metade!' },
+          { start: 18, end: 20, name: '🌙 Happy Hour', desc: 'Ganhos +30% em todas atividades!' },
+          { start: 0, end: 3, name: '🌌 Evento Noturno', desc: 'Encontre itens raros e misteriosos!' }
+        ];
+        
+        let text = `╭━━━⊱ 🎉 *EVENTOS RPG* ⊱━━━╮\n`;
+        text += `│ 📅 ${now.toLocaleDateString('pt-BR')}\n`;
+        text += `│ 🕐 ${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        text += `🗓️ *EVENTO DO DIA:*\n`;
+        const todayEvent = weeklyEvents.find(e => e.active);
+        if (todayEvent) {
+          text += `✨ ${todayEvent.name}\n`;
+          text += `   ${todayEvent.desc}\n\n`;
+        }
+        
+        text += `⏰ *EVENTOS POR HORÁRIO:*\n`;
+        for (const ev of hourlyEvents) {
+          const isActive = hour >= ev.start && hour < ev.end;
+          const status = isActive ? '🟢 ATIVO' : '⚪ Inativo';
+          text += `${status} ${ev.name} (${ev.start}h-${ev.end}h)\n`;
+          text += `   ${ev.desc}\n\n`;
+        }
+        
+        text += `╭━━━━━━━━━━━━━━━━━━━━╮\n`;
+        text += `│ 📅 *CALENDÁRIO SEMANAL:*\n`;
+        for (const ev of weeklyEvents) {
+          const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+          const isToday = ev.active ? ' ← HOJE' : '';
+          text += `│ ${days[ev.day]}: ${ev.name}${isToday}\n`;
+        }
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯`;
+        
+        return reply(text);
       }
 
       // Sistema de Duelos/PvP
@@ -7271,10 +7610,1075 @@ Entre em contato com o dono do bot:
         
         saveEconomy(econ);
         return reply(text, { mentions: [target] });
-        break;
       }
 
-      // Sistema de Evolução/Prestige
+      // ═══════════════════════════════════════════
+      // COMANDOS ADMINISTRATIVOS DO RPG (DONO)
+      // ═══════════════════════════════════════════
+      
+      // Ranking Global
+      case 'rankglobal':
+      case 'globalrank':
+      case 'toprpgglobal':
+      case 'topglobal': {
+        const econ = loadEconomy();
+        const allUsers = Object.entries(econ.users || {});
+        
+        if (allUsers.length === 0) return reply('📊 Nenhum jogador registrado no sistema RPG ainda.');
+        
+        // Calcular poder total de cada jogador
+        const rankedUsers = allUsers.map(([id, data]) => {
+          const totalWealth = (data.wallet || 0) + (data.bank || 0);
+          const level = data.level || 1;
+          const power = data.power || 100;
+          const reputation = data.reputation?.points || 0;
+          const achievements = Object.keys(data.achievements || {}).length;
+          const pets = (data.pets || []).length;
+          
+          // Score composto
+          const score = totalWealth + (level * 1000) + (power * 10) + (reputation * 50) + (achievements * 500) + (pets * 200);
+          
+          return { id, totalWealth, level, power, reputation, achievements, pets, score };
+        }).sort((a, b) => b.score - a.score).slice(0, 20);
+        
+        let text = `╭━━━⊱ 🌍 *RANKING GLOBAL RPG* ⊱━━━╮\n`;
+        text += `│ Top 20 jogadores do bot\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        const mentions = [];
+        rankedUsers.forEach((user, i) => {
+          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+          const userName = user.id.split('@')[0];
+          text += `${medal} @${userName}\n`;
+          text += `   💰 ${user.totalWealth.toLocaleString()} | Lv.${user.level} | ⚔️ ${user.power}\n`;
+          text += `   📊 Score: ${user.score.toLocaleString()}\n\n`;
+          mentions.push(user.id);
+        });
+        
+        text += `╭━━━━━━━━━━━━━━━━━━━━━━╮\n`;
+        text += `│ 💡 O score é calculado por:\n`;
+        text += `│ dinheiro + level + poder +\n`;
+        text += `│ reputação + conquistas + pets\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━━━╯`;
+        
+        return reply(text, { mentions });
+      }
+      
+      // Adicionar dinheiro a jogador
+      case 'rpgadd':
+      case 'rpgaddmoney':
+      case 'adicionardinheiro': {
+        if (!isOwnerOrSub) return reply('🚫 Apenas donos e subdonos podem usar este comando!');
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque um usuário!\n\n💡 Uso: ${prefix}rpgadd @user <valor>`);
+        
+        const amount = parseInt(args[args.length - 1]) || 0;
+        if (amount <= 0) return reply('❌ Informe um valor válido maior que 0!');
+        
+        const econ = loadEconomy();
+        const targetData = getEcoUser(econ, target);
+        
+        targetData.wallet = (targetData.wallet || 0) + amount;
+        saveEconomy(econ);
+        
+        return reply(`╭━━━⊱ ✅ *DINHEIRO ADICIONADO* ⊱━━━╮\n│\n│ 👤 @${target.split('@')[0]}\n│ 💰 +${amount.toLocaleString()} moedas\n│ 💼 Carteira atual: ${targetData.wallet.toLocaleString()}\n│\n╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`, { mentions: [target] });
+      }
+      
+      // Remover dinheiro de jogador
+      case 'rpgremove':
+      case 'rpgremovemoney':
+      case 'removerdinheiro': {
+        if (!isOwnerOrSub) return reply('🚫 Apenas donos e subdonos podem usar este comando!');
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque um usuário!\n\n💡 Uso: ${prefix}rpgremove @user <valor>`);
+        
+        const amount = parseInt(args[args.length - 1]) || 0;
+        if (amount <= 0) return reply('❌ Informe um valor válido maior que 0!');
+        
+        const econ = loadEconomy();
+        const targetData = getEcoUser(econ, target);
+        
+        targetData.wallet = Math.max(0, (targetData.wallet || 0) - amount);
+        targetData.bank = Math.max(0, (targetData.bank || 0));
+        saveEconomy(econ);
+        
+        return reply(`╭━━━⊱ ✅ *DINHEIRO REMOVIDO* ⊱━━━╮\n│\n│ 👤 @${target.split('@')[0]}\n│ 💸 -${amount.toLocaleString()} moedas\n│ 💼 Carteira atual: ${targetData.wallet.toLocaleString()}\n│\n╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`, { mentions: [target] });
+      }
+      
+      // Definir level de jogador
+      case 'rpgsetlevel':
+      case 'setlevel':
+      case 'definirnivelrpg': {
+        if (!isOwnerOrSub) return reply('🚫 Apenas donos e subdonos podem usar este comando!');
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque um usuário!\n\n💡 Uso: ${prefix}rpgsetlevel @user <nivel>`);
+        
+        const newLevel = parseInt(args[args.length - 1]) || 0;
+        if (newLevel < 1 || newLevel > 1000) return reply('❌ Nível deve ser entre 1 e 1000!');
+        
+        const econ = loadEconomy();
+        const targetData = getEcoUser(econ, target);
+        
+        targetData.level = newLevel;
+        targetData.power = 100 + (newLevel * 15);
+        saveEconomy(econ);
+        
+        return reply(`╭━━━⊱ ✅ *NÍVEL DEFINIDO* ⊱━━━╮\n│\n│ 👤 @${target.split('@')[0]}\n│ 📊 Nível: ${newLevel}\n│ ⚔️ Poder: ${targetData.power}\n│\n╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`, { mentions: [target] });
+      }
+      
+      // Adicionar item ao jogador
+      case 'rpgadditem':
+      case 'adicionaritem': {
+        if (!isOwnerOrSub) return reply('🚫 Apenas donos e subdonos podem usar este comando!');
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque um usuário!\n\n💡 Uso: ${prefix}rpgadditem @user <item> <quantidade>`);
+        
+        const itemArgs = args.slice(0, -1).join('_').toLowerCase();
+        const qty = parseInt(args[args.length - 1]) || 1;
+        
+        if (!itemArgs) return reply('❌ Informe o nome do item!');
+        
+        const econ = loadEconomy();
+        const targetData = getEcoUser(econ, target);
+        
+        targetData.inventory = targetData.inventory || {};
+        targetData.inventory[itemArgs] = (targetData.inventory[itemArgs] || 0) + qty;
+        saveEconomy(econ);
+        
+        return reply(`╭━━━⊱ ✅ *ITEM ADICIONADO* ⊱━━━╮\n│\n│ 👤 @${target.split('@')[0]}\n│ 📦 Item: ${itemArgs}\n│ 🔢 Quantidade: +${qty}\n│\n╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`, { mentions: [target] });
+      }
+      
+      // Remover item do jogador
+      case 'rpgremoveitem':
+      case 'removeritem': {
+        if (!isOwnerOrSub) return reply('🚫 Apenas donos e subdonos podem usar este comando!');
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque um usuário!\n\n💡 Uso: ${prefix}rpgremoveitem @user <item> <quantidade>`);
+        
+        const itemArgs = args.slice(0, -1).join('_').toLowerCase();
+        const qty = parseInt(args[args.length - 1]) || 1;
+        
+        if (!itemArgs) return reply('❌ Informe o nome do item!');
+        
+        const econ = loadEconomy();
+        const targetData = getEcoUser(econ, target);
+        
+        targetData.inventory = targetData.inventory || {};
+        targetData.inventory[itemArgs] = Math.max(0, (targetData.inventory[itemArgs] || 0) - qty);
+        saveEconomy(econ);
+        
+        return reply(`╭━━━⊱ ✅ *ITEM REMOVIDO* ⊱━━━╮\n│\n│ 👤 @${target.split('@')[0]}\n│ 📦 Item: ${itemArgs}\n│ 🔢 Quantidade: -${qty}\n│\n╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`, { mentions: [target] });
+      }
+      
+      // Reset total do jogador
+      case 'rpgresetplayer':
+      case 'resetarjogador': {
+        if (!isOwnerOrSub) return reply('🚫 Apenas donos e subdonos podem usar este comando!');
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque um usuário!\n\n💡 Uso: ${prefix}rpgresetplayer @user`);
+        
+        const econ = loadEconomy();
+        
+        if (econ.users[target]) {
+          delete econ.users[target];
+          saveEconomy(econ);
+          return reply(`╭━━━⊱ ✅ *JOGADOR RESETADO* ⊱━━━╮\n│\n│ 👤 @${target.split('@')[0]}\n│ 🗑️ Todos os dados RPG removidos\n│\n╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`, { mentions: [target] });
+        } else {
+          return reply('❌ Jogador não encontrado no sistema RPG!');
+        }
+      }
+      
+      // Reset global de todo o RPG
+      case 'rpgresetglobal':
+      case 'resetrpgglobal': {
+        if (!(isOwner && !isSubOwner)) return reply('🚫 Apenas o dono principal pode usar este comando!');
+        
+        const confirmArg = (args[0] || '').toLowerCase();
+        if (confirmArg !== 'confirmar') {
+          return reply(`⚠️ *ATENÇÃO: RESET GLOBAL DO RPG*\n\n🗑️ Este comando irá APAGAR TODOS os dados do sistema RPG!\n\n❌ Esta ação é IRREVERSÍVEL!\n\n✅ Para confirmar, use:\n${prefix}rpgresetglobal confirmar`);
+        }
+        
+        const econ = loadEconomy();
+        econ.users = {};
+        saveEconomy(econ);
+        
+        return reply(`╭━━━⊱ ⚠️ *RESET GLOBAL* ⊱━━━╮\n│\n│ 🗑️ Sistema RPG resetado!\n│ 👥 Todos os jogadores zerados\n│\n╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
+      }
+      
+      // Estatísticas do sistema RPG
+      case 'rpgstats':
+      case 'rpgstatistics':
+      case 'estatisticasrpg': {
+        if (!isOwnerOrSub) return reply('🚫 Apenas donos e subdonos podem usar este comando!');
+        
+        const econ = loadEconomy();
+        const allUsers = Object.entries(econ.users || {});
+        
+        let totalMoney = 0;
+        let totalBank = 0;
+        let totalPets = 0;
+        let maxLevel = 0;
+        let richestUser = { id: null, wealth: 0 };
+        
+        allUsers.forEach(([id, data]) => {
+          const wallet = data.wallet || 0;
+          const bank = data.bank || 0;
+          totalMoney += wallet;
+          totalBank += bank;
+          totalPets += (data.pets || []).length;
+          maxLevel = Math.max(maxLevel, data.level || 1);
+          
+          if ((wallet + bank) > richestUser.wealth) {
+            richestUser = { id, wealth: wallet + bank };
+          }
+        });
+        
+        let text = `╭━━━⊱ 📊 *ESTATÍSTICAS DO RPG* ⊱━━━╮\n│\n`;
+        text += `│ 👥 Total de jogadores: ${allUsers.length}\n`;
+        text += `│ 💰 Dinheiro em circulação: ${totalMoney.toLocaleString()}\n`;
+        text += `│ 🏦 Dinheiro em bancos: ${totalBank.toLocaleString()}\n`;
+        text += `│ 💵 Total geral: ${(totalMoney + totalBank).toLocaleString()}\n`;
+        text += `│ 🐾 Total de pets: ${totalPets}\n`;
+        text += `│ 📈 Maior nível: ${maxLevel}\n`;
+        text += `│\n`;
+        if (richestUser.id) {
+          text += `│ 🏆 Mais rico: @${richestUser.id.split('@')[0]}\n`;
+          text += `│    💎 ${richestUser.wealth.toLocaleString()}\n`;
+        }
+        text += `│\n╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`;
+        
+        const mentions = richestUser.id ? [richestUser.id] : [];
+        return reply(text, { mentions });
+      }
+      
+      // ═══════════════════════════════════════════
+      // SISTEMA DE LOJA PREMIUM / GASTAR DINHEIRO
+      // ═══════════════════════════════════════════
+      
+      // Loja Premium com itens caros
+      case 'lojapremium':
+      case 'premiumshop':
+      case 'lojadeluxo': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const premiumItems = [
+          { id: 'titulo_lendario', name: '🏅 Título Lendário', price: 500000, desc: 'Título exclusivo no perfil' },
+          { id: 'mascote_raro', name: '🦄 Mascote Raro', price: 750000, desc: 'Mascote especial que dá bônus' },
+          { id: 'mansao', name: '🏰 Mansão', price: 2000000, desc: 'Propriedade de luxo (+5000 renda/dia)' },
+          { id: 'yate', name: '🛥️ Iate', price: 1500000, desc: 'Barco de luxo (+bônus pesca)' },
+          { id: 'jet_privado', name: '✈️ Jato Privado', price: 5000000, desc: 'Viaje instantaneamente' },
+          { id: 'diamante_eterno', name: '💎 Diamante Eterno', price: 10000000, desc: 'Item colecionável raro' },
+          { id: 'coroa_rei', name: '👑 Coroa Real', price: 25000000, desc: 'Símbolo máximo de poder' },
+          { id: 'boost_permanente', name: '⚡ Boost Permanente', price: 3000000, desc: '+50% em todas atividades' },
+          { id: 'protecao_vip', name: '🛡️ Proteção VIP', price: 1000000, desc: 'Proteção eterna contra roubos' },
+          { id: 'multiplicador_xp', name: '✨ Multiplicador XP', price: 2500000, desc: '2x XP permanente' }
+        ];
+        
+        let text = `╭━━━⊱ 💎 *LOJA PREMIUM* ⊱━━━╮\n`;
+        text += `│ Itens exclusivos de luxo!\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        premiumItems.forEach(item => {
+          text += `${item.name}\n`;
+          text += `   💰 ${item.price.toLocaleString()} moedas\n`;
+          text += `   📝 ${item.desc}\n`;
+          text += `   🛒 ${prefix}comprarpremium ${item.id}\n\n`;
+        });
+        
+        return reply(text);
+      }
+      
+      // Comprar item premium
+      case 'comprarpremium':
+      case 'buypremium': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const itemId = (args[0] || '').toLowerCase();
+        if (!itemId) return reply(`❌ Informe o item!\n\n💡 Uso: ${prefix}comprarpremium <item>\n🛒 Veja a loja: ${prefix}lojapremium`);
+        
+        const premiumItems = {
+          'titulo_lendario': { name: '🏅 Título Lendário', price: 500000 },
+          'mascote_raro': { name: '🦄 Mascote Raro', price: 750000 },
+          'mansao': { name: '🏰 Mansão', price: 2000000, income: 5000 },
+          'yate': { name: '🛥️ Iate', price: 1500000 },
+          'jet_privado': { name: '✈️ Jato Privado', price: 5000000 },
+          'diamante_eterno': { name: '💎 Diamante Eterno', price: 10000000 },
+          'coroa_rei': { name: '👑 Coroa Real', price: 25000000 },
+          'boost_permanente': { name: '⚡ Boost Permanente', price: 3000000 },
+          'protecao_vip': { name: '🛡️ Proteção VIP', price: 1000000 },
+          'multiplicador_xp': { name: '✨ Multiplicador XP', price: 2500000 }
+        };
+        
+        const item = premiumItems[itemId];
+        if (!item) return reply(`❌ Item não encontrado!\n\n🛒 Veja a loja: ${prefix}lojapremium`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (me.wallet < item.price) {
+          return reply(`❌ Saldo insuficiente!\n\n💰 Necessário: ${item.price.toLocaleString()}\n💼 Sua carteira: ${me.wallet.toLocaleString()}`);
+        }
+        
+        me.wallet -= item.price;
+        me.premiumItems = me.premiumItems || {};
+        me.premiumItems[itemId] = (me.premiumItems[itemId] || 0) + 1;
+        
+        // Aplicar efeitos especiais
+        if (itemId === 'boost_permanente') me.permanentBoost = true;
+        if (itemId === 'protecao_vip') me.vipProtection = true;
+        if (itemId === 'multiplicador_xp') me.xpMultiplier = 2;
+        if (item.income) me.dailyIncome = (me.dailyIncome || 0) + item.income;
+        
+        saveEconomy(econ);
+        
+        return reply(`╭━━━⊱ ✅ *COMPRA PREMIUM* ⊱━━━╮\n│\n│ 🛒 ${item.name}\n│ 💰 -${item.price.toLocaleString()}\n│\n│ ✨ Item adicionado com sucesso!\n│\n╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
+      }
+      
+      // Cassino Roleta
+      case 'roleta':
+      case 'roulette': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const bet = parseInt(args[0]) || 0;
+        const choice = (args[1] || '').toLowerCase();
+        
+        if (bet <= 0) return reply(`🎰 *ROLETA*\n\n💡 Uso: ${prefix}roleta <valor> <cor>\n\nCores: vermelho, preto, verde\n\n🔴 Vermelho: 2x\n⚫ Preto: 2x\n🟢 Verde (0): 14x`);
+        
+        if (!['vermelho', 'preto', 'verde', 'red', 'black', 'green'].includes(choice)) {
+          return reply('❌ Escolha: vermelho, preto ou verde');
+        }
+        
+        if (bet > me.wallet) return reply('❌ Saldo insuficiente na carteira!');
+        
+        const result = Math.random();
+        let winColor;
+        if (result < 0.0714) { // ~7% chance verde
+          winColor = 'verde';
+        } else if (result < 0.5357) { // ~46% vermelho
+          winColor = 'vermelho';
+        } else { // ~46% preto
+          winColor = 'preto';
+        }
+        
+        const colorEmoji = { vermelho: '🔴', preto: '⚫', verde: '🟢', red: '🔴', black: '⚫', green: '🟢' };
+        const normalizedChoice = choice === 'red' ? 'vermelho' : choice === 'black' ? 'preto' : choice === 'green' ? 'verde' : choice;
+        
+        let text = `╭━━━⊱ 🎰 *ROLETA* ⊱━━━╮\n\n`;
+        text += `🎯 Sua aposta: ${colorEmoji[choice]} ${bet.toLocaleString()}\n`;
+        text += `🎲 Resultado: ${colorEmoji[winColor]} ${winColor.toUpperCase()}\n\n`;
+        
+        if (normalizedChoice === winColor) {
+          const multiplier = winColor === 'verde' ? 14 : 2;
+          const winnings = bet * multiplier;
+          me.wallet += winnings - bet;
+          text += `🏆 *VOCÊ GANHOU!*\n💰 +${winnings.toLocaleString()} (${multiplier}x)`;
+        } else {
+          me.wallet -= bet;
+          text += `💀 *VOCÊ PERDEU!*\n💸 -${bet.toLocaleString()}`;
+        }
+        
+        text += `\n\n╰━━━━━━━━━━━━━━━━━━━━╯`;
+        
+        saveEconomy(econ);
+        return reply(text);
+      }
+      
+      // Blackjack
+      case 'blackjack':
+      case 'bj':
+      case '21': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const bet = parseInt(args[0]) || 0;
+        if (bet <= 0) return reply(`🃏 *BLACKJACK*\n\n💡 Uso: ${prefix}blackjack <valor>\n\n📜 Regras: Chegue mais perto de 21 sem passar!`);
+        if (bet > me.wallet) return reply('❌ Saldo insuficiente!');
+        
+        const getCard = () => {
+          const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+          return values[Math.floor(Math.random() * values.length)];
+        };
+        
+        const getValue = (cards) => {
+          let total = 0;
+          let aces = 0;
+          cards.forEach(c => {
+            if (c === 'A') { aces++; total += 11; }
+            else if (['J', 'Q', 'K'].includes(c)) total += 10;
+            else total += parseInt(c);
+          });
+          while (total > 21 && aces > 0) { total -= 10; aces--; }
+          return total;
+        };
+        
+        const playerCards = [getCard(), getCard()];
+        const dealerCards = [getCard(), getCard()];
+        
+        // Simular jogo (simplificado)
+        while (getValue(playerCards) < 17) playerCards.push(getCard());
+        while (getValue(dealerCards) < 17) dealerCards.push(getCard());
+        
+        const playerValue = getValue(playerCards);
+        const dealerValue = getValue(dealerCards);
+        
+        let text = `╭━━━⊱ 🃏 *BLACKJACK* ⊱━━━╮\n\n`;
+        text += `👤 Você: ${playerCards.join(' ')} = ${playerValue}\n`;
+        text += `🎰 Dealer: ${dealerCards.join(' ')} = ${dealerValue}\n\n`;
+        
+        if (playerValue > 21) {
+          me.wallet -= bet;
+          text += `💀 *BUST!* Você passou de 21!\n💸 -${bet.toLocaleString()}`;
+        } else if (dealerValue > 21 || playerValue > dealerValue) {
+          const winnings = playerValue === 21 && playerCards.length === 2 ? bet * 2.5 : bet * 2;
+          me.wallet += winnings - bet;
+          text += `🏆 *VOCÊ GANHOU!*\n💰 +${Math.floor(winnings).toLocaleString()}`;
+        } else if (playerValue === dealerValue) {
+          text += `🤝 *EMPATE!*\nAposta devolvida`;
+        } else {
+          me.wallet -= bet;
+          text += `💀 *DEALER VENCEU!*\n💸 -${bet.toLocaleString()}`;
+        }
+        
+        text += `\n\n╰━━━━━━━━━━━━━━━━━━━━╯`;
+        
+        saveEconomy(econ);
+        return reply(text);
+      }
+      
+      // Sistema de Slots (Caça-níqueis)
+      case 'slots':
+      case 'slotmachine':
+      case 'cacaniquel': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const bet = parseInt(args[0]) || 0;
+        if (bet <= 0) return reply(`🎰 *CAÇA-NÍQUEIS*\n\n💡 Uso: ${prefix}slots <valor>\n\n🎲 Alinhe 3 símbolos iguais para ganhar!`);
+        if (bet > me.wallet) return reply('❌ Saldo insuficiente!');
+        
+        const symbols = ['🍒', '🍋', '🍊', '🍇', '⭐', '💎', '7️⃣'];
+        const weights = [25, 20, 18, 15, 12, 7, 3]; // Raridade
+        
+        const getSymbol = () => {
+          const total = weights.reduce((a, b) => a + b);
+          let random = Math.random() * total;
+          for (let i = 0; i < symbols.length; i++) {
+            random -= weights[i];
+            if (random <= 0) return symbols[i];
+          }
+          return symbols[0];
+        };
+        
+        const slot1 = getSymbol();
+        const slot2 = getSymbol();
+        const slot3 = getSymbol();
+        
+        const multipliers = {
+          '🍒': 2, '🍋': 3, '🍊': 4, '🍇': 5, '⭐': 10, '💎': 25, '7️⃣': 77
+        };
+        
+        let text = `╭━━━⊱ 🎰 *SLOTS* ⊱━━━╮\n\n`;
+        text += `┏━━━━━━━━━━━━━━┓\n`;
+        text += `┃  ${slot1}  │  ${slot2}  │  ${slot3}  ┃\n`;
+        text += `┗━━━━━━━━━━━━━━┛\n\n`;
+        
+        if (slot1 === slot2 && slot2 === slot3) {
+          // Jackpot!
+          const multi = multipliers[slot1];
+          const winnings = bet * multi;
+          me.wallet += winnings - bet;
+          text += `🎉 *JACKPOT!* 🎉\n`;
+          text += `💰 Você ganhou ${winnings.toLocaleString()}! (${multi}x)`;
+        } else if (slot1 === slot2 || slot2 === slot3 || slot1 === slot3) {
+          // 2 iguais
+          const winnings = Math.floor(bet * 1.5);
+          me.wallet += winnings - bet;
+          text += `⭐ *PAR!*\n`;
+          text += `💰 Você ganhou ${winnings.toLocaleString()}! (1.5x)`;
+        } else {
+          me.wallet -= bet;
+          text += `💀 *PERDEU!*\n💸 -${bet.toLocaleString()}`;
+        }
+        
+        text += `\n\n╰━━━━━━━━━━━━━━━━━━━━╯`;
+        
+        saveEconomy(econ);
+        return reply(text);
+      }
+      
+      // Loteria
+      case 'loteria':
+      case 'lottery':
+      case 'mega': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const ticketPrice = 10000;
+        const sub = (args[0] || '').toLowerCase();
+        
+        if (!econ.lottery) {
+          econ.lottery = {
+            jackpot: 100000,
+            tickets: {},
+            lastDraw: 0,
+            winners: []
+          };
+        }
+        
+        if (!sub || sub === 'ver') {
+          const myTickets = econ.lottery.tickets[sender] || 0;
+          const totalTickets = Object.values(econ.lottery.tickets).reduce((a, b) => a + b, 0);
+          const nextDraw = new Date(econ.lottery.lastDraw + 86400000).toLocaleString('pt-BR');
+          
+          let text = `╭━━━⊱ 🎫 *LOTERIA* ⊱━━━╮\n\n`;
+          text += `💰 Jackpot: *${econ.lottery.jackpot.toLocaleString()}*\n`;
+          text += `🎟️ Total de bilhetes: ${totalTickets}\n`;
+          text += `📅 Próximo sorteio: ${nextDraw}\n\n`;
+          text += `🎫 Seus bilhetes: ${myTickets}\n`;
+          text += `💵 Preço: ${ticketPrice.toLocaleString()}/bilhete\n\n`;
+          text += `💡 Use ${prefix}loteria comprar <qtd>`;
+          
+          return reply(text);
+        }
+        
+        if (sub === 'comprar') {
+          const qty = parseInt(args[1]) || 1;
+          const totalCost = ticketPrice * qty;
+          
+          if (me.wallet < totalCost) {
+            return reply(`❌ Saldo insuficiente!\n\n💰 Necessário: ${totalCost.toLocaleString()}\n💼 Sua carteira: ${me.wallet.toLocaleString()}`);
+          }
+          
+          me.wallet -= totalCost;
+          econ.lottery.tickets[sender] = (econ.lottery.tickets[sender] || 0) + qty;
+          econ.lottery.jackpot += totalCost;
+          
+          saveEconomy(econ);
+          
+          return reply(`╭━━━⊱ 🎫 *BILHETES COMPRADOS* ⊱━━━╮\n\n🎟️ Quantidade: ${qty}\n💰 Total: -${totalCost.toLocaleString()}\n\n🎫 Seus bilhetes: ${econ.lottery.tickets[sender]}\n💰 Jackpot atual: ${econ.lottery.jackpot.toLocaleString()}\n\n╰━━━━━━━━━━━━━━━━━━━━╯`);
+        }
+        
+        return reply(`❌ Subcomando inválido!\n\n💡 Use:\n${prefix}loteria - Ver informações\n${prefix}loteria comprar <qtd> - Comprar bilhetes`);
+      }
+      
+      // Corrida de cavalos
+      case 'corrida':
+      case 'horserace':
+      case 'cavalos': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const bet = parseInt(args[0]) || 0;
+        const horse = parseInt(args[1]) || 0;
+        
+        if (bet <= 0 || horse < 1 || horse > 5) {
+          let text = `╭━━━⊱ 🏇 *CORRIDA DE CAVALOS* ⊱━━━╮\n\n`;
+          text += `💡 Uso: ${prefix}corrida <valor> <cavalo 1-5>\n\n`;
+          text += `🐴 Cavalos:\n`;
+          text += `1. 🟤 Trovão (1.5x) - Favorito\n`;
+          text += `2. ⚪ Relâmpago (2x)\n`;
+          text += `3. ⚫ Sombra (3x)\n`;
+          text += `4. 🟡 Ouro (5x)\n`;
+          text += `5. 🔴 Fênix (10x) - Zebra\n`;
+          text += `\n╰━━━━━━━━━━━━━━━━━━━━╯`;
+          return reply(text);
+        }
+        
+        if (bet > me.wallet) return reply('❌ Saldo insuficiente!');
+        
+        const horses = [
+          { name: '🟤 Trovão', odds: 1.5, chance: 35 },
+          { name: '⚪ Relâmpago', odds: 2, chance: 25 },
+          { name: '⚫ Sombra', odds: 3, chance: 20 },
+          { name: '🟡 Ouro', odds: 5, chance: 12 },
+          { name: '🔴 Fênix', odds: 10, chance: 8 }
+        ];
+        
+        const selectedHorse = horses[horse - 1];
+        
+        // Determinar vencedor
+        let random = Math.random() * 100;
+        let winner = 0;
+        for (let i = 0; i < horses.length; i++) {
+          random -= horses[i].chance;
+          if (random <= 0) { winner = i + 1; break; }
+        }
+        
+        let text = `╭━━━⊱ 🏇 *CORRIDA* ⊱━━━╮\n\n`;
+        text += `🎯 Você apostou: ${selectedHorse.name}\n`;
+        text += `💰 Valor: ${bet.toLocaleString()}\n\n`;
+        text += `🏁 E o vencedor é...\n\n`;
+        text += `🏆 *${horses[winner - 1].name}*\n\n`;
+        
+        if (winner === horse) {
+          const winnings = Math.floor(bet * selectedHorse.odds);
+          me.wallet += winnings - bet;
+          text += `🎉 *VOCÊ GANHOU!*\n💰 +${winnings.toLocaleString()} (${selectedHorse.odds}x)`;
+        } else {
+          me.wallet -= bet;
+          text += `💀 *VOCÊ PERDEU!*\n💸 -${bet.toLocaleString()}`;
+        }
+        
+        text += `\n\n╰━━━━━━━━━━━━━━━━━━━━╯`;
+        
+        saveEconomy(econ);
+        return reply(text);
+      }
+      
+      // Leilão
+      case 'leilao':
+      case 'auction':
+      case 'leiloar': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!econ.auctions) econ.auctions = [];
+        
+        const sub = (args[0] || '').toLowerCase();
+        
+        if (!sub || sub === 'ver') {
+          if (econ.auctions.length === 0) {
+            return reply(`🏛️ Nenhum leilão ativo!\n\n💡 Use ${prefix}leilao criar <item> <preço> para criar um leilão`);
+          }
+          
+          let text = `╭━━━⊱ 🏛️ *LEILÕES ATIVOS* ⊱━━━╮\n\n`;
+          
+          econ.auctions.forEach((auction, i) => {
+            const endsIn = Math.max(0, Math.floor((auction.endTime - Date.now()) / 60000));
+            text += `${i + 1}. ${auction.item}\n`;
+            text += `   💰 Lance atual: ${auction.currentBid.toLocaleString()}\n`;
+            text += `   👤 Maior lance: @${auction.highestBidder ? auction.highestBidder.split('@')[0] : 'Ninguém'}\n`;
+            text += `   ⏰ Termina em: ${endsIn} min\n\n`;
+          });
+          
+          text += `💡 ${prefix}leilao dar <nº> <valor>\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯`;
+          
+          saveEconomy(econ);
+          return reply(text);
+        }
+        
+        if (sub === 'criar') {
+          const item = args[1];
+          const price = parseInt(args[2]) || 0;
+          
+          if (!item || price < 1000) {
+            return reply(`❌ Use: ${prefix}leilao criar <item> <preço_inicial>\n\n📌 Preço mínimo: 1.000`);
+          }
+          
+          if (!me.inventory || !me.inventory[item] || me.inventory[item] < 1) {
+            return reply(`❌ Você não tem esse item no inventário!`);
+          }
+          
+          me.inventory[item]--;
+          
+          econ.auctions.push({
+            seller: sender,
+            item: item,
+            startPrice: price,
+            currentBid: price,
+            highestBidder: null,
+            endTime: Date.now() + 3600000 // 1 hora
+          });
+          
+          saveEconomy(econ);
+          
+          return reply(`╭━━━⊱ 🏛️ *LEILÃO CRIADO* ⊱━━━╮\n\n📦 Item: ${item}\n💰 Preço inicial: ${price.toLocaleString()}\n⏰ Duração: 1 hora\n\n╰━━━━━━━━━━━━━━━━━━━━╯`);
+        }
+        
+        if (sub === 'dar' || sub === 'bid') {
+          const auctionIndex = parseInt(args[1]) - 1;
+          const bidAmount = parseInt(args[2]) || 0;
+          
+          if (auctionIndex < 0 || auctionIndex >= econ.auctions.length) {
+            return reply('❌ Leilão não encontrado!');
+          }
+          
+          const auction = econ.auctions[auctionIndex];
+          
+          if (auction.seller === sender) {
+            return reply('❌ Você não pode dar lance no próprio leilão!');
+          }
+          
+          if (bidAmount <= auction.currentBid) {
+            return reply(`❌ Lance deve ser maior que ${auction.currentBid.toLocaleString()}!`);
+          }
+          
+          if (me.wallet < bidAmount) {
+            return reply('❌ Saldo insuficiente!');
+          }
+          
+          // Devolver dinheiro ao lance anterior
+          if (auction.highestBidder) {
+            const prevBidder = getEcoUser(econ, auction.highestBidder);
+            prevBidder.wallet += auction.currentBid;
+          }
+          
+          me.wallet -= bidAmount;
+          auction.currentBid = bidAmount;
+          auction.highestBidder = sender;
+          
+          saveEconomy(econ);
+          
+          return reply(`╭━━━⊱ 🏛️ *LANCE DADO* ⊱━━━╮\n\n📦 Item: ${auction.item}\n💰 Seu lance: ${bidAmount.toLocaleString()}\n🏆 Você é o maior lance!\n\n╰━━━━━━━━━━━━━━━━━━━━╯`);
+        }
+        
+        return reply(`❌ Subcomando inválido!\n\n💡 Use:\n${prefix}leilao - Ver leilões\n${prefix}leilao criar <item> <preço>\n${prefix}leilao dar <nº> <valor>`);
+      }
+      
+      // Ranking de riqueza global
+      case 'topriqueza':
+      case 'toprich':
+      case 'maiores': {
+        const econ = loadEconomy();
+        const allUsers = Object.entries(econ.users || {});
+        
+        if (allUsers.length === 0) return reply('📊 Nenhum jogador registrado ainda.');
+        
+        const rankedUsers = allUsers.map(([id, data]) => {
+          const totalWealth = (data.wallet || 0) + (data.bank || 0);
+          return { id, totalWealth };
+        }).sort((a, b) => b.totalWealth - a.totalWealth).slice(0, 15);
+        
+        let text = `╭━━━⊱ 💎 *TOP RIQUEZA* ⊱━━━╮\n`;
+        text += `│ Os 15 mais ricos do bot!\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        const mentions = [];
+        rankedUsers.forEach((user, i) => {
+          const medal = i === 0 ? '👑' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+          text += `${medal} @${user.id.split('@')[0]}\n`;
+          text += `   💰 ${user.totalWealth.toLocaleString()}\n`;
+          mentions.push(user.id);
+        });
+        
+        return reply(text, { mentions });
+      }
+      
+      // Sistema de Boost/Buff temporário
+      case 'boost':
+      case 'buff':
+      case 'impulsionar': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const boosts = {
+          xp: { name: '✨ Boost XP (2x)', price: 50000, duration: 3600000, effect: 'xpBoost' },
+          money: { name: '💰 Boost Moedas (1.5x)', price: 75000, duration: 3600000, effect: 'moneyBoost' },
+          luck: { name: '🍀 Boost Sorte (+20%)', price: 100000, duration: 3600000, effect: 'luckBoost' },
+          power: { name: '⚔️ Boost Poder (+50%)', price: 80000, duration: 1800000, effect: 'powerBoost' },
+          mega: { name: '🔥 Mega Boost (Todos)', price: 250000, duration: 1800000, effect: 'megaBoost' }
+        };
+        
+        const sub = (args[0] || '').toLowerCase();
+        
+        if (!sub || sub === 'ver') {
+          let text = `╭━━━⊱ ⚡ *BOOSTS* ⊱━━━╮\n\n`;
+          
+          // Verificar boosts ativos
+          if (me.activeBoosts && Object.keys(me.activeBoosts).length > 0) {
+            text += `🔥 *BOOSTS ATIVOS:*\n`;
+            for (const [key, boost] of Object.entries(me.activeBoosts)) {
+              if (Date.now() < boost.expires) {
+                const remaining = Math.ceil((boost.expires - Date.now()) / 60000);
+                text += `• ${boosts[key]?.name || key}: ${remaining} min restantes\n`;
+              }
+            }
+            text += `\n`;
+          }
+          
+          text += `📦 *BOOSTS DISPONÍVEIS:*\n\n`;
+          
+          for (const [id, boost] of Object.entries(boosts)) {
+            text += `${boost.name}\n`;
+            text += `   💰 ${boost.price.toLocaleString()}\n`;
+            text += `   ⏰ ${boost.duration / 60000} minutos\n`;
+            text += `   🛒 ${prefix}boost ${id}\n\n`;
+          }
+          
+          return reply(text);
+        }
+        
+        const boost = boosts[sub];
+        if (!boost) return reply(`❌ Boost não encontrado!\n\n💡 Use ${prefix}boost para ver disponíveis`);
+        
+        if (me.wallet < boost.price) {
+          return reply(`❌ Saldo insuficiente!\n\n💰 Necessário: ${boost.price.toLocaleString()}\n💼 Sua carteira: ${me.wallet.toLocaleString()}`);
+        }
+        
+        me.wallet -= boost.price;
+        
+        if (!me.activeBoosts) me.activeBoosts = {};
+        me.activeBoosts[sub] = {
+          expires: Date.now() + boost.duration,
+          effect: boost.effect
+        };
+        
+        saveEconomy(econ);
+        
+        return reply(`╭━━━⊱ ⚡ *BOOST ATIVADO* ⊱━━━╮\n\n${boost.name}\n⏰ Duração: ${boost.duration / 60000} minutos\n💰 Custo: -${boost.price.toLocaleString()}\n\n🔥 Aproveite os bônus!\n\n╰━━━━━━━━━━━━━━━━━━━━╯`);
+      }
+      
+      // Sistema de Tributos/Impostos
+      case 'tributos':
+      case 'impostos':
+      case 'taxes': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const totalWealth = (me.wallet || 0) + (me.bank || 0);
+        
+        // Taxa de imposto baseada na riqueza
+        let taxRate = 0;
+        let taxBracket = '';
+        
+        if (totalWealth >= 10000000) {
+          taxRate = 0.1; // 10%
+          taxBracket = '💎 Elite (10%)';
+        } else if (totalWealth >= 5000000) {
+          taxRate = 0.07; // 7%
+          taxBracket = '🏆 Rico (7%)';
+        } else if (totalWealth >= 1000000) {
+          taxRate = 0.05; // 5%
+          taxBracket = '💰 Classe Alta (5%)';
+        } else if (totalWealth >= 500000) {
+          taxRate = 0.03; // 3%
+          taxBracket = '📈 Classe Média (3%)';
+        } else if (totalWealth >= 100000) {
+          taxRate = 0.01; // 1%
+          taxBracket = '📊 Trabalhador (1%)';
+        } else {
+          taxRate = 0;
+          taxBracket = '🆓 Isento (0%)';
+        }
+        
+        const dailyTax = Math.floor(totalWealth * taxRate / 7); // Semanal dividido por dia
+        
+        if (!me.taxes) {
+          me.taxes = {
+            lastPaid: 0,
+            totalPaid: 0,
+            exempt: false
+          };
+        }
+        
+        const sub = (args[0] || '').toLowerCase();
+        
+        if (!sub || sub === 'ver') {
+          const daysSincePayment = Math.floor((Date.now() - (me.taxes.lastPaid || 0)) / 86400000);
+          const dueAmount = daysSincePayment > 0 ? dailyTax * daysSincePayment : 0;
+          
+          let text = `╭━━━⊱ 🏦 *TRIBUTOS* ⊱━━━╮\n\n`;
+          text += `💎 Riqueza Total: ${totalWealth.toLocaleString()}\n`;
+          text += `📊 Faixa: ${taxBracket}\n`;
+          text += `💰 Taxa diária: ${dailyTax.toLocaleString()}\n\n`;
+          text += `📅 Dias desde pagamento: ${daysSincePayment}\n`;
+          text += `💸 Valor devido: ${dueAmount.toLocaleString()}\n`;
+          text += `📈 Total já pago: ${me.taxes.totalPaid.toLocaleString()}\n\n`;
+          
+          if (dueAmount > 0) {
+            text += `⚠️ Pague seus tributos!\n`;
+            text += `💡 Use ${prefix}tributos pagar\n\n`;
+            text += `❌ Penalidade: -20% trabalho se não pagar`;
+          } else {
+            text += `✅ Tributos em dia!`;
+          }
+          
+          text += `\n\n╰━━━━━━━━━━━━━━━━━━━━╯`;
+          
+          saveEconomy(econ);
+          return reply(text);
+        }
+        
+        if (sub === 'pagar') {
+          const daysSincePayment = Math.floor((Date.now() - (me.taxes.lastPaid || 0)) / 86400000);
+          const dueAmount = daysSincePayment > 0 ? dailyTax * daysSincePayment : 0;
+          
+          if (dueAmount === 0) {
+            return reply('✅ Você não tem tributos pendentes!');
+          }
+          
+          if (me.wallet < dueAmount) {
+            return reply(`❌ Saldo insuficiente!\n\n💸 Valor devido: ${dueAmount.toLocaleString()}\n💼 Sua carteira: ${me.wallet.toLocaleString()}`);
+          }
+          
+          me.wallet -= dueAmount;
+          me.taxes.lastPaid = Date.now();
+          me.taxes.totalPaid = (me.taxes.totalPaid || 0) + dueAmount;
+          
+          saveEconomy(econ);
+          
+          return reply(`╭━━━⊱ ✅ *TRIBUTOS PAGOS* ⊱━━━╮\n\n💸 Valor: -${dueAmount.toLocaleString()}\n📅 Próximo: Em 1 dia\n\n✅ Você está em dia!\n\n╰━━━━━━━━━━━━━━━━━━━━╯`);
+        }
+        
+        return reply(`❌ Subcomando inválido!\n\n💡 Use:\n${prefix}tributos - Ver situação\n${prefix}tributos pagar - Pagar tributos`);
+      }
+      
+      // Sistema de Doação
+      case 'doar':
+      case 'donate':
+      case 'doacao': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const amount = parseInt(args[0]) || 0;
+        if (amount < 1000) return reply(`💝 *DOAÇÃO*\n\n💡 Uso: ${prefix}doar <valor>\n\n📌 Mínimo: 1.000 moedas\n✨ Ganhe karma e reputação por doar!`);
+        
+        if (me.wallet < amount) return reply('❌ Saldo insuficiente!');
+        
+        me.wallet -= amount;
+        
+        // Ganhar karma e reputação
+        if (!me.reputation) me.reputation = { points: 0, upvotes: 0, downvotes: 0, karma: 0, fame: 0 };
+        const karmaGain = Math.floor(amount / 1000);
+        me.reputation.karma = (me.reputation.karma || 0) + karmaGain;
+        me.reputation.points = (me.reputation.points || 0) + Math.floor(karmaGain / 2);
+        me.reputation.fame = (me.reputation.fame || 0) + 1;
+        
+        if (!me.donations) me.donations = { total: 0, count: 0 };
+        me.donations.total += amount;
+        me.donations.count++;
+        
+        // Adicionar ao tesouro do RPG
+        if (!econ.treasury) econ.treasury = 0;
+        econ.treasury += amount;
+        
+        saveEconomy(econ);
+        
+        return reply(`╭━━━⊱ 💝 *DOAÇÃO* ⊱━━━╮\n\n💰 Valor: ${amount.toLocaleString()}\n☯️ Karma: +${karmaGain}\n⭐ Reputação: +${Math.floor(karmaGain / 2)}\n\n📊 Total doado: ${me.donations.total.toLocaleString()}\n🏦 Tesouro: ${econ.treasury.toLocaleString()}\n\n✨ Obrigado pela generosidade!\n\n╰━━━━━━━━━━━━━━━━━━━━╯`);
+      }
+      
+      // Sistema de Presente
+      case 'presente':
+      case 'gift': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`🎁 *PRESENTE*\n\n💡 Uso: ${prefix}presente @user <item> <quantidade>\n\n📦 Envie itens do seu inventário para outros jogadores!`);
+        if (target === sender) return reply('❌ Você não pode enviar presentes para si mesmo!');
+        
+        const item = (args[0] || '').toLowerCase();
+        const qty = parseInt(args[1]) || 1;
+        
+        if (!item) return reply('❌ Informe o item que deseja enviar!');
+        
+        me.inventory = me.inventory || {};
+        if (!me.inventory[item] || me.inventory[item] < qty) {
+          return reply(`❌ Você não tem ${item} suficiente!\n\n📦 Você tem: ${me.inventory[item] || 0}`);
+        }
+        
+        const targetData = getEcoUser(econ, target);
+        targetData.inventory = targetData.inventory || {};
+        
+        me.inventory[item] -= qty;
+        targetData.inventory[item] = (targetData.inventory[item] || 0) + qty;
+        
+        saveEconomy(econ);
+        
+        return reply(`╭━━━⊱ 🎁 *PRESENTE ENVIADO* ⊱━━━╮\n\n📦 Item: ${item}\n🔢 Quantidade: ${qty}\n👤 Para: @${target.split('@')[0]}\n\n✨ Presente entregue!\n\n╰━━━━━━━━━━━━━━━━━━━━╯`, { mentions: [target] });
+      }
+      
+      // Estatísticas pessoais detalhadas
+      case 'meustats':
+      case 'mystats':
+      case 'estatisticas': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.stats) me.stats = {};
+        
+        const totalWealth = (me.wallet || 0) + (me.bank || 0);
+        const premiumItems = Object.keys(me.premiumItems || {}).length;
+        const achievements = Object.keys(me.achievements || {}).length;
+        const pets = (me.pets || []).length;
+        
+        let text = `╭━━━⊱ 📊 *MINHAS ESTATÍSTICAS* ⊱━━━╮\n`;
+        text += `│ ${pushname}\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        
+        text += `💰 *FINANÇAS*\n`;
+        text += `├ Carteira: ${(me.wallet || 0).toLocaleString()}\n`;
+        text += `├ Banco: ${(me.bank || 0).toLocaleString()}\n`;
+        text += `├ Total: ${totalWealth.toLocaleString()}\n`;
+        text += `└ Doações: ${(me.donations?.total || 0).toLocaleString()}\n\n`;
+        
+        text += `⚔️ *COMBATE*\n`;
+        text += `├ Batalhas vencidas: ${me.battlesWon || 0}\n`;
+        text += `├ Batalhas perdidas: ${me.battlesLost || 0}\n`;
+        text += `├ Duelos: ${me.stats?.duels || 0}\n`;
+        text += `└ Crimes: ${me.stats?.crimes || 0}\n\n`;
+        
+        text += `💼 *TRABALHO*\n`;
+        text += `├ Trabalhos: ${me.stats?.workCount || 0}\n`;
+        text += `├ Mineração: ${me.stats?.mineCount || 0}\n`;
+        text += `├ Pesca: ${me.stats?.fishCount || 0}\n`;
+        text += `└ Caça: ${me.stats?.huntCount || 0}\n\n`;
+        
+        text += `🎰 *APOSTAS*\n`;
+        text += `├ Ganhou: ${(me.stats?.gamblingWins || 0).toLocaleString()}\n`;
+        text += `├ Perdeu: ${(me.stats?.gamblingLosses || 0).toLocaleString()}\n`;
+        text += `└ Saldo: ${((me.stats?.gamblingWins || 0) - (me.stats?.gamblingLosses || 0)).toLocaleString()}\n\n`;
+        
+        text += `🏆 *PROGRESSO*\n`;
+        text += `├ Level: ${me.level || 1}\n`;
+        text += `├ Prestige: ${me.prestige?.level || 0}\n`;
+        text += `├ Conquistas: ${achievements}\n`;
+        text += `├ Pets: ${pets}\n`;
+        text += `└ Itens Premium: ${premiumItems}\n\n`;
+        
+        text += `⭐ *REPUTAÇÃO*\n`;
+        text += `├ Pontos: ${me.reputation?.points || 0}\n`;
+        text += `├ Karma: ${me.reputation?.karma || 0}\n`;
+        text += `└ Fama: ${me.reputation?.fame || 0}`;
+        
+        saveEconomy(econ);
+        return reply(text);
+      }
+
+      // Sistema de Evolução/Prestige (DIFICULDADE AUMENTADA)
       case 'evoluir':
       case 'evolucao':
       case 'prestige': {
@@ -7286,34 +8690,64 @@ Entre em contato com o dono do bot:
         
         if (!me.prestige) me.prestige = { level: 0, totalResets: 0, bonusMultiplier: 1 };
         
-        const requiredLevel = 50 + (me.prestige.level * 10);
-        const requiredCoins = 100000 * (me.prestige.level + 1);
+        // Requisitos muito mais difíceis
+        const requiredLevel = 100 + (me.prestige.level * 25); // Era 50 + 10
+        const requiredCoins = 500000 * Math.pow(2, me.prestige.level); // Exponencial!
+        const requiredAchievements = 5 + (me.prestige.level * 3); // Conquistas obrigatórias
+        const requiredTotalWealth = 1000000 * (me.prestige.level + 1); // Riqueza total necessária
+        const requiredBattlesWon = 50 * (me.prestige.level + 1); // Batalhas vencidas
+        const requiredWorkTimes = 100 * (me.prestige.level + 1); // Trabalhos feitos
+        
+        const currentAchievements = Object.keys(me.achievements || {}).length;
+        const currentBattlesWon = me.battlesWon || 0;
+        const currentWorkTimes = me.stats?.workCount || 0;
+        const currentTotalWealth = (me.wallet || 0) + (me.bank || 0);
         
         if (!q) {
-          let text = `╭━━━⊱ 🌟 *EVOLUÇÃO* ⊱━━━╮\n`;
+          let text = `╭━━━⊱ 🌟 *EVOLUÇÃO (PRESTIGE)* ⊱━━━╮\n`;
           text += `│ ${pushname}\n`;
           text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
           text += `🔱 Prestige Atual: ${me.prestige.level}\n`;
           text += `🔄 Resets Totais: ${me.prestige.totalResets}\n`;
           text += `✨ Multiplicador: ${me.prestige.bonusMultiplier.toFixed(2)}x\n\n`;
-          text += `📊 *PRÓXIMO PRESTIGE:*\n`;
-          text += `┌─────────────────\n`;
-          text += `│ 📈 Level: ${me.level || 1}/${requiredLevel}\n`;
-          text += `│ 💰 Moedas: ${(me.wallet || 0).toLocaleString()}/${requiredCoins.toLocaleString()}\n`;
-          text += `│ 🎁 Bônus: +${((me.prestige.level + 1) * 0.1).toFixed(1)}x multiplicador\n`;
-          text += `└─────────────────\n\n`;
+          text += `📊 *REQUISITOS PARA PRESTIGE ${me.prestige.level + 1}:*\n`;
+          text += `┌─────────────────────────\n`;
+          text += `│ 📈 Level: ${me.level || 1}/${requiredLevel} ${(me.level || 1) >= requiredLevel ? '✅' : '❌'}\n`;
+          text += `│ 💰 Carteira: ${(me.wallet || 0).toLocaleString()}/${requiredCoins.toLocaleString()} ${(me.wallet || 0) >= requiredCoins ? '✅' : '❌'}\n`;
+          text += `│ 💎 Riqueza Total: ${currentTotalWealth.toLocaleString()}/${requiredTotalWealth.toLocaleString()} ${currentTotalWealth >= requiredTotalWealth ? '✅' : '❌'}\n`;
+          text += `│ 🏆 Conquistas: ${currentAchievements}/${requiredAchievements} ${currentAchievements >= requiredAchievements ? '✅' : '❌'}\n`;
+          text += `│ ⚔️ Batalhas: ${currentBattlesWon}/${requiredBattlesWon} ${currentBattlesWon >= requiredBattlesWon ? '✅' : '❌'}\n`;
+          text += `│ 💼 Trabalhos: ${currentWorkTimes}/${requiredWorkTimes} ${currentWorkTimes >= requiredWorkTimes ? '✅' : '❌'}\n`;
+          text += `└─────────────────────────\n\n`;
           
-          if (me.level >= requiredLevel && me.wallet >= requiredCoins) {
-            text += `✅ Requisitos completos!\n\n`;
-            text += `⚠️ *ATENÇÃO:*\n`;
+          text += `🎁 *RECOMPENSAS DO PRESTIGE:*\n`;
+          text += `• Multiplicador +${((me.prestige.level + 1) * 0.15).toFixed(2)}x\n`;
+          text += `• Bônus exclusivo de prestige\n`;
+          text += `• Título especial no perfil\n\n`;
+          
+          const allReqsMet = (me.level || 1) >= requiredLevel && 
+                            (me.wallet || 0) >= requiredCoins && 
+                            currentTotalWealth >= requiredTotalWealth &&
+                            currentAchievements >= requiredAchievements &&
+                            currentBattlesWon >= requiredBattlesWon &&
+                            currentWorkTimes >= requiredWorkTimes;
+          
+          if (allReqsMet) {
+            text += `✅ *TODOS OS REQUISITOS COMPLETOS!*\n\n`;
+            text += `⚠️ *ATENÇÃO - SERÁ PERDIDO:*\n`;
             text += `• Level volta para 1\n`;
-            text += `• Moedas resetadas\n`;
-            text += `• Equipamentos mantidos\n`;
-            text += `• Família e clã mantidos\n`;
-            text += `• Pets mantidos\n\n`;
+            text += `• Moedas da carteira resetadas\n`;
+            text += `• Banco reduzido em 50%\n`;
+            text += `• XP zerada\n\n`;
+            text += `✨ *SERÁ MANTIDO:*\n`;
+            text += `• Pets e equipamentos\n`;
+            text += `• Família, clã e relacionamento\n`;
+            text += `• Itens premium\n`;
+            text += `• Conquistas\n\n`;
             text += `💡 Use ${prefix}evoluir confirmar`;
           } else {
-            text += `❌ Continue evoluindo para prestigiar!`;
+            text += `❌ *Complete todos os requisitos!*\n`;
+            text += `💡 Dica: Trabalhe, batalhe e conquiste!`;
           }
           
           return reply(text);
@@ -7321,30 +8755,58 @@ Entre em contato com o dono do bot:
         
         if (q !== 'confirmar') return reply('❌ Use "confirmar" para prestigiar');
         
-        if (me.level < requiredLevel) {
-          return reply(`❌ Você precisa ser nível ${requiredLevel} para prestigiar!`);
+        // Verificar todos os requisitos
+        if ((me.level || 1) < requiredLevel) {
+          return reply(`❌ Você precisa ser nível ${requiredLevel}!\n📊 Atual: ${me.level || 1}`);
         }
         
-        if (me.wallet < requiredCoins) {
-          return reply(`💰 Você precisa de ${requiredCoins.toLocaleString()} moedas!`);
+        if ((me.wallet || 0) < requiredCoins) {
+          return reply(`💰 Você precisa de ${requiredCoins.toLocaleString()} moedas na carteira!\n📊 Atual: ${(me.wallet || 0).toLocaleString()}`);
         }
         
-        // Resetar
+        if (currentTotalWealth < requiredTotalWealth) {
+          return reply(`💎 Você precisa de ${requiredTotalWealth.toLocaleString()} em riqueza total!\n📊 Atual: ${currentTotalWealth.toLocaleString()}`);
+        }
+        
+        if (currentAchievements < requiredAchievements) {
+          return reply(`🏆 Você precisa de ${requiredAchievements} conquistas!\n📊 Atual: ${currentAchievements}`);
+        }
+        
+        if (currentBattlesWon < requiredBattlesWon) {
+          return reply(`⚔️ Você precisa vencer ${requiredBattlesWon} batalhas!\n📊 Atual: ${currentBattlesWon}`);
+        }
+        
+        if (currentWorkTimes < requiredWorkTimes) {
+          return reply(`💼 Você precisa trabalhar ${requiredWorkTimes} vezes!\n📊 Atual: ${currentWorkTimes}`);
+        }
+        
+        // Resetar com penalidades maiores
         me.level = 1;
         me.exp = 0;
         me.wallet = 0;
-        me.bank = 0;
+        me.bank = Math.floor((me.bank || 0) * 0.5); // Mantém 50% do banco
         me.prestige.level++;
         me.prestige.totalResets++;
-        me.prestige.bonusMultiplier = 1 + (me.prestige.level * 0.1);
+        me.prestige.bonusMultiplier = 1 + (me.prestige.level * 0.15);
         
-        let text = `╭━━━⊱ 🌟 *PRESTIGIADO!* ⊱━━━╮\n`;
+        // Bônus especiais por prestige
+        if (!me.prestigeRewards) me.prestigeRewards = {};
+        me.prestigeRewards[`prestige_${me.prestige.level}`] = {
+          title: `⭐ Prestige ${me.prestige.level}`,
+          date: Date.now(),
+          bonus: me.prestige.bonusMultiplier
+        };
+        
+        let text = `╭━━━⊱ 🌟✨ *PRESTIGIADO!* ✨🌟 ⊱━━━╮\n`;
         text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
-        text += `🎉 Você alcançou o Prestige ${me.prestige.level}!\n\n`;
+        text += `🎉 *PARABÉNS!*\n`;
+        text += `Você alcançou o Prestige ${me.prestige.level}!\n\n`;
         text += `✨ Novo multiplicador: ${me.prestige.bonusMultiplier.toFixed(2)}x\n`;
-        text += `🔄 Total de resets: ${me.prestige.totalResets}\n\n`;
-        text += `💪 Agora você é mais forte!\n`;
-        text += `📈 Ganhe mais XP e moedas!`;
+        text += `🔄 Total de resets: ${me.prestige.totalResets}\n`;
+        text += `🏅 Título: ⭐ Prestige ${me.prestige.level}\n\n`;
+        text += `💪 Você agora é MUITO mais forte!\n`;
+        text += `📈 Todos os ganhos multiplicados!\n\n`;
+        text += `🚀 Continue evoluindo para prestiges maiores!`;
         
         saveEconomy(econ);
         return reply(text);
@@ -16840,6 +18302,49 @@ ${tempo.includes('nunca') ? '😂 Brincadeira! Nunca desista dos seus sonhos!' :
         }, { quoted: info });
         break;
       }
+      
+      case 'casais':
+      case 'couples':
+      case 'listacasais': {
+        if (!isGroup) {
+          await reply('⚠️ Este comando só pode ser usado em grupos.');
+          break;
+        }
+        
+        const allRelationships = relationshipManager.getAllRelationships ? relationshipManager.getAllRelationships() : [];
+        const groupCouples = allRelationships.filter(rel => 
+          rel.type === 'casamento' && 
+          AllgroupMembers.includes(rel.user1) && 
+          AllgroupMembers.includes(rel.user2)
+        );
+        
+        if (groupCouples.length === 0) {
+          await reply('💔 Não há casais neste grupo ainda!\n\n💡 Use ' + prefix + 'casar @pessoa para se casar!');
+          break;
+        }
+        
+        let text = `╭━━━⊱ 💕 *CASAIS DO GRUPO* ⊱━━━╮\n│\n`;
+        const mentions = [];
+        
+        groupCouples.forEach((couple, i) => {
+          const user1Name = couple.user1.split('@')[0];
+          const user2Name = couple.user2.split('@')[0];
+          const startDate = couple.startDate ? new Date(couple.startDate).toLocaleDateString('pt-BR') : 'N/A';
+          
+          text += `│ ${i + 1}. @${user1Name} 💍 @${user2Name}\n`;
+          text += `│    📅 Desde: ${startDate}\n│\n`;
+          mentions.push(couple.user1, couple.user2);
+        });
+        
+        text += `╰━━━━━━━━━━━━━━━━━━━━━━╯\n`;
+        text += `\n💕 Total: ${groupCouples.length} casal(is)`;
+        
+        await nazu.sendMessage(from, { text, mentions }, { quoted: info });
+        break;
+      }
+      
+      case 'divorciar':
+      case 'divorcio':
       case 'terminar':
       case 'termino':
       case 'terminarelacionamento': {
