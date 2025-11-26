@@ -1,7 +1,7 @@
 import fs from 'fs';
 import pathz from 'path';
 import crypto from 'crypto';
-import { ensureDirectoryExists, ensureJsonFileExists, loadJsonFile, normalizar, getUserName, isGroupId, isUserId, isValidLid, isValidJid, buildUserId, getLidFromJidCached, idsMatch } from './helpers.js';
+import { ensureDirectoryExists, ensureJsonFileExists, loadJsonFile, normalizar, getUserName, isGroupId, isUserId, isValidLid, isValidJid, buildUserId, getLidFromJidCached, idsMatch, loadJsonFileSafe, saveJsonFileSafe, validateLevelingUser, validateEconomyUser, validateGroupData, createBackup, normalizeParam, compareParams, findKeyIgnoringAccents, findInArrayIgnoringAccents, resolveParamAlias, matchParam, PARAM_ALIASES } from './helpers.js';
 import {
   DATABASE_DIR,
   GRUPOS_DIR,
@@ -1125,30 +1125,74 @@ function getPatent(level, patents) {
 
 // ====== Economia (Gold) Helpers ======
 function loadEconomy() {
-  return loadJsonFile(ECONOMY_FILE, { users: {}, shop: {}, jobCatalog: {} });
+  const defaultEconomy = { users: {}, shop: {}, jobCatalog: {}, stockMarket: {}, treasury: 0, auctions: [], lottery: null };
+  try {
+    const data = loadJsonFileSafe(ECONOMY_FILE, defaultEconomy);
+    
+    // Valida estrutura básica
+    if (!data || typeof data !== 'object') return defaultEconomy;
+    if (!data.users || typeof data.users !== 'object') data.users = {};
+    if (!data.shop || typeof data.shop !== 'object') data.shop = {};
+    if (!data.jobCatalog || typeof data.jobCatalog !== 'object') data.jobCatalog = {};
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Erro crítico ao carregar economia:', error.message);
+    return defaultEconomy;
+  }
 }
 
 function saveEconomy(data) {
   try {
-    fs.writeFileSync(ECONOMY_FILE, JSON.stringify(data, null, 2));
-    return true;
-  } catch (e) { console.error('❌ Erro ao salvar economy.json:', e); return false; }
+    if (!data || typeof data !== 'object') {
+      console.error('❌ Tentativa de salvar economia com dados inválidos');
+      return false;
+    }
+    
+    // Usa função segura com backup automático
+    return saveJsonFileSafe(ECONOMY_FILE, data, true);
+  } catch (e) { 
+    console.error('❌ Erro ao salvar economy.json:', e.message); 
+    return false; 
+  }
 }
 
 function getEcoUser(econ, userId) {
-  econ.users[userId] = econ.users[userId] || { wallet: 0, bank: 0, cooldowns: {}, inventory: {}, job: null, tools: {}, materials: {}, challenge: null, weeklyChallenge: null, monthlyChallenge: null, skills: {}, properties: {} };
-  const u = econ.users[userId];
-  u.cooldowns = u.cooldowns || {};
-  u.inventory = u.inventory || {};
-  if (typeof u.job === 'undefined') u.job = null;
-  u.tools = u.tools || {};
-  u.materials = u.materials || {};
-  u.challenge = u.challenge || null;
-  u.weeklyChallenge = u.weeklyChallenge || null;
-  u.monthlyChallenge = u.monthlyChallenge || null;
-  u.skills = u.skills || {};
-  u.properties = u.properties || {};
-  return u;
+  try {
+    if (!econ || typeof econ !== 'object') {
+      console.error('❌ getEcoUser: economia inválida');
+      return { wallet: 0, bank: 0, cooldowns: {}, inventory: {}, job: null, tools: {}, materials: {}, challenge: null, weeklyChallenge: null, monthlyChallenge: null, skills: {}, properties: {} };
+    }
+    
+    if (!userId || typeof userId !== 'string') {
+      console.error('❌ getEcoUser: userId inválido');
+      return { wallet: 0, bank: 0, cooldowns: {}, inventory: {}, job: null, tools: {}, materials: {}, challenge: null, weeklyChallenge: null, monthlyChallenge: null, skills: {}, properties: {} };
+    }
+    
+    econ.users = econ.users || {};
+    econ.users[userId] = econ.users[userId] || { wallet: 0, bank: 0, cooldowns: {}, inventory: {}, job: null, tools: {}, materials: {}, challenge: null, weeklyChallenge: null, monthlyChallenge: null, skills: {}, properties: {} };
+    
+    const u = econ.users[userId];
+    
+    // Validação e correção de campos
+    u.wallet = typeof u.wallet === 'number' && !isNaN(u.wallet) ? Math.max(0, Math.floor(u.wallet)) : 0;
+    u.bank = typeof u.bank === 'number' && !isNaN(u.bank) ? Math.max(0, Math.floor(u.bank)) : 0;
+    u.cooldowns = (u.cooldowns && typeof u.cooldowns === 'object') ? u.cooldowns : {};
+    u.inventory = (u.inventory && typeof u.inventory === 'object') ? u.inventory : {};
+    if (typeof u.job === 'undefined') u.job = null;
+    u.tools = (u.tools && typeof u.tools === 'object') ? u.tools : {};
+    u.materials = (u.materials && typeof u.materials === 'object') ? u.materials : {};
+    u.challenge = u.challenge || null;
+    u.weeklyChallenge = u.weeklyChallenge || null;
+    u.monthlyChallenge = u.monthlyChallenge || null;
+    u.skills = (u.skills && typeof u.skills === 'object') ? u.skills : {};
+    u.properties = (u.properties && typeof u.properties === 'object') ? u.properties : {};
+    
+    return u;
+  } catch (error) {
+    console.error('❌ Erro em getEcoUser:', error.message);
+    return { wallet: 0, bank: 0, cooldowns: {}, inventory: {}, job: null, tools: {}, materials: {}, challenge: null, weeklyChallenge: null, monthlyChallenge: null, skills: {}, properties: {} };
+  }
 }
 
 function parseAmount(text, maxValue) {
@@ -1377,42 +1421,189 @@ function isPeriodCompleted(ch){
   if (!ch) return false; return ch.tasks.every(t=> (t.progress||0) >= t.target);
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// FUNÇÕES DE LEVELING COM PROTEÇÃO
+// ═══════════════════════════════════════════════════════════════════
+
+const DEFAULT_PATENTS = [
+  { name: "Iniciante", minLevel: 1 },
+  { name: "Aprendiz", minLevel: 2 },
+  { name: "Explorador", minLevel: 5 },
+  { name: "Aventureiro", minLevel: 10 },
+  { name: "Veterano", minLevel: 15 },
+  { name: "Mestre", minLevel: 20 },
+  { name: "Elite", minLevel: 30 },
+  { name: "Lendário", minLevel: 50 }
+];
+
+const DEFAULT_LEVELING_STRUCTURE = {
+  users: {},
+  patents: DEFAULT_PATENTS,
+  settings: {
+    xpPerMessage: 10,
+    xpCooldown: 30000,
+    levelUpNotification: true
+  }
+};
+
+/**
+ * Carrega dados de leveling com proteção contra corrupção
+ */
+function loadLevelingSafe() {
+  try {
+    const data = loadJsonFileSafe(LEVELING_FILE, DEFAULT_LEVELING_STRUCTURE, DEFAULT_LEVELING_STRUCTURE);
+    
+    // Validações adicionais
+    if (!data || typeof data !== 'object') {
+      console.warn('⚠️ Dados de leveling inválidos, usando padrão');
+      return { ...DEFAULT_LEVELING_STRUCTURE };
+    }
+    
+    // Garante estrutura correta
+    if (!data.users || typeof data.users !== 'object') {
+      data.users = {};
+    }
+    
+    if (!Array.isArray(data.patents) || data.patents.length === 0) {
+      data.patents = DEFAULT_PATENTS;
+    }
+    
+    // Valida cada usuário
+    for (const [userId, userData] of Object.entries(data.users)) {
+      if (!userData || typeof userData !== 'object') {
+        data.users[userId] = validateLevelingUser(null);
+        continue;
+      }
+      
+      // Corrige valores inválidos
+      data.users[userId] = validateLevelingUser(userData);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Erro crítico ao carregar leveling:', error.message);
+    return { ...DEFAULT_LEVELING_STRUCTURE };
+  }
+}
+
+/**
+ * Salva dados de leveling com proteção
+ */
+function saveLevelingSafe(data) {
+  try {
+    if (!data || typeof data !== 'object') {
+      console.error('❌ Tentativa de salvar leveling com dados inválidos');
+      return false;
+    }
+    
+    // Garante estrutura mínima
+    data.users = data.users || {};
+    data.patents = data.patents || DEFAULT_PATENTS;
+    
+    return saveJsonFileSafe(LEVELING_FILE, data, true);
+  } catch (error) {
+    console.error('❌ Erro ao salvar leveling:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Obtém usuário de leveling com validação
+ */
+function getLevelingUser(levelingData, userId) {
+  try {
+    if (!levelingData || typeof levelingData !== 'object') {
+      console.error('❌ getLevelingUser: levelingData inválido');
+      return validateLevelingUser(null);
+    }
+    
+    if (!userId || typeof userId !== 'string') {
+      console.error('❌ getLevelingUser: userId inválido');
+      return validateLevelingUser(null);
+    }
+    
+    levelingData.users = levelingData.users || {};
+    
+    if (!levelingData.users[userId]) {
+      levelingData.users[userId] = validateLevelingUser(null);
+    } else {
+      levelingData.users[userId] = validateLevelingUser(levelingData.users[userId]);
+    }
+    
+    return levelingData.users[userId];
+  } catch (error) {
+    console.error('❌ Erro em getLevelingUser:', error.message);
+    return validateLevelingUser(null);
+  }
+}
+
 function checkLevelUp(userId, userData, levelingData, nazu, from) {
-  const nextLevelXp = calculateNextLevelXp(userData.level);
-  if (userData.xp >= nextLevelXp) {
-    userData.level++;
-    userData.xp -= nextLevelXp;
-    userData.patent = getPatent(userData.level, levelingData.patents);
-    fs.writeFileSync(LEVELING_FILE, JSON.stringify(levelingData, null, 2));
+  try {
+    // Validação de entrada
+    if (!userData || typeof userData !== 'object') return;
+    if (!levelingData || typeof levelingData !== 'object') return;
     
-    let levelUpText = `╭━━━⊱ ⭐ *LEVEL UP!* ⭐ ⊱━━━╮\n`;
-    levelUpText += `│\n`;
-    levelUpText += `│ 👤 @${getUserName(userId)}\n`;
-    levelUpText += `│\n`;
-    levelUpText += `│ 📊 *Nível Atual:* ${userData.level}\n`;
-    levelUpText += `│ ✨ *XP:* ${userData.xp}/${nextLevelXp}\n`;
-    levelUpText += `│ 🎖️ *Patente:* ${userData.patent}\n`;
-    levelUpText += `│\n`;
-    levelUpText += `╰━━━━━━━━━━━━━━━━━━━━━━╯\n`;
-    levelUpText += `\n🎊 *Parabéns pelo progresso!* 🎊`;
+    // Garante valores numéricos válidos
+    userData.level = typeof userData.level === 'number' && !isNaN(userData.level) ? Math.max(1, Math.floor(userData.level)) : 1;
+    userData.xp = typeof userData.xp === 'number' && !isNaN(userData.xp) ? Math.max(0, Math.floor(userData.xp)) : 0;
     
-    nazu.sendMessage(from, {
-      text: levelUpText,
-      mentions: [userId]
-    });
+    const nextLevelXp = calculateNextLevelXp(userData.level);
+    
+    if (userData.xp >= nextLevelXp) {
+      userData.level++;
+      userData.xp -= nextLevelXp;
+      userData.patent = getPatent(userData.level, levelingData.patents || DEFAULT_PATENTS);
+      
+      // Usa salvamento seguro
+      saveLevelingSafe(levelingData);
+      
+      let levelUpText = `╭━━━⊱ ⭐ *LEVEL UP!* ⭐ ⊱━━━╮\n`;
+      levelUpText += `│\n`;
+      levelUpText += `│ 👤 @${getUserName(userId)}\n`;
+      levelUpText += `│\n`;
+      levelUpText += `│ 📊 *Nível Atual:* ${userData.level}\n`;
+      levelUpText += `│ ✨ *XP:* ${userData.xp}/${calculateNextLevelXp(userData.level)}\n`;
+      levelUpText += `│ 🎖️ *Patente:* ${userData.patent}\n`;
+      levelUpText += `│\n`;
+      levelUpText += `╰━━━━━━━━━━━━━━━━━━━━━━╯\n`;
+      levelUpText += `\n🎊 *Parabéns pelo progresso!* 🎊`;
+      
+      if (nazu && from) {
+        nazu.sendMessage(from, {
+          text: levelUpText,
+          mentions: [userId]
+        }).catch(err => console.error('Erro ao enviar msg level up:', err.message));
+      }
+    }
+  } catch (error) {
+    console.error('❌ Erro em checkLevelUp:', error.message);
   }
 }
 
 function checkLevelDown(userId, userData, levelingData) {
-  while (userData.xp < 0 && userData.level > 1) {
-    userData.level--;
-    const prevLevelXp = calculateNextLevelXp(userData.level - 1);
-    userData.xp += prevLevelXp;
+  try {
+    // Validação de entrada
+    if (!userData || typeof userData !== 'object') return;
+    if (!levelingData || typeof levelingData !== 'object') return;
+    
+    // Garante valores numéricos válidos
+    userData.level = typeof userData.level === 'number' && !isNaN(userData.level) ? Math.max(1, Math.floor(userData.level)) : 1;
+    userData.xp = typeof userData.xp === 'number' && !isNaN(userData.xp) ? Math.floor(userData.xp) : 0;
+    
+    while (userData.xp < 0 && userData.level > 1) {
+      userData.level--;
+      const prevLevelXp = calculateNextLevelXp(userData.level - 1);
+      userData.xp += prevLevelXp;
+    }
+    
+    if (userData.xp < 0) {
+      userData.xp = 0;
+    }
+    
+    userData.patent = getPatent(userData.level, levelingData.patents || DEFAULT_PATENTS);
+  } catch (error) {
+    console.error('❌ Erro em checkLevelDown:', error.message);
   }
-  if (userData.xp < 0) {
-    userData.xp = 0;
-  }
-  userData.patent = getPatent(userData.level, levelingData.patents);
 }
 
 const loadCustomAutoResponses = () => {
@@ -2203,5 +2394,26 @@ export {
   getCommandLimits,
   checkCommandLimit,
   parseTimeFrame,
-  formatTimeLeft
+  formatTimeLeft,
+  // Funções de segurança JSON
+  loadJsonFileSafe,
+  saveJsonFileSafe,
+  validateLevelingUser,
+  validateEconomyUser,
+  validateGroupData,
+  createBackup,
+  // Funções de leveling seguras
+  loadLevelingSafe,
+  saveLevelingSafe,
+  getLevelingUser,
+  DEFAULT_PATENTS,
+  DEFAULT_LEVELING_STRUCTURE,
+  // Funções de normalização de parâmetros
+  normalizeParam,
+  compareParams,
+  findKeyIgnoringAccents,
+  findInArrayIgnoringAccents,
+  resolveParamAlias,
+  matchParam,
+  PARAM_ALIASES
 };

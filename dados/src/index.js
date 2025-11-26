@@ -148,7 +148,21 @@ import {
   getCommandLimits,
   checkCommandLimit,
   formatTimeLeft,
-  runDatabaseSelfTest
+  runDatabaseSelfTest,
+  // Funções de segurança
+  loadJsonFileSafe,
+  saveJsonFileSafe,
+  loadLevelingSafe,
+  saveLevelingSafe,
+  getLevelingUser,
+  validateLevelingUser,
+  validateEconomyUser,
+  // Funções de normalização de parâmetros
+  normalizeParam,
+  compareParams,
+  findKeyIgnoringAccents,
+  matchParam,
+  resolveParamAlias
 } from './utils/database.js';
 import { parseCustomCommandMeta, buildUsageFromParams, parseArgsFromString, escapeRegExp, validateParamValue } from './utils/helpers.js';
 import {
@@ -192,11 +206,56 @@ const OWNER_ONLY_MESSAGE = '🚫 Este comando é apenas para o dono do bot!';
 
 const writeJsonFile = (filePath, data) => {
   try {
+    // Validação de entrada
+    if (data === undefined || data === null) {
+      console.error(`❌ writeJsonFile: Tentativa de salvar dados nulos em ${filePath}`);
+      return false;
+    }
+    
+    // Testa se dados são serializáveis
+    let jsonString;
+    try {
+      jsonString = JSON.stringify(data, null, 2);
+    } catch (stringifyError) {
+      console.error(`❌ writeJsonFile: Dados não serializáveis para ${filePath}:`, stringifyError.message);
+      return false;
+    }
+    
+    // Valida JSON gerado
+    try {
+      JSON.parse(jsonString);
+    } catch (validateError) {
+      console.error(`❌ writeJsonFile: JSON inválido gerado para ${filePath}`);
+      return false;
+    }
+    
     ensureDirectoryExists(pathz.dirname(filePath));
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    
+    // Escreve em arquivo temporário primeiro (operação atômica)
+    const tempPath = filePath + '.tmp';
+    fs.writeFileSync(tempPath, jsonString, 'utf-8');
+    
+    // Verifica integridade do arquivo temporário
+    try {
+      const writtenContent = fs.readFileSync(tempPath, 'utf-8');
+      JSON.parse(writtenContent);
+    } catch (verifyError) {
+      console.error(`❌ writeJsonFile: Verificação falhou para ${filePath}`);
+      try { fs.unlinkSync(tempPath); } catch (e) {}
+      return false;
+    }
+    
+    // Move arquivo temporário para destino (atômico)
+    fs.renameSync(tempPath, filePath);
+    return true;
   } catch (error) {
-    console.error(`Erro ao escrever JSON em ${filePath}:`, error);
-    throw error;
+    console.error(`❌ Erro ao escrever JSON em ${filePath}:`, error.message);
+    // Tenta limpar arquivo temporário
+    try {
+      const tempPath = filePath + '.tmp';
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch (e) {}
+    return false;
   }
 };
 
@@ -786,12 +845,46 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         });
       }
       try {
-        groupData = JSON.parse(fs.readFileSync(groupFile));
+        // Carregamento seguro de dados do grupo
+        let rawContent = '';
+        try {
+          rawContent = fs.readFileSync(groupFile, 'utf-8');
+        } catch (readError) {
+          console.error(`❌ Erro ao ler arquivo do grupo ${from}:`, readError.message);
+          rawContent = '';
+        }
+        
+        if (!rawContent || rawContent.trim() === '') {
+          console.warn(`⚠️ Arquivo de grupo vazio para ${from}, criando novo`);
+          groupData = { mark: {}, createdAt: new Date().toISOString() };
+        } else {
+          // Remove BOM e caracteres inválidos
+          rawContent = rawContent.replace(/^\uFEFF/, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+          
+          try {
+            groupData = JSON.parse(rawContent);
+          } catch (parseError) {
+            console.error(`❌ JSON inválido no grupo ${from}, tentando recuperar:`, parseError.message);
+            
+            // Tenta remover trailing commas e parsear novamente
+            try {
+              rawContent = rawContent.replace(/,\s*([\]}])/g, '$1');
+              groupData = JSON.parse(rawContent);
+              console.log(`✅ Dados do grupo ${from} recuperados após sanitização`);
+            } catch (retryError) {
+              console.error(`❌ Falha na recuperação do grupo ${from}, usando dados padrão`);
+              groupData = { mark: {}, createdAt: new Date().toISOString(), recovered: true };
+            }
+          }
+        }
+        
+        // Validação básica
+        if (!groupData || typeof groupData !== 'object') {
+          groupData = { mark: {} };
+        }
       } catch (error) {
-        console.error(`Erro ao carregar dados do grupo ${from}:`, error);
-        groupData = {
-          mark: {}
-        };
+        console.error(`❌ Erro crítico ao carregar dados do grupo ${from}:`, error.message);
+        groupData = { mark: {}, error: true };
       };
   // default flags
   groupData.modorpg = typeof groupData.modorpg === 'boolean' ? groupData.modorpg : false;
@@ -1238,24 +1331,26 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       }
     }
     if (isGroup && groupData.levelingEnabled) {
-      const levelingData = loadJsonFile(LEVELING_FILE);
-      levelingData.users[sender] = levelingData.users[sender] || {
-        level: 1,
-        xp: 0,
-        patent: "Iniciante",
-        messages: 0,
-        commands: 0
-      };
-      const userData = levelingData.users[sender];
-      userData.messages++;
-      if (isCmd) {
-        userData.commands++;
-        userData.xp += 10;
-      } else {
-        userData.xp += 5;
+      try {
+        const levelingData = loadLevelingSafe();
+        const userData = getLevelingUser(levelingData, sender);
+        
+        // Atualiza contadores
+        userData.messages = (userData.messages || 0) + 1;
+        if (isCmd) {
+          userData.commands = (userData.commands || 0) + 1;
+          userData.xp = (userData.xp || 0) + 10;
+        } else {
+          userData.xp = (userData.xp || 0) + 5;
+        }
+        userData.lastMessage = Date.now();
+        
+        // Verifica level up e salva
+        checkLevelUp(sender, userData, levelingData, nazu, from);
+        saveLevelingSafe(levelingData);
+      } catch (levelingError) {
+        console.error('❌ Erro no sistema de leveling:', levelingError.message);
       }
-  checkLevelUp(sender, userData, levelingData, nazu, from);
-  writeJsonFile(LEVELING_FILE, levelingData);
     }
     async function reply(text, options = {}) {
       try {
@@ -4126,13 +4221,13 @@ Entre em contato com o dono do bot:
           // Se estiver em grupo, usamos o ranking do grupo (RPG)
           if (isGroup) {
             if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
-            const levelingData = loadJsonFile(LEVELING_FILE);
+            const levelingData = loadLevelingSafe();
             const userEntries = Object.entries(levelingData.users || {});
             const groupUsers = userEntries.filter(([id, data]) => AllgroupMembers.includes(id));
             if (groupUsers.length === 0) return reply('📊 Nenhum usuário do grupo encontrado no sistema de levels.');
 
             const sortedUsers = groupUsers
-              .map(([id, userData]) => ({ id, level: userData.level || 1, xp: userData.xp || 0, messages: userData.messages || 0, commands: userData.commands || 0, patent: userData.patent || 'Iniciante' }))
+              .map(([id, userData]) => ({ id, level: userData?.level || 1, xp: userData?.xp || 0, messages: userData?.messages || 0, commands: userData?.commands || 0, patent: userData?.patent || 'Iniciante' }))
               .sort((a, b) => (b.level !== a.level ? b.level - a.level : b.xp - a.xp))
               .slice(0, 15);
 
@@ -4152,11 +4247,11 @@ Entre em contato com o dono do bot:
           }
 
           // Se não for grupo, serve como ranking global
-          const levelingDataRank = loadJsonFile(LEVELING_FILE);
-          const sortedUsers = Object.entries(levelingDataRank.users || {}).sort((a,b)=> b[1].level - a[1].level || b[1].xp - a[1].xp ).slice(0, 15);
+          const levelingDataRank = loadLevelingSafe();
+          const sortedUsers = Object.entries(levelingDataRank.users || {}).sort((a,b)=> (b[1]?.level || 1) - (a[1]?.level || 1) || (b[1]?.xp || 0) - (a[1]?.xp || 0) ).slice(0, 15);
           let rankMessage = '🏆 *Ranking Global de Níveis*\n\n';
           const mentionsG = [];
-          sortedUsers.forEach(([userId,data],index)=>{ rankMessage += `${index+1}. @${getUserName(userId)} - Nível ${data.level} (XP: ${data.xp})\n`; mentionsG.push(userId); });
+          sortedUsers.forEach(([userId,data],index)=>{ rankMessage += `${index+1}. @${getUserName(userId)} - Nível ${data?.level || 1} (XP: ${data?.xp || 0})\n`; mentionsG.push(userId); });
           return reply(rankMessage, { mentions: mentionsG });
         }
         const mentioned = (menc_jid2 && menc_jid2[0]) || (q.includes('@') ? q.split(' ')[0].replace('@','') : null);
@@ -4272,8 +4367,8 @@ Entre em contato com o dono do bot:
           return reply(text);
         }
         if (sub === 'comprar' || sub === 'buy') {
-          const key = (args[0]||'').toLowerCase();
-          if (!key) return reply(`╭━━━⊱ 🛒 *COMPRAR* 🛒 ⊱━━━╮
+          const rawKey = (args[0]||'');
+          if (!rawKey) return reply(`╭━━━⊱ 🛒 *COMPRAR* 🛒 ⊱━━━╮
 │
 │ ❌ Informe o item desejado
 │
@@ -4283,6 +4378,8 @@ Entre em contato com o dono do bot:
 │ 🛍️ Ver loja: ${prefix}loja
 │
 ╰━━━━━━━━━━━━━━━━━━━━╯`);
+          // Normaliza a busca do item ignorando acentos e underscores
+          const key = findKeyIgnoringAccents(econ.shop || {}, rawKey) || normalizeParam(rawKey).replace(/\s+/g, '_');
           const it = (econ.shop||{})[key];
           if (!it) return reply(`❌ Item não encontrado.\n\n🛍️ Veja a loja com ${prefix}loja`);
           if (me.wallet < it.price) return reply('❌ Saldo insuficiente na carteira.');
@@ -4541,8 +4638,8 @@ Entre em contato com o dono do bot:
           return reply(txt);
         }
         if (sub === 'emprego') {
-          const key = (args[0]||'').toLowerCase();
-          if (!key) return reply(`╭━━━⊱ 💼 *EMPREGO* 💼 ⊱━━━╮
+          const rawKey = (args[0]||'');
+          if (!rawKey) return reply(`╭━━━⊱ 💼 *EMPREGO* 💼 ⊱━━━╮
 │
 │ ❌ Informe a vaga desejada
 │
@@ -4561,8 +4658,10 @@ Entre em contato com o dono do bot:
           };
 
           const jobCatalog = (econ.jobCatalog && Object.keys(econ.jobCatalog).length) ? econ.jobCatalog : defaultJobs;
+          // Normaliza a busca da vaga ignorando acentos
+          const key = findKeyIgnoringAccents(jobCatalog, rawKey) || normalizeParam(rawKey);
           const job = jobCatalog[key];
-          if (!job) return reply('❌ Vaga inexistente.');
+          if (!job) return reply('❌ Vaga inexistente. Use ' + prefix + 'vagas para ver disponíveis.');
 
           // If economy file had no jobCatalog, persist defaults so future queries find them
           if (!econ.jobCatalog || Object.keys(econ.jobCatalog).length === 0) {
@@ -4661,7 +4760,9 @@ Entre em contato com o dono do bot:
 
         if (sub === 'forjar' || sub === 'forge') {
           // Modo 1: craft a partir de receitas
-          const craftKey = (args[0]||'').toLowerCase();
+          const rawCraftKey = (args[0]||'');
+          // Normaliza o nome da receita ignorando acentos
+          const craftKey = findKeyIgnoringAccents(econ.recipes || {}, rawCraftKey) || normalizeParam(rawCraftKey);
           if (craftKey && (econ.recipes||{})[craftKey]) {
             const rec = econ.recipes[craftKey];
             const reqs = rec.requires || {};
@@ -5561,8 +5662,11 @@ Entre em contato com o dono do bot:
           aguia: { emoji: '🦅', name: 'Águia', hp: 90, attack: 22, defense: 8, cost: 6000, desc: 'Ágil e preciso' }
         };
         
-        const type = (q || '').toLowerCase();
-        if (!petTypes[type]) {
+        // Normaliza o parâmetro ignorando acentos
+        const inputType = (q || '').trim();
+        const type = matchParam(inputType, petTypes) || findKeyIgnoringAccents(petTypes, inputType);
+        
+        if (!type || !petTypes[type]) {
           let text = `╭━━━⊱ 🐾 *LOJA DE PETS* ⊱━━━╮\n`;
           text += `│ Escolha seu companheiro!\n`;
           text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
@@ -7901,8 +8005,8 @@ Entre em contato com o dono do bot:
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
         
-        const itemId = (args[0] || '').toLowerCase();
-        if (!itemId) return reply(`❌ Informe o item!\n\n💡 Uso: ${prefix}comprarpremium <item>\n🛒 Veja a loja: ${prefix}lojapremium`);
+        const rawItemId = (args[0] || '');
+        if (!rawItemId) return reply(`❌ Informe o item!\n\n💡 Uso: ${prefix}comprarpremium <item>\n🛒 Veja a loja: ${prefix}lojapremium`);
         
         const premiumItems = {
           'titulo_lendario': { name: '🏅 Título Lendário', price: 500000 },
@@ -7917,6 +8021,8 @@ Entre em contato com o dono do bot:
           'multiplicador_xp': { name: '✨ Multiplicador XP', price: 2500000 }
         };
         
+        // Normaliza a busca do item ignorando acentos
+        const itemId = findKeyIgnoringAccents(premiumItems, rawItemId) || normalizeParam(rawItemId).replace(/\s+/g, '_');
         const item = premiumItems[itemId];
         if (!item) return reply(`❌ Item não encontrado!\n\n🛒 Veja a loja: ${prefix}lojapremium`);
         
@@ -7952,12 +8058,21 @@ Entre em contato com o dono do bot:
         const me = getEcoUser(econ, sender);
         
         const bet = parseInt(args[0]) || 0;
-        const choice = (args[1] || '').toLowerCase();
+        const rawChoice = (args[1] || '');
         
         if (bet <= 0) return reply(`🎰 *ROLETA*\n\n💡 Uso: ${prefix}roleta <valor> <cor>\n\nCores: vermelho, preto, verde\n\n🔴 Vermelho: 2x\n⚫ Preto: 2x\n🟢 Verde (0): 14x`);
         
-        if (!['vermelho', 'preto', 'verde', 'red', 'black', 'green'].includes(choice)) {
-          return reply('❌ Escolha: vermelho, preto ou verde');
+        // Normaliza a cor escolhida
+        const colorMap = {
+          'vermelho': 'vermelho', 'red': 'vermelho', 'rubro': 'vermelho', 'encarnado': 'vermelho',
+          'preto': 'preto', 'black': 'preto', 'negro': 'preto',
+          'verde': 'verde', 'green': 'verde'
+        };
+        const normalizedRaw = normalizeParam(rawChoice);
+        const choice = colorMap[normalizedRaw] || findKeyIgnoringAccents(colorMap, rawChoice);
+        
+        if (!choice) {
+          return reply('❌ Escolha: vermelho, preto ou verde\n\n📝 Aceita: red, black, green também');
         }
         
         if (bet > me.wallet) return reply('❌ Saldo insuficiente na carteira!');
@@ -7972,8 +8087,8 @@ Entre em contato com o dono do bot:
           winColor = 'preto';
         }
         
-        const colorEmoji = { vermelho: '🔴', preto: '⚫', verde: '🟢', red: '🔴', black: '⚫', green: '🟢' };
-        const normalizedChoice = choice === 'red' ? 'vermelho' : choice === 'black' ? 'preto' : choice === 'green' ? 'verde' : choice;
+        const colorEmoji = { vermelho: '🔴', preto: '⚫', verde: '🟢' };
+        const normalizedChoice = choice;
         
         let text = `╭━━━⊱ 🎰 *ROLETA* ⊱━━━╮\n\n`;
         text += `🎯 Sua aposta: ${colorEmoji[choice]} ${bet.toLocaleString()}\n`;
@@ -8400,7 +8515,9 @@ Entre em contato com o dono do bot:
           mega: { name: '🔥 Mega Boost (Todos)', price: 250000, duration: 1800000, effect: 'megaBoost' }
         };
         
-        const sub = (args[0] || '').toLowerCase();
+        const rawSub = (args[0] || '');
+        // Normaliza o parâmetro do boost
+        const sub = rawSub ? (resolveParamAlias(rawSub) || findKeyIgnoringAccents(boosts, rawSub) || normalizeParam(rawSub)) : '';
         
         if (!sub || sub === 'ver') {
           let text = `╭━━━⊱ ⚡ *BOOSTS* ⊱━━━╮\n\n`;
@@ -9016,11 +9133,14 @@ Entre em contato com o dono do bot:
         const me = getEcoUser(econ, sender);
         
         const args = q.split(' ');
-        const choice = args[0]?.toLowerCase(); // cara ou coroa
+        const rawChoice = args[0] || '';
+        // Normaliza "cara/coroa" com aliases (heads/tails, etc)
+        const resolvedChoice = resolveParamAlias(rawChoice);
+        const choice = resolvedChoice === 'cara' || resolvedChoice === 'coroa' ? resolvedChoice : null;
         const bet = parseInt(args[1]) || 0;
         
-        if (!['cara', 'coroa'].includes(choice)) {
-          return reply(`💡 Use ${prefix}coinflip <cara|coroa> <valor>`);
+        if (!choice) {
+          return reply(`💡 Use ${prefix}coinflip <cara|coroa> <valor>\n\n📝 Aceita: cara, coroa, heads, tails`);
         }
         
         if (bet < 100) return reply('💰 Aposta mínima: 100 moedas');
@@ -10840,17 +10960,11 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         await reply(`🎚️ Sistema de leveling ${groupData.levelingEnabled ? 'ativado' : 'desativado'}!`);
         break;
       case 'level':
-        const levelingDataLevel = loadJsonFile(LEVELING_FILE);
-        const userDataLevel = levelingDataLevel.users[sender] || {
-          level: 1,
-          xp: 0,
-          patent: "Iniciante",
-          messages: 0,
-          commands: 0
-        };
-        const nextLevelXp = calculateNextLevelXp(userDataLevel.level);
-        const xpToNextLevel = nextLevelXp - userDataLevel.xp;
-        const percentProgress = Math.floor((userDataLevel.xp / nextLevelXp) * 100);
+        const levelingDataLevel = loadLevelingSafe();
+        const userDataLevel = getLevelingUser(levelingDataLevel, sender);
+        const nextLevelXp = calculateNextLevelXp(userDataLevel.level || 1);
+        const xpToNextLevel = nextLevelXp - (userDataLevel.xp || 0);
+        const percentProgress = Math.floor(((userDataLevel.xp || 0) / nextLevelXp) * 100);
         const progressBar = '█'.repeat(Math.floor(percentProgress / 10)) + '░'.repeat(10 - Math.floor(percentProgress / 10));
         
         let levelText = `╭━━━⊱ 📊 *STATUS DE NÍVEL* ⊱━━━╮\n`;
@@ -10887,17 +11001,11 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         if (!menc_os2 || !q) return reply("Marque um usuário e especifique a quantidade de XP.");
         const xpToAdd = parseInt(q);
         if (isNaN(xpToAdd)) return reply("Quantidade de XP inválida.");
-        const levelingDataAdd = loadJsonFile(LEVELING_FILE);
-        const userDataAdd = levelingDataAdd.users[menc_os2] || {
-          level: 1,
-          xp: 0,
-          patent: "Iniciante",
-          messages: 0,
-          commands: 0
-        };
-        userDataAdd.xp += xpToAdd;
+        const levelingDataAdd = loadLevelingSafe();
+        const userDataAdd = getLevelingUser(levelingDataAdd, menc_os2);
+        userDataAdd.xp = (userDataAdd.xp || 0) + xpToAdd;
         checkLevelUp(menc_os2, userDataAdd, levelingDataAdd, nazu, from);
-  writeJsonFile(LEVELING_FILE, levelingDataAdd);
+        saveLevelingSafe(levelingDataAdd);
         await reply(`✅ Adicionado ${xpToAdd} XP para @${getUserName(menc_os2)}`, {
           mentions: [menc_os2]
         });
@@ -10907,17 +11015,11 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         if (!menc_os2 || !q) return reply("Marque um usuário e especifique a quantidade de XP.");
         const xpToRemove = parseInt(q);
         if (isNaN(xpToRemove)) return reply("Quantidade de XP inválida.");
-        const levelingDataDel = loadJsonFile(LEVELING_FILE);
-        const userDataDel = levelingDataDel.users[menc_os2] || {
-          level: 1,
-          xp: 0,
-          patent: "Iniciante",
-          messages: 0,
-          commands: 0
-        };
-        userDataDel.xp = Math.max(0, userDataDel.xp - xpToRemove);
+        const levelingDataDel = loadLevelingSafe();
+        const userDataDel = getLevelingUser(levelingDataDel, menc_os2);
+        userDataDel.xp = Math.max(0, (userDataDel.xp || 0) - xpToRemove);
         checkLevelDown(menc_os2, userDataDel, levelingDataDel);
-  writeJsonFile(LEVELING_FILE, levelingDataDel);
+        saveLevelingSafe(levelingDataDel);
         await reply(`✅ Removido ${xpToRemove} XP de @${getUserName(menc_os2)}`, {
           mentions: [menc_os2]
         });
