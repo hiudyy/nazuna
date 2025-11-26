@@ -14594,10 +14594,21 @@ case 'ytmp3':
           if (!mediaInfo || mediaInfo.type !== 'image') return reply('❌ Mídia inválida. Envie uma imagem.');
           
           const imageBuffer = await getFileBuffer(mediaInfo.media, 'image');
-          await nazu.updateProfilePicture(nazu.user.id, imageBuffer);
-          reply('✅ Foto de perfil do bot alterada com sucesso!');
+          
+          try {
+            await nazu.updateProfilePicture(nazu.user.id, imageBuffer);
+            reply('✅ Foto de perfil do bot alterada com sucesso!');
+          } catch (updateError) {
+            // Verificar se é erro de biblioteca de processamento de imagem
+            if (updateError.message && (updateError.message.includes('No image processing library') || updateError.message.includes('image processing'))) {
+              console.error('Erro: Biblioteca de processamento de imagem não encontrada');
+              reply('❌ *Erro ao alterar foto de perfil*\n\n⚠️ É necessário instalar uma biblioteca de processamento de imagem.\n\n📦 *Instale uma das opções:*\n• `npm install sharp` (recomendado)\n• `npm install jimp`\n\n💡 Após instalar, reinicie o bot.');
+            } else {
+              throw updateError;
+            }
+          }
         } catch (e) {
-          console.error(e);
+          console.error('Erro no comando fotobot:', e);
           reply("❌ Ocorreu um erro ao alterar a foto de perfil 💔");
         }
         break;
@@ -17041,11 +17052,29 @@ case 'roubar':
           if (!mediaInfo || mediaInfo.type !== 'image') return reply('❌ Mídia inválida. Envie uma imagem.');
           
           const imageBuffer = await getFileBuffer(mediaInfo.media, 'image');
-          await nazu.updateProfilePicture(from, imageBuffer);
-          reply('✅ Foto do grupo alterada com sucesso!');
+          
+          try {
+            await nazu.updateProfilePicture(from, imageBuffer);
+            reply('✅ Foto do grupo alterada com sucesso!');
+          } catch (updateError) {
+            // Verificar se é erro de biblioteca de processamento de imagem
+            if (updateError.message && (updateError.message.includes('No image processing library') || updateError.message.includes('image processing'))) {
+              console.error('Erro: Biblioteca de processamento de imagem não encontrada');
+              reply('❌ *Erro ao alterar foto do grupo*\n\n⚠️ É necessário instalar uma biblioteca de processamento de imagem.\n\n📦 *Instale uma das opções:*\n• `npm install sharp` (recomendado)\n• `npm install jimp`\n\n💡 Após instalar, reinicie o bot.');
+              
+              // Notificar o dono sobre o problema
+              if (numerodono) {
+                nazu.sendMessage(numerodono, {
+                  text: `⚠️ *Aviso do Sistema*\n\nO comando *fotogrupo* falhou por falta de biblioteca de processamento de imagem.\n\n📦 Instale: \`npm install sharp\`\n\n👤 Usuário: ${pushname}\n👥 Grupo: ${groupName || 'N/A'}`
+                }).catch(() => {});
+              }
+            } else {
+              throw updateError;
+            }
+          }
         } catch (e) {
-          console.error(e);
-          reply("ocorreu um erro 💔");
+          console.error('Erro no comando fotogrupo:', e);
+          reply("❌ Ocorreu um erro ao alterar a foto do grupo 💔");
         }
         break;
       case 'marcar':
