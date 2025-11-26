@@ -220,5 +220,6 @@ ${middleBorder}${menuItemIcon}${prefix}evoluir
 ${middleBorder}${menuItemIcon}${prefix}rankglobal
 ${middleBorder}${menuItemIcon}${prefix}toprpg
 ${middleBorder}${menuItemIcon}${prefix}ranklevel
-${middleBorder}${menuItemIcon}${prefix}conquistas`
+${middleBorder}${menuItemIcon}${prefix}conquistas
+${bottomBorder}`
 }
