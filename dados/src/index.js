@@ -14391,27 +14391,55 @@ case 'ytmp3':
       case 'tm':
         try {
           if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
-          if (!q && !isQuotedImage && !isQuotedVideo) return reply('Digite uma mensagem ou marque uma imagem/vídeo! Exemplo: ' + prefix + 'tm Olá a todos!');
+          if (!q && !isImage && !isVideo && !isQuotedImage && !isQuotedVideo) return reply('Digite uma mensagem ou marque uma imagem/vídeo! Exemplo: ' + prefix + 'tm Olá a todos!');
           
-          const cabecalho = `╔═══════════════════════════╗\n║  📡 *TRANSMISSÃO DA BOT* 📡\n╚═══════════════════════════╝\n\n`;
+          const cabecalho = `╔═════════════════════════╗\n║  📡 *TRANSMISSÃO DA BOT* 📡\n╚═════════════════════════╝\n\n`;
           const genSuffix = () => Math.floor(100 + Math.random() * 900).toString();
           
           let baseMessage = {};
-          if (isQuotedImage) {
+          
+          // Verifica se a mensagem atual tem imagem
+          if (isImage) {
+            const image = await getFileBuffer(info.message.imageMessage, 'image');
+            const captionOriginal = info.message.imageMessage?.caption || '';
+            const textoFinal = q || captionOriginal;
+            
+            baseMessage = {
+              image,
+              caption: textoFinal ? `${cabecalho}${textoFinal}` : cabecalho.trim()
+            };
+          } 
+          // Verifica se a mensagem atual tem vídeo
+          else if (isVideo) {
+            const video = await getFileBuffer(info.message.videoMessage, 'video');
+            const captionOriginal = info.message.videoMessage?.caption || '';
+            const textoFinal = q || captionOriginal;
+            
+            baseMessage = {
+              video,
+              caption: textoFinal ? `${cabecalho}${textoFinal}` : cabecalho.trim()
+            };
+          }
+          // Verifica se cita uma imagem
+          else if (isQuotedImage) {
             const image = await getFileBuffer(info.message.extendedTextMessage.contextInfo.quotedMessage.imageMessage, 'image');
             
             baseMessage = {
               image,
               caption: q ? `${cabecalho}${q}` : cabecalho.trim()
             };
-          } else if (isQuotedVideo) {
+          } 
+          // Verifica se cita um vídeo
+          else if (isQuotedVideo) {
             const video = await getFileBuffer(info.message.extendedTextMessage.contextInfo.quotedMessage.videoMessage, 'video');
             
             baseMessage = {
               video,
               caption: q ? `${cabecalho}${q}` : cabecalho.trim()
             };
-          } else {
+          } 
+          // Apenas texto
+          else {
             baseMessage = {
               text: `${cabecalho}${q}`
             };
