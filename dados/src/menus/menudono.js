@@ -146,6 +146,7 @@ ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}atualizar
 ${middleBorder}${menuItemIcon}${prefix}reiniciar
 ${middleBorder}${menuItemIcon}${prefix}entrar
+${middleBorder}${menuItemIcon}${prefix}sairgp
 ${middleBorder}${menuItemIcon}${prefix}seradm
 ${middleBorder}${menuItemIcon}${prefix}sermembro
 ${middleBorder}${menuItemIcon}${prefix}blockcmdg

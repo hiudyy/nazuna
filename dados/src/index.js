@@ -11287,62 +11287,176 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'limparaluguel':
         try {
           if (!isOwner) return reply("Apenas o dono pode usar este comando. 🚫");
+          
+          await reply("🔄 Iniciando limpeza completa de aluguéis...");
+          
           let rentalData = loadRentalData();
           let groupsCleaned = 0;
           let groupsExpired = 0;
+          let groupsWithoutRental = 0;
           let groupsLeft = [];
+          let chatsDeleted = 0;
+          let groupConversationsCleared = 0;
           let adminsNotified = 0;
           const symbols = ['✨', '🌟', '⚡', '🔥', '🌈', '🍀', '💫', '🎉'];
+          
           const currentGroups = await nazu.groupFetchAllParticipating();
           const currentGroupIds = Object.keys(currentGroups);
+          const rentalGroupIds = Object.keys(rentalData.groups || {});
+          
+          // Limpa grupos que não existem mais dos registros
           for (const groupId in rentalData.groups) {
             if (!currentGroupIds.includes(groupId)) {
               delete rentalData.groups[groupId];
               groupsCleaned++;
             }
           }
+          
+          // Processa grupos com aluguel vencido
           for (const groupId in rentalData.groups) {
             const rentalStatus = getGroupRentalStatus(groupId);
             if (rentalStatus.active || rentalStatus.permanent) continue;
+            
             const groupMetadata = await getCachedGroupMetadata(groupId).catch(() => null);
             if (!groupMetadata) {
               delete rentalData.groups[groupId];
               groupsCleaned++;
               continue;
             }
+            
             groupsExpired++;
             groupsLeft.push(groupId);
-            await nazu.sendMessage(groupId, {
-              text: `⏰ O aluguel deste grupo (${groupMetadata.subject}) expirou. Estou saindo, mas vocês podem renovar o aluguel entrando em contato com o dono! Até mais! 😊${symbols[Math.floor(Math.random() * symbols.length)]}`
-            });
-            const admins = groupMetadata.participants.filter(p => p.admin).map(p => p.id);
-            for (const admin of admins) {
-              const delay = Math.floor(Math.random() * (500 - 100 + 1)) + 100;
-              await new Promise(resolve => setTimeout(resolve, delay));
-              await nazu.sendMessage(admin, {
-                text: `⚠️ Olá, admin do grupo *${groupMetadata.subject}*! O aluguel do grupo expirou, e por isso saí. Para renovar, entre em contato com o dono. Obrigado! ${symbols[Math.floor(Math.random() * symbols.length)]}`
+            
+            try {
+              await nazu.sendMessage(groupId, {
+                text: `⏰ O aluguel deste grupo (${groupMetadata.subject}) expirou. Estou saindo, mas vocês podem renovar o aluguel entrando em contato com o dono! Até mais! 😊${symbols[Math.floor(Math.random() * symbols.length)]}`
               });
-              adminsNotified++;
+              
+              const admins = groupMetadata.participants.filter(p => p.admin).map(p => p.id);
+              for (const admin of admins) {
+                const delay = Math.floor(Math.random() * (500 - 100 + 1)) + 100;
+                await new Promise(resolve => setTimeout(resolve, delay));
+                try {
+                  await nazu.sendMessage(admin, {
+                    text: `⚠️ Olá, admin do grupo *${groupMetadata.subject}*! O aluguel do grupo expirou, e por isso saí. Para renovar, entre em contato com o dono. Obrigado! ${symbols[Math.floor(Math.random() * symbols.length)]}`
+                  });
+                  adminsNotified++;
+                } catch (e) {
+                  console.error(`Erro ao notificar admin ${admin}:`, e.message);
+                }
+              }
+              
+              await nazu.groupLeave(groupId);
+              
+              // Deleta o chat do grupo
+              try {
+                if (nazu.chatModify) {
+                  await nazu.chatModify({ delete: true }, groupId);
+                  chatsDeleted++;
+                }
+              } catch (e) {
+                console.error(`Erro ao deletar chat ${groupId}:`, e.message);
+              }
+              
+              // Limpa conversa do grupo
+              try {
+                if (nazu.chatModify) {
+                  await nazu.chatModify({ clear: 'all' }, groupId);
+                  groupConversationsCleared++;
+                }
+              } catch (e) {
+                console.error(`Erro ao limpar conversa ${groupId}:`, e.message);
+              }
+              
+              // Delay entre grupos
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            } catch (e) {
+              console.error(`Erro ao processar grupo ${groupId}:`, e.message);
             }
-            await nazu.groupLeave(groupId);
           }
+          
+          // Processa grupos sem aluguel registrado
+          for (const groupId of currentGroupIds) {
+            if (!rentalGroupIds.includes(groupId)) {
+              groupsWithoutRental++;
+              groupsLeft.push(groupId);
+              
+              try {
+                const groupMetadata = await getCachedGroupMetadata(groupId).catch(() => null);
+                const groupName = groupMetadata?.subject || 'Grupo desconhecido';
+                
+                await nazu.sendMessage(groupId, {
+                  text: `👋 Este grupo não possui aluguel registrado. Estou saindo. Até mais! ${symbols[Math.floor(Math.random() * symbols.length)]}`
+                });
+                
+                await nazu.groupLeave(groupId);
+                
+                // Deleta o chat do grupo
+                try {
+                  if (nazu.chatModify) {
+                    await nazu.chatModify({ delete: true }, groupId);
+                    chatsDeleted++;
+                  }
+                } catch (e) {
+                  console.error(`Erro ao deletar chat ${groupId}:`, e.message);
+                }
+                
+                // Limpa conversa do grupo
+                try {
+                  if (nazu.chatModify) {
+                    await nazu.chatModify({ clear: 'all' }, groupId);
+                    groupConversationsCleared++;
+                  }
+                } catch (e) {
+                  console.error(`Erro ao limpar conversa ${groupId}:`, e.message);
+                }
+                
+                // Delay entre grupos
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              } catch (e) {
+                console.error(`Erro ao processar grupo sem aluguel ${groupId}:`, e.message);
+              }
+            }
+          }
+          
+          // Limpa todas as conversas de grupo restantes (mantém apenas privadas)
+          try {
+            if (nazu.chatModify) {
+              // Busca todos os grupos restantes e limpa conversas
+              const remainingGroups = await nazu.groupFetchAllParticipating();
+              for (const groupId of Object.keys(remainingGroups)) {
+                try {
+                  await nazu.chatModify({ clear: 'all' }, groupId);
+                  groupConversationsCleared++;
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                } catch (e) {
+                  console.error(`Erro ao limpar conversa do grupo ${groupId}:`, e.message);
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Erro ao limpar conversas de grupos:', e.message);
+          }
+          
           saveRentalData(rentalData);
-          let summary = `🧹 *Resumo da Limpeza de Aluguel* 🧹\n\n`;
           
-          summary += `✅ Grupos removidos dos registros (bot não está mais neles): *${groupsCleaned}*\n`;
-          
-          summary += `⏰ Grupos vencidos processados e saídos: *${groupsExpired}*\n`;
-          
+          let summary = `🧹 *Resumo da Limpeza Completa de Aluguéis* 🧹\n\n`;
+          summary += `✅ Grupos removidos dos registros: *${groupsCleaned}*\n`;
+          summary += `⏰ Grupos vencidos processados: *${groupsExpired}*\n`;
+          summary += `🚫 Grupos sem aluguel processados: *${groupsWithoutRental}*\n`;
           summary += `📩 Administradores notificados: *${adminsNotified}*\n`;
+          summary += `🗑️ Chats excluídos: *${chatsDeleted}*\n`;
+          summary += `🧽 Conversas de grupos limpas: *${groupConversationsCleared}*\n`;
+          summary += `📋 Total de grupos dos quais saí: *${groupsLeft.length}*\n`;
+          
           if (groupsLeft.length > 0) {
-            
-            summary += `\n📋 *Grupos dos quais saí:*\n${groupsLeft.map(id => `- ${getUserName(id)}`).join('\n')}\n`;
-          } else {
-            
-            summary += `\n📋 Nenhum grupo vencido encontrado para sair.\n`;
+            summary += `\n📋 *Grupos processados:*\n${groupsLeft.slice(0, 10).map(id => `- ${id.split('@')[0]}`).join('\n')}`;
+            if (groupsLeft.length > 10) {
+              summary += `\n... e mais ${groupsLeft.length - 10} grupos`;
+            }
           }
           
-          summary += `\n✨ Limpeza concluída com sucesso!`;
+          summary += `\n\n✨ Limpeza concluída com sucesso!`;
           await reply(summary);
         } catch (e) {
           console.error('Erro no comando limparaluguel:', e);
@@ -14223,6 +14337,52 @@ case 'ytmp3':
           }).catch(err => {
             reply('❌ Erro ao entrar no grupo. Link inválido ou permissão negada.');
           });
+        } catch (e) {
+          console.error(e);
+          await reply("Ocorreu um erro 💔");
+        }
+        break;
+      case 'sairgp':
+        try {
+          if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
+          
+          let groupId = null;
+          
+          if (q && q.trim()) {
+            // Se forneceu um ID, usa ele
+            groupId = q.trim();
+            // Garante que tem @g.us se não tiver
+            if (!groupId.includes('@')) {
+              groupId = groupId + '@g.us';
+            }
+          } else {
+            // Se não forneceu ID, usa o grupo atual
+            if (!isGroup) return reply('❌ Você precisa estar em um grupo ou fornecer o ID do grupo! Exemplo: ' + prefix + 'sairgp 120363123456789012@g.us');
+            groupId = from;
+          }
+          
+          // Verifica se é um ID de grupo válido
+          if (!groupId.endsWith('@g.us')) {
+            return reply('❌ ID de grupo inválido! Deve terminar com @g.us');
+          }
+          
+          // Tenta obter informações do grupo para confirmar
+          try {
+            const groupMetadata = await nazu.groupMetadata(groupId).catch(() => null);
+            if (!groupMetadata) {
+              return reply('❌ Grupo não encontrado ou não tenho acesso a ele.');
+            }
+            
+            const groupName = groupMetadata.subject || 'Grupo desconhecido';
+            
+            // Sai do grupo
+            await nazu.groupLeave(groupId);
+            await reply(`✅ Sai do grupo "${groupName}" com sucesso!`);
+          } catch (error) {
+            // Tenta sair mesmo assim
+            await nazu.groupLeave(groupId).catch(() => {});
+            await reply(`✅ Comando de saída executado para o grupo ${groupId}`);
+          }
         } catch (e) {
           console.error(e);
           await reply("Ocorreu um erro 💔");
