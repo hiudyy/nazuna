@@ -32,16 +32,16 @@ class PerformanceOptimizer {
       filesCached: 0
     };
     
-    this.initialize();
-  }
-
-  initialize() {
-    // Pré-compila regex comuns
+    // Inicialização básica (síncrona)
     this.precompileCommonRegex();
     
     // Limpa cache de arquivos periodicamente
-    setInterval(() => this.cleanupFileCache(), 5 * 60 * 1000); // 5 minutos
-    
+    this.cleanupIntervalId = setInterval(() => this.cleanupFileCache(), 5 * 60 * 1000); // 5 minutos
+  }
+
+  async initialize() {
+    // Já inicializado no constructor, mas mantém para compatibilidade
+    // Pode ser usado para inicializações assíncronas adicionais no futuro
     return Promise.resolve();
   }
 
@@ -440,6 +440,67 @@ class PerformanceOptimizer {
   }
 
   /**
+   * Métodos de compatibilidade para connect.js (síncronos)
+   */
+  cacheGet(cacheType, key) {
+    try {
+      const cache = this.cache.getCache(cacheType);
+      if (!cache) {
+        return undefined;
+      }
+      return cache.get(key);
+    } catch (error) {
+      console.error(`❌ Erro ao obter cache ${cacheType}:`, error.message);
+      return undefined;
+    }
+  }
+
+  cacheSet(cacheType, key, value, ttl = null) {
+    try {
+      const cache = this.cache.getCache(cacheType);
+      if (!cache) {
+        return false;
+      }
+      if (ttl) {
+        return cache.set(key, value, ttl);
+      } else {
+        return cache.set(key, value);
+      }
+    } catch (error) {
+      console.error(`❌ Erro ao definir cache ${cacheType}:`, error.message);
+      return false;
+    }
+  }
+
+  async emergencyCleanup() {
+    try {
+      // Limpa caches menos críticos primeiro
+      this.cache.clear('media');
+      this.cache.clear('messages');
+      // Força garbage collection se disponível
+      if (global.gc) {
+        global.gc();
+      }
+      return true;
+    } catch (error) {
+      console.error('❌ Erro em emergencyCleanup:', error.message);
+      return false;
+    }
+  }
+
+  async shutdown() {
+    try {
+      // Salva dados importantes antes de fechar
+      this.clearAll();
+      this.stopMonitoring();
+      return true;
+    } catch (error) {
+      console.error('❌ Erro em shutdown:', error.message);
+      return false;
+    }
+  }
+
+  /**
    * Limpa todos os caches
    */
   clearAll() {
@@ -447,9 +508,22 @@ class PerformanceOptimizer {
     this.fileCache.clear();
     this.cache.forceCleanup();
   }
+
+  /**
+   * Para monitoramento (para shutdown gracioso)
+   */
+  stopMonitoring() {
+    // Limpa intervalos se houver
+    if (this.cleanupIntervalId) {
+      clearInterval(this.cleanupIntervalId);
+    }
+  }
 }
 
-// Exporta a classe diretamente
+// Exporta a classe como default para uso com 'new'
+export default PerformanceOptimizer;
+
+// Exporta também como named export
 export { PerformanceOptimizer };
 
 // Singleton para uso direto
@@ -461,5 +535,3 @@ export function getPerformanceOptimizer() {
   }
   return optimizerInstance;
 }
-
-export default getPerformanceOptimizer();
