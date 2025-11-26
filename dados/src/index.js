@@ -14232,38 +14232,60 @@ case 'ytmp3':
         try {
           if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
           if (!q && !isQuotedImage && !isQuotedVideo) return reply('Digite uma mensagem ou marque uma imagem/vídeo! Exemplo: ' + prefix + 'tm Olá a todos!');
+          
+          const cabecalho = `╔═══════════════════════════╗\n║  📡 *TRANSMISSÃO DA BOT* 📡\n╚═══════════════════════════╝\n\n`;
           const genSuffix = () => Math.floor(100 + Math.random() * 900).toString();
+          
           let baseMessage = {};
           if (isQuotedImage) {
             const image = await getFileBuffer(info.message.extendedTextMessage.contextInfo.quotedMessage.imageMessage, 'image');
             
             baseMessage = {
               image,
-              caption: q || 'Transmissão do dono!'
+              caption: q ? `${cabecalho}${q}` : cabecalho.trim()
             };
           } else if (isQuotedVideo) {
             const video = await getFileBuffer(info.message.extendedTextMessage.contextInfo.quotedMessage.videoMessage, 'video');
             
             baseMessage = {
               video,
-              caption: q || 'Transmissão do dono!'
+              caption: q ? `${cabecalho}${q}` : cabecalho.trim()
             };
           } else {
-            
             baseMessage = {
-              text: q
+              text: `${cabecalho}${q}`
             };
           }
+          
           const groups = await nazu.groupFetchAllParticipating();
+          const totalGroups = Object.keys(groups).length;
+          let enviados = 0;
+          
           for (const group of Object.values(groups)) {
-            await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * (30000 - 10000) + 10000)));
-            const suffix = genSuffix();
-            const message = { ...baseMessage };
-            if (message.caption) message.caption = `${message.caption} ${suffix}`;
-            if (message.text) message.text = `${message.text} ${suffix}`;
-            await nazu.sendMessage(group.id, message);
+            try {
+              const suffix = genSuffix();
+              const message = { ...baseMessage };
+              
+              if (message.caption) {
+                message.caption = `${message.caption}\n\n> ID: ${suffix}`;
+              }
+              if (message.text) {
+                message.text = `${message.text}\n\n> ID: ${suffix}`;
+              }
+              
+              await nazu.sendMessage(group.id, message);
+              enviados++;
+              
+              if (enviados < totalGroups) {
+                const delay = Math.floor(Math.random() * 1000) + 1000;
+                await new Promise(resolve => setTimeout(resolve, delay));
+              }
+            } catch (error) {
+              console.error(`Erro ao enviar para grupo ${group.id}:`, error.message);
+            }
           }
-          await reply(`✅ Transmissão enviada para ${Object.keys(groups).length} grupos!`);
+          
+          await reply(`✅ Transmissão enviada para ${enviados}/${totalGroups} grupos!`);
         } catch (e) {
           console.error(e);
           await reply("Ocorreu um erro 💔");
