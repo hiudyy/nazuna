@@ -11,6 +11,9 @@ import {
   makeCacheableSignalKeyStore
 } from 'whaileys';
 import { exec, execSync, spawn } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 import { parseHTML } from 'linkedom';
 import axios from 'axios';
 import pathz from 'path';
@@ -2337,6 +2340,51 @@ Código: *${roleCode}*`,
       };
       return null;
     };
+    
+    /**
+     * Processa uma imagem usando ffmpeg para formato adequado para foto de perfil
+     * Redimensiona para 640x640 (máximo) e converte para JPEG
+     */
+    const processImageForProfile = async (imageBuffer) => {
+      const tempDir = pathz.join(__dirname, '..', 'database', 'tmp');
+      ensureDirectoryExists(tempDir);
+      
+      const inputFile = pathz.join(tempDir, `input_${Date.now()}.jpg`);
+      const outputFile = pathz.join(tempDir, `output_${Date.now()}.jpg`);
+      
+      try {
+        // Salva o buffer de entrada
+        fs.writeFileSync(inputFile, imageBuffer);
+        
+        // Processa com ffmpeg: redimensiona para 640x640 mantendo proporção e converte para JPEG
+        const cmd = `ffmpeg -hide_banner -loglevel error -i "${inputFile}" -vf "scale=640:640:force_original_aspect_ratio=decrease,pad=640:640:(ow-iw)/2:(oh-ih)/2:color=white" -q:v 5 -y "${outputFile}"`;
+        
+        await execAsync(cmd, { timeout: 15000 });
+        
+        // Lê o arquivo processado
+        const processedBuffer = fs.readFileSync(outputFile);
+        
+        // Limpa arquivos temporários
+        try {
+          fs.unlinkSync(inputFile);
+          fs.unlinkSync(outputFile);
+        } catch (cleanupError) {
+          console.warn('Aviso: Erro ao limpar arquivos temporários:', cleanupError.message);
+        }
+        
+        return processedBuffer;
+      } catch (error) {
+        // Limpa arquivos temporários em caso de erro
+        try {
+          if (fs.existsSync(inputFile)) fs.unlinkSync(inputFile);
+          if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile);
+        } catch (cleanupError) {
+          // Ignora erros de limpeza
+        }
+        throw new Error(`Erro ao processar imagem: ${error.message}`);
+      }
+    };
+    
     if (isGroup && info.message?.extendedTextMessage?.contextInfo?.mentionedJid) {
       const mentioned = info.message.extendedTextMessage.contextInfo.mentionedJid;
       if (groupData.afkUsers) {
@@ -14807,16 +14855,13 @@ case 'ytmp3':
           const imageBuffer = await getFileBuffer(mediaInfo.media, 'image');
           
           try {
-            await nazu.updateProfilePicture(nazu.user.id, imageBuffer);
+            // Processa a imagem com ffmpeg antes de atualizar
+            const processedBuffer = await processImageForProfile(imageBuffer);
+            await nazu.updateProfilePicture(nazu.user.id, processedBuffer);
             reply('✅ Foto de perfil do bot alterada com sucesso!');
           } catch (updateError) {
-            // Verificar se é erro de biblioteca de processamento de imagem
-            if (updateError.message && (updateError.message.includes('No image processing library') || updateError.message.includes('image processing'))) {
-              console.error('Erro: Biblioteca de processamento de imagem não encontrada');
-              reply('❌ *Erro ao alterar foto de perfil*\n\n⚠️ É necessário instalar uma biblioteca de processamento de imagem.\n\n📦 *Instale uma das opções:*\n• `npm install sharp` (recomendado)\n• `npm install jimp`\n\n💡 Após instalar, reinicie o bot.');
-            } else {
-              throw updateError;
-            }
+            console.error('Erro ao alterar foto de perfil:', updateError);
+            reply('❌ Ocorreu um erro ao alterar a foto de perfil. Verifique se o ffmpeg está instalado e a imagem é válida.');
           }
         } catch (e) {
           console.error('Erro no comando fotobot:', e);
@@ -17266,23 +17311,13 @@ case 'roubar':
           const imageBuffer = await getFileBuffer(mediaInfo.media, 'image');
           
           try {
-            await nazu.updateProfilePicture(from, imageBuffer);
+            // Processa a imagem com ffmpeg antes de atualizar
+            const processedBuffer = await processImageForProfile(imageBuffer);
+            await nazu.updateProfilePicture(from, processedBuffer);
             reply('✅ Foto do grupo alterada com sucesso!');
           } catch (updateError) {
-            // Verificar se é erro de biblioteca de processamento de imagem
-            if (updateError.message && (updateError.message.includes('No image processing library') || updateError.message.includes('image processing'))) {
-              console.error('Erro: Biblioteca de processamento de imagem não encontrada');
-              reply('❌ *Erro ao alterar foto do grupo*\n\n⚠️ É necessário instalar uma biblioteca de processamento de imagem.\n\n📦 *Instale uma das opções:*\n• `npm install sharp` (recomendado)\n• `npm install jimp`\n\n💡 Após instalar, reinicie o bot.');
-              
-              // Notificar o dono sobre o problema
-              if (numerodono) {
-                nazu.sendMessage(numerodono, {
-                  text: `⚠️ *Aviso do Sistema*\n\nO comando *fotogrupo* falhou por falta de biblioteca de processamento de imagem.\n\n📦 Instale: \`npm install sharp\`\n\n👤 Usuário: ${pushname}\n👥 Grupo: ${groupName || 'N/A'}`
-                }).catch(() => {});
-              }
-            } else {
-              throw updateError;
-            }
+            console.error('Erro ao alterar foto do grupo:', updateError);
+            reply('❌ Ocorreu um erro ao alterar a foto do grupo. Verifique se o ffmpeg está instalado e a imagem é válida.');
           }
         } catch (e) {
           console.error('Erro no comando fotogrupo:', e);
