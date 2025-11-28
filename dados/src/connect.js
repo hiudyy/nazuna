@@ -21,22 +21,59 @@ import { buildUserId } from './utils/helpers.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Cache para versão do Baileys
+let baileysVersionCache = null;
+let baileysVersionCacheTime = 0;
+const BAILEYS_VERSION_CACHE_TTL = 60 * 60 * 1000; // 1 hora
+
 /**
  * Busca a versão do Baileys diretamente do JSON do GitHub
+ * Com cache para evitar requisições excessivas
  * @returns {Promise<{version: number[]}>}
  */
 async function fetchBaileysVersionFromGitHub() {
+    const now = Date.now();
+    
+    // Retorna cache se ainda válido
+    if (baileysVersionCache && (now - baileysVersionCacheTime) < BAILEYS_VERSION_CACHE_TTL) {
+        return baileysVersionCache;
+    }
+    
     try {
         const response = await axios.get('https://raw.githubusercontent.com/WhiskeySockets/Baileys/refs/heads/master/src/Defaults/baileys-version.json', {
-            timeout: 10000
+            timeout: 10000,
+            validateStatus: (status) => status === 200
         });
-        return {
+        
+        if (!response.data || !Array.isArray(response.data.version)) {
+            throw new Error('Resposta inválida do GitHub');
+        }
+        
+        baileysVersionCache = {
             version: response.data.version
         };
+        baileysVersionCacheTime = now;
+        
+        return baileysVersionCache;
     } catch (error) {
         console.error('❌ Erro ao buscar versão do Baileys do GitHub, usando função fetchLatestBaileysVersion como fallback:', error.message);
+        
+        // Se tem cache, usa ele mesmo expirado
+        if (baileysVersionCache) {
+            console.warn('⚠️ Usando versão em cache (pode estar desatualizada)');
+            return baileysVersionCache;
+        }
+        
         // Fallback para função original caso falhe
-        return await fetchLatestBaileysVersion();
+        try {
+            const fallbackVersion = await fetchLatestBaileysVersion();
+            baileysVersionCache = fallbackVersion;
+            baileysVersionCacheTime = now;
+            return fallbackVersion;
+        } catch (fallbackError) {
+            console.error('❌ Erro no fallback também:', fallbackError.message);
+            throw new Error('Não foi possível obter a versão do Baileys');
+        }
     }
 }
 
@@ -99,11 +136,6 @@ class MessageQueue {
 
     stopProcessing() {
         this.isProcessing = false;
-    }
-
-    pause() {
-        this.isProcessing = false;
-        console.log('[MessageQueue] Processamento pausado');
     }
 
     resume() {
@@ -271,22 +303,26 @@ class MessageQueue {
         this.clear();
         console.log('✅ MessageQueue finalizado');
     }
-
-    pause() {
-        this.stopProcessing();
-    }
-
-    resume() {
-        if (!this.isProcessing && (this.queue.length > 0 || this.activeWorkers > 0)) {
-            this.startProcessing();
-        }
-    }
 }
 
 const messageQueue = new MessageQueue(8, 10, 2); // 8 workers, 10 lotes, 2 mensagens por lote
 
 const configPath = path.join(__dirname, "config.json");
-let config = JSON.parse(readFileSync(configPath, "utf8"));
+let config;
+
+// Validação de configuração
+try {
+    const configContent = readFileSync(configPath, "utf8");
+    config = JSON.parse(configContent);
+    
+    // Valida campos obrigatórios
+    if (!config.prefixo || !config.nomebot || !config.numerodono) {
+        throw new Error('Configuração inválida: campos obrigatórios ausentes (prefixo, nomebot, numerodono)');
+    }
+} catch (err) {
+    console.error(`❌ Erro ao carregar configuração: ${err.message}`);
+    process.exit(1);
+}
 
 const indexModule = (await import('./index.js')).default ?? (await import('./index.js'));
 
@@ -965,14 +1001,24 @@ async function createBotSocket(authDir) {
 
         NazunaSock.ev.on('creds.update', saveCreds);
 
-        NazunaSock.ev.on('groups.update', async ([ev]) => {
-            try {
-                const meta = await NazunaSock.groupMetadata(ev.id).catch(() => null);
-                if (meta) {
+        NazunaSock.ev.on('groups.update', async (updates) => {
+            if (!Array.isArray(updates) || updates.length === 0) return;
+            
+            // Processa atualizações em lote para melhor performance
+            const updatePromises = updates.map(async ([ev]) => {
+                if (!ev || !ev.id) return;
+                
+                try {
+                    const meta = await NazunaSock.groupMetadata(ev.id).catch(() => null);
+                    if (meta) {
+                        // Metadados atualizados, pode ser usado para cache futuro
+                    }
+                } catch (e) {
+                    console.error(`❌ Erro ao atualizar metadados do grupo ${ev.id}: ${e.message}`);
                 }
-            } catch (e) {
-                console.error(`❌ Erro ao atualizar metadados do grupo ${ev.id}: ${e.message}`);
-            }
+            });
+            
+            await Promise.allSettled(updatePromises);
         });
 
         NazunaSock.ev.on('group-participants.update', async (inf) => {
@@ -1014,7 +1060,7 @@ async function createBotSocket(authDir) {
                 return;
             }
             
-            // Cache da mensagem com validação
+            // Cache da mensagem para uso posterior no processamento
             if (messagesCache && info.key?.id) {
                 messagesCache.set(info.key.id, info.message);
             }
@@ -1153,10 +1199,21 @@ async function createBotSocket(authDir) {
                     console.log('🔄 Nova autenticação será necessária na próxima inicialização.');
                 }
                 
-                console.log('🔄 Aguardando 5 segundos antes de reconectar...');
+                // Delay antes de reconectar baseado no motivo
+                let reconnectDelay = 5000;
+                if (reason === DisconnectReason.timedOut) {
+                    reconnectDelay = 3000; // Reconexão mais rápida para timeout
+                } else if (reason === DisconnectReason.connectionLost) {
+                    reconnectDelay = 2000; // Reconexão ainda mais rápida para perda de conexão
+                } else if (reason === DisconnectReason.loggedOut || reason === DisconnectReason.badSession) {
+                    reconnectDelay = 10000; // Delay maior para problemas de autenticação
+                }
+                
+                console.log(`🔄 Aguardando ${reconnectDelay / 1000} segundos antes de reconectar...`);
                 setTimeout(() => {
+                    reconnectAttempts = 0; // Reset ao reconectar por desconexão normal
                     startNazu();
-                }, 5000);
+                }, reconnectDelay);
             }
         });
         return NazunaSock;
@@ -1166,74 +1223,97 @@ async function createBotSocket(authDir) {
     }
 }
 
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 10;
+const RECONNECT_DELAY_BASE = 5000; // 5 segundos base
+
 async function startNazu() {
     try {
+        reconnectAttempts = 0; // Reset contador ao conectar com sucesso
         console.log('🚀 Iniciando Nazuna...');
         await createBotSocket(AUTH_DIR);
     } catch (err) {
-        console.error(`❌ Erro ao iniciar o bot: ${err.message}`);
+        reconnectAttempts++;
+        console.error(`❌ Erro ao iniciar o bot (tentativa ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}): ${err.message}`);
         
-        if (err.message.includes('ENOSPC')) {
+        // Se excedeu tentativas, para de tentar
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            console.error(`❌ Máximo de tentativas de reconexão alcançado (${MAX_RECONNECT_ATTEMPTS}). Parando...`);
+            process.exit(1);
+        }
+        
+        if (err.message.includes('ENOSPC') || err.message.includes('ENOMEM')) {
             console.log('🧹 Tentando limpeza de emergência...');
             try {
                 await performanceOptimizer.emergencyCleanup();
+                console.log('✅ Limpeza de emergência concluída');
             } catch (cleanupErr) {
                 console.error('❌ Falha na limpeza de emergência:', cleanupErr.message);
             }
         }
         
-        console.log('🔄 Aguardando 5 segundos antes de tentar novamente...');
+        // Delay exponencial (backoff) para evitar spam de conexões
+        const delay = Math.min(RECONNECT_DELAY_BASE * Math.pow(1.5, reconnectAttempts - 1), 60000);
+        console.log(`🔄 Aguardando ${Math.round(delay / 1000)} segundos antes de tentar novamente...`);
+        
         setTimeout(() => {
             startNazu();
-        }, 5000);
+        }, delay);
     }
 }
 
-process.on('SIGTERM', async () => {
-    console.log('📡 SIGTERM recebido, parando bot graciosamente...');
+/**
+ * Função unificada para desligamento gracioso
+ */
+async function gracefulShutdown(signal) {
+    const signalName = signal === 'SIGTERM' ? 'SIGTERM' : 'SIGINT';
+    console.log(`📡 ${signalName} recebido, parando bot graciosamente...`);
     
-    // Desconecta sub-bots
+    let shutdownTimeout;
+    
+    // Timeout de segurança para forçar saída após 15 segundos
+    shutdownTimeout = setTimeout(() => {
+        console.error('⚠️ Timeout de shutdown, forçando saída...');
+        process.exit(1);
+    }, 15000);
+    
     try {
-        const subBotManagerModule = await import('./utils/subBotManager.js');
-        const subBotManager = subBotManagerModule.default ?? subBotManagerModule;
-        await subBotManager.disconnectAllSubBots();
+        // Desconecta sub-bots
+        try {
+            const subBotManagerModule = await import('./utils/subBotManager.js');
+            const subBotManager = subBotManagerModule.default ?? subBotManagerModule;
+            await subBotManager.disconnectAllSubBots();
+            console.log('✅ Sub-bots desconectados');
+        } catch (error) {
+            console.error('❌ Erro ao desconectar sub-bots:', error.message);
+        }
+        
+        // Limpa recursos
+        if (cacheCleanupInterval) {
+            clearInterval(cacheCleanupInterval);
+            cacheCleanupInterval = null;
+        }
+        
+        // Finaliza fila de mensagens
+        await messageQueue.shutdown();
+        console.log('✅ MessageQueue finalizado');
+        
+        // Finaliza otimizador
+        await performanceOptimizer.shutdown();
+        console.log('✅ Performance optimizer finalizado');
+        
+        clearTimeout(shutdownTimeout);
+        console.log('✅ Desligamento concluído');
+        process.exit(0);
     } catch (error) {
-        console.error('Erro ao desconectar sub-bots:', error.message);
+        console.error('❌ Erro durante desligamento:', error.message);
+        clearTimeout(shutdownTimeout);
+        process.exit(1);
     }
-    
-    // Limpa recursos
-    if (cacheCleanupInterval) {
-        clearInterval(cacheCleanupInterval);
-    }
-    
-    await messageQueue.shutdown();
-    await performanceOptimizer.shutdown();
-    
-    process.exit(0);
-});
+}
 
-process.on('SIGINT', async () => {
-    console.log('📡 SIGINT recebido, parando bot graciosamente...');
-    
-    // Desconecta sub-bots
-    try {
-        const subBotManagerModule = await import('./utils/subBotManager.js');
-        const subBotManager = subBotManagerModule.default ?? subBotManagerModule;
-        await subBotManager.disconnectAllSubBots();
-    } catch (error) {
-        console.error('Erro ao desconectar sub-bots:', error.message);
-    }
-    
-    // Limpa recursos
-    if (cacheCleanupInterval) {
-        clearInterval(cacheCleanupInterval);
-    }
-    
-    await messageQueue.shutdown();
-    await performanceOptimizer.shutdown();
-    
-    process.exit(0);
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 process.on('uncaughtException', async (error) => {
     console.error('🚨 Erro não capturado:', error.message);
