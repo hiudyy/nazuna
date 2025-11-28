@@ -6,6 +6,7 @@ import pino from 'pino';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import axios from 'axios';
 import { buildUserId, getLidFromJidCached, getUserName } from './helpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,6 +15,25 @@ const __dirname = path.dirname(__filename);
 const SUBBOTS_FILE = path.join(__dirname, '../../database/subbots.json');
 const SUBBOTS_DIR = path.join(__dirname, '../../database/subbots');
 const BASE_DATABASE_DIR = path.join(__dirname, '../../database');
+
+/**
+ * Busca a versão do Baileys diretamente do JSON do GitHub
+ * @returns {Promise<{version: number[]}>}
+ */
+async function fetchBaileysVersionFromGitHub() {
+    try {
+        const response = await axios.get('https://raw.githubusercontent.com/WhiskeySockets/Baileys/refs/heads/master/src/Defaults/baileys-version.json', {
+            timeout: 10000
+        });
+        return {
+            version: response.data.version
+        };
+    } catch (error) {
+        console.error('❌ Erro ao buscar versão do Baileys do GitHub, usando função fetchLatestBaileysVersion como fallback:', error.message);
+        // Fallback para função original caso falhe
+        return await fetchLatestBaileysVersion();
+    }
+}
 
 // Instâncias ativas de sub-bots
 const activeSubBots = new Map();
@@ -130,14 +150,14 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber, generatePairing
         const { config, dirs } = createSubBotConfig(botId, phoneNumber, ownerNumber);
         
         const { state, saveCreds } = await useMultiFileAuthState(dirs.authDir, makeCacheableSignalKeyStore);
-        const { version } = await fetchLatestBaileysVersion();
+        const { version } = await fetchBaileysVersionFromGitHub();
 
         const msgRetryCounterCache = new NodeCache();
 
         const sock = makeWASocket({
             version,
             logger,
-            browser: ['Ubuntu', 'Edge', '141.0.3537.99'],
+            browser: ['Mac OS', 'Safari', '18.6'],
             emitOwnEvents: true,
             fireInitQueries: true,
             generateHighQualityLinkPreview: true,

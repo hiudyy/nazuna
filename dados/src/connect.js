@@ -11,6 +11,7 @@ import { readFile } from 'fs/promises';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
+import axios from 'axios';
 
 import PerformanceOptimizer from './utils/performanceOptimizer.js';
 import RentalExpirationManager from './utils/rentalExpirationManager.js';
@@ -19,6 +20,25 @@ import { buildUserId } from './utils/helpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+/**
+ * Busca a versão do Baileys diretamente do JSON do GitHub
+ * @returns {Promise<{version: number[]}>}
+ */
+async function fetchBaileysVersionFromGitHub() {
+    try {
+        const response = await axios.get('https://raw.githubusercontent.com/WhiskeySockets/Baileys/refs/heads/master/src/Defaults/baileys-version.json', {
+            timeout: 10000
+        });
+        return {
+            version: response.data.version
+        };
+    } catch (error) {
+        console.error('❌ Erro ao buscar versão do Baileys do GitHub, usando função fetchLatestBaileysVersion como fallback:', error.message);
+        // Fallback para função original caso falhe
+        return await fetchLatestBaileysVersion();
+    }
+}
 
 class MessageQueue {
     constructor(maxWorkers = 4, batchSize = 10, messagesPerBatch = 2) {
@@ -910,10 +930,7 @@ async function createBotSocket(authDir) {
             saveCreds,
             signalRepository
         } = await useMultiFileAuthState(authDir, makeCacheableSignalKeyStore);
-        const {
-            version,
-            isLatest
-        } = await fetchLatestBaileysVersion();
+        const { version } = await fetchBaileysVersionFromGitHub();
         const NazunaSock = makeWASocket({
             version,
             emitOwnEvents: true,
@@ -926,7 +943,7 @@ async function createBotSocket(authDir) {
             qrTimeout: 180000,
             keepAliveIntervalMs: 30_000,
             defaultQueryTimeoutMs: undefined,
-            browser: ['Ubuntu', 'Edge', '141.0.3537.99'],
+            browser: ['Mac OS', 'Safari', '18.6'],
             msgRetryCounterCache,
             auth: state,
             signalRepository,
