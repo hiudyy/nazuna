@@ -34,7 +34,6 @@ ${middleBorder}${menuItemIcon}${prefix}setcmdmsg
 ${middleBorder}${menuItemIcon}${prefix}fotobot
 ${middleBorder}${menuItemIcon}${prefix}fotomenu
 ${middleBorder}${menuItemIcon}${prefix}videomenu
-${middleBorder}${menuItemIcon}${prefix}botoes
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${menuDesignMenuTitle}*
