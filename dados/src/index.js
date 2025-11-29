@@ -12828,6 +12828,73 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         }
         break;
+      case 'cpf':
+        try {
+          if (!q) return reply(`🔍 *CONSULTA DE CPF*\n\n📝 *Como usar:*\n• Digite o CPF após o comando\n• Exemplo: ${prefix}cpf 12345678900\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços`);
+          const cpf = q.replace(/\D/g, '');
+          if (cpf.length !== 11) return reply(`❌ *CPF inválido!*\n\n📝 O CPF deve conter exatamente 11 dígitos.\n💡 Exemplo: ${prefix}cpf 12345678900`);
+          await reply('🔍 *Consultando CPF...*\n⏳ Aguarde um momento...');
+          const response = await axios.get(`http://api.buscas.black.com.cognima.com.br/api/cpf?cpf=${cpf}`, { timeout: 30000 });
+          if (response.data.success && response.data.link) {
+            const shortLink = await axios.get(`https://tinyurl.com/api-create.php?url=${response.data.link}`);
+            await reply(`✅ *Consulta realizada com sucesso!*\n\n🔗 *Link do resultado:*\n${shortLink.data}\n\n📋 *Acesse o link acima para visualizar os dados completos.*`);
+          } else {
+            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CPF consultado.\n\n💡 *Possíveis motivos:*\n• CPF não cadastrado na base de dados\n• Dados não disponíveis no momento\n\n🔄 Tente novamente mais tarde.`);
+          }
+        } catch (e) {
+          console.error('Erro no comando cpf:', e);
+          if (e.response?.status === 404 || (e.response?.data && !e.response.data.success)) {
+            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CPF consultado.\n\n💡 *Possíveis motivos:*\n• CPF não cadastrado na base de dados\n• Dados não disponíveis no momento\n\n🔄 Tente novamente mais tarde.`);
+          } else {
+            await reply(`❌ *Erro ao consultar CPF*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+          }
+        }
+        break;
+      case 'nome':
+        try {
+          if (!q) return reply(`🔍 *CONSULTA DE NOME*\n\n📝 *Como usar:*\n• Digite o nome completo após o comando\n• Exemplo: ${prefix}nome João Silva Santos\n\n⚠️ *Dica:* Use o nome completo para melhores resultados`);
+          const nome = q.trim();
+          if (nome.length < 3) return reply(`❌ *Nome muito curto!*\n\n📝 O nome deve conter pelo menos 3 caracteres.\n💡 Exemplo: ${prefix}nome João Silva`);
+          await reply('🔍 *Consultando nome...*\n⏳ Aguarde um momento...');
+          const response = await axios.get(`http://api.buscas.black.com.cognima.com.br/api/nome?nome=${encodeURIComponent(nome)}`, { timeout: 30000 });
+          if (response.data.success && response.data.link) {
+            const shortLink = await axios.get(`https://tinyurl.com/api-create.php?url=${response.data.link}`);
+            await reply(`✅ *Consulta realizada com sucesso!*\n\n👤 *Nome consultado:* ${nome}\n🔗 *Link do resultado:*\n${shortLink.data}\n\n📋 *Acesse o link acima para visualizar os dados completos.*`);
+          } else {
+            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o nome consultado.\n\n💡 *Possíveis motivos:*\n• Nome não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Nome digitado incorretamente\n\n🔄 Tente verificar a grafia e tentar novamente.`);
+          }
+        } catch (e) {
+          console.error('Erro no comando nome:', e);
+          if (e.response?.status === 404 || (e.response?.data && !e.response.data.success)) {
+            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o nome consultado.\n\n💡 *Possíveis motivos:*\n• Nome não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Nome digitado incorretamente\n\n🔄 Tente verificar a grafia e tentar novamente.`);
+          } else {
+            await reply(`❌ *Erro ao consultar nome*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+          }
+        }
+        break;
+      case 'telefone':
+      case 'tel':
+        try {
+          if (!q) return reply(`🔍 *CONSULTA DE TELEFONE*\n\n📝 *Como usar:*\n• Digite o telefone após o comando\n• Exemplo: ${prefix}telefone 11987654321\n\n⚠️ *Formato:* DDD + número com o 9 da operadora\n💡 Exemplo: 11987654321 (11 = DDD, 9 = operadora, 87654321 = número)`);
+          const telefone = q.replace(/\D/g, '');
+          if (telefone.length < 10 || telefone.length > 11) return reply(`❌ *Telefone inválido!*\n\n📝 O telefone deve conter 10 ou 11 dígitos (com DDD e o 9 da operadora).\n💡 Exemplo: ${prefix}telefone 11987654321\n\n📋 *Formato esperado:*\n• DDD (2 dígitos)\n• 9 (operadora)\n• Número (8 dígitos)`);
+          await reply('🔍 *Consultando telefone...*\n⏳ Aguarde um momento...');
+          const response = await axios.get(`http://api.buscas.black.com.cognima.com.br/api/telefone?telefone=${telefone}`, { timeout: 30000 });
+          if (response.data.success && response.data.link) {
+            const shortLink = await axios.get(`https://tinyurl.com/api-create.php?url=${response.data.link}`);
+            await reply(`✅ *Consulta realizada com sucesso!*\n\n📱 *Telefone consultado:* ${telefone}\n🔗 *Link do resultado:*\n${shortLink.data}\n\n📋 *Acesse o link acima para visualizar os dados completos.*`);
+          } else {
+            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o telefone consultado.\n\n💡 *Possíveis motivos:*\n• Telefone não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Número digitado incorretamente\n\n🔄 Verifique o número e tente novamente.`);
+          }
+        } catch (e) {
+          console.error('Erro no comando telefone:', e);
+          if (e.response?.status === 404 || (e.response?.data && !e.response.data.success)) {
+            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o telefone consultado.\n\n💡 *Possíveis motivos:*\n• Telefone não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Número digitado incorretamente\n\n🔄 Verifique o número e tente novamente.`);
+          } else {
+            await reply(`❌ *Erro ao consultar telefone*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+          }
+        }
+        break;
       case 'nick':
       case 'gerarnick':
       case 'nickgenerator':
