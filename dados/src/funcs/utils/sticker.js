@@ -58,7 +58,7 @@ async function convertToWebp(mediaBuffer, isVideo = false, forceSquare = false) 
 
   const vfBase = forceSquare
     ? "scale=320:320"
-    : "scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2:color=0x00000000";
+    : "scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=rgba";
 
   const filters = isVideo ? `${vfBase},fps=15` : vfBase;
 
