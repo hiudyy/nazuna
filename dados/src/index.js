@@ -14441,7 +14441,7 @@ case 'ytmp3':
           if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
           if (!q && !isImage && !isVideo && !isQuotedImage && !isQuotedVideo) return reply('Digite uma mensagem ou marque uma imagem/vídeo! Exemplo: ' + prefix + 'tm Olá a todos!');
           
-          const cabecalho = `╔═════════════════════════╗\n║  📡 *TRANSMISSÃO DA BOT* 📡\n╚═════════════════════════╝\n\n`;
+          const cabecalho = `╔══════════════════════\n║  📡 *TRANSMISSÃO DA BOT* 📡\n╚══════════════════════\n\n`;
           const genSuffix = () => Math.floor(100 + Math.random() * 900).toString();
           
           let baseMessage = {};
