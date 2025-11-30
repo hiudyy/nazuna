@@ -16050,11 +16050,8 @@ ${prefix}togglecmdvip premium_ia off`);
           const mentionedJids = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
           let targetUser = sender;
           
-          // Se mencionou alguém, verifica se é admin
+          // Se mencionou alguém, usa o mencionado
           if (mentionedJids.length > 0) {
-            if (!isGroupAdmin) {
-              return reply("Apenas administradores podem marcar outros usuários.");
-            }
             targetUser = mentionedJids[0];
           }
           
@@ -16063,43 +16060,45 @@ ${prefix}togglecmdvip premium_ia off`);
             return reply("Este usuário não está no grupo.");
           }
           
-          // Inicializa o array de checkativos se não existir
-          if (!groupData.checkativos || !Array.isArray(groupData.checkativos)) {
-            groupData.checkativos = [];
-          }
-          
-          // Verifica se o usuário já está marcado
-          const userIndex = groupData.checkativos.findIndex(u => u.id === targetUser);
+          // Busca os dados do usuário no contador
+          const userData = (groupData.contador || []).find(u => u.id === targetUser);
           const userName = getUserName(targetUser);
           
-          if (userIndex !== -1) {
-            // Remove a marcação
-            groupData.checkativos.splice(userIndex, 1);
-            writeJsonFile(groupFile, groupData);
-            if (isGroup) {
-              optimizer.invalidateGroup(from);
-            }
-            await reply(`✅ Usuário @${userName} removido da lista de verificação de atividade.`, {
-              mentions: [targetUser]
-            });
-          } else {
-            // Adiciona a marcação
-            groupData.checkativos.push({
-              id: targetUser,
-              markedAt: new Date().toISOString(),
-              markedBy: sender
-            });
-            writeJsonFile(groupFile, groupData);
-            if (isGroup) {
-              optimizer.invalidateGroup(from);
-            }
-            await reply(`✅ Usuário @${userName} marcado para verificação de atividade.`, {
+          if (!userData) {
+            return reply(`📊 *Atividade de @${userName}*\n\nNenhum dado encontrado no contador deste grupo.`, {
               mentions: [targetUser]
             });
           }
+          
+          const messages = userData.msg || 0;
+          const commands = userData.cmd || 0;
+          const stickers = userData.figu || 0;
+          const total = messages + commands + stickers;
+          
+          const lastActivity = userData.lastActivity 
+            ? new Date(userData.lastActivity).toLocaleString('pt-BR', {
+                timeZone: 'America/Sao_Paulo',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })
+            : 'N/A';
+          
+          const checkMessage = `📊 *Atividade de @${userName}*\n\n` +
+            `💬 *Mensagens:* ${messages}\n` +
+            `⚒️ *Comandos:* ${commands}\n` +
+            `🎨 *Figurinhas:* ${stickers}\n` +
+            `📈 *Total:* ${total}\n` +
+            `🕐 *Última atividade:* ${lastActivity}`;
+          
+          await reply(checkMessage, {
+            mentions: [targetUser]
+          });
         } catch (e) {
           console.error('[CHECKATIVO] Erro:', e);
-          await reply("❌ Ocorreu um erro ao marcar usuário. Tente novamente.");
+          await reply("❌ Ocorreu um erro ao verificar a atividade. Tente novamente.");
         }
         break;
       case 'atividade':
@@ -16132,9 +16131,6 @@ ${prefix}togglecmdvip premium_ia off`);
             return totalB - totalA;
           });
           
-          // Pega usuários marcados para verificação
-          const checkativos = (groupData.checkativos || []).map(u => u.id);
-          
           // Monta a mensagem
           let activityMessage = `📊 *Atividade do Grupo*\n\n`;
           activityMessage += `👥 *Total de usuários:* ${sortedUsers.length}\n\n`;
@@ -16144,20 +16140,13 @@ ${prefix}togglecmdvip premium_ia off`);
           sortedUsers.forEach((user, index) => {
             if (user && user.id) {
               const total = (user.msg || 0) + (user.cmd || 0) + (user.figu || 0);
-              const isMarked = checkativos.includes(user.id);
-              const markIcon = isMarked ? ' ⚠️' : '';
               
-              activityMessage += `${index + 1}º @${getUserName(user.id)}${markIcon}\n`;
+              activityMessage += `${index + 1}º @${getUserName(user.id)}\n`;
               activityMessage += `   💬 Msg: ${user.msg || 0} | ⚒️ Cmd: ${user.cmd || 0} | 🎨 Fig: ${user.figu || 0} | 📈 Total: ${total}\n\n`;
               
               mentions.push(user.id);
             }
           });
-          
-          // Adiciona informações sobre usuários marcados
-          if (checkativos.length > 0) {
-            activityMessage += `\n⚠️ *Usuários marcados para verificação:* ${checkativos.length}`;
-          }
           
           await nazu.sendMessage(from, {
             text: activityMessage,
