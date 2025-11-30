@@ -53,6 +53,8 @@ ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}rankativo
 ${middleBorder}${menuItemIcon}${prefix}rankinativo
 ${middleBorder}${menuItemIcon}${prefix}rankativos
+${middleBorder}${menuItemIcon}${prefix}atividade
+${middleBorder}${menuItemIcon}${prefix}checkativo
 ${middleBorder}${menuItemIcon}${prefix}totalcmd
 ${middleBorder}${menuItemIcon}${prefix}topcmd
 ${bottomBorder}

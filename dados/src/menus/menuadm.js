@@ -30,6 +30,8 @@ ${middleBorder}${menuItemIcon}${prefix}rmadv
 ${middleBorder}${menuItemIcon}${prefix}listadv
 ${middleBorder}${menuItemIcon}${prefix}limparrank
 ${middleBorder}${menuItemIcon}${prefix}resetrank
+${middleBorder}${menuItemIcon}${prefix}atividade
+${middleBorder}${menuItemIcon}${prefix}checkativo
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *🔒 CONTROLE DE ACESSO*

@@ -16043,6 +16043,133 @@ ${prefix}togglecmdvip premium_ia off`);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         }
         break;
+      case 'checkativo':
+        try {
+          if (!isGroup) return reply("Este comando só funciona em grupos.");
+          
+          const mentionedJids = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+          let targetUser = sender;
+          
+          // Se mencionou alguém, verifica se é admin
+          if (mentionedJids.length > 0) {
+            if (!isGroupAdmin) {
+              return reply("Apenas administradores podem marcar outros usuários.");
+            }
+            targetUser = mentionedJids[0];
+          }
+          
+          // Verifica se o usuário está no grupo
+          if (!AllgroupMembers.includes(targetUser)) {
+            return reply("Este usuário não está no grupo.");
+          }
+          
+          // Inicializa o array de checkativos se não existir
+          if (!groupData.checkativos || !Array.isArray(groupData.checkativos)) {
+            groupData.checkativos = [];
+          }
+          
+          // Verifica se o usuário já está marcado
+          const userIndex = groupData.checkativos.findIndex(u => u.id === targetUser);
+          const userName = getUserName(targetUser);
+          
+          if (userIndex !== -1) {
+            // Remove a marcação
+            groupData.checkativos.splice(userIndex, 1);
+            writeJsonFile(groupFile, groupData);
+            if (isGroup) {
+              optimizer.invalidateGroup(from);
+            }
+            await reply(`✅ Usuário @${userName} removido da lista de verificação de atividade.`, {
+              mentions: [targetUser]
+            });
+          } else {
+            // Adiciona a marcação
+            groupData.checkativos.push({
+              id: targetUser,
+              markedAt: new Date().toISOString(),
+              markedBy: sender
+            });
+            writeJsonFile(groupFile, groupData);
+            if (isGroup) {
+              optimizer.invalidateGroup(from);
+            }
+            await reply(`✅ Usuário @${userName} marcado para verificação de atividade.`, {
+              mentions: [targetUser]
+            });
+          }
+        } catch (e) {
+          console.error('[CHECKATIVO] Erro:', e);
+          await reply("❌ Ocorreu um erro ao marcar usuário. Tente novamente.");
+        }
+        break;
+      case 'atividade':
+        try {
+          if (!isGroup) return reply("Este comando só funciona em grupos.");
+          
+          // Verifica membros atuais do grupo
+          const currentMembers = AllgroupMembers;
+          
+          // Filtra usuários que saíram do grupo
+          groupData.contador = (groupData.contador || []).filter(user => {
+            return user && user.id && currentMembers.includes(user.id);
+          });
+          
+          // Salva dados atualizados
+          writeJsonFile(groupFile, groupData);
+          if (isGroup) {
+            optimizer.invalidateGroup(from);
+          }
+          
+          // Verifica se há usuários no contador
+          if (!groupData.contador || groupData.contador.length === 0) {
+            return reply("📊 *Atividade do Grupo*\n\nNenhum usuário no contador ainda.");
+          }
+          
+          // Ordena por atividade total (mensagens + comandos + figurinhas)
+          const sortedUsers = [...groupData.contador].sort((a, b) => {
+            const totalA = (a.msg || 0) + (a.cmd || 0) + (a.figu || 0);
+            const totalB = (b.msg || 0) + (b.cmd || 0) + (b.figu || 0);
+            return totalB - totalA;
+          });
+          
+          // Pega usuários marcados para verificação
+          const checkativos = (groupData.checkativos || []).map(u => u.id);
+          
+          // Monta a mensagem
+          let activityMessage = `📊 *Atividade do Grupo*\n\n`;
+          activityMessage += `👥 *Total de usuários:* ${sortedUsers.length}\n\n`;
+          
+          // Lista todos os usuários com suas estatísticas
+          const mentions = [];
+          sortedUsers.forEach((user, index) => {
+            if (user && user.id) {
+              const total = (user.msg || 0) + (user.cmd || 0) + (user.figu || 0);
+              const isMarked = checkativos.includes(user.id);
+              const markIcon = isMarked ? ' ⚠️' : '';
+              
+              activityMessage += `${index + 1}º @${getUserName(user.id)}${markIcon}\n`;
+              activityMessage += `   💬 Msg: ${user.msg || 0} | ⚒️ Cmd: ${user.cmd || 0} | 🎨 Fig: ${user.figu || 0} | 📈 Total: ${total}\n\n`;
+              
+              mentions.push(user.id);
+            }
+          });
+          
+          // Adiciona informações sobre usuários marcados
+          if (checkativos.length > 0) {
+            activityMessage += `\n⚠️ *Usuários marcados para verificação:* ${checkativos.length}`;
+          }
+          
+          await nazu.sendMessage(from, {
+            text: activityMessage,
+            mentions: mentions
+          }, {
+            quoted: info
+          });
+        } catch (e) {
+          console.error('[ATIVIDADE] Erro:', e);
+          await reply("❌ Ocorreu um erro ao mostrar a atividade. Tente novamente.");
+        }
+        break;
       case 'totalcmd':
       case 'totalcomando':
         try {
