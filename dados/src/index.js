@@ -7543,7 +7543,7 @@ Entre em contato com o dono do bot:
             name: itemName,
             price: preco,
             seller: sender,
-            sellerName: pushName,
+            sellerName: pushname,
             created: Date.now()
           });
           
@@ -11725,10 +11725,10 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
             return reply('❌ Data inválida! Use o formato DD/MM');
           }
 
-          aniversarios[sender] = { dia, mes, nome: pushName };
+          aniversarios[sender] = { dia, mes, nome: pushname };
           fs.writeFileSync(aniversariosPath, JSON.stringify(aniversarios, null, 2));
           
-          return reply(`🎂 Aniversário definido!\n\n📅 *Data:* ${dia.toString().padStart(2, '0')}/${mes.toString().padStart(2, '0')}\n👤 *Nome:* ${pushName}`);
+          return reply(`🎂 Aniversário definido!\n\n📅 *Data:* ${dia.toString().padStart(2, '0')}/${mes.toString().padStart(2, '0')}\n👤 *Nome:* ${pushname}`);
         }
 
         // Listar aniversariantes do mês
