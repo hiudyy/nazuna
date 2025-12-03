@@ -11383,8 +11383,14 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
         if (!global.forcaGames) global.forcaGames = {};
         const forcaKey = isGroup ? from : sender;
 
+        // Mostrar dica
+        if (args[0] === 'dica' && global.forcaGames[forcaKey]) {
+          const game = global.forcaGames[forcaKey];
+          return reply(`${desenhoForca[game.erros]}\n\n🎯 *FORCA*\n\n📝 ${game.progresso.join(' ')}\n\n💡 *Dica:* ${game.dica}\n❌ Letras erradas: ${game.letrasErradas.join(', ') || 'Nenhuma'}\n⚠️ Erros: ${game.erros}/6\n\n💬 Chute com: ${prefix}forca [letra]\n🔤 Ou chute a palavra: ${prefix}forca [palavra]`);
+        }
+
         // Chutar letra ou palavra
-        if (global.forcaGames[forcaKey] && args.length > 0 && args[0] !== 'desistir') {
+        if (global.forcaGames[forcaKey] && args.length > 0 && args[0] !== 'desistir' && args[0] !== 'dica') {
           const game = global.forcaGames[forcaKey];
           const chute = normalizar(args.join('').toLowerCase());
           
@@ -11399,7 +11405,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
                 delete global.forcaGames[forcaKey];
                 return reply(`${desenhoForca[6]}\n\n💀 *GAME OVER!*\n\n❌ A palavra era: *${game.palavra.toUpperCase()}*`);
               }
-              return reply(`${desenhoForca[game.erros]}\n\n❌ Palavra errada! (+2 erros)\n\n📝 ${game.progresso.join(' ')}\n\n❌ Letras erradas: ${game.letrasErradas.join(', ') || 'Nenhuma'}\n⚠️ Erros: ${game.erros}/6`);
+              return reply(`${desenhoForca[game.erros]}\n\n❌ Palavra errada! (+2 erros)\n\n📝 ${game.progresso.join(' ')}\n\n❌ Letras erradas: ${game.letrasErradas.join(', ') || 'Nenhuma'}\n⚠️ Erros: ${game.erros}/6\n\n💡 Use ${prefix}forca dica para ver a dica`);
             }
           }
           
@@ -11407,7 +11413,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           const letra = chute[0];
           
           if (game.letrasCorretas.includes(letra) || game.letrasErradas.includes(letra)) {
-            return reply(`⚠️ Você já chutou a letra "${letra.toUpperCase()}"!\n\n📝 ${game.progresso.join(' ')}\n\n❌ Letras erradas: ${game.letrasErradas.join(', ') || 'Nenhuma'}`);
+            return reply(`⚠️ Você já chutou a letra "${letra.toUpperCase()}"!\n\n📝 ${game.progresso.join(' ')}\n\n❌ Letras erradas: ${game.letrasErradas.join(', ') || 'Nenhuma'}\n\n💡 Use ${prefix}forca dica para ver a dica`);
           }
           
           const palavraNorm = normalizar(game.palavra.toLowerCase());
@@ -11427,7 +11433,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
               return reply(`🎉 *PARABÉNS!*\n\n📝 ${game.progresso.join(' ')}\n\n✅ Vocês descobriram a palavra!\n🏆 *${game.palavra.toUpperCase()}*`);
             }
             
-            return reply(`${desenhoForca[game.erros]}\n\n✅ Letra "${letra.toUpperCase()}" correta!\n\n📝 ${game.progresso.join(' ')}\n\n💡 Dica: ${game.dica}\n❌ Letras erradas: ${game.letrasErradas.join(', ') || 'Nenhuma'}\n⚠️ Erros: ${game.erros}/6`);
+            return reply(`${desenhoForca[game.erros]}\n\n✅ Letra "${letra.toUpperCase()}" correta!\n\n📝 ${game.progresso.join(' ')}\n\n❌ Letras erradas: ${game.letrasErradas.join(', ') || 'Nenhuma'}\n⚠️ Erros: ${game.erros}/6\n\n💡 Use ${prefix}forca dica para ver a dica`);
           } else {
             game.letrasErradas.push(letra.toUpperCase());
             game.erros++;
@@ -11437,7 +11443,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
               return reply(`${desenhoForca[6]}\n\n💀 *GAME OVER!*\n\n❌ A palavra era: *${game.palavra.toUpperCase()}*`);
             }
             
-            return reply(`${desenhoForca[game.erros]}\n\n❌ Letra "${letra.toUpperCase()}" errada!\n\n📝 ${game.progresso.join(' ')}\n\n💡 Dica: ${game.dica}\n❌ Letras erradas: ${game.letrasErradas.join(', ')}\n⚠️ Erros: ${game.erros}/6`);
+            return reply(`${desenhoForca[game.erros]}\n\n❌ Letra "${letra.toUpperCase()}" errada!\n\n📝 ${game.progresso.join(' ')}\n\n❌ Letras erradas: ${game.letrasErradas.join(', ')}\n⚠️ Erros: ${game.erros}/6\n\n💡 Use ${prefix}forca dica para ver a dica`);
           }
         }
 
@@ -11451,7 +11457,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
         // Jogo ativo
         if (global.forcaGames[forcaKey] && args.length === 0) {
           const game = global.forcaGames[forcaKey];
-          return reply(`${desenhoForca[game.erros]}\n\n🎯 *FORCA*\n\n📝 ${game.progresso.join(' ')}\n\n💡 Dica: ${game.dica}\n❌ Letras erradas: ${game.letrasErradas.join(', ') || 'Nenhuma'}\n⚠️ Erros: ${game.erros}/6\n\n💬 Chute com: ${prefix}forca [letra]\n🔤 Ou chute a palavra: ${prefix}forca [palavra]`);
+          return reply(`${desenhoForca[game.erros]}\n\n🎯 *FORCA*\n\n📝 ${game.progresso.join(' ')}\n\n❌ Letras erradas: ${game.letrasErradas.join(', ') || 'Nenhuma'}\n⚠️ Erros: ${game.erros}/6\n\n💬 Chute com: ${prefix}forca [letra]\n🔤 Ou chute a palavra: ${prefix}forca [palavra]\n💡 Ver dica: ${prefix}forca dica\n🏳️ Desistir: ${prefix}forca desistir`);
         }
 
         // Novo jogo
@@ -11468,7 +11474,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           iniciado: Date.now()
         };
 
-        await reply(`${desenhoForca[0]}\n\n🎯 *FORCA - Novo Jogo!*\n\n📝 ${progresso.join(' ')}\n\n💡 Dica: ${escolhida.dica}\n\n💬 Chute uma letra: ${prefix}forca [letra]\n🔤 Ou chute a palavra: ${prefix}forca [palavra]\n🏳️ Desistir: ${prefix}forca desistir`);
+        await reply(`${desenhoForca[0]}\n\n🎯 *FORCA - Novo Jogo!*\n\n📝 ${progresso.join(' ')}\n\n💬 Chute uma letra: ${prefix}forca [letra]\n🔤 Ou chute a palavra: ${prefix}forca [palavra]\n💡 Ver dica: ${prefix}forca dica\n🏳️ Desistir: ${prefix}forca desistir`);
         break;
       }
 
