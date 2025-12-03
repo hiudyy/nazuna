@@ -207,6 +207,20 @@ const __dirname = pathz.dirname(__filename);
 const API_KEY_REQUIRED_MESSAGE = 'Este comando precisa de API key para funcionar. Meu dono já foi notificado! 😺';
 const OWNER_ONLY_MESSAGE = '🚫 Este comando é apenas para o dono do bot!';
 
+// Função para formatar respostas de IA para WhatsApp (converte ** para *)
+const formatAIResponse = (text) => {
+  if (!text || typeof text !== 'string') return text;
+  return text
+    .replace(/\*\*\*([^*]+)\*\*\*/g, '*$1*')  // ***text*** -> *text*
+    .replace(/\*\*([^*]+)\*\*/g, '*$1*')      // **text** -> *text*
+    .replace(/_{2,}([^_]+)_{2,}/g, '_$1_')    // __text__ -> _text_
+    .replace(/```[\s\S]*?```/g, '')           // Remove blocos de código
+    .replace(/`([^`]+)`/g, '$1')              // Remove inline code
+    .replace(/^#{1,6}\s+/gm, '')              // Remove headers markdown
+    .replace(/\n{3,}/g, '\n\n')               // Limita quebras de linha
+    .trim();
+};
+
 const writeJsonFile = (filePath, data) => {
   try {
     // Validação de entrada
@@ -10423,7 +10437,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Gemma... ✨`).then(() => {
           ia.makeCognimaRequest('google/gemma-7b', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Gemma:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10444,7 +10458,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Phi... ✨`).then(() => {
           ia.makeCognimaRequest('microsoft/phi-3-medium-4k-instruct', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Phi:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10464,7 +10478,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Qwen2... ✨`).then(() => {
           ia.makeCognimaRequest('qwen/qwen2-7b-instruct', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Qwen2:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10485,7 +10499,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Qwen... ✨`).then(() => {
           ia.makeCognimaRequest('qwen/qwen3-235b-a22b', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Qwen:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10506,7 +10520,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Llama... ✨`).then(() => {
           ia.makeCognimaRequest('abacusai/dracarys-llama-3.1-70b-instruct', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Llama:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10527,7 +10541,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Baichuan... ✨`).then(() => {
           ia.makeCognimaRequest('baichuan-inc/baichuan2-13b-chat', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Baichuan:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10547,7 +10561,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Marin... ✨`).then(() => {
           ia.makeCognimaRequest('marin/marin-8b-instruct', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Marin:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10568,7 +10582,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Kimi... ✨`).then(() => {
           ia.makeCognimaRequest('moonshotai/kimi-k2-instruct', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Kimi:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10588,7 +10602,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Mistral... ✨`).then(() => {
           ia.makeCognimaRequest('mistralai/mistral-small-24b-instruct', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Mistral:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10608,7 +10622,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Magistral... ✨`).then(() => {
           ia.makeCognimaRequest('mistralai/magistral-small-2506', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Magistral:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10629,7 +10643,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o RakutenAI... ✨`).then(() => {
           ia.makeCognimaRequest('rakuten/rakutenai-7b-instruct', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API RakutenAI:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10649,7 +10663,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Yi... ✨`).then(() => {
           ia.makeCognimaRequest('01-ai/yi-large', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Yi:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10669,7 +10683,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Gemma2... ✨`).then(() => {
           ia.makeCognimaRequest('google/gemma-2-27b-it', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Gemma2:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10689,7 +10703,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Swallow... ✨`).then(() => {
           ia.makeCognimaRequest('qwen/qwen3-235b-a22b', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Swallow:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10709,7 +10723,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Falcon... ✨`).then(() => {
           ia.makeCognimaRequest('tiiuae/falcon3-7b-instruct', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Falcon:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10729,7 +10743,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o Qwencoder... ✨`).then(() => {
           ia.makeCognimaRequest('qwen/qwen2.5-coder-32b-instruct', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Qwencoder:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10749,7 +10763,7 @@ Entre em contato com o dono do bot:
         }
         reply(`⏳ Só um segundinho, estou consultando o CodeGemma... ✨`).then(() => {
           ia.makeCognimaRequest('google/codegemma-7b', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API CodeGemma:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10770,7 +10784,7 @@ Entre em contato com o dono do bot:
         reply('⏳ Aguarde enquanto preparo um resumo bem caprichado... ✨').then(() => {
           const prompt = `Resuma o seguinte texto em poucos parágrafos, de forma clara e objetiva, destacando as informações mais importantes:\n\n${q}`;
           ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro ao resumir texto:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10807,7 +10821,7 @@ Entre em contato com o dono do bot:
             }
             const prompt = `Resuma o seguinte conteúdo extraído de uma página web em poucos parágrafos, de forma clara e objetiva, destacando os pontos principais:\n\n${cleanText.substring(0, 5000)}`;
             ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((iaResponse) => {
-              reply(iaResponse.data.choices[0].message.content);
+              reply(formatAIResponse(iaResponse.data.choices[0].message.content));
             }).catch((e) => {
               console.error('Erro ao resumir URL (IA):', e.message);
               if (e.message && e.message.includes('API key inválida')) {
@@ -10839,7 +10853,7 @@ Entre em contato com o dono do bot:
         reply('⏳ Um segundinho, estou pensando em ideias incríveis... ✨').then(() => {
           const prompt = `Gere 15 ideias criativas e detalhadas para o seguinte tema: ${q}`;
           ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro ao gerar ideias:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10861,7 +10875,7 @@ Entre em contato com o dono do bot:
         reply('⏳ Um momentinho, estou preparando uma explicação bem clara... ✨').then(() => {
           const prompt = `Explique o seguinte conceito de forma simples e clara, como se fosse para alguém sem conhecimento prévio: ${q}`;
           ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro ao explicar conceito:', e);
             if (e.message && e.message.includes('API key inválida')) {
@@ -10883,7 +10897,7 @@ Entre em contato com o dono do bot:
         reply('⏳ Aguarde enquanto dou um polimento no seu texto... ✨').then(() => {
           const prompt = `Corrija os erros gramaticais, ortográficos e de estilo no seguinte texto, mantendo o significado original: ${q}`;
           ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro ao corrigir texto:', e);
             reply('😓 Ops, não consegui corrigir o texto agora! Tente novamente, tá? 🌟');
@@ -10978,7 +10992,7 @@ ${conversaTexto.substring(0, 8000)}
 Faça um resumo conciso mas completo, destacando o que é mais relevante.`;
 
           const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog);
-          await reply(`💬 *Resumo da Conversa* (${mensagensGrupo.length} mensagens)\n\n${response.data.choices[0].message.content}`);
+          await reply(`💬 *Resumo da Conversa* (${mensagensGrupo.length} mensagens)\n\n${formatAIResponse(response.data.choices[0].message.content)}`);
         } catch (e) {
           console.error('Erro ao resumir conversa:', e);
           if (e.message?.includes('API key inválida')) {
@@ -11044,7 +11058,7 @@ Faça um resumo conciso mas completo, destacando o que é mais relevante.`;
 Seja criativo e original. Não use clichês. A história deve ser envolvente do início ao fim.`;
 
           const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog);
-          await reply(`📖✨ *Sua História*\n\n${response.data.choices[0].message.content}`);
+          await reply(`📖✨ *Sua História*\n\n${formatAIResponse(response.data.choices[0].message.content)}`);
         } catch (e) {
           console.error('Erro ao gerar história:', e);
           if (e.message?.includes('API key inválida')) {
@@ -11109,7 +11123,7 @@ Para cada recomendação, forneça:
 Seja específico e recomende opções variadas (populares e menos conhecidas). Formate de forma clara e organizada.`;
 
           const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog);
-          await reply(`${tipoInfo.emoji} *Recomendações de ${tipoInfo.nome.charAt(0).toUpperCase() + tipoInfo.nome.slice(1)}*\n\n${response.data.choices[0].message.content}`);
+          await reply(`${tipoInfo.emoji} *Recomendações de ${tipoInfo.nome.charAt(0).toUpperCase() + tipoInfo.nome.slice(1)}*\n\n${formatAIResponse(response.data.choices[0].message.content)}`);
         } catch (e) {
           console.error('Erro ao gerar recomendações:', e);
           if (e.message?.includes('API key inválida')) {
@@ -11832,7 +11846,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
         }
         reply('⏳ Um momentinho, estou pensando na melhor resposta... 🌟').then(() => {
           ia.makeCognimaRequest('cognima/CognimAI', q, null, KeyCog || null).then((response) => {
-            reply(response.data.choices[0].message.content);
+            reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API CognimAI:', e);
             reply('😓 Vixe, algo deu errado por aqui! Tente novamente em breve, combinado? 🌈');
@@ -11858,7 +11872,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           reply('Aguarde um momentinho... ☀️').then(() => {
             const prompt = `Traduza o seguinte texto para ${idioma}:\n\n${texto}\n\nForneça apenas a tradução, sem explicações adicionais.`;
             ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((bahz) => {
-              reply(`🌐✨ *Prontinho! Sua tradução para ${idioma.toUpperCase()} está aqui:*\n\n${bahz.data.choices[0].message.content}`);
+              reply(`🌐✨ *Prontinho! Sua tradução para ${idioma.toUpperCase()} está aqui:*\n\n${formatAIResponse(bahz.data.choices[0].message.content)}`);
             }).catch((e) => {
               console.error("Erro ao traduzir texto:", e);
               reply("❌ Não foi possível realizar a tradução no momento. Tente novamente mais tarde.");
@@ -12001,7 +12015,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             console.log("API primária do dicionário falhou, tentando IA...");
             const prompt = `Defina a palavra "${palavra}" em português de forma completa e fofa. Inclua a classe gramatical, os principais significados e um exemplo de uso em uma frase curta e bonitinha.`;
             ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((bahz) => {
-              reply(`${bahz.data.choices[0].message.content}`);
+              reply(formatAIResponse(bahz.data.choices[0].message.content));
             }).catch((e) => {
               console.error("Erro geral ao buscar no dicionário:", e);
               reply("❌ Palavra não encontrada. Verifique a ortografia e tente novamente.");
