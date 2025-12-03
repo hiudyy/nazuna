@@ -69,16 +69,3 @@ ${middleBorder}${menuItemIcon}${prefix}statsgrupo
 ${bottomBorder}
 `;
 }
-${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}dicionario
-${middleBorder}${menuItemIcon}${prefix}tradutor
-${bottomBorder}
-
-${menuTopBorder}${separatorIcon} *${reminderMenuTitle}*
-${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}lembrete
-${middleBorder}${menuItemIcon}${prefix}meuslembretes
-${middleBorder}${menuItemIcon}${prefix}apagalembrete
-${bottomBorder}
-`;
-}
