@@ -7042,6 +7042,574 @@ Entre em contato com o dono do bot:
         break;
       }
 
+      // ═══════════════════════════════════════════════════════════════
+      // ⚔️ SISTEMA DE CLASSES/PROFISSÕES
+      // ═══════════════════════════════════════════════════════════════
+      case 'classe':
+      case 'class':
+      case 'profissao': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+
+        const classes = {
+          'guerreiro': { emoji: '⚔️', name: 'Guerreiro', bonus: { attack: 20, defense: 10 }, skill: 'Fúria', skillDesc: '+30% dano em duelos' },
+          'mago': { emoji: '🧙', name: 'Mago', bonus: { attack: 15, mana: 30 }, skill: 'Arcano', skillDesc: '+25% ganho em mineração mágica' },
+          'arqueiro': { emoji: '🏹', name: 'Arqueiro', bonus: { attack: 18, speed: 15 }, skill: 'Precisão', skillDesc: '+20% chance de crítico' },
+          'curandeiro': { emoji: '💚', name: 'Curandeiro', bonus: { defense: 15, healing: 25 }, skill: 'Cura', skillDesc: 'Cura 20% HP após batalhas' },
+          'ladino': { emoji: '🗡️', name: 'Ladino', bonus: { attack: 12, luck: 20 }, skill: 'Roubo', skillDesc: '+15% ganho em crimes' },
+          'paladino': { emoji: '🛡️', name: 'Paladino', bonus: { defense: 25, attack: 10 }, skill: 'Proteção', skillDesc: '-20% dano recebido' }
+        };
+
+        if (!q) {
+          let text = `╭━━━⊱ ⚔️ *CLASSES* ⊱━━━╮\n`;
+          text += `│ Sua classe: ${me.classe ? `${classes[me.classe]?.emoji} ${classes[me.classe]?.name}` : '❌ Nenhuma'}\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `📜 *CLASSES DISPONÍVEIS:*\n\n`;
+          
+          for (const [id, data] of Object.entries(classes)) {
+            text += `${data.emoji} *${data.name}*\n`;
+            text += `   ⚔️ ATK +${data.bonus.attack || 0} | 🛡️ DEF +${data.bonus.defense || 0}\n`;
+            text += `   ✨ ${data.skill}: ${data.skillDesc}\n\n`;
+          }
+          
+          text += `💡 Use: ${prefix}classe <nome>\n`;
+          text += `⚠️ Custo: 50.000 (trocar classe)`;
+          
+          return reply(text);
+        }
+
+        const classeEscolhida = q.toLowerCase().trim();
+        
+        if (!classes[classeEscolhida]) {
+          return reply(`❌ Classe "${q}" não existe!\n\n📜 Classes: guerreiro, mago, arqueiro, curandeiro, ladino, paladino`);
+        }
+
+        // Custo para trocar classe (grátis se não tiver nenhuma)
+        const custo = me.classe ? 50000 : 0;
+        if (me.wallet < custo) {
+          return reply(`💰 Você precisa de ${custo.toLocaleString()} para trocar de classe!`);
+        }
+
+        me.wallet -= custo;
+        me.classe = classeEscolhida;
+        me.classeBonuses = classes[classeEscolhida].bonus;
+        
+        const classData = classes[classeEscolhida];
+        
+        saveEconomy(econ);
+        return reply(`╭━━━⊱ ✨ *CLASSE ESCOLHIDA* ⊱━━━╮\n\n${classData.emoji} Você agora é um *${classData.name}*!\n\n📊 *Bônus:*\n⚔️ ATK +${classData.bonus.attack || 0}\n🛡️ DEF +${classData.bonus.defense || 0}\n\n✨ *Habilidade:* ${classData.skill}\n${classData.skillDesc}\n\n╰━━━━━━━━━━━━━━━━━━━━╯`);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🏠 SISTEMA DE HOUSING (CASAS)
+      // ═══════════════════════════════════════════════════════════════
+      case 'casa':
+      case 'house':
+      case 'lar': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+
+        const casas = {
+          'barraca': { emoji: '⛺', name: 'Barraca', price: 5000, bonus: { storage: 10, regen: 1 }, renda: 100 },
+          'cabana': { emoji: '🏚️', name: 'Cabana de Madeira', price: 25000, bonus: { storage: 25, regen: 2 }, renda: 500 },
+          'casa': { emoji: '🏠', name: 'Casa Simples', price: 100000, bonus: { storage: 50, regen: 3 }, renda: 2000 },
+          'mansao': { emoji: '🏰', name: 'Mansão', price: 500000, bonus: { storage: 100, regen: 5 }, renda: 10000 },
+          'castelo': { emoji: '🏯', name: 'Castelo', price: 2000000, bonus: { storage: 200, regen: 10 }, renda: 50000 }
+        };
+
+        const decoracoes = {
+          'altar': { emoji: '⛩️', name: 'Altar Místico', price: 10000, bonus: 'xp', value: 10 },
+          'bau': { emoji: '📦', name: 'Baú Reforçado', price: 15000, bonus: 'storage', value: 20 },
+          'jardim': { emoji: '🌸', name: 'Jardim Encantado', price: 20000, bonus: 'regen', value: 2 },
+          'forja': { emoji: '🔥', name: 'Forja Caseira', price: 30000, bonus: 'craft', value: 15 },
+          'biblioteca': { emoji: '📚', name: 'Biblioteca', price: 25000, bonus: 'xp', value: 15 }
+        };
+
+        if (!me.house) {
+          me.house = { type: null, decorations: [], lastCollect: 0 };
+        }
+
+        const sub = args[0]?.toLowerCase();
+
+        // Ver informações da casa
+        if (!sub || sub === 'ver') {
+          let text = `╭━━━⊱ 🏠 *SUA CASA* ⊱━━━╮\n\n`;
+          
+          if (me.house.type) {
+            const casa = casas[me.house.type];
+            text += `${casa.emoji} *${casa.name}*\n\n`;
+            text += `📦 Armazenamento: +${casa.bonus.storage}\n`;
+            text += `💚 Regeneração: +${casa.bonus.regen}/h\n`;
+            text += `💰 Renda passiva: ${casa.renda}/dia\n\n`;
+            
+            if (me.house.decorations.length > 0) {
+              text += `🎨 *Decorações:*\n`;
+              me.house.decorations.forEach(d => {
+                const dec = decoracoes[d];
+                if (dec) text += `• ${dec.emoji} ${dec.name}\n`;
+              });
+            }
+            
+            text += `\n💡 *Comandos:*\n`;
+            text += `• ${prefix}casa coletar - Coletar renda\n`;
+            text += `• ${prefix}casa decorar <item>\n`;
+            text += `• ${prefix}casa upgrade`;
+          } else {
+            text += `❌ Você não tem uma casa!\n\n`;
+            text += `🏘️ *CASAS DISPONÍVEIS:*\n\n`;
+            for (const [id, data] of Object.entries(casas)) {
+              text += `${data.emoji} *${data.name}*\n`;
+              text += `   💰 ${data.price.toLocaleString()} | 📦 +${data.bonus.storage}\n\n`;
+            }
+            text += `💡 Use: ${prefix}casa comprar <tipo>`;
+          }
+          
+          return reply(text);
+        }
+
+        // Comprar casa
+        if (sub === 'comprar') {
+          const tipo = args[1]?.toLowerCase();
+          if (!tipo || !casas[tipo]) {
+            return reply(`❌ Tipo inválido!\n\n🏘️ Tipos: barraca, cabana, casa, mansao, castelo`);
+          }
+          
+          const casa = casas[tipo];
+          if (me.wallet < casa.price) {
+            return reply(`💰 Você precisa de ${casa.price.toLocaleString()} para comprar ${casa.name}!`);
+          }
+          
+          me.wallet -= casa.price;
+          me.house.type = tipo;
+          me.house.lastCollect = Date.now();
+          
+          saveEconomy(econ);
+          return reply(`╭━━━⊱ 🎉 *CASA COMPRADA* ⊱━━━╮\n\n${casa.emoji} Você comprou uma *${casa.name}*!\n\n📦 Armazenamento: +${casa.bonus.storage}\n💰 Renda: ${casa.renda}/dia\n\n╰━━━━━━━━━━━━━━━━━━━━╯`);
+        }
+
+        // Coletar renda
+        if (sub === 'coletar') {
+          if (!me.house.type) return reply('❌ Você não tem uma casa!');
+          
+          const casa = casas[me.house.type];
+          const agora = Date.now();
+          const tempoPassado = agora - me.house.lastCollect;
+          const diasPassados = Math.floor(tempoPassado / 86400000);
+          
+          if (diasPassados < 1) {
+            const tempoRestante = 86400000 - tempoPassado;
+            const horas = Math.floor(tempoRestante / 3600000);
+            const minutos = Math.floor((tempoRestante % 3600000) / 60000);
+            return reply(`⏰ Próxima coleta em: ${horas}h ${minutos}min`);
+          }
+          
+          const rendaTotal = Math.min(diasPassados, 7) * casa.renda; // Máximo 7 dias acumulados
+          me.wallet += rendaTotal;
+          me.house.lastCollect = agora;
+          
+          saveEconomy(econ);
+          return reply(`💰 *RENDA COLETADA*\n\n${casa.emoji} ${casa.name}\n💵 +${rendaTotal.toLocaleString()} (${Math.min(diasPassados, 7)} dias)`);
+        }
+
+        // Decorar
+        if (sub === 'decorar') {
+          if (!me.house.type) return reply('❌ Você não tem uma casa!');
+          
+          const decId = args[1]?.toLowerCase();
+          if (!decId) {
+            let text = `🎨 *DECORAÇÕES DISPONÍVEIS*\n\n`;
+            for (const [id, data] of Object.entries(decoracoes)) {
+              const owned = me.house.decorations.includes(id) ? '✅' : '';
+              text += `${data.emoji} *${data.name}* ${owned}\n`;
+              text += `   💰 ${data.price.toLocaleString()} | +${data.value} ${data.bonus}\n\n`;
+            }
+            text += `💡 Use: ${prefix}casa decorar <nome>`;
+            return reply(text);
+          }
+          
+          if (!decoracoes[decId]) return reply('❌ Decoração não encontrada!');
+          if (me.house.decorations.includes(decId)) return reply('❌ Você já tem essa decoração!');
+          
+          const dec = decoracoes[decId];
+          if (me.wallet < dec.price) return reply(`💰 Você precisa de ${dec.price.toLocaleString()}!`);
+          
+          me.wallet -= dec.price;
+          me.house.decorations.push(decId);
+          
+          saveEconomy(econ);
+          return reply(`🎨 *DECORAÇÃO ADICIONADA*\n\n${dec.emoji} ${dec.name}\n✨ +${dec.value} ${dec.bonus}`);
+        }
+
+        return reply(`💡 Use: ${prefix}casa para ver opções`);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🏰 SISTEMA DE DUNGEONS EM GRUPO
+      // ═══════════════════════════════════════════════════════════════
+      case 'dungeon':
+      case 'masmorra':
+      case 'raid': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+
+        // Sistema de dungeons em grupo
+        if (!econ.dungeonParties) econ.dungeonParties = {};
+        
+        const dungeons = {
+          'floresta': { emoji: '🌲', name: 'Floresta Sombria', level: 1, players: 2, reward: 5000, xp: 200, boss: '🐺 Lobo Alfa' },
+          'caverna': { emoji: '🕳️', name: 'Caverna Cristalina', level: 5, players: 3, reward: 15000, xp: 500, boss: '🦇 Morcego Gigante' },
+          'ruinas': { emoji: '🏚️', name: 'Ruínas Antigas', level: 10, players: 3, reward: 35000, xp: 1000, boss: '💀 Esqueleto Rei' },
+          'vulcao': { emoji: '🌋', name: 'Vulcão Ardente', level: 20, players: 4, reward: 80000, xp: 2500, boss: '🔥 Dragão de Fogo' },
+          'abismo': { emoji: '🕳️', name: 'Abismo Profundo', level: 35, players: 4, reward: 200000, xp: 6000, boss: '👹 Demônio Ancião' }
+        };
+
+        const sub = args[0]?.toLowerCase();
+
+        // Listar dungeons
+        if (!sub || sub === 'lista') {
+          let text = `╭━━━⊱ 🏰 *DUNGEONS* ⊱━━━╮\n`;
+          text += `│ Seu Nível: ${me.level || 1}\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          
+          for (const [id, data] of Object.entries(dungeons)) {
+            const available = (me.level || 1) >= data.level ? '✅' : '🔒';
+            text += `${data.emoji} *${data.name}* ${available}\n`;
+            text += `   📊 Nv.${data.level}+ | 👥 ${data.players} jogadores\n`;
+            text += `   💰 ${data.reward.toLocaleString()} | ✨ ${data.xp} XP\n`;
+            text += `   👹 Boss: ${data.boss}\n\n`;
+          }
+          
+          text += `💡 *Comandos:*\n`;
+          text += `• ${prefix}dungeon criar <tipo>\n`;
+          text += `• ${prefix}dungeon entrar <id>\n`;
+          text += `• ${prefix}dungeon iniciar`;
+          
+          return reply(text);
+        }
+
+        // Criar party
+        if (sub === 'criar') {
+          const tipo = args[1]?.toLowerCase();
+          if (!tipo || !dungeons[tipo]) {
+            return reply(`❌ Dungeon inválida!\n\n🏰 Tipos: floresta, caverna, ruinas, vulcao, abismo`);
+          }
+          
+          const dg = dungeons[tipo];
+          if ((me.level || 1) < dg.level) {
+            return reply(`🔒 Você precisa ser nível ${dg.level}+ para esta dungeon!`);
+          }
+          
+          // Verificar se já está em uma party
+          for (const [id, party] of Object.entries(econ.dungeonParties)) {
+            if (party.members.includes(sender)) {
+              return reply(`❌ Você já está em uma party!\n\n💡 Use ${prefix}dungeon sair para sair`);
+            }
+          }
+          
+          const partyId = `party_${Date.now()}`;
+          econ.dungeonParties[partyId] = {
+            id: partyId,
+            type: tipo,
+            leader: sender,
+            members: [sender],
+            maxMembers: dg.players,
+            created: Date.now(),
+            status: 'waiting'
+          };
+          
+          saveEconomy(econ);
+          return reply(`╭━━━⊱ 🎉 *PARTY CRIADA* ⊱━━━╮\n\n${dg.emoji} *${dg.name}*\n\n🆔 ID: \`${partyId.slice(-8)}\`\n👥 Membros: 1/${dg.players}\n👹 Boss: ${dg.boss}\n\n💡 Outros jogadores podem usar:\n${prefix}dungeon entrar ${partyId.slice(-8)}\n\n╰━━━━━━━━━━━━━━━━━━━━╯`);
+        }
+
+        // Entrar em party
+        if (sub === 'entrar') {
+          const partyInput = args[1];
+          if (!partyInput) return reply(`💡 Use: ${prefix}dungeon entrar <id da party>`);
+          
+          // Encontrar party
+          let partyId = null;
+          for (const id of Object.keys(econ.dungeonParties)) {
+            if (id.endsWith(partyInput)) {
+              partyId = id;
+              break;
+            }
+          }
+          
+          if (!partyId || !econ.dungeonParties[partyId]) {
+            return reply('❌ Party não encontrada!');
+          }
+          
+          const party = econ.dungeonParties[partyId];
+          const dg = dungeons[party.type];
+          
+          if (party.members.includes(sender)) {
+            return reply('❌ Você já está nesta party!');
+          }
+          
+          if (party.members.length >= party.maxMembers) {
+            return reply('❌ Party está cheia!');
+          }
+          
+          if ((me.level || 1) < dg.level) {
+            return reply(`🔒 Você precisa ser nível ${dg.level}+!`);
+          }
+          
+          party.members.push(sender);
+          
+          saveEconomy(econ);
+          return reply(`✅ Você entrou na party!\n\n${dg.emoji} *${dg.name}*\n👥 Membros: ${party.members.length}/${party.maxMembers}\n\n${party.members.length >= party.maxMembers ? `🎮 Party completa! Líder pode usar ${prefix}dungeon iniciar` : '⏳ Aguardando mais membros...'}`);
+        }
+
+        // Iniciar dungeon
+        if (sub === 'iniciar') {
+          let myParty = null;
+          for (const [id, party] of Object.entries(econ.dungeonParties)) {
+            if (party.leader === sender) {
+              myParty = party;
+              break;
+            }
+          }
+          
+          if (!myParty) return reply('❌ Você não é líder de nenhuma party!');
+          
+          const dg = dungeons[myParty.type];
+          
+          if (myParty.members.length < 2) {
+            return reply(`❌ Você precisa de pelo menos 2 membros para iniciar!`);
+          }
+          
+          // Calcular poder total do grupo
+          let poderTotal = 0;
+          myParty.members.forEach(member => {
+            const user = getEcoUser(econ, member);
+            poderTotal += (user.power || 100) + ((user.level || 1) * 10);
+          });
+          
+          // Poder do boss
+          const poderBoss = dg.level * 100 + dg.players * 50;
+          
+          // Calcular chance de vitória
+          const chance = Math.min(95, Math.max(20, (poderTotal / poderBoss) * 50 + 25));
+          const vitoria = Math.random() * 100 < chance;
+          
+          let text = `╭━━━⊱ ${dg.emoji} *${dg.name}* ⊱━━━╮\n\n`;
+          text += `👥 *PARTY:*\n`;
+          myParty.members.forEach(m => {
+            const u = getEcoUser(econ, m);
+            text += `• @${m.split('@')[0]} (Nv.${u.level || 1})\n`;
+          });
+          text += `\n⚔️ Poder Total: ${poderTotal}\n`;
+          text += `👹 Boss: ${dg.boss}\n\n`;
+          
+          if (vitoria) {
+            text += `🎉 *VITÓRIA!*\n\n`;
+            text += `💰 Recompensas (cada):\n`;
+            text += `• ${Math.floor(dg.reward / myParty.members.length).toLocaleString()} moedas\n`;
+            text += `• ${Math.floor(dg.xp / myParty.members.length)} XP\n`;
+            
+            // Distribuir recompensas
+            myParty.members.forEach(m => {
+              const u = getEcoUser(econ, m);
+              u.wallet += Math.floor(dg.reward / myParty.members.length);
+              u.xp = (u.xp || 0) + Math.floor(dg.xp / myParty.members.length);
+            });
+          } else {
+            text += `💀 *DERROTA!*\n\n`;
+            text += `😔 O boss ${dg.boss} foi muito forte...\n`;
+            text += `💡 Tente novamente com mais poder!`;
+          }
+          
+          text += `\n\n╰━━━━━━━━━━━━━━━━━━━━╯`;
+          
+          // Deletar party
+          delete econ.dungeonParties[myParty.id];
+          
+          saveEconomy(econ);
+          return reply(text, { mentions: myParty.members });
+        }
+
+        // Sair da party
+        if (sub === 'sair') {
+          for (const [id, party] of Object.entries(econ.dungeonParties)) {
+            if (party.members.includes(sender)) {
+              if (party.leader === sender) {
+                delete econ.dungeonParties[id];
+                saveEconomy(econ);
+                return reply('✅ Party encerrada!');
+              } else {
+                party.members = party.members.filter(m => m !== sender);
+                saveEconomy(econ);
+                return reply('✅ Você saiu da party!');
+              }
+            }
+          }
+          return reply('❌ Você não está em nenhuma party!');
+        }
+
+        return reply(`💡 Use ${prefix}dungeon para ver comandos`);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🛒 MERCADO DE JOGADORES (AUCTION HOUSE)
+      // ═══════════════════════════════════════════════════════════════
+      case 'mercadoplayer':
+      case 'auction':
+      case 'leilaoplayer': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+
+        if (!econ.playerMarket) econ.playerMarket = { listings: [], fee: 0.05 }; // 5% taxa
+
+        const sub = args[0]?.toLowerCase();
+
+        // Listar itens à venda
+        if (!sub || sub === 'ver') {
+          const listings = econ.playerMarket.listings.filter(l => l.seller !== sender);
+          
+          let text = `╭━━━⊱ 🛒 *MERCADO DE JOGADORES* ⊱━━━╮\n`;
+          text += `│ Taxa: ${econ.playerMarket.fee * 100}% por venda\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          
+          if (listings.length === 0) {
+            text += `📦 Nenhum item à venda no momento!\n\n`;
+          } else {
+            text += `📦 *ITENS À VENDA:*\n\n`;
+            listings.slice(0, 15).forEach((item, i) => {
+              text += `${i + 1}. *${item.name}* ${item.enchant ? `+${item.enchant}` : ''}\n`;
+              text += `   💰 ${item.price.toLocaleString()} | 👤 @${item.seller.split('@')[0]}\n`;
+            });
+          }
+          
+          text += `\n💡 *Comandos:*\n`;
+          text += `• ${prefix}mercadoplayer vender <item> <preço>\n`;
+          text += `• ${prefix}mercadoplayer comprar <nº>\n`;
+          text += `• ${prefix}mercadoplayer meus`;
+          
+          return reply(text);
+        }
+
+        // Vender item
+        if (sub === 'vender') {
+          const itemName = args[1];
+          const preco = parseInt(args[2]);
+          
+          if (!itemName || !preco || preco < 100) {
+            return reply(`💡 Use: ${prefix}mercadoplayer vender <item> <preço>\n\n⚠️ Preço mínimo: 100`);
+          }
+          
+          if (!me.inventory || !me.inventory[itemName] || me.inventory[itemName] <= 0) {
+            return reply('❌ Você não tem este item!');
+          }
+          
+          // Verificar limite de anúncios
+          const meusAnuncios = econ.playerMarket.listings.filter(l => l.seller === sender);
+          if (meusAnuncios.length >= 5) {
+            return reply('❌ Você já tem 5 itens à venda! Cancele algum primeiro.');
+          }
+          
+          me.inventory[itemName]--;
+          
+          econ.playerMarket.listings.push({
+            id: `listing_${Date.now()}`,
+            name: itemName,
+            price: preco,
+            seller: sender,
+            sellerName: pushName,
+            created: Date.now()
+          });
+          
+          saveEconomy(econ);
+          return reply(`✅ *ITEM LISTADO*\n\n📦 ${itemName}\n💰 ${preco.toLocaleString()}\n\n⚠️ Taxa de ${econ.playerMarket.fee * 100}% será cobrada na venda`);
+        }
+
+        // Comprar item
+        if (sub === 'comprar') {
+          const index = parseInt(args[1]) - 1;
+          const listings = econ.playerMarket.listings.filter(l => l.seller !== sender);
+          
+          if (isNaN(index) || index < 0 || index >= listings.length) {
+            return reply('❌ Número inválido! Use o número da lista.');
+          }
+          
+          const listing = listings[index];
+          
+          if (me.wallet < listing.price) {
+            return reply(`💰 Você precisa de ${listing.price.toLocaleString()}!`);
+          }
+          
+          // Processar compra
+          me.wallet -= listing.price;
+          if (!me.inventory) me.inventory = {};
+          me.inventory[listing.name] = (me.inventory[listing.name] || 0) + 1;
+          
+          // Pagar vendedor (menos taxa)
+          const vendedor = getEcoUser(econ, listing.seller);
+          const valorLiquido = Math.floor(listing.price * (1 - econ.playerMarket.fee));
+          vendedor.wallet += valorLiquido;
+          
+          // Remover do mercado
+          econ.playerMarket.listings = econ.playerMarket.listings.filter(l => l.id !== listing.id);
+          
+          saveEconomy(econ);
+          return reply(`✅ *COMPRA REALIZADA*\n\n📦 ${listing.name}\n💰 -${listing.price.toLocaleString()}\n\n📬 Vendedor @${listing.seller.split('@')[0]} recebeu ${valorLiquido.toLocaleString()}`);
+        }
+
+        // Meus anúncios
+        if (sub === 'meus') {
+          const meusAnuncios = econ.playerMarket.listings.filter(l => l.seller === sender);
+          
+          if (meusAnuncios.length === 0) {
+            return reply('📦 Você não tem nenhum item à venda!');
+          }
+          
+          let text = `🛒 *SEUS ANÚNCIOS*\n\n`;
+          meusAnuncios.forEach((item, i) => {
+            text += `${i + 1}. *${item.name}*\n`;
+            text += `   💰 ${item.price.toLocaleString()}\n\n`;
+          });
+          
+          text += `💡 Use ${prefix}mercadoplayer cancelar <nº> para cancelar`;
+          
+          return reply(text);
+        }
+
+        // Cancelar anúncio
+        if (sub === 'cancelar') {
+          const meusAnuncios = econ.playerMarket.listings.filter(l => l.seller === sender);
+          const index = parseInt(args[1]) - 1;
+          
+          if (isNaN(index) || index < 0 || index >= meusAnuncios.length) {
+            return reply('❌ Número inválido!');
+          }
+          
+          const listing = meusAnuncios[index];
+          
+          // Devolver item
+          if (!me.inventory) me.inventory = {};
+          me.inventory[listing.name] = (me.inventory[listing.name] || 0) + 1;
+          
+          // Remover do mercado
+          econ.playerMarket.listings = econ.playerMarket.listings.filter(l => l.id !== listing.id);
+          
+          saveEconomy(econ);
+          return reply(`✅ Anúncio cancelado! ${listing.name} devolvido ao inventário.`);
+        }
+
+        return reply(`💡 Use ${prefix}mercadoplayer para ver comandos`);
+      }
+
       // Sistema de Missões
       case 'missoes':
       case 'quests':
@@ -10319,6 +10887,939 @@ Entre em contato com o dono do bot:
           });
         });
         break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // 💬 RESUMIDOR DE CONVERSAS DO GRUPO
+      // ═══════════════════════════════════════════════════════════════
+      case 'resumirchat':
+      case 'resumirgrupo':
+      case 'resumirconversa': {
+        if (!isGroup) {
+          return reply('⚠️ Este comando só pode ser usado em grupos!');
+        }
+        
+        if (!KeyCog) {
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          return reply(API_KEY_REQUIRED_MESSAGE);
+        }
+
+        const quantidade = parseInt(args[0]) || 50;
+        const limite = Math.min(Math.max(quantidade, 10), 200); // Entre 10 e 200 mensagens
+
+        await reply(`💬 Coletando as últimas ${limite} mensagens para resumir... ⏳`);
+
+        try {
+          // Buscar mensagens do cache
+          const mensagensGrupo = [];
+          
+          if (messagesCache && messagesCache.get) {
+            // Tentar pegar do cache de mensagens
+            const cacheKeys = Array.from(messagesCache.keys?.() || []);
+            const groupMessages = cacheKeys
+              .filter(key => key.startsWith(from))
+              .slice(-limite);
+            
+            for (const key of groupMessages) {
+              const msg = messagesCache.get(key);
+              if (msg?.message) {
+                const texto = msg.message?.conversation || 
+                             msg.message?.extendedTextMessage?.text ||
+                             msg.message?.imageMessage?.caption ||
+                             msg.message?.videoMessage?.caption || '';
+                if (texto && texto.length > 0) {
+                  const pushName = msg.pushName || 'Usuário';
+                  mensagensGrupo.push(`${pushName}: ${texto}`);
+                }
+              }
+            }
+          }
+
+          // Se não conseguiu do cache, usar store
+          if (mensagensGrupo.length < 10 && store?.messages) {
+            const storeMessages = store.messages[from];
+            if (storeMessages?.array) {
+              const msgs = storeMessages.array.slice(-limite);
+              for (const msg of msgs) {
+                const texto = msg.message?.conversation || 
+                             msg.message?.extendedTextMessage?.text ||
+                             msg.message?.imageMessage?.caption ||
+                             msg.message?.videoMessage?.caption || '';
+                if (texto && texto.length > 0) {
+                  const pushName = msg.pushName || 'Usuário';
+                  if (!mensagensGrupo.includes(`${pushName}: ${texto}`)) {
+                    mensagensGrupo.push(`${pushName}: ${texto}`);
+                  }
+                }
+              }
+            }
+          }
+
+          if (mensagensGrupo.length < 5) {
+            return reply('😅 Não encontrei mensagens suficientes para resumir. O grupo precisa ter mais atividade recente!');
+          }
+
+          const conversaTexto = mensagensGrupo.slice(-limite).join('\n');
+          
+          const prompt = `Resuma a seguinte conversa de grupo do WhatsApp de forma clara e organizada em português brasileiro.
+
+Identifique:
+1. 📌 *Principais assuntos discutidos*
+2. 🗣️ *Participantes mais ativos*
+3. 💡 *Decisões ou conclusões importantes* (se houver)
+4. 🔥 *Momentos interessantes ou engraçados* (se houver)
+
+Conversa:
+${conversaTexto.substring(0, 8000)}
+
+Faça um resumo conciso mas completo, destacando o que é mais relevante.`;
+
+          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog);
+          await reply(`💬 *Resumo da Conversa* (${mensagensGrupo.length} mensagens)\n\n${response.data.choices[0].message.content}`);
+        } catch (e) {
+          console.error('Erro ao resumir conversa:', e);
+          if (e.message?.includes('API key inválida')) {
+            ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\nO administrador já foi notificado!');
+          } else {
+            await reply('😓 Não consegui resumir a conversa agora! Tente novamente em breve. 🌈');
+          }
+        }
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 📖 GERADOR DE HISTÓRIAS COM IA
+      // ═══════════════════════════════════════════════════════════════
+      case 'historia':
+      case 'story':
+      case 'gerarhistoria': {
+        if (!KeyCog) {
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          return reply(API_KEY_REQUIRED_MESSAGE);
+        }
+        
+        if (!q) {
+          return reply(`📖 *Gerador de Histórias*\n\n💡 *Como usar:*\n• ${prefix}historia <gênero> <tema opcional>\n\n📚 *Gêneros disponíveis:*\n• fantasia, terror, romance, ficção científica, aventura, mistério, comédia, drama, ação, suspense\n\n✨ *Exemplos:*\n• ${prefix}historia fantasia dragões\n• ${prefix}historia terror casa abandonada\n• ${prefix}historia romance escola\n• ${prefix}historia ficção científica viagem no tempo`);
+        }
+
+        const generos = {
+          'fantasia': 'uma história de fantasia épica com magia e criaturas místicas',
+          'terror': 'uma história de terror arrepiante e assustadora',
+          'romance': 'uma história de romance envolvente e emocionante',
+          'ficcao': 'uma história de ficção científica futurista',
+          'ficção': 'uma história de ficção científica futurista',
+          'ficção científica': 'uma história de ficção científica futurista',
+          'aventura': 'uma história de aventura emocionante cheia de ação',
+          'misterio': 'uma história de mistério intrigante com reviravoltas',
+          'mistério': 'uma história de mistério intrigante com reviravoltas',
+          'comedia': 'uma história de comédia divertida e engraçada',
+          'comédia': 'uma história de comédia divertida e engraçada',
+          'drama': 'uma história dramática profunda e emocionante',
+          'acao': 'uma história de ação explosiva e empolgante',
+          'ação': 'uma história de ação explosiva e empolgante',
+          'suspense': 'uma história de suspense tenso e eletrizante'
+        };
+
+        const partes = q.toLowerCase().split(' ');
+        const genero = partes[0];
+        const tema = partes.slice(1).join(' ') || '';
+        
+        const tipoHistoria = generos[genero] || `uma história criativa de ${genero}`;
+        const temaExtra = tema ? ` envolvendo "${tema}"` : '';
+
+        await reply('📖 Escrevendo sua história... Aguarde um momento! ✨');
+        
+        try {
+          const prompt = `Escreva ${tipoHistoria}${temaExtra} em português brasileiro. A história deve ter:
+- Um título criativo
+- Introdução cativante
+- Desenvolvimento interessante com personagens bem construídos
+- Um desfecho memorável
+- Entre 400 e 600 palavras
+
+Seja criativo e original. Não use clichês. A história deve ser envolvente do início ao fim.`;
+
+          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog);
+          await reply(`📖✨ *Sua História*\n\n${response.data.choices[0].message.content}`);
+        } catch (e) {
+          console.error('Erro ao gerar história:', e);
+          if (e.message?.includes('API key inválida')) {
+            ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\nO administrador já foi notificado!');
+          } else {
+            await reply('😓 Não consegui escrever a história agora! Tente novamente em breve. 🌈');
+          }
+        }
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🎬 RECOMENDADOR DE MÍDIA COM IA
+      // ═══════════════════════════════════════════════════════════════
+      case 'recomendar':
+      case 'recomendacao':
+      case 'recomendação':
+      case 'suggest': {
+        if (!KeyCog) {
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          return reply(API_KEY_REQUIRED_MESSAGE);
+        }
+        
+        if (!q) {
+          return reply(`🎬 *Recomendador de Mídia*\n\n💡 *Como usar:*\n• ${prefix}recomendar <tipo> <gênero/preferência>\n\n📺 *Tipos disponíveis:*\n• anime, filme, serie, jogo, musica, livro\n\n✨ *Exemplos:*\n• ${prefix}recomendar anime ação\n• ${prefix}recomendar filme terror\n• ${prefix}recomendar serie comédia\n• ${prefix}recomendar jogo rpg\n• ${prefix}recomendar musica rock\n• ${prefix}recomendar livro fantasia`);
+        }
+
+        const tipos = {
+          'anime': { emoji: '🎌', nome: 'animes' },
+          'filme': { emoji: '🎬', nome: 'filmes' },
+          'filmes': { emoji: '🎬', nome: 'filmes' },
+          'serie': { emoji: '📺', nome: 'séries' },
+          'séries': { emoji: '📺', nome: 'séries' },
+          'series': { emoji: '📺', nome: 'séries' },
+          'jogo': { emoji: '🎮', nome: 'jogos' },
+          'jogos': { emoji: '🎮', nome: 'jogos' },
+          'game': { emoji: '🎮', nome: 'jogos' },
+          'musica': { emoji: '🎵', nome: 'músicas/artistas' },
+          'música': { emoji: '🎵', nome: 'músicas/artistas' },
+          'livro': { emoji: '📚', nome: 'livros' },
+          'livros': { emoji: '📚', nome: 'livros' }
+        };
+
+        const partes = q.toLowerCase().split(' ');
+        const tipo = partes[0];
+        const preferencia = partes.slice(1).join(' ') || 'qualquer gênero';
+        
+        const tipoInfo = tipos[tipo] || { emoji: '✨', nome: tipo };
+
+        await reply(`${tipoInfo.emoji} Buscando recomendações de ${tipoInfo.nome}... Aguarde! ✨`);
+        
+        try {
+          const prompt = `Recomende 5 ${tipoInfo.nome} do gênero/estilo "${preferencia}" em português brasileiro.
+
+Para cada recomendação, forneça:
+1. Nome
+2. Breve descrição (2-3 linhas)
+3. Por que é bom
+4. Nota de popularidade (de 1 a 10)
+
+Seja específico e recomende opções variadas (populares e menos conhecidas). Formate de forma clara e organizada.`;
+
+          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog);
+          await reply(`${tipoInfo.emoji} *Recomendações de ${tipoInfo.nome.charAt(0).toUpperCase() + tipoInfo.nome.slice(1)}*\n\n${response.data.choices[0].message.content}`);
+        } catch (e) {
+          console.error('Erro ao gerar recomendações:', e);
+          if (e.message?.includes('API key inválida')) {
+            ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\nO administrador já foi notificado!');
+          } else {
+            await reply('😓 Não consegui buscar recomendações agora! Tente novamente em breve. 🌈');
+          }
+        }
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🎮 WORDLE - Jogo de adivinhar palavra
+      // ═══════════════════════════════════════════════════════════════
+      case 'wordle':
+      case 'palavra': {
+        // Banco de palavras de 5 letras em português
+        const palavrasWordle = [
+          'amigo', 'barco', 'canto', 'dança', 'entre', 'falar', 'gosto', 'hotel', 'igual', 'jogar',
+          'largo', 'manga', 'noite', 'olhar', 'prato', 'quero', 'risco', 'saber', 'tempo', 'ursos',
+          'vento', 'zebra', 'campo', 'festa', 'mundo', 'papel', 'reino', 'sabor', 'terra', 'verde',
+          'abrir', 'banco', 'clara', 'drama', 'errar', 'frase', 'grilo', 'humor', 'ideia', 'janta',
+          'lindo', 'medir', 'nobre', 'ordem', 'porta', 'quota', 'rapaz', 'sinal', 'total', 'ultra',
+          'valor', 'yogur', 'água', 'beira', 'coisa', 'diabo', 'exato', 'forno', 'grama', 'honey',
+          'idade', 'julho', 'leite', 'morar', 'nervo', 'ossos', 'pedra', 'quase', 'razão', 'sopro',
+          'trono', 'união', 'viver', 'wanda', 'xadre', 'zurro', 'andar', 'bravo', 'calma', 'deusa',
+          'ainda', 'baixo', 'carro', 'dizer', 'estar', 'filho', 'grupo', 'haver', 'levar', 'mesmo',
+          'nunca', 'outro', 'pedir', 'quais', 'resto', 'sobre', 'tomar', 'único', 'volta', 'sonho'
+        ];
+
+        // Estado dos jogos de wordle ativos
+        if (!global.wordleGames) global.wordleGames = {};
+        const gameKey = isGroup ? from : sender;
+
+        // Subcomando para chutar
+        if (args[0] && args[0].length === 5 && global.wordleGames[gameKey]) {
+          const game = global.wordleGames[gameKey];
+          const chute = normalizar(args[0].toLowerCase());
+          
+          game.tentativas++;
+          
+          // Verificar letras
+          let resultado = '';
+          const palavraArray = game.palavra.split('');
+          const chuteArray = chute.split('');
+          
+          for (let i = 0; i < 5; i++) {
+            if (chuteArray[i] === palavraArray[i]) {
+              resultado += '🟩'; // Letra certa no lugar certo
+            } else if (palavraArray.includes(chuteArray[i])) {
+              resultado += '🟨'; // Letra certa no lugar errado
+            } else {
+              resultado += '⬛'; // Letra errada
+            }
+          }
+          
+          game.historico.push(`${chute.toUpperCase()} ${resultado}`);
+          
+          if (chute === game.palavra) {
+            const pontos = Math.max(100 - (game.tentativas - 1) * 15, 10);
+            delete global.wordleGames[gameKey];
+            return reply(`🎉 *PARABÉNS!*\n\n${game.historico.join('\n')}\n\n✅ Você acertou em ${game.tentativas}/6 tentativas!\n🏆 +${pontos} pontos\n\nA palavra era: *${game.palavra.toUpperCase()}*`);
+          }
+          
+          if (game.tentativas >= 6) {
+            delete global.wordleGames[gameKey];
+            return reply(`😢 *GAME OVER!*\n\n${game.historico.join('\n')}\n\n❌ Suas tentativas acabaram!\n\nA palavra era: *${game.palavra.toUpperCase()}*`);
+          }
+          
+          return reply(`🎯 *WORDLE* (${game.tentativas}/6)\n\n${game.historico.join('\n')}\n\n💡 Continue chutando com: ${prefix}wordle [palavra]`);
+        }
+
+        // Novo jogo
+        if (global.wordleGames[gameKey]) {
+          const game = global.wordleGames[gameKey];
+          return reply(`🎮 *Jogo em andamento!*\n\n${game.historico.length > 0 ? game.historico.join('\n') + '\n\n' : ''}Tentativas: ${game.tentativas}/6\n\n💡 Chute uma palavra de 5 letras:\n${prefix}wordle [palavra]\n\n🔄 Para desistir: ${prefix}wordle desistir`);
+        }
+
+        if (args[0] === 'desistir' && global.wordleGames[gameKey]) {
+          const palavra = global.wordleGames[gameKey].palavra;
+          delete global.wordleGames[gameKey];
+          return reply(`🏳️ Você desistiu!\n\nA palavra era: *${palavra.toUpperCase()}*`);
+        }
+
+        // Iniciar novo jogo
+        const palavraEscolhida = palavrasWordle[Math.floor(Math.random() * palavrasWordle.length)];
+        global.wordleGames[gameKey] = {
+          palavra: normalizar(palavraEscolhida.toLowerCase()),
+          tentativas: 0,
+          historico: [],
+          iniciado: Date.now()
+        };
+
+        await reply(`🎮 *WORDLE - Adivinhe a Palavra!*\n\n📝 Tente adivinhar a palavra de 5 letras!\n\n🟩 = Letra certa no lugar certo\n🟨 = Letra certa no lugar errado\n⬛ = Letra não existe\n\n💡 Você tem 6 tentativas!\n\n*Chute com:* ${prefix}wordle [palavra]`);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // ❓ QUIZ - Perguntas e Respostas
+      // ═══════════════════════════════════════════════════════════════
+      case 'quiz':
+      case 'trivia':
+      case 'pergunta': {
+        // Banco de perguntas por categoria
+        const quizDB = {
+          'geral': [
+            { p: 'Qual é o maior planeta do sistema solar?', r: ['jupiter', 'júpiter'], d: 'Júpiter' },
+            { p: 'Quantos ossos tem o corpo humano adulto?', r: ['206'], d: '206' },
+            { p: 'Qual é o elemento químico representado pelo símbolo "O"?', r: ['oxigenio', 'oxigênio'], d: 'Oxigênio' },
+            { p: 'Em que ano o Brasil foi descoberto?', r: ['1500'], d: '1500' },
+            { p: 'Qual é a capital da Austrália?', r: ['canberra', 'camberra'], d: 'Canberra' },
+            { p: 'Quantos continentes existem no mundo?', r: ['7', 'sete'], d: '7' },
+            { p: 'Qual é o maior oceano do mundo?', r: ['pacifico', 'pacífico'], d: 'Pacífico' },
+            { p: 'Quem pintou a Mona Lisa?', r: ['leonardo da vinci', 'da vinci', 'leonardo'], d: 'Leonardo da Vinci' },
+          ],
+          'anime': [
+            { p: 'Qual é o nome do protagonista de Naruto?', r: ['naruto', 'naruto uzumaki'], d: 'Naruto Uzumaki' },
+            { p: 'Em Death Note, qual é o nome do shinigami que dá o caderno a Light?', r: ['ryuk'], d: 'Ryuk' },
+            { p: 'Qual é o nome do titan de Eren em Attack on Titan?', r: ['titan atacante', 'attack titan', 'titã atacante'], d: 'Titã Atacante' },
+            { p: 'Quantas Dragon Balls são necessárias para invocar Shenlong?', r: ['7', 'sete'], d: '7' },
+            { p: 'Qual é o nome do irmão mais velho de Luffy em One Piece?', r: ['ace', 'portgas d ace'], d: 'Ace' },
+            { p: 'Em qual anime aparece o personagem Goku?', r: ['dragon ball', 'dragonball', 'dbz'], d: 'Dragon Ball' },
+            { p: 'Qual é o nome da organização vilã em Naruto Shippuden?', r: ['akatsuki'], d: 'Akatsuki' },
+            { p: 'Qual é o verdadeiro nome de L em Death Note?', r: ['l lawliet', 'lawliet'], d: 'L Lawliet' },
+          ],
+          'games': [
+            { p: 'Qual é o nome do personagem principal de The Legend of Zelda?', r: ['link'], d: 'Link' },
+            { p: 'Em que ano foi lançado o primeiro Minecraft?', r: ['2011'], d: '2011' },
+            { p: 'Qual é o nome da princesa em Super Mario?', r: ['peach', 'princesa peach'], d: 'Princesa Peach' },
+            { p: 'Quantos jogadores tem um time de CS:GO/CS2?', r: ['5', 'cinco'], d: '5' },
+            { p: 'Qual empresa criou o Fortnite?', r: ['epic games', 'epic'], d: 'Epic Games' },
+            { p: 'Qual é o nome do protagonista de God of War?', r: ['kratos'], d: 'Kratos' },
+            { p: 'Em qual cidade se passa GTA V?', r: ['los santos'], d: 'Los Santos' },
+            { p: 'Qual é a moeda do jogo League of Legends?', r: ['rp', 'riot points', 'be', 'blue essence'], d: 'RP ou Blue Essence' },
+          ],
+          'ciencia': [
+            { p: 'Qual é a fórmula química da água?', r: ['h2o'], d: 'H2O' },
+            { p: 'Quantos planetas tem o sistema solar?', r: ['8', 'oito'], d: '8' },
+            { p: 'Qual é a velocidade da luz em km/s (aproximado)?', r: ['300000', '300.000', '299792'], d: '~300.000 km/s' },
+            { p: 'Quem formulou a teoria da relatividade?', r: ['einstein', 'albert einstein'], d: 'Albert Einstein' },
+            { p: 'Qual é o símbolo químico do ouro?', r: ['au'], d: 'Au' },
+            { p: 'Quantos cromossomos tem uma célula humana normal?', r: ['46', 'quarenta e seis'], d: '46' },
+            { p: 'Qual planeta é conhecido como Planeta Vermelho?', r: ['marte', 'mars'], d: 'Marte' },
+          ],
+          'historia': [
+            { p: 'Em que ano começou a Segunda Guerra Mundial?', r: ['1939'], d: '1939' },
+            { p: 'Quem foi o primeiro presidente do Brasil?', r: ['deodoro', 'deodoro da fonseca', 'marechal deodoro'], d: 'Marechal Deodoro da Fonseca' },
+            { p: 'Em que ano o homem pisou na Lua pela primeira vez?', r: ['1969'], d: '1969' },
+            { p: 'Qual civilização construiu as pirâmides de Gizé?', r: ['egipcia', 'egípcia', 'egito', 'egipcios'], d: 'Egípcia' },
+            { p: 'Quem descobriu o Brasil?', r: ['pedro alvares cabral', 'cabral', 'pedro cabral'], d: 'Pedro Álvares Cabral' },
+            { p: 'Em que ano acabou a escravidão no Brasil?', r: ['1888'], d: '1888' },
+          ]
+        };
+
+        // Estado dos jogos de quiz ativos
+        if (!global.quizGames) global.quizGames = {};
+        const quizKey = isGroup ? from : sender;
+
+        // Responder quiz ativo
+        if (global.quizGames[quizKey] && args.length > 0 && !['geral', 'anime', 'games', 'ciencia', 'historia'].includes(args[0].toLowerCase())) {
+          const game = global.quizGames[quizKey];
+          const resposta = normalizar(args.join(' ').toLowerCase());
+          
+          const acertou = game.respostas.some(r => normalizar(r) === resposta || resposta.includes(normalizar(r)));
+          
+          delete global.quizGames[quizKey];
+          
+          if (acertou) {
+            const tempoResposta = ((Date.now() - game.iniciado) / 1000).toFixed(1);
+            const pontos = Math.max(50 - Math.floor(parseFloat(tempoResposta) * 2), 10);
+            return reply(`🎉 *CORRETO!*\n\n✅ Resposta: *${game.display}*\n⏱️ Tempo: ${tempoResposta}s\n🏆 +${pontos} pontos`);
+          } else {
+            return reply(`❌ *ERRADO!*\n\n✅ A resposta correta era: *${game.display}*\n\nMais sorte na próxima!`);
+          }
+        }
+
+        // Quiz ativo - mostrar pergunta atual
+        if (global.quizGames[quizKey] && args.length === 0) {
+          const game = global.quizGames[quizKey];
+          return reply(`❓ *QUIZ* (${game.categoria})\n\n${game.pergunta}\n\n💡 Responda com: ${prefix}quiz [resposta]\n🔄 Pular: ${prefix}quiz pular`);
+        }
+
+        // Pular pergunta
+        if (args[0] === 'pular' && global.quizGames[quizKey]) {
+          const resposta = global.quizGames[quizKey].display;
+          delete global.quizGames[quizKey];
+          return reply(`⏭️ Pergunta pulada!\n\nA resposta era: *${resposta}*`);
+        }
+
+        // Mostrar categorias
+        if (!args[0]) {
+          return reply(`❓ *QUIZ - Teste seus conhecimentos!*\n\n📚 *Categorias disponíveis:*\n• ${prefix}quiz geral\n• ${prefix}quiz anime\n• ${prefix}quiz games\n• ${prefix}quiz ciencia\n• ${prefix}quiz historia\n\n💡 Responda rápido para ganhar mais pontos!`);
+        }
+
+        // Nova pergunta
+        const categoria = args[0].toLowerCase();
+        const perguntas = quizDB[categoria];
+        
+        if (!perguntas) {
+          return reply(`❌ Categoria "${categoria}" não encontrada!\n\n📚 Categorias: geral, anime, games, ciencia, historia`);
+        }
+
+        const perguntaEscolhida = perguntas[Math.floor(Math.random() * perguntas.length)];
+        global.quizGames[quizKey] = {
+          pergunta: perguntaEscolhida.p,
+          respostas: perguntaEscolhida.r,
+          display: perguntaEscolhida.d,
+          categoria: categoria,
+          iniciado: Date.now()
+        };
+
+        await reply(`❓ *QUIZ* (${categoria})\n\n${perguntaEscolhida.p}\n\n💡 Responda com: ${prefix}quiz [resposta]\n⏱️ Responda rápido para mais pontos!`);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🎯 FORCA - Jogo da Forca em Grupo
+      // ═══════════════════════════════════════════════════════════════
+      case 'forca':
+      case 'hangman': {
+        // Banco de palavras para forca
+        const palavrasForca = [
+          { palavra: 'elefante', dica: 'Animal grande com tromba' },
+          { palavra: 'computador', dica: 'Máquina eletrônica' },
+          { palavra: 'chocolate', dica: 'Doce feito de cacau' },
+          { palavra: 'abacaxi', dica: 'Fruta tropical com coroa' },
+          { palavra: 'biblioteca', dica: 'Lugar com muitos livros' },
+          { palavra: 'jacaré', dica: 'Réptil encontrado em rios' },
+          { palavra: 'guitarra', dica: 'Instrumento musical de cordas' },
+          { palavra: 'borboleta', dica: 'Inseto colorido que voa' },
+          { palavra: 'astronauta', dica: 'Viaja para o espaço' },
+          { palavra: 'dinossauro', dica: 'Animal pré-histórico' },
+          { palavra: 'pizza', dica: 'Comida italiana redonda' },
+          { palavra: 'futebol', dica: 'Esporte mais popular do Brasil' },
+          { palavra: 'arcoiris', dica: 'Fenômeno colorido após chuva' },
+          { palavra: 'celular', dica: 'Aparelho de comunicação portátil' },
+          { palavra: 'oceano', dica: 'Grande massa de água salgada' },
+          { palavra: 'vulcão', dica: 'Montanha que expele lava' },
+          { palavra: 'pinguim', dica: 'Ave que não voa e vive no gelo' },
+          { palavra: 'cachoeira', dica: 'Queda de água natural' },
+          { palavra: 'relógio', dica: 'Mostra as horas' },
+          { palavra: 'unicórnio', dica: 'Criatura mítica com chifre' }
+        ];
+
+        const desenhoForca = [
+          '```\n  ┌───┐\n  │   │\n      │\n      │\n      │\n══════╧══```',
+          '```\n  ┌───┐\n  │   │\n  😮  │\n      │\n      │\n══════╧══```',
+          '```\n  ┌───┐\n  │   │\n  😮  │\n  │   │\n      │\n══════╧══```',
+          '```\n  ┌───┐\n  │   │\n  😮  │\n ─│   │\n      │\n══════╧══```',
+          '```\n  ┌───┐\n  │   │\n  😮  │\n ─│─  │\n      │\n══════╧══```',
+          '```\n  ┌───┐\n  │   │\n  😮  │\n ─│─  │\n /    │\n══════╧══```',
+          '```\n  ┌───┐\n  │   │\n  😵  │\n ─│─  │\n / \\  │\n══════╧══```'
+        ];
+
+        // Estado dos jogos de forca ativos
+        if (!global.forcaGames) global.forcaGames = {};
+        const forcaKey = isGroup ? from : sender;
+
+        // Chutar letra ou palavra
+        if (global.forcaGames[forcaKey] && args.length > 0 && args[0] !== 'desistir') {
+          const game = global.forcaGames[forcaKey];
+          const chute = normalizar(args.join('').toLowerCase());
+          
+          // Chutar palavra inteira
+          if (chute.length > 1) {
+            if (chute === normalizar(game.palavra)) {
+              delete global.forcaGames[forcaKey];
+              return reply(`🎉 *PARABÉNS!*\n\n✅ Você acertou a palavra!\n\n🏆 A palavra era: *${game.palavra.toUpperCase()}*`);
+            } else {
+              game.erros += 2;
+              if (game.erros >= 6) {
+                delete global.forcaGames[forcaKey];
+                return reply(`${desenhoForca[6]}\n\n💀 *GAME OVER!*\n\n❌ A palavra era: *${game.palavra.toUpperCase()}*`);
+              }
+              return reply(`${desenhoForca[game.erros]}\n\n❌ Palavra errada! (+2 erros)\n\n📝 ${game.progresso.join(' ')}\n\n❌ Letras erradas: ${game.letrasErradas.join(', ') || 'Nenhuma'}\n⚠️ Erros: ${game.erros}/6`);
+            }
+          }
+          
+          // Chutar letra
+          const letra = chute[0];
+          
+          if (game.letrasCorretas.includes(letra) || game.letrasErradas.includes(letra)) {
+            return reply(`⚠️ Você já chutou a letra "${letra.toUpperCase()}"!\n\n📝 ${game.progresso.join(' ')}\n\n❌ Letras erradas: ${game.letrasErradas.join(', ') || 'Nenhuma'}`);
+          }
+          
+          const palavraNorm = normalizar(game.palavra.toLowerCase());
+          
+          if (palavraNorm.includes(letra)) {
+            game.letrasCorretas.push(letra);
+            // Atualizar progresso
+            for (let i = 0; i < palavraNorm.length; i++) {
+              if (palavraNorm[i] === letra) {
+                game.progresso[i] = game.palavra[i].toUpperCase();
+              }
+            }
+            
+            // Verificar vitória
+            if (!game.progresso.includes('_')) {
+              delete global.forcaGames[forcaKey];
+              return reply(`🎉 *PARABÉNS!*\n\n📝 ${game.progresso.join(' ')}\n\n✅ Vocês descobriram a palavra!\n🏆 *${game.palavra.toUpperCase()}*`);
+            }
+            
+            return reply(`${desenhoForca[game.erros]}\n\n✅ Letra "${letra.toUpperCase()}" correta!\n\n📝 ${game.progresso.join(' ')}\n\n💡 Dica: ${game.dica}\n❌ Letras erradas: ${game.letrasErradas.join(', ') || 'Nenhuma'}\n⚠️ Erros: ${game.erros}/6`);
+          } else {
+            game.letrasErradas.push(letra.toUpperCase());
+            game.erros++;
+            
+            if (game.erros >= 6) {
+              delete global.forcaGames[forcaKey];
+              return reply(`${desenhoForca[6]}\n\n💀 *GAME OVER!*\n\n❌ A palavra era: *${game.palavra.toUpperCase()}*`);
+            }
+            
+            return reply(`${desenhoForca[game.erros]}\n\n❌ Letra "${letra.toUpperCase()}" errada!\n\n📝 ${game.progresso.join(' ')}\n\n💡 Dica: ${game.dica}\n❌ Letras erradas: ${game.letrasErradas.join(', ')}\n⚠️ Erros: ${game.erros}/6`);
+          }
+        }
+
+        // Desistir
+        if (args[0] === 'desistir' && global.forcaGames[forcaKey]) {
+          const palavra = global.forcaGames[forcaKey].palavra;
+          delete global.forcaGames[forcaKey];
+          return reply(`🏳️ Vocês desistiram!\n\nA palavra era: *${palavra.toUpperCase()}*`);
+        }
+
+        // Jogo ativo
+        if (global.forcaGames[forcaKey] && args.length === 0) {
+          const game = global.forcaGames[forcaKey];
+          return reply(`${desenhoForca[game.erros]}\n\n🎯 *FORCA*\n\n📝 ${game.progresso.join(' ')}\n\n💡 Dica: ${game.dica}\n❌ Letras erradas: ${game.letrasErradas.join(', ') || 'Nenhuma'}\n⚠️ Erros: ${game.erros}/6\n\n💬 Chute com: ${prefix}forca [letra]\n🔤 Ou chute a palavra: ${prefix}forca [palavra]`);
+        }
+
+        // Novo jogo
+        const escolhida = palavrasForca[Math.floor(Math.random() * palavrasForca.length)];
+        const progresso = escolhida.palavra.split('').map(() => '_');
+        
+        global.forcaGames[forcaKey] = {
+          palavra: escolhida.palavra,
+          dica: escolhida.dica,
+          progresso: progresso,
+          letrasCorretas: [],
+          letrasErradas: [],
+          erros: 0,
+          iniciado: Date.now()
+        };
+
+        await reply(`${desenhoForca[0]}\n\n🎯 *FORCA - Novo Jogo!*\n\n📝 ${progresso.join(' ')}\n\n💡 Dica: ${escolhida.dica}\n\n💬 Chute uma letra: ${prefix}forca [letra]\n🔤 Ou chute a palavra: ${prefix}forca [palavra]\n🏳️ Desistir: ${prefix}forca desistir`);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🔒 VERIFICADOR DE URL - FishFish API
+      // ═══════════════════════════════════════════════════════════════
+      case 'verificarurl':
+      case 'checkurl':
+      case 'urlsafe':
+      case 'linkseguro': {
+        if (!q) {
+          return reply(`🔒 *Verificador de Links*\n\n💡 *Como usar:*\n• ${prefix}verificarurl <link>\n\n✨ Verifica se um link é seguro ou malicioso usando a API FishFish.\n\n📌 *Exemplo:*\n${prefix}verificarurl exemplo.com`);
+        }
+
+        // Limpar a URL
+        let urlToCheck = q.trim().toLowerCase();
+        urlToCheck = urlToCheck.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        
+        // Extrair domínio
+        const domainMatch = urlToCheck.match(/^([^\/]+)/);
+        const domain = domainMatch ? domainMatch[1] : urlToCheck;
+
+        await reply('🔍 Verificando segurança do link... Aguarde!');
+
+        try {
+          // Verificar domínio na API FishFish
+          const response = await axios.get(`https://api.fishfish.gg/v1/domains/${encodeURIComponent(domain)}`, {
+            timeout: 10000,
+            validateStatus: (status) => status < 500
+          });
+
+          if (response.status === 404) {
+            // Domínio não encontrado na base de dados maliciosos = provavelmente seguro
+            await reply(`✅ *Link Verificado*\n\n🔗 *Domínio:* ${domain}\n\n🟢 *Status:* Não encontrado em listas de ameaças\n\n⚠️ *Nota:* Isso não garante 100% de segurança, apenas que o link não está em bases de dados conhecidas de malware/phishing.`);
+          } else if (response.data) {
+            const data = response.data;
+            const categoria = data.category || 'unknown';
+            
+            let emoji = '🔴';
+            let status = 'PERIGOSO';
+            let descricao = 'Este link foi identificado como malicioso!';
+            
+            if (categoria === 'safe') {
+              emoji = '🟢';
+              status = 'SEGURO';
+              descricao = 'Este link é considerado seguro.';
+            } else if (categoria === 'phishing') {
+              emoji = '🔴';
+              status = 'PHISHING';
+              descricao = '⚠️ Este link é usado para roubar dados pessoais!';
+            } else if (categoria === 'malware') {
+              emoji = '🔴';
+              status = 'MALWARE';
+              descricao = '⚠️ Este link pode infectar seu dispositivo!';
+            }
+
+            await reply(`🔒 *Resultado da Verificação*\n\n🔗 *Domínio:* ${domain}\n\n${emoji} *Status:* ${status}\n📋 *Categoria:* ${categoria}\n\n${descricao}${data.description ? `\n\n📝 *Detalhes:* ${data.description}` : ''}`);
+          }
+        } catch (e) {
+          console.error('Erro ao verificar URL:', e);
+          await reply(`⚠️ Não foi possível verificar o link no momento.\n\nTente novamente mais tarde ou verifique manualmente em: https://www.virustotal.com`);
+        }
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🌤️ CLIMA - Previsão do Tempo
+      // ═══════════════════════════════════════════════════════════════
+      case 'clima':
+      case 'tempo':
+      case 'weather':
+      case 'previsao': {
+        if (!q) {
+          return reply(`🌤️ *Previsão do Tempo*\n\n💡 *Como usar:*\n• ${prefix}clima <cidade>\n\n📌 *Exemplos:*\n• ${prefix}clima São Paulo\n• ${prefix}clima Rio de Janeiro\n• ${prefix}clima Tokyo`);
+        }
+
+        await reply('🌤️ Consultando previsão do tempo... ⏳');
+
+        try {
+          // Usar wttr.in que é gratuito e não precisa de API key
+          const cidade = encodeURIComponent(q);
+          const response = await axios.get(`https://wttr.in/${cidade}?format=j1&lang=pt`, {
+            timeout: 10000,
+            headers: { 'User-Agent': 'curl/7.68.0' }
+          });
+
+          const data = response.data;
+          const current = data.current_condition[0];
+          const location = data.nearest_area[0];
+          
+          const tempC = current.temp_C;
+          const feelsLike = current.FeelsLikeC;
+          const humidity = current.humidity;
+          const windKmph = current.windspeedKmph;
+          const windDir = current.winddir16Point;
+          const uvIndex = current.uvIndex;
+          const visibility = current.visibility;
+          const cloudcover = current.cloudcover;
+          const descPt = current.lang_pt?.[0]?.value || current.weatherDesc[0].value;
+          
+          const cityName = location.areaName[0].value;
+          const region = location.region[0].value;
+          const country = location.country[0].value;
+
+          // Emoji baseado na condição
+          let weatherEmoji = '☀️';
+          const desc = descPt.toLowerCase();
+          if (desc.includes('chuva') || desc.includes('rain')) weatherEmoji = '🌧️';
+          else if (desc.includes('nublado') || desc.includes('cloud')) weatherEmoji = '☁️';
+          else if (desc.includes('neve') || desc.includes('snow')) weatherEmoji = '❄️';
+          else if (desc.includes('trovoada') || desc.includes('thunder')) weatherEmoji = '⛈️';
+          else if (desc.includes('nevoeiro') || desc.includes('fog')) weatherEmoji = '🌫️';
+          else if (desc.includes('parcialmente')) weatherEmoji = '⛅';
+          else if (desc.includes('sol') || desc.includes('clear')) weatherEmoji = '☀️';
+
+          // Previsão dos próximos dias
+          let forecast = '';
+          if (data.weather && data.weather.length > 0) {
+            forecast = '\n\n📅 *Próximos dias:*\n';
+            data.weather.slice(0, 3).forEach((day, i) => {
+              const date = day.date.split('-').reverse().join('/');
+              const maxC = day.maxtempC;
+              const minC = day.mintempC;
+              forecast += `• ${date}: ${minC}°C - ${maxC}°C\n`;
+            });
+          }
+
+          await reply(`${weatherEmoji} *Clima em ${cityName}*\n📍 ${region}, ${country}\n\n🌡️ *Temperatura:* ${tempC}°C\n🤒 *Sensação:* ${feelsLike}°C\n💧 *Umidade:* ${humidity}%\n💨 *Vento:* ${windKmph} km/h (${windDir})\n☀️ *Índice UV:* ${uvIndex}\n👁️ *Visibilidade:* ${visibility} km\n☁️ *Nuvens:* ${cloudcover}%\n\n📋 *Condição:* ${descPt}${forecast}`);
+        } catch (e) {
+          console.error('Erro ao buscar clima:', e);
+          await reply('❌ Não consegui encontrar informações do clima para essa cidade. Verifique o nome e tente novamente!');
+        }
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🕐 CONVERSOR DE FUSO HORÁRIO
+      // ═══════════════════════════════════════════════════════════════
+      case 'hora':
+      case 'fuso':
+      case 'horario':
+      case 'timezone': {
+        const fusos = {
+          'brasil': 'America/Sao_Paulo',
+          'br': 'America/Sao_Paulo',
+          'saopaulo': 'America/Sao_Paulo',
+          'sp': 'America/Sao_Paulo',
+          'rio': 'America/Sao_Paulo',
+          'brasilia': 'America/Sao_Paulo',
+          'manaus': 'America/Manaus',
+          'am': 'America/Manaus',
+          'acre': 'America/Rio_Branco',
+          'fernando': 'America/Noronha',
+          'eua': 'America/New_York',
+          'usa': 'America/New_York',
+          'newyork': 'America/New_York',
+          'ny': 'America/New_York',
+          'losangeles': 'America/Los_Angeles',
+          'la': 'America/Los_Angeles',
+          'california': 'America/Los_Angeles',
+          'japao': 'Asia/Tokyo',
+          'japan': 'Asia/Tokyo',
+          'tokyo': 'Asia/Tokyo',
+          'china': 'Asia/Shanghai',
+          'pequim': 'Asia/Shanghai',
+          'coreia': 'Asia/Seoul',
+          'korea': 'Asia/Seoul',
+          'seul': 'Asia/Seoul',
+          'londres': 'Europe/London',
+          'london': 'Europe/London',
+          'uk': 'Europe/London',
+          'paris': 'Europe/Paris',
+          'franca': 'Europe/Paris',
+          'berlin': 'Europe/Berlin',
+          'alemanha': 'Europe/Berlin',
+          'portugal': 'Europe/Lisbon',
+          'lisboa': 'Europe/Lisbon',
+          'moscow': 'Europe/Moscow',
+          'russia': 'Europe/Moscow',
+          'dubai': 'Asia/Dubai',
+          'india': 'Asia/Kolkata',
+          'australia': 'Australia/Sydney',
+          'sydney': 'Australia/Sydney',
+          'argentina': 'America/Argentina/Buenos_Aires',
+          'buenosaires': 'America/Argentina/Buenos_Aires'
+        };
+
+        if (!q) {
+          const agora = new Date();
+          const horaBrasil = agora.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          const dataBrasil = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+          
+          return reply(`🕐 *Horário Atual*\n\n🇧🇷 *Brasil (Brasília):*\n⏰ ${horaBrasil}\n📅 ${dataBrasil}\n\n💡 *Ver outro fuso:*\n${prefix}hora <local>\n\n📍 *Locais disponíveis:*\nbrasil, eua, japao, china, coreia, londres, paris, portugal, dubai, australia, argentina...`);
+        }
+
+        const local = normalizar(q.toLowerCase().replace(/\s+/g, ''));
+        const timezone = fusos[local];
+
+        if (!timezone) {
+          return reply(`❌ Fuso horário "${q}" não encontrado!\n\n📍 *Locais disponíveis:*\nbrasil, eua, newyork, losangeles, japao, china, coreia, londres, paris, alemanha, portugal, russia, dubai, india, australia, argentina`);
+        }
+
+        try {
+          const agora = new Date();
+          const hora = agora.toLocaleString('pt-BR', { timeZone: timezone, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          const data = agora.toLocaleDateString('pt-BR', { timeZone: timezone, weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+          
+          // Calcular diferença com Brasil
+          const brTime = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+          const localTime = new Date(agora.toLocaleString('en-US', { timeZone: timezone }));
+          const diffHours = Math.round((localTime - brTime) / (1000 * 60 * 60));
+          const diffStr = diffHours >= 0 ? `+${diffHours}h` : `${diffHours}h`;
+
+          await reply(`🕐 *Horário em ${q}*\n\n⏰ *Hora:* ${hora}\n📅 *Data:* ${data}\n\n🇧🇷 *Diferença do Brasil:* ${diffStr}`);
+        } catch (e) {
+          console.error('Erro ao converter fuso:', e);
+          await reply('❌ Erro ao obter o horário. Tente novamente!');
+        }
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🎂 SISTEMA DE ANIVERSÁRIOS
+      // ═══════════════════════════════════════════════════════════════
+      case 'aniversario':
+      case 'niver':
+      case 'birthday': {
+        if (!isGroup) {
+          return reply('⚠️ Este comando só funciona em grupos!');
+        }
+
+        // Carregar dados de aniversários do grupo
+        const aniversariosPath = pathz.join(GRUPOS_DIR, `${from}_aniversarios.json`);
+        let aniversarios = {};
+        try {
+          if (fs.existsSync(aniversariosPath)) {
+            aniversarios = JSON.parse(fs.readFileSync(aniversariosPath, 'utf-8'));
+          }
+        } catch (e) {
+          aniversarios = {};
+        }
+
+        const subCmd = args[0]?.toLowerCase();
+
+        // Definir aniversário
+        if (subCmd === 'definir' || subCmd === 'set') {
+          const data = args[1];
+          if (!data || !/^\d{1,2}\/\d{1,2}$/.test(data)) {
+            return reply(`🎂 *Definir Aniversário*\n\n💡 Use: ${prefix}aniversario definir DD/MM\n\n📌 Exemplo: ${prefix}aniversario definir 25/12`);
+          }
+          
+          const [dia, mes] = data.split('/').map(Number);
+          if (dia < 1 || dia > 31 || mes < 1 || mes > 12) {
+            return reply('❌ Data inválida! Use o formato DD/MM');
+          }
+
+          aniversarios[sender] = { dia, mes, nome: pushName };
+          fs.writeFileSync(aniversariosPath, JSON.stringify(aniversarios, null, 2));
+          
+          return reply(`🎂 Aniversário definido!\n\n📅 *Data:* ${dia.toString().padStart(2, '0')}/${mes.toString().padStart(2, '0')}\n👤 *Nome:* ${pushName}`);
+        }
+
+        // Listar aniversariantes do mês
+        if (subCmd === 'mes' || subCmd === 'month') {
+          const mesAtual = new Date().getMonth() + 1;
+          const aniversariantes = Object.entries(aniversarios)
+            .filter(([_, data]) => data.mes === mesAtual)
+            .sort((a, b) => a[1].dia - b[1].dia);
+          
+          if (aniversariantes.length === 0) {
+            return reply('📅 Nenhum aniversariante registrado para este mês!');
+          }
+
+          let lista = `🎂 *Aniversariantes de ${new Date().toLocaleDateString('pt-BR', { month: 'long' })}*\n\n`;
+          aniversariantes.forEach(([id, data]) => {
+            lista += `• ${data.dia.toString().padStart(2, '0')}/${data.mes.toString().padStart(2, '0')} - ${data.nome}\n`;
+          });
+
+          return reply(lista);
+        }
+
+        // Listar próximos aniversários
+        if (subCmd === 'proximos' || subCmd === 'next' || !subCmd) {
+          const hoje = new Date();
+          const diaAtual = hoje.getDate();
+          const mesAtual = hoje.getMonth() + 1;
+
+          const aniversariantes = Object.entries(aniversarios)
+            .map(([id, data]) => {
+              let diasAte = 0;
+              if (data.mes > mesAtual || (data.mes === mesAtual && data.dia >= diaAtual)) {
+                diasAte = (data.mes - mesAtual) * 30 + (data.dia - diaAtual);
+              } else {
+                diasAte = (12 - mesAtual + data.mes) * 30 + (data.dia - diaAtual);
+              }
+              return { ...data, id, diasAte };
+            })
+            .sort((a, b) => a.diasAte - b.diasAte)
+            .slice(0, 10);
+
+          if (aniversariantes.length === 0) {
+            return reply(`🎂 *Sistema de Aniversários*\n\nNenhum aniversário registrado!\n\n💡 *Comandos:*\n• ${prefix}aniversario definir DD/MM\n• ${prefix}aniversario mes\n• ${prefix}aniversario proximos`);
+          }
+
+          let lista = '🎂 *Próximos Aniversários*\n\n';
+          aniversariantes.forEach((data, i) => {
+            const emoji = data.diasAte === 0 ? '🎉' : data.diasAte <= 7 ? '🔔' : '📅';
+            const status = data.diasAte === 0 ? '(HOJE!)' : `(em ${data.diasAte} dias)`;
+            lista += `${emoji} ${data.dia.toString().padStart(2, '0')}/${data.mes.toString().padStart(2, '0')} - ${data.nome} ${status}\n`;
+          });
+
+          lista += `\n💡 *Comandos:*\n• ${prefix}aniversario definir DD/MM\n• ${prefix}aniversario mes`;
+
+          return reply(lista);
+        }
+
+        return reply(`🎂 *Sistema de Aniversários*\n\n💡 *Comandos:*\n• ${prefix}aniversario - Ver próximos\n• ${prefix}aniversario definir DD/MM\n• ${prefix}aniversario mes\n• ${prefix}aniversario proximos`);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 📊 ESTATÍSTICAS DO GRUPO
+      // ═══════════════════════════════════════════════════════════════
+      case 'groupstats':
+      case 'estatisticas':
+      case 'statsgrupo': {
+        if (!isGroup) {
+          return reply('⚠️ Este comando só funciona em grupos!');
+        }
+
+        await reply('📊 Calculando estatísticas do grupo... ⏳');
+
+        try {
+          const groupMeta = await getCachedGroupMetadata(from);
+          const participants = groupMeta.participants || [];
+          const admins = participants.filter(p => p.admin).length;
+          const members = participants.length;
+
+          // Buscar dados do grupo
+          const groupCreation = groupMeta.creation ? new Date(groupMeta.creation * 1000).toLocaleDateString('pt-BR') : 'Desconhecido';
+          const groupName = groupMeta.subject || 'Grupo';
+          const groupDesc = groupMeta.desc || 'Sem descrição';
+
+          // Estatísticas de atividade do grupo (se disponível)
+          let activityStats = '';
+          if (groupData.activity) {
+            const totalMsgs = groupData.activity.totalMessages || 0;
+            const today = new Date().toISOString().split('T')[0];
+            const todayMsgs = groupData.activity.daily?.[today] || 0;
+            activityStats = `\n\n📈 *Atividade:*\n• Total de mensagens: ${totalMsgs.toLocaleString()}\n• Mensagens hoje: ${todayMsgs}`;
+          }
+
+          // Recursos ativos
+          let recursos = [];
+          if (groupData.modorpg) recursos.push('⚔️ Modo RPG');
+          if (groupData.welcome) recursos.push('👋 Boas-vindas');
+          if (groupData.antifake) recursos.push('🛡️ Anti-fake');
+          if (groupData.antilink) recursos.push('🔗 Anti-link');
+          if (groupData.antiflood) recursos.push('🌊 Anti-flood');
+          
+          const recursosStr = recursos.length > 0 ? `\n\n✨ *Recursos ativos:*\n${recursos.join('\n')}` : '';
+
+          await reply(`📊 *Estatísticas do Grupo*\n\n📛 *Nome:* ${groupName}\n📅 *Criado em:* ${groupCreation}\n\n👥 *Membros:* ${members}\n👑 *Admins:* ${admins}\n👤 *Membros comuns:* ${members - admins}${activityStats}${recursosStr}\n\n📝 *Descrição:*\n${groupDesc.substring(0, 200)}${groupDesc.length > 200 ? '...' : ''}`);
+        } catch (e) {
+          console.error('Erro ao buscar estatísticas:', e);
+          await reply('❌ Erro ao obter estatísticas do grupo.');
+        }
+        break;
+      }
+
       case 'cog':
         if (!q) return reply(`📢 Ei, falta a pergunta! Me diga o que quer saber após o comando ${prefix}cog! 😴`);
         if (!KeyCog) {
@@ -13069,6 +14570,252 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         }
         break;
+      
+      // VERIFICADOR DE LINKS (FishFish API)
+      case 'verificar':
+      case 'checklink':
+      case 'scanlink':
+      case 'urlscan':
+        try {
+          if (!q) return reply(`🔒 *Verificador de Links*\n\n❌ Por favor, envie um link ou domínio para verificar.\n\n📝 *Uso:* ${prefix}${command} <link>\n\n📌 *Exemplos:*\n${prefix}${command} google.com\n${prefix}${command} https://exemplo.com/pagina`);
+          
+          // Extrair domínio do link
+          let urlToCheck = q.trim();
+          let domain = urlToCheck;
+          
+          try {
+            // Tentar extrair domínio de uma URL completa
+            if (urlToCheck.includes('://')) {
+              const urlObj = new URL(urlToCheck);
+              domain = urlObj.hostname;
+            } else if (urlToCheck.includes('/')) {
+              domain = urlToCheck.split('/')[0];
+            }
+          } catch {
+            // Se falhar, usar o valor original
+            domain = urlToCheck.replace(/^(https?:\/\/)?/, '').split('/')[0];
+          }
+          
+          await reply('🔍 Verificando segurança do link...');
+          
+          // Verificar domínio na API FishFish
+          const fishResponse = await axios.get(`https://api.fishfish.gg/v1/domains/${encodeURIComponent(domain)}`, {
+            timeout: 15000,
+            validateStatus: (status) => status < 500
+          });
+          
+          if (fishResponse.status === 404) {
+            // Domínio não encontrado na base de dados = provavelmente seguro
+            await reply(`✅ *Resultado da Verificação*\n\n🔗 *Link:* ${urlToCheck}\n🌐 *Domínio:* ${domain}\n\n📊 *Status:* Não encontrado na base de ameaças\n\n💚 *Análise:* Este domínio não está listado como malicioso na base de dados FishFish. Isso geralmente indica que é seguro, mas sempre tenha cuidado ao acessar links desconhecidos!\n\n⚠️ *Dica:* Mesmo links "seguros" podem ter conteúdo prejudicial. Navegue com cautela!`);
+          } else if (fishResponse.status === 200) {
+            const data = fishResponse.data;
+            const category = data.category || 'unknown';
+            const createdAt = data.created ? new Date(data.created).toLocaleDateString('pt-BR') : 'N/A';
+            
+            let statusEmoji = '⚠️';
+            let statusText = 'Suspeito';
+            let riskLevel = 'Médio';
+            
+            if (category === 'phishing') {
+              statusEmoji = '🚨';
+              statusText = 'PHISHING DETECTADO';
+              riskLevel = 'CRÍTICO';
+            } else if (category === 'malware') {
+              statusEmoji = '☠️';
+              statusText = 'MALWARE DETECTADO';
+              riskLevel = 'CRÍTICO';
+            } else if (category === 'safe') {
+              statusEmoji = '✅';
+              statusText = 'Seguro';
+              riskLevel = 'Baixo';
+            }
+            
+            let warningMsg = '';
+            if (category === 'phishing' || category === 'malware') {
+              warningMsg = '\n\n🚫 *NÃO ACESSE ESTE LINK!*\nEste domínio foi identificado como perigoso e pode roubar seus dados ou infectar seu dispositivo!';
+            }
+            
+            await reply(`${statusEmoji} *Resultado da Verificação*\n\n🔗 *Link:* ${urlToCheck}\n🌐 *Domínio:* ${domain}\n\n📊 *Status:* ${statusText}\n🏷️ *Categoria:* ${category}\n⚡ *Nível de Risco:* ${riskLevel}\n📅 *Registrado em:* ${createdAt}${warningMsg}\n\n🔒 *Verificado por:* FishFish Security API`);
+          } else {
+            await reply('❌ Erro ao verificar o link. Tente novamente mais tarde.');
+          }
+        } catch (e) {
+          console.error('Erro no comando verificar:', e);
+          
+          if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
+            return reply('⏰ Tempo esgotado! O servidor de verificação está demorando para responder.');
+          }
+          
+          reply('❌ Ocorreu um erro ao verificar o link. Tente novamente.');
+        }
+        break;
+      
+      // FUSO HORÁRIO
+      case 'hora':
+      case 'horario':
+      case 'fuso':
+      case 'timezone':
+        try {
+          if (!q) return reply(`🕐 *Consulta de Horário Mundial*\n\n📝 *Uso:* ${prefix}${command} <cidade/país>\n\n📌 *Exemplos:*\n${prefix}${command} tokyo\n${prefix}${command} new york\n${prefix}${command} london\n${prefix}${command} são paulo\n\n💡 *Dica:* Use nomes em inglês para melhores resultados!`);
+          
+          const location = q.trim();
+          
+          // Mapa de fusos horários comuns
+          const timezoneMap = {
+            'brasil': 'America/Sao_Paulo', 'brazil': 'America/Sao_Paulo', 'são paulo': 'America/Sao_Paulo', 'sao paulo': 'America/Sao_Paulo',
+            'rio': 'America/Sao_Paulo', 'rio de janeiro': 'America/Sao_Paulo', 'brasilia': 'America/Sao_Paulo',
+            'tokyo': 'Asia/Tokyo', 'toquio': 'Asia/Tokyo', 'japao': 'Asia/Tokyo', 'japan': 'Asia/Tokyo',
+            'new york': 'America/New_York', 'nova york': 'America/New_York', 'ny': 'America/New_York',
+            'los angeles': 'America/Los_Angeles', 'la': 'America/Los_Angeles', 'california': 'America/Los_Angeles',
+            'london': 'Europe/London', 'londres': 'Europe/London', 'uk': 'Europe/London', 'england': 'Europe/London',
+            'paris': 'Europe/Paris', 'franca': 'Europe/Paris', 'france': 'Europe/Paris',
+            'berlin': 'Europe/Berlin', 'alemanha': 'Europe/Berlin', 'germany': 'Europe/Berlin',
+            'moscow': 'Europe/Moscow', 'moscou': 'Europe/Moscow', 'russia': 'Europe/Moscow',
+            'dubai': 'Asia/Dubai', 'uae': 'Asia/Dubai',
+            'beijing': 'Asia/Shanghai', 'pequim': 'Asia/Shanghai', 'china': 'Asia/Shanghai', 'shanghai': 'Asia/Shanghai',
+            'sydney': 'Australia/Sydney', 'australia': 'Australia/Sydney',
+            'seoul': 'Asia/Seoul', 'korea': 'Asia/Seoul', 'coreia': 'Asia/Seoul',
+            'mumbai': 'Asia/Kolkata', 'india': 'Asia/Kolkata', 'delhi': 'Asia/Kolkata',
+            'singapore': 'Asia/Singapore', 'singapura': 'Asia/Singapore',
+            'hong kong': 'Asia/Hong_Kong', 'hongkong': 'Asia/Hong_Kong',
+            'bangkok': 'Asia/Bangkok', 'thailand': 'Asia/Bangkok', 'tailandia': 'Asia/Bangkok',
+            'mexico': 'America/Mexico_City', 'mexico city': 'America/Mexico_City',
+            'argentina': 'America/Argentina/Buenos_Aires', 'buenos aires': 'America/Argentina/Buenos_Aires',
+            'chile': 'America/Santiago', 'santiago': 'America/Santiago',
+            'portugal': 'Europe/Lisbon', 'lisbon': 'Europe/Lisbon', 'lisboa': 'Europe/Lisbon',
+            'madrid': 'Europe/Madrid', 'espanha': 'Europe/Madrid', 'spain': 'Europe/Madrid',
+            'rome': 'Europe/Rome', 'roma': 'Europe/Rome', 'italy': 'Europe/Rome', 'italia': 'Europe/Rome',
+            'amsterdam': 'Europe/Amsterdam', 'holanda': 'Europe/Amsterdam', 'netherlands': 'Europe/Amsterdam',
+            'toronto': 'America/Toronto', 'canada': 'America/Toronto',
+            'miami': 'America/New_York', 'chicago': 'America/Chicago', 'denver': 'America/Denver'
+          };
+          
+          const locationLower = location.toLowerCase();
+          let timezone = timezoneMap[locationLower];
+          
+          if (!timezone) {
+            // Tentar encontrar correspondência parcial
+            for (const [key, tz] of Object.entries(timezoneMap)) {
+              if (key.includes(locationLower) || locationLower.includes(key)) {
+                timezone = tz;
+                break;
+              }
+            }
+          }
+          
+          if (!timezone) {
+            return reply(`❌ *Local não encontrado!*\n\n🔍 Não consegui encontrar o fuso horário para "${location}".\n\n💡 *Tente usar:*\n• Nomes de cidades grandes (Tokyo, London, New York)\n• Nomes de países (Brasil, Japan, USA)\n• Nomes em inglês geralmente funcionam melhor`);
+          }
+          
+          // Obter horário atual no fuso especificado
+          const now = new Date();
+          const options = {
+            timeZone: timezone,
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          };
+          
+          const formatter = new Intl.DateTimeFormat('pt-BR', options);
+          const formattedTime = formatter.format(now);
+          
+          // Calcular diferença com Brasil
+          const brTime = new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' });
+          const targetTime = new Date().toLocaleString('en-US', { timeZone: timezone });
+          const brDate = new Date(brTime);
+          const targetDate = new Date(targetTime);
+          const diffHours = Math.round((targetDate - brDate) / (1000 * 60 * 60));
+          
+          let diffText = '';
+          if (diffHours === 0) {
+            diffText = 'Mesmo horário do Brasil';
+          } else if (diffHours > 0) {
+            diffText = `+${diffHours}h em relação ao Brasil`;
+          } else {
+            diffText = `${diffHours}h em relação ao Brasil`;
+          }
+          
+          await reply(`🕐 *Horário em ${location.charAt(0).toUpperCase() + location.slice(1)}*\n\n📅 ${formattedTime}\n\n🌍 *Fuso:* ${timezone}\n⏰ *Diferença:* ${diffText}`);
+        } catch (e) {
+          console.error('Erro no comando hora:', e);
+          reply('❌ Ocorreu um erro ao consultar o horário. Tente novamente.');
+        }
+        break;
+      
+      // CLIMA / PREVISÃO DO TEMPO
+      case 'clima':
+      case 'tempo':
+      case 'weather':
+      case 'previsao':
+        try {
+          if (!q) return reply(`🌤️ *Previsão do Tempo*\n\n📝 *Uso:* ${prefix}${command} <cidade>\n\n📌 *Exemplos:*\n${prefix}${command} São Paulo\n${prefix}${command} Tokyo\n${prefix}${command} New York`);
+          
+          const city = q.trim();
+          
+          // Usando a API wttr.in (gratuita, não precisa de API key)
+          const weatherResponse = await axios.get(`https://wttr.in/${encodeURIComponent(city)}?format=j1&lang=pt`, {
+            timeout: 15000
+          });
+          
+          if (!weatherResponse.data || !weatherResponse.data.current_condition) {
+            return reply('❌ Cidade não encontrada. Verifique o nome e tente novamente.');
+          }
+          
+          const current = weatherResponse.data.current_condition[0];
+          const location_data = weatherResponse.data.nearest_area[0];
+          const forecast = weatherResponse.data.weather;
+          
+          // Mapear condições do tempo para emojis
+          const getWeatherEmoji = (code) => {
+            const weatherCodes = {
+              '113': '☀️', '116': '⛅', '119': '☁️', '122': '☁️',
+              '143': '🌫️', '176': '🌦️', '179': '🌨️', '182': '🌨️',
+              '185': '🌨️', '200': '⛈️', '227': '❄️', '230': '❄️',
+              '248': '🌫️', '260': '🌫️', '263': '🌧️', '266': '🌧️',
+              '281': '🌨️', '284': '🌨️', '293': '🌧️', '296': '🌧️',
+              '299': '🌧️', '302': '🌧️', '305': '🌧️', '308': '🌧️',
+              '311': '🌨️', '314': '🌨️', '317': '🌨️', '320': '🌨️',
+              '323': '🌨️', '326': '🌨️', '329': '❄️', '332': '❄️',
+              '335': '❄️', '338': '❄️', '350': '🌨️', '353': '🌦️',
+              '356': '🌧️', '359': '🌧️', '362': '🌨️', '365': '🌨️',
+              '368': '🌨️', '371': '🌨️', '374': '🌨️', '377': '🌨️',
+              '386': '⛈️', '389': '⛈️', '392': '⛈️', '395': '❄️'
+            };
+            return weatherCodes[code] || '🌡️';
+          };
+          
+          const emoji = getWeatherEmoji(current.weatherCode);
+          const cityName = location_data.areaName[0].value;
+          const country = location_data.country[0].value;
+          
+          let forecastText = '';
+          if (forecast && forecast.length > 0) {
+            forecastText = '\n\n📅 *Previsão dos próximos dias:*';
+            for (let i = 0; i < Math.min(3, forecast.length); i++) {
+              const day = forecast[i];
+              const dayEmoji = getWeatherEmoji(day.hourly[4]?.weatherCode || '113');
+              const date = new Date(day.date).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' });
+              forecastText += `\n${dayEmoji} *${date}:* ${day.mintempC}°C - ${day.maxtempC}°C`;
+            }
+          }
+          
+          await reply(`${emoji} *Clima em ${cityName}, ${country}*\n\n🌡️ *Temperatura:* ${current.temp_C}°C (sensação ${current.FeelsLikeC}°C)\n💧 *Umidade:* ${current.humidity}%\n💨 *Vento:* ${current.windspeedKmph} km/h\n👁️ *Visibilidade:* ${current.visibility} km\n☁️ *Condição:* ${current.lang_pt?.[0]?.value || current.weatherDesc[0].value}${forecastText}`);
+        } catch (e) {
+          console.error('Erro no comando clima:', e);
+          
+          if (e.response?.status === 404 || e.message?.includes('404')) {
+            return reply('❌ Cidade não encontrada. Verifique o nome e tente novamente.');
+          }
+          
+          reply('❌ Ocorreu um erro ao consultar o clima. Tente novamente.');
+        }
+        break;
+        
       //DOWNLOADS
       case 'assistir':
         try {
@@ -21922,6 +23669,252 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
         const stats = rentalExpirationManager.getStats();
         const message = `
 📊 **Estatísticas do Sistema de Expiração de Aluguel** 📊
+
+⏰ **Status do Sistema:**
+• Ativo: ${stats.isRunning ? '✅ Sim' : '❌ Não'}
+• Última verificação: ${stats.lastCheckTime ? new Date(stats.lastCheckTime).toLocaleString('pt-BR') : 'Nunca'}
+
+📈 **Estatísticas Gerais:**
+• Total de verificações: ${stats.totalChecks}
+• Avisos enviados: ${stats.warningsSent}
+• Avisos finais enviados: ${stats.finalWarningsSent}
+• Aluguéis expirados processados: ${stats.expiredProcessed}
+• Erros: ${stats.errors}
+
+⚙️ **Configurações:**
+• Intervalo de verificação: ${stats.config.checkInterval}
+• Dias para aviso: ${stats.config.warningDays}
+• Dias para aviso final: ${stats.config.finalWarningDays}
+• Limpeza automática: ${stats.config.enableAutoCleanup ? '✅ Ativada' : '❌ Desativada'}
+• Notificações: ${stats.config.enableNotifications ? '✅ Ativadas' : '❌ Desativadas'}
+
+📝 **Arquivo de Log:**
+• Local: ${stats.config.logFile}
+
+🔧 **Comandos Disponíveis:**
+• ${prefix}rentalstats - Ver estatísticas
+• ${prefix}rentaltest - Testar sistema manualmente
+• ${prefix}rentalconfig - Configurar sistema
+• ${prefix}rentalclean - Limpar logs antigos`;
+        
+        await reply(message);
+        break;
+
+      case 'rentaltest':
+        if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
+        if (!rentalExpirationManager) return reply('❌ Sistema de gerenciamento de expiração de aluguel não está ativo.');
+        
+        await reply('🔄 Iniciando teste manual do sistema de expiração de aluguel...');
+        
+        try {
+          await rentalExpirationManager.checkExpiredRentals();
+          await reply('✅ Teste concluído com sucesso! Verifique as estatísticas para mais detalhes.');
+        } catch (error) {
+          console.error('❌ Error during rental test:', error);
+          await reply(`❌ Ocorreu um erro durante o teste: ${error.message}`);
+        }
+        break;
+
+      case 'rentalconfig':
+        if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
+        if (!q) return reply(`Uso: ${prefix}rentalconfig <opção> <valor>\n\nOpções disponíveis:\n• interval <cron-expression>\n• warning <dias>\n• final <dias>\n• cleanup <horas>\n• notifications <on|off>\n• autocleanup <on|off>\n\nExemplo: ${prefix}rentalconfig warning 7`);
+        
+        const [option, value] = q.split(' ', 2);
+        
+        if (!rentalExpirationManager) return reply('❌ Sistema de gerenciamento de expiração de aluguel não está ativo.');
+        
+        try {
+          switch (option) {
+            case 'interval':
+              rentalExpirationManager.config.checkInterval = value;
+              await reply(`✅ Intervalo de verificação atualizado para: ${value}`);
+              break;
+              
+            case 'warning':
+              rentalExpirationManager.config.warningDays = parseInt(value);
+              await reply(`✅ Dias para aviso inicial atualizados para: ${value}`);
+              break;
+              
+            case 'final':
+              rentalExpirationManager.config.finalWarningDays = parseInt(value);
+              await reply(`✅ Dias para aviso final atualizados para: ${value}`);
+              break;
+              
+            case 'cleanup':
+              rentalExpirationManager.config.cleanupDelayHours = parseInt(value);
+              await reply(`✅ Atraso para limpeza automática atualizado para: ${value} horas`);
+              break;
+              
+            case 'notifications':
+              rentalExpirationManager.config.enableNotifications = value.toLowerCase() === 'on';
+              await reply(`✅ Notificações ${rentalExpirationManager.config.enableNotifications ? 'ativadas' : 'desativadas'}`);
+              break;
+              
+            case 'autocleanup':
+              rentalExpirationManager.config.enableAutoCleanup = value.toLowerCase() === 'on';
+              await reply(`✅ Limpeza automática ${rentalExpirationManager.config.enableAutoCleanup ? 'ativada' : 'desativada'}`);
+              break;
+              
+            default:
+              await reply(`❌ Opção inválida: ${option}\nUse ${prefix}rentalconfig para ver as opções disponíveis.`);
+          }
+        } catch (error) {
+          console.error('❌ Error updating rental config:', error);
+          await reply(`❌ Ocorreu um erro ao atualizar a configuração: ${error.message}`);
+        }
+        break;
+
+      case 'rentalclean':
+        if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
+        if (!rentalExpirationManager) return reply('❌ Sistema de gerenciamento de expiração de aluguel não está ativo.');
+        
+        try {
+          const statsBefore = rentalExpirationManager.getStats();
+          await rentalExpirationManager.resetStats();
+          await reply(`✅ Estatísticas resetadas com sucesso!\n\nAntes:\n• Verificações: ${statsBefore.totalChecks}\n• Avisos: ${statsBefore.warningsSent}\n• Erros: ${statsBefore.errors}\n\nDepois:\n• Verificações: 0\n• Avisos: 0\n• Erros: 0`);
+        } catch (error) {
+          console.error('❌ Error cleaning rental stats:', error);
+          await reply(`❌ Ocorreu um erro ao limpar as estatísticas: ${error.message}`);
+        }
+        break;
+
+      default:
+        if (isCmd) {
+          const cmdNotFoundConfig = loadCmdNotFoundConfig();
+          if (cmdNotFoundConfig.enabled) {
+            const userName = pushname || getUserName(sender);
+            const commandName = command || body.trim().slice(groupPrefix.length).split(/ +/).shift().trim();
+            
+            const notFoundMessage = formatMessageWithFallback(
+              cmdNotFoundConfig.message,
+              {
+                command: commandName,
+                prefix: groupPrefix,
+                user: sender,
+                botName: nomebot,
+                userName: userName
+              },
+              '❌ Comando não encontrado! Tente ' + groupPrefix + 'menu para ver todos os comandos disponíveis.'
+            );
+            
+            try {
+              await reply(notFoundMessage);
+              
+              console.log(`🔍 Comando não encontrado: "${commandName}" por ${userName} (${sender}) no grupo ${isGroup ? groupMetadata.subject : 'privado'}`);
+            } catch (error) {
+              console.error('❌ Erro ao enviar mensagem de comando não encontrado:', error);
+              await nazu.react('❌', {
+                key: info.key
+              });
+            }
+          } else {
+            await nazu.react('❌', {
+              key: info.key
+            });
+          }
+        }
+        const msgPrefix = loadMsgPrefix();
+        if (['prefix', 'prefixo'].includes(budy2) && msgPrefix) {
+          await reply(msgPrefix.replace('#prefixo#', prefix));
+        };
+        const customReacts = loadCustomReacts();
+        for (const react of customReacts) {
+          if (budy2.includes(react.trigger)) {
+            await nazu.react(react.emoji, { key: info.key });
+            break;
+          }
+        }
+        if (!isCmd && isAutoRepo) {
+          await processAutoResponse(nazu, from, body, info);
+        };
+    };
+    
+  } catch (error) {
+    console.error(`❌ [${msgId}] ERRO NO PROCESSAMENTO DA MENSAGEM`);
+    console.error('Tipo de erro:', error.name);
+    console.error('Mensagem:', error.message);
+    console.error('Stack trace:', error.stack);
+  };
+};
+
+function getDiskSpaceInfo() {
+  try {
+    const platform = os.platform();
+    let totalBytes = 0;
+    let freeBytes = 0;
+    const defaultResult = {
+      totalGb: 'N/A',
+      freeGb: 'N/A',
+      usedGb: 'N/A',
+      percentUsed: 'N/A'
+    };
+    if (platform === 'win32') {
+      try {
+        const scriptPath = __dirname;
+        const driveLetter = pathz.parse(scriptPath).root.charAt(0);
+        const command = `fsutil volume diskfree ${driveLetter}:`;
+        const output = execSync(command).toString();
+        const lines = output.split('\n');
+        const freeLine = lines.find(line => line.includes('Total # of free bytes'));
+        const totalLine = lines.find(line => line.includes('Total # of bytes'));
+        if (freeLine) {
+          freeBytes = parseFloat(freeLine.split(':')[1].trim().replace(/\./g, ''));
+        }
+        if (totalLine) {
+          totalBytes = parseFloat(totalLine.split(':')[1].trim().replace(/\./g, ''));
+        }
+      } catch (winError) {
+        console.error("Erro ao obter espaço em disco no Windows:", winError);
+        return defaultResult;
+      }
+    } else if (platform === 'linux' || platform === 'darwin') {
+      try {
+        const command = 'df -k .';
+        const output = execSync(command).toString();
+        const lines = output.split('\n');
+        if (lines.length > 1) {
+          const parts = lines[1].split(/\s+/);
+          totalBytes = parseInt(parts[1]) * 1024;
+          freeBytes = parseInt(parts[3]) * 1024;
+        }
+      } catch (unixError) {
+        console.error("Erro ao obter espaço em disco no Linux/macOS:", unixError);
+        return defaultResult;
+      }
+    } else {
+      console.warn(`Plataforma ${platform} não suportada para informações de disco`);
+      return defaultResult;
+    }
+    if (totalBytes > 0 && freeBytes >= 0) {
+      const usedBytes = totalBytes - freeBytes;
+      const totalGb = (totalBytes / 1024 / 1024 / 1024).toFixed(2);
+      const freeGb = (freeBytes / 1024 / 1024 / 1024).toFixed(2);
+      const usedGb = (usedBytes / 1024 / 1024 / 1024).toFixed(2);
+      const percentUsed = (usedBytes / totalBytes * 100).toFixed(1) + '%';
+      return {
+        totalGb,
+        freeGb,
+        usedGb,
+        percentUsed
+      };
+    } else {
+      console.warn("Valores inválidos de espaço em disco:", {
+        totalBytes,
+        freeBytes
+      });
+      return defaultResult;
+    }
+  } catch (error) {
+    console.error("Erro ao obter informações de disco:", error);
+    return {
+      totalGb: 'N/A',
+      freeGb: 'N/A',
+      usedGb: 'N/A',
+      percentUsed: 'N/A'
+    };
+  }
+}
+export default NazuninhaBotExec;
 
 ⏰ **Status do Sistema:**
 • Ativo: ${stats.isRunning ? '✅ Sim' : '❌ Não'}

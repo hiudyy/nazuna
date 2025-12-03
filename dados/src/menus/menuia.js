@@ -53,6 +53,9 @@ ${middleBorder}${menuItemIcon}${prefix}explicar
 ${middleBorder}${menuItemIcon}${prefix}resumir
 ${middleBorder}${menuItemIcon}${prefix}corrigir
 ${middleBorder}${menuItemIcon}${prefix}resumirurl
+${middleBorder}${menuItemIcon}${prefix}resumirchat <qtd>
+${middleBorder}${menuItemIcon}${prefix}historia <gênero>
+${middleBorder}${menuItemIcon}${prefix}recomendar <tipo> <gênero>
 ${bottomBorder}
 `;
 }

@@ -101,6 +101,38 @@ ${middleBorder}${menuItemIcon}${prefix}chefe
 ${middleBorder}${menuItemIcon}${prefix}eventos
 ${bottomBorder}
 
+${menuTopBorder}${separatorIcon} *🏰 DUNGEONS & RAIDS*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}dungeon - Listar dungeons
+${middleBorder}${menuItemIcon}${prefix}dungeon criar <tipo>
+${middleBorder}${menuItemIcon}${prefix}dungeon entrar <id>
+${middleBorder}${menuItemIcon}${prefix}dungeon iniciar
+${middleBorder}${menuItemIcon}${prefix}dungeon sair
+${bottomBorder}
+
+${menuTopBorder}${separatorIcon} *⚔️ CLASSES & PROFISSÕES*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}classe - Ver classes
+${middleBorder}${menuItemIcon}${prefix}classe <nome> - Escolher
+${bottomBorder}
+
+${menuTopBorder}${separatorIcon} *🏠 HOUSING*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}casa - Ver sua casa
+${middleBorder}${menuItemIcon}${prefix}casa comprar <tipo>
+${middleBorder}${menuItemIcon}${prefix}casa coletar
+${middleBorder}${menuItemIcon}${prefix}casa decorar <item>
+${bottomBorder}
+
+${menuTopBorder}${separatorIcon} *🛒 MERCADO DE JOGADORES*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}mercadoplayer - Ver itens
+${middleBorder}${menuItemIcon}${prefix}mercadoplayer vender <item> <preço>
+${middleBorder}${menuItemIcon}${prefix}mercadoplayer comprar <nº>
+${middleBorder}${menuItemIcon}${prefix}mercadoplayer meus
+${middleBorder}${menuItemIcon}${prefix}mercadoplayer cancelar <nº>
+${bottomBorder}
+
 ${menuTopBorder}${separatorIcon} *${combatMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}duelar @user

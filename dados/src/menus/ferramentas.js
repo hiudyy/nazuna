@@ -9,6 +9,8 @@ export default async function menuFerramentas(prefix, botName = "MeuBot", userNa
     nicknameMenuTitle = "📱 GERADOR DE NOMES & IDENTIDADE",
     captureMenuTitle = "🖼️ CAPTURAS & VISUALIZAÇÃO",
     linkMenuTitle = "🌐 LINKS & UPLOADS",
+    securityMenuTitle = "🔒 SEGURANÇA",
+    timeMenuTitle = "🕐 TEMPO & CLIMA",
     languageMenuTitle = "📚 DICIONÁRIO & TRADUÇÃO",
     reminderMenuTitle = "⏰ LEMBRETES & LISTAS"
 } = {}) {
@@ -33,7 +35,40 @@ ${middleBorder}${menuItemIcon}${prefix}encurtalink
 ${middleBorder}${menuItemIcon}${prefix}upload
 ${bottomBorder}
 
+${menuTopBorder}${separatorIcon} *${securityMenuTitle}*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}verificar <link>
+${bottomBorder}
+
+${menuTopBorder}${separatorIcon} *${timeMenuTitle}*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}hora <cidade/país>
+${middleBorder}${menuItemIcon}${prefix}clima <cidade>
+${bottomBorder}
+
 ${menuTopBorder}${separatorIcon} *${languageMenuTitle}*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}dicionario
+${middleBorder}${menuItemIcon}${prefix}tradutor
+${bottomBorder}
+
+${menuTopBorder}${separatorIcon} *${reminderMenuTitle}*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}lembrete
+${middleBorder}${menuItemIcon}${prefix}meuslembretes
+${middleBorder}${menuItemIcon}${prefix}apagalembrete
+${bottomBorder}
+
+${menuTopBorder}${separatorIcon} *🔒 SEGURANÇA & UTILIDADES*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}verificarurl <link>
+${middleBorder}${menuItemIcon}${prefix}clima <cidade>
+${middleBorder}${menuItemIcon}${prefix}hora <local>
+${middleBorder}${menuItemIcon}${prefix}aniversario
+${middleBorder}${menuItemIcon}${prefix}statsgrupo
+${bottomBorder}
+`;
+}
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}dicionario
 ${middleBorder}${menuItemIcon}${prefix}tradutor
