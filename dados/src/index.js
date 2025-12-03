@@ -12927,9 +12927,11 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'tinyurl':
         try {
           if (!q) return reply(`❌️ *Forma incorreta, use está como exemplo:* ${prefix + command} https://instagram.com/hiudyyy_`);
-          var anu;
-          anu = await axios.get(`https://tinyurl.com/api-create.php?url=${q}`);
-          reply(`${anu.data}`);
+          const shortResponse = await axios.post("https://spoo.me/api/v1/shorten", { 
+            long_url: q, 
+            alias: `nazuna_${Math.floor(10000 + Math.random() * 90000)}` 
+          });
+          reply(`✅ *Link encurtado com sucesso!*\n\n🔗 *Link curto:* ${shortResponse.data.short_url}\n📎 *Link original:* ${shortResponse.data.long_url}`);
         } catch (e) {
           console.error(e);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
@@ -12943,8 +12945,11 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           await reply('🔍 *Consultando CPF...*\n⏳ Aguarde um momento...');
           const response = await axios.get(`http://api.buscas.black.com.cognima.com.br/api/cpf?cpf=${cpf}`, { timeout: 30000 });
           if (response.data.success && response.data.link) {
-            const shortLink = await axios.get(`https://tinyurl.com/api-create.php?url=${response.data.link}`);
-            await reply(`✅ *Consulta realizada com sucesso!*\n\n🔗 *Link do resultado:*\n${shortLink.data}\n\n📋 *Acesse o link acima para visualizar os dados completos.*`);
+            const shortLink = await axios.post("https://spoo.me/api/v1/shorten", { 
+              long_url: response.data.link, 
+              alias: `nazuna_${Math.floor(10000 + Math.random() * 90000)}` 
+            });
+            await reply(`✅ *Consulta realizada com sucesso!*\n\n🔗 *Link do resultado:*\n${shortLink.data.short_url}\n\n📋 *Acesse o link acima para visualizar os dados completos.*`);
           } else {
             await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CPF consultado.\n\n💡 *Possíveis motivos:*\n• CPF não cadastrado na base de dados\n• Dados não disponíveis no momento\n\n🔄 Tente novamente mais tarde.`);
           }
@@ -12965,8 +12970,11 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           await reply('🔍 *Consultando nome...*\n⏳ Aguarde um momento...');
           const response = await axios.get(`http://api.buscas.black.com.cognima.com.br/api/nome?nome=${encodeURIComponent(nome)}`, { timeout: 30000 });
           if (response.data.success && response.data.link) {
-            const shortLink = await axios.get(`https://tinyurl.com/api-create.php?url=${response.data.link}`);
-            await reply(`✅ *Consulta realizada com sucesso!*\n\n👤 *Nome consultado:* ${nome}\n🔗 *Link do resultado:*\n${shortLink.data}\n\n📋 *Acesse o link acima para visualizar os dados completos.*`);
+            const shortLink = await axios.post("https://spoo.me/api/v1/shorten", { 
+              long_url: response.data.link, 
+              alias: `nazuna_${Math.floor(10000 + Math.random() * 90000)}` 
+            });
+            await reply(`✅ *Consulta realizada com sucesso!*\n\n👤 *Nome consultado:* ${nome}\n🔗 *Link do resultado:*\n${shortLink.data.short_url}\n\n📋 *Acesse o link acima para visualizar os dados completos.*`);
           } else {
             await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o nome consultado.\n\n💡 *Possíveis motivos:*\n• Nome não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Nome digitado incorretamente\n\n🔄 Tente verificar a grafia e tentar novamente.`);
           }
@@ -12988,8 +12996,11 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           await reply('🔍 *Consultando telefone...*\n⏳ Aguarde um momento...');
           const response = await axios.get(`http://api.buscas.black.com.cognima.com.br/api/telefone?telefone=${telefone}`, { timeout: 30000 });
           if (response.data.success && response.data.link) {
-            const shortLink = await axios.get(`https://tinyurl.com/api-create.php?url=${response.data.link}`);
-            await reply(`✅ *Consulta realizada com sucesso!*\n\n📱 *Telefone consultado:* ${telefone}\n🔗 *Link do resultado:*\n${shortLink.data}\n\n📋 *Acesse o link acima para visualizar os dados completos.*`);
+            const shortLink = await axios.post("https://spoo.me/api/v1/shorten", { 
+              long_url: response.data.link, 
+              alias: `nazuna_${Math.floor(10000 + Math.random() * 90000)}` 
+            });
+            await reply(`✅ *Consulta realizada com sucesso!*\n\n📱 *Telefone consultado:* ${telefone}\n🔗 *Link do resultado:*\n${shortLink.data.short_url}\n\n📋 *Acesse o link acima para visualizar os dados completos.*`);
           } else {
             await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o telefone consultado.\n\n💡 *Possíveis motivos:*\n• Telefone não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Número digitado incorretamente\n\n🔄 Verifique o número e tente novamente.`);
           }
@@ -13069,20 +13080,25 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           
-          reply('Um momento, estou buscando as informações para você 🕵️‍♂️').then(() => {
-            FilmesDL(q, KeyCog).then((datyz) => {
+          reply('Um momento, estou buscando as informações para você 🕵️‍♂️').then(async () => {
+            try {
+              const datyz = await FilmesDL(q, KeyCog);
               if (!datyz || !datyz.url) {
                 reply('Desculpe, não consegui encontrar nada. Tente com outro nome de filme ou série. 😔');
                 return;
               }
+              const shortLink = await axios.post("https://spoo.me/api/v1/shorten", { 
+                long_url: datyz.url, 
+                alias: `nazuna_${Math.floor(10000 + Math.random() * 90000)}` 
+              });
               nazu.sendMessage(from, {
                 image: { url: datyz.img },
-                caption: `Aqui está o que encontrei! 🎬\n\n*Nome*: ${datyz.name}\n🔗 *Assista:* ${datyz.url}`
+                caption: `Aqui está o que encontrei! 🎬\n\n*Nome*: ${datyz.name}\n🔗 *Assista:* ${shortLink.data.short_url}`
               }, { quoted: info });
-            }).catch((e) => {
+            } catch (e) {
               console.error(e);
               reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
-            });
+            }
           });
         } catch (e) {
           console.error(e);
@@ -13096,11 +13112,15 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           var datz;
           datz = await mcPlugin(q);
           if (!datz.ok) return reply(datz.msg);
+          const shortLinkPlugin = await axios.post("https://spoo.me/api/v1/shorten", { 
+            long_url: datz.url, 
+            alias: `nazuna_${Math.floor(10000 + Math.random() * 90000)}` 
+          });
           await nazu.sendMessage(from, {
             image: {
               url: datz.image
             },
-            caption: `🔍 Encontrei esse plugin aqui:\n\n*Nome*: _${datz.name}_\n*Publicado por*: _${datz.creator}_\n*Descrição*: _${datz.desc}_\n*Link para download*: _${datz.url}_\n\n> 💖 `
+            caption: `🔍 Encontrei esse plugin aqui:\n\n*Nome*: _${datz.name}_\n*Publicado por*: _${datz.creator}_\n*Descrição*: _${datz.desc}_\n*Link para download*: _${shortLinkPlugin.data.short_url}_\n\n> 💖 `
           }, {
             quoted: info
           });
@@ -13605,7 +13625,11 @@ case 'ytmp3':
           // Verificar tamanho do arquivo (limite de 100MB para envio no WhatsApp)
           const maxSize = 100 * 1024 * 1024; // 100MB
           if (fileSizeBytes > maxSize) {
-            return reply(`📁 *Arquivo encontrado!*\n\n📄 *Nome:* ${fileName}\n📊 *Tamanho:* ${fileSize}\n📋 *Tipo:* ${mimetype}\n\n⚠️ *Arquivo muito grande para enviar!*\nO limite do WhatsApp é 100MB.\n\n🔗 *Link direto:*\n${downloadUrl}`);
+            const shortLinkGdrive = await axios.post("https://spoo.me/api/v1/shorten", { 
+              long_url: downloadUrl, 
+              alias: `nazuna_${Math.floor(10000 + Math.random() * 90000)}` 
+            });
+            return reply(`📁 *Arquivo encontrado!*\n\n📄 *Nome:* ${fileName}\n📊 *Tamanho:* ${fileSize}\n📋 *Tipo:* ${mimetype}\n\n⚠️ *Arquivo muito grande para enviar!*\nO limite do WhatsApp é 100MB.\n\n🔗 *Link direto:*\n${shortLinkGdrive.data.short_url}`);
           }
           
           await reply(`📁 *Baixando arquivo...*\n\n📄 *Nome:* ${fileName}\n📊 *Tamanho:* ${fileSize}\n📋 *Tipo:* ${mimetype}`);
@@ -13717,7 +13741,11 @@ case 'ytmp3':
           // Verificar tamanho do arquivo (limite de 100MB para envio no WhatsApp)
           const maxSize = 100 * 1024 * 1024; // 100MB
           if (fileSizeBytes > maxSize) {
-            return reply(`📁 *Arquivo encontrado!*\n\n📄 *Nome:* ${fileName}\n📊 *Tamanho:* ${fileSize}\n📅 *Upload:* ${uploadDate || 'N/A'}\n📋 *Tipo:* ${extension || mimetype}\n\n⚠️ *Arquivo muito grande para enviar!*\nO limite do WhatsApp é 100MB.\n\n🔗 *Link direto:*\n${downloadUrl}`);
+            const shortLinkMf = await axios.post("https://spoo.me/api/v1/shorten", { 
+              long_url: downloadUrl, 
+              alias: `nazuna_${Math.floor(10000 + Math.random() * 90000)}` 
+            });
+            return reply(`📁 *Arquivo encontrado!*\n\n📄 *Nome:* ${fileName}\n📊 *Tamanho:* ${fileSize}\n📅 *Upload:* ${uploadDate || 'N/A'}\n📋 *Tipo:* ${extension || mimetype}\n\n⚠️ *Arquivo muito grande para enviar!*\nO limite do WhatsApp é 100MB.\n\n🔗 *Link direto:*\n${shortLinkMf.data.short_url}`);
           }
           
           await reply(`📁 *Baixando arquivo...*\n\n📄 *Nome:* ${fileName}\n📊 *Tamanho:* ${fileSize}\n📅 *Upload:* ${uploadDate || 'N/A'}`);
