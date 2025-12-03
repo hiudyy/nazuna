@@ -17613,7 +17613,7 @@ case 'roubar':
           if (!menc_os2) return reply("Marque alguém 🙄");
           await nazu.groupParticipantsUpdate(from, [menc_os2], 'demote');
           reply(`✅ Usuário rebaixado com sucesso!`);
-        } catch (e) {
+        } catch (e) { 
           console.error(e);
           reply("ocorreu um erro 💔");
         }
