@@ -27,7 +27,7 @@ ${middleBorder}${menuItemIcon}${prefix}llama
 ${middleBorder}${menuItemIcon}${prefix}llama3
 ${middleBorder}${menuItemIcon}${prefix}phi
 ${middleBorder}${menuItemIcon}${prefix}phi3
-${middleBorder}
+
 ${middleBorder}${menuItemIcon}${prefix}yi
 ${middleBorder}${menuItemIcon}${prefix}kimi
 ${middleBorder}${menuItemIcon}${prefix}kimik2

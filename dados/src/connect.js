@@ -1067,7 +1067,7 @@ async function createBotSocket(authDir) {
             
             // Processa mensagem
             if (typeof indexModule === 'function') {
-                await indexModule(NazunaSock, info, null, null, messagesCache, rentalExpirationManager);
+                await indexModule(NazunaSock, info, null, messagesCache, rentalExpirationManager);
             } else {
                 throw new Error('Módulo index.js não é uma função válida. Verifique o arquivo index.js.');
             }
