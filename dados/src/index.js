@@ -4899,7 +4899,14 @@ Entre em contato com o dono do bot:
           const skillB = getSkillBonus(me,'fishing');
           const bonus = Math.floor(base * ((fishBonus||0) + skillB)); const total = base + bonus;
           me.wallet += total; me.cooldowns.fish = Date.now() + 4*60*1000; // cooldown maior
-          addSkillXP(me,'fishing',1); updateChallenge(me,'fish',1,true); updatePeriodChallenge(me,'fish',1,true); saveEconomy(econ);
+          addSkillXP(me,'fishing',1); updateChallenge(me,'fish',1,true); updatePeriodChallenge(me,'fish',1,true);
+          
+          // Adiciona peixe como ingrediente
+          me.ingredients = me.ingredients || {};
+          const fishQty = 1 + (Math.random() < 0.3 ? 1 : 0); // 1-2 peixes (30% chance de pegar 2)
+          me.ingredients.peixe = (me.ingredients.peixe || 0) + fishQty;
+          
+          saveEconomy(econ);
           
           let fishText = `╭━━━⊱ 🎣 *PESCOU!* 🎣 ⊱━━━╮\n`;
           fishText += `│\n`;
@@ -4907,6 +4914,7 @@ Entre em contato com o dono do bot:
           if (bonus > 0) {
             fishText += `│ ✨ Bônus: *+${fmt(bonus)}*\n`;
           }
+          fishText += `│ 🐟 Peixe: *+${fishQty}*\n`;
           fishText += `│\n`;
           fishText += `╰━━━━━━━━━━━━━━━━━━━━━╯`;
           
@@ -4945,7 +4953,14 @@ Entre em contato com o dono do bot:
           const skillB = getSkillBonus(me,'hunting');
           const bonus = Math.floor(base * ((huntBonus||0) + skillB)); const total = base + bonus;
           me.wallet += total; me.cooldowns.hunt = Date.now() + 6*60*1000;
-          addSkillXP(me,'hunting',1); updateChallenge(me,'hunt',1,true); updatePeriodChallenge(me,'hunt',1,true); saveEconomy(econ);
+          addSkillXP(me,'hunting',1); updateChallenge(me,'hunt',1,true); updatePeriodChallenge(me,'hunt',1,true);
+          
+          // Adiciona carne como ingrediente
+          me.ingredients = me.ingredients || {};
+          const meatQty = 1 + (Math.random() < 0.25 ? 1 : 0); // 1-2 carnes (25% chance de pegar 2)
+          me.ingredients.carne = (me.ingredients.carne || 0) + meatQty;
+          
+          saveEconomy(econ);
           
           let huntText = `╭━━━⊱ 🏹 *CAÇOU!* 🏹 ⊱━━━╮\n`;
           huntText += `│\n`;
@@ -4953,6 +4968,7 @@ Entre em contato com o dono do bot:
           if (bonus > 0) {
             huntText += `│ ✨ Bônus: *+${fmt(bonus)}*\n`;
           }
+          huntText += `│ 🥩 Carne: *+${meatQty}*\n`;
           huntText += `│\n`;
           huntText += `╰━━━━━━━━━━━━━━━━━━━━━╯`;
           
@@ -5131,6 +5147,9 @@ Entre em contato com o dono do bot:
           addSkillXP(me, 'cooking', 2);
           updateChallenge(me, 'cook', 1, true);
           updatePeriodChallenge(me, 'cook', 1, true);
+          
+          // Atualiza progresso de missões diárias
+          updateQuestProgress(me, 'cook', 1);
 
           // Cooldown de 3 minutos
           me.cooldowns.cook = Date.now() + 3 * 60 * 1000;
@@ -5189,7 +5208,9 @@ Entre em contato com o dono do bot:
               alface: { name: '🥬 Alface', cost: 12, growTime: 3 * 60 * 1000, yield: { alface: 2 } },
               milho: { name: '🌽 Milho', cost: 25, growTime: 7 * 60 * 1000, yield: { milho: 4 } },
               arroz: { name: '🌾 Arroz', cost: 22, growTime: 8 * 60 * 1000, yield: { arroz: 4 } },
-              cana: { name: '🌿 Cana-de-açúcar', cost: 30, growTime: 10 * 60 * 1000, yield: { acucar: 5 } }
+              cana: { name: '🌿 Cana-de-açúcar', cost: 30, growTime: 10 * 60 * 1000, yield: { acucar: 5 } },
+              galinha: { name: '🐔 Galinha', cost: 35, growTime: 15 * 60 * 1000, yield: { ovo: 2 } },
+              vaca: { name: '🐄 Vaca', cost: 50, growTime: 20 * 60 * 1000, yield: { queijo: 3 } }
             };
             saveEconomy(econ);
           }
@@ -5287,6 +5308,9 @@ Entre em contato com o dono do bot:
           addSkillXP(me, 'farming', readyPlots.length * 2);
           updateChallenge(me, 'harvest', readyPlots.length, true);
           updatePeriodChallenge(me, 'harvest', readyPlots.length, true);
+          
+          // Atualiza progresso de missões diárias (coletar recursos)
+          updateQuestProgress(me, 'gather', readyPlots.length);
 
           saveEconomy(econ);
 
@@ -7045,11 +7069,11 @@ Entre em contato com o dono do bot:
         // Gerar missões diárias
         if (me.quests.daily.length === 0) {
           const allQuests = [
-            { id: 'duel_3', name: '⚔️ Duelar 3 vezes', reward: 5000, exp: 200, progress: 0, goal: 3 },
-            { id: 'dungeon_2', name: '🗺️ Completar 2 masmorras', reward: 8000, exp: 300, progress: 0, goal: 2 },
-            { id: 'gather_10', name: '🌾 Coletar 10 recursos', reward: 3000, exp: 150, progress: 0, goal: 10 },
-            { id: 'cook_5', name: '👨‍🍳 Cozinhar 5 receitas', reward: 4000, exp: 180, progress: 0, goal: 5 },
-            { id: 'train_pet', name: '🐾 Treinar pet 5 vezes', reward: 6000, exp: 250, progress: 0, goal: 5 }
+            { id: 'duel_3', name: '⚔️ Duelar 3 vezes', reward: 5000, exp: 200, progress: 0, goal: 3, claimed: false },
+            { id: 'dungeon_2', name: '🗺️ Completar 2 masmorras', reward: 8000, exp: 300, progress: 0, goal: 2, claimed: false },
+            { id: 'gather_10', name: '🌾 Coletar 10 recursos', reward: 3000, exp: 150, progress: 0, goal: 10, claimed: false },
+            { id: 'cook_5', name: '👨‍🍳 Cozinhar 5 receitas', reward: 4000, exp: 180, progress: 0, goal: 5, claimed: false },
+            { id: 'train_pet', name: '🐾 Treinar pet 5 vezes', reward: 6000, exp: 250, progress: 0, goal: 5, claimed: false }
           ];
           
           // Escolher 3 missões aleatórias
@@ -7057,18 +7081,32 @@ Entre em contato com o dono do bot:
           me.quests.daily = shuffled.slice(0, 3);
         }
         
+        // Garante que todas as missões existentes tenham a propriedade claimed
+        me.quests.daily.forEach(quest => {
+          if (quest.claimed === undefined) {
+            quest.claimed = false;
+          }
+        });
+        
         let text = `╭━━━⊱ 📜 *MISSÕES DIÁRIAS* ⊱━━━╮\n`;
         text += `│ Aventureiro: *${pushname}*\n`;
         text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
         
         me.quests.daily.forEach((quest, i) => {
           const completed = quest.progress >= quest.goal;
+          const claimed = quest.claimed === true;
           text += `${i + 1}. ${quest.name}\n`;
           text += `┌─────────────────\n`;
           text += `│ 📊 Progresso: ${quest.progress}/${quest.goal}\n`;
           text += `│ 💰 Recompensa: ${quest.reward.toLocaleString()}\n`;
           text += `│ ✨ EXP: ${quest.exp}\n`;
-          text += `│ ${completed ? '✅ Completo!' : '⏳ Em andamento'}\n`;
+          if (claimed) {
+            text += `│ ✅ Reivindicado!\n`;
+          } else if (completed) {
+            text += `│ ✅ Completo! Use ${prefix}reivindicar\n`;
+          } else {
+            text += `│ ⏳ Em andamento\n`;
+          }
           text += `└─────────────────\n\n`;
         });
         
@@ -9497,27 +9535,66 @@ Entre em contato com o dono do bot:
         const econ = loadEconomy();
         const me = getEcoUser(econ, sender);
         
-        if (!me.streak || !me.streak.rewards) me.streak = { current: 0, best: 0, lastLogin: 0, rewards: [] };
+        // Inicializa streak se não existir
+        if (!me.streak || !me.streak.rewards) {
+          me.streak = { current: 0, best: 0, lastLogin: 0, rewards: [] };
+        }
         
-        const rewards = [
-          { days: 7, amount: 10000 },
-          { days: 15, amount: 25000 },
-          { days: 30, amount: 100000 },
-          { days: 60, amount: 500000 }
-        ];
+        // Inicializa quests se não existir
+        if (!me.quests) {
+          me.quests = {
+            daily: [],
+            lastReset: Date.now()
+          };
+        }
+        
+        // Reset diário de missões se necessário
+        const now = Date.now();
+        if (now - me.quests.lastReset > 86400000) {
+          me.quests.daily = [];
+          me.quests.lastReset = now;
+        }
         
         let claimed = false;
         let totalClaimed = 0;
         let text = `╭━━━⊱ 🎁 *RECOMPENSAS* ⊱━━━╮\n`;
         text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
         
-        for (const reward of rewards) {
+        // Verifica recompensas de streak
+        const streakRewards = [
+          { days: 7, amount: 10000 },
+          { days: 15, amount: 25000 },
+          { days: 30, amount: 100000 },
+          { days: 60, amount: 500000 }
+        ];
+        
+        for (const reward of streakRewards) {
           if (me.streak.current >= reward.days && !me.streak.rewards.includes(reward.days)) {
             me.wallet += reward.amount;
             me.streak.rewards.push(reward.days);
             totalClaimed += reward.amount;
             claimed = true;
-            text += `✅ ${reward.days} dias: +${reward.amount.toLocaleString()}\n`;
+            text += `🔥 Streak ${reward.days} dias: +${reward.amount.toLocaleString()}\n`;
+          }
+        }
+        
+        // Verifica recompensas de missões diárias
+        if (me.quests.daily && Array.isArray(me.quests.daily)) {
+          for (const quest of me.quests.daily) {
+            if (quest.progress >= quest.goal && !quest.claimed) {
+              me.wallet += quest.reward || 0;
+              const expGained = quest.exp || 0;
+              if (expGained > 0) {
+                const levelingData = loadLevelingSafe();
+                const userLevel = getLevelingUser(levelingData, sender);
+                userLevel.xp = (userLevel.xp || 0) + expGained;
+                saveLeveling(levelingData);
+              }
+              quest.claimed = true;
+              totalClaimed += quest.reward || 0;
+              claimed = true;
+              text += `📜 ${quest.name}: +${(quest.reward || 0).toLocaleString()} (+${expGained} EXP)\n`;
+            }
           }
         }
         
@@ -9526,7 +9603,37 @@ Entre em contato com o dono do bot:
           saveEconomy(econ);
           return reply(text);
         } else {
-          return reply('❌ Você não tem recompensas disponíveis!');
+          // Verifica se há recompensas disponíveis mas não reivindicadas
+          let hasAvailableRewards = false;
+          let availableText = `╭━━━⊱ 🎁 *RECOMPENSAS DISPONÍVEIS* ⊱━━━╮\n╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          
+          // Verifica streak
+          const hasStreakReward = streakRewards.some(r => 
+            me.streak.current >= r.days && !me.streak.rewards.includes(r.days)
+          );
+          if (hasStreakReward) {
+            hasAvailableRewards = true;
+            availableText += `🔥 Recompensas de Streak disponíveis!\n`;
+            availableText += `💡 Use ${prefix}streak para ver seu progresso\n\n`;
+          }
+          
+          // Verifica missões
+          if (me.quests.daily && Array.isArray(me.quests.daily)) {
+            const availableQuests = me.quests.daily.filter(q => 
+              q.progress >= q.goal && !q.claimed
+            );
+            if (availableQuests.length > 0) {
+              hasAvailableRewards = true;
+              availableText += `📜 ${availableQuests.length} missão(ões) completa(s)!\n`;
+              availableText += `💡 Use ${prefix}missao para ver detalhes\n\n`;
+            }
+          }
+          
+          if (!hasAvailableRewards) {
+            return reply('❌ Você não tem recompensas disponíveis!\n\n💡 Complete missões diárias ou mantenha seu streak para ganhar recompensas.');
+          } else {
+            return reply(availableText + `💡 Use ${prefix}reivindicar novamente para coletar!`);
+          }
         }
         break;
       }
@@ -15712,10 +15819,46 @@ ${prefix}togglecmdvip premium_ia off`);
           await reply("Ocorreu um erro ao limpar o DB 💔");
         }
         break;
+      case 'mantercontador':
+      case 'preservarcontador':
+        try {
+          if (!isGroup) return reply("Este comando só funciona em grupos.");
+          if (!isGroupAdmin) return reply("Apenas administradores podem configurar esta opção.");
+          
+          // Inicializa a configuração se não existir
+          if (groupData.preservarContador === undefined) {
+            groupData.preservarContador = false;
+          }
+          
+          // Alterna o estado
+          groupData.preservarContador = !groupData.preservarContador;
+          
+          // Salva a configuração
+          writeJsonFile(groupFile, groupData);
+          if (isGroup) {
+            optimizer.invalidateGroup(from);
+          }
+          
+          const status = groupData.preservarContador ? 'ativado' : 'desativado';
+          const emoji = groupData.preservarContador ? '✅' : '❌';
+          
+          await reply(`${emoji} *Preservação do contador ${status}!*\n\n${groupData.preservarContador ? '🔒 O bot não removerá mais do contador quem sair do grupo.\n📊 Os dados dos membros que saírem serão mantidos no rank de atividade.' : '🔓 O bot voltará a remover do contador quem sair do grupo.\n🧹 Use o comando *limparrank* para limpar usuários ausentes manualmente.'}`);
+        } catch (e) {
+          console.error('[MANTER CONTADOR] Erro:', e);
+          await reply("❌ Ocorreu um erro ao configurar a preservação do contador. Tente novamente mais tarde.");
+        }
+        break;
       case 'limparrank':
         try {
           if (!isGroup) return reply("Este comando só funciona em grupos.");
           if (!isGroupAdmin) return reply("Apenas administradores podem limpar o rank de atividade.");
+          
+          // Verifica se a preservação do contador está ativada
+          const preservarContador = groupData.preservarContador === true;
+          
+          if (preservarContador) {
+            return reply("⚠️ *Preservação do contador ativada!*\n\n🔒 A remoção automática do contador está desativada neste grupo.\n\n💡 Para limpar o rank manualmente, primeiro desative a preservação com:\n*" + prefix + "mantercontador*");
+          }
           
           // Get current group members with proper LID/JID handling
           const currentMembers = AllgroupMembers;
@@ -15845,34 +15988,47 @@ ${prefix}togglecmdvip premium_ia off`);
               let removedInGroup = 0;
               let invalidInGroup = 0;
               
-              // Enhanced filtering
-              gData.contador = oldContador.filter(user => {
-                try {
-                  if (!user || !user.id) {
+              // Verifica se a preservação do contador está ativada para este grupo
+              const preservarContadorGrupo = gData.preservarContador === true;
+              
+              // Enhanced filtering (apenas se preservação não estiver ativada)
+              if (!preservarContadorGrupo) {
+                gData.contador = oldContador.filter(user => {
+                  try {
+                    if (!user || !user.id) {
+                      invalidInGroup++;
+                      totalInvalid++;
+                      return false;
+                    }
+                    
+                    // Check if user is still in the group
+                    const isMember = currentMembers.includes(user.id);
+                    
+                    if (!isMember) {
+                      removedInGroup++;
+                      totalRemoved++;
+                      const userName = getUserName(user.id);
+                      console.log(`[LIMPAR RANK GLOBAL] Removed departed user from ${groupId}: ${user.id} (${userName})`);
+                      return false;
+                    }
+                    
+                    return true;
+                  } catch (e) {
+                    console.log(`[LIMPAR RANK GLOBAL] Error processing user ${user?.id} in group ${groupId}:`, e.message);
                     invalidInGroup++;
                     totalInvalid++;
                     return false;
                   }
-                  
-                  // Check if user is still in the group
-                  const isMember = currentMembers.includes(user.id);
-                  
-                  if (!isMember) {
-                    removedInGroup++;
-                    totalRemoved++;
-                    const userName = getUserName(user.id);
-                    console.log(`[LIMPAR RANK GLOBAL] Removed departed user from ${groupId}: ${user.id} (${userName})`);
-                    return false;
+                });
+              } else {
+                // Se preservação estiver ativada, apenas conta inválidos, não remove
+                oldContador.forEach(user => {
+                  if (!user || !user.id) {
+                    invalidInGroup++;
+                    totalInvalid++;
                   }
-                  
-                  return true;
-                } catch (e) {
-                  console.log(`[LIMPAR RANK GLOBAL] Error processing user ${user?.id} in group ${groupId}:`, e.message);
-                  invalidInGroup++;
-                  totalInvalid++;
-                  return false;
-                }
-              });
+                });
+              }
               
               // Save updated group data
               try {
@@ -15932,26 +16088,37 @@ ${prefix}togglecmdvip premium_ia off`);
         try {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           
+          // Verifica se a preservação do contador está ativada
+          const preservarContadorRankativo = groupData.preservarContador === true;
+          
           // Verify current group members first
           let currentMembers = AllgroupMembers;
           let validUsers = [];
           
-          // Filter out users who have left the group
-          groupData.contador = groupData.contador.filter(user => {
-            const userId = user.id;
-            const isValidMember = currentMembers.includes(userId);
+          // Filter out users who have left the group (apenas se preservação não estiver ativada)
+          if (!preservarContadorRankativo) {
+            groupData.contador = groupData.contador.filter(user => {
+              const userId = user.id;
+              const isValidMember = currentMembers.includes(userId);
+              
+              if (!isValidMember) {
+                console.log(`[RANKATIVO] Removed departed user: ${userId} (${getUserName(userId)})`);
+                return false;
+              }
+              
+              validUsers.push(user);
+              return true;
+            });
             
-            if (!isValidMember) {
-              console.log(`[RANKATIVO] Removed departed user: ${userId} (${getUserName(userId)})`);
-              return false;
-            }
-            
-            validUsers.push(user);
-            return true;
-          });
-          
-          // Save updated data
-          fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+            // Save updated data
+            fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+          } else {
+            // Se preservação estiver ativada, apenas filtra para validUsers sem remover do contador
+            validUsers = (groupData.contador || []).filter(user => {
+              const userId = user.id;
+              return currentMembers.includes(userId);
+            });
+          }
           
           var blue67;
           blue67 = validUsers.sort((a, b) => (a.figu == undefined ? a.figu = 0 : a.figu + a.msg + a.cmd) < (b.figu == undefined ? b.figu = 0 : b.figu + b.cmd + b.msg) ? 0 : -1);
@@ -15988,26 +16155,37 @@ ${prefix}togglecmdvip premium_ia off`);
         try {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           
+          // Verifica se a preservação do contador está ativada
+          const preservarContador = groupData.preservarContador === true;
+          
           // Verify current group members first
           let currentMembers = AllgroupMembers;
           let validUsers = [];
           
-          // Filter out users who have left the group
-          groupData.contador = groupData.contador.filter(user => {
-            const userId = user.id;
-            const isValidMember = currentMembers.includes(userId);
+          // Filter out users who have left the group (apenas se preservação não estiver ativada)
+          if (!preservarContador) {
+            groupData.contador = groupData.contador.filter(user => {
+              const userId = user.id;
+              const isValidMember = currentMembers.includes(userId);
+              
+              if (!isValidMember) {
+                console.log(`[RANKINATIVO] Removed departed user: ${userId} (${getUserName(userId)})`);
+                return false;
+              }
+              
+              validUsers.push(user);
+              return true;
+            });
             
-            if (!isValidMember) {
-              console.log(`[RANKINATIVO] Removed departed user: ${userId} (${getUserName(userId)})`);
-              return false;
-            }
-            
-            validUsers.push(user);
-            return true;
-          });
-          
-          // Save updated data
-          fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+            // Save updated data
+            fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+          } else {
+            // Se preservação estiver ativada, apenas filtra para validUsers sem remover do contador
+            validUsers = (groupData.contador || []).filter(user => {
+              const userId = user.id;
+              return currentMembers.includes(userId);
+            });
+          }
           
           var blue67;
           blue67 = validUsers.sort((a, b) => {
