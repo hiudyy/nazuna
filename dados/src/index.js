@@ -11141,45 +11141,75 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
       // ═══════════════════════════════════════════════════════════════
       case 'wordle':
       case 'palavra': {
-        // Banco de palavras de 5 letras em português
-        const palavrasWordle = [
-          'amigo', 'barco', 'canto', 'dança', 'entre', 'falar', 'gosto', 'hotel', 'igual', 'jogar',
-          'largo', 'manga', 'noite', 'olhar', 'prato', 'quero', 'risco', 'saber', 'tempo', 'ursos',
-          'vento', 'zebra', 'campo', 'festa', 'mundo', 'papel', 'reino', 'sabor', 'terra', 'verde',
-          'abrir', 'banco', 'clara', 'drama', 'errar', 'frase', 'grilo', 'humor', 'ideia', 'janta',
-          'lindo', 'medir', 'nobre', 'ordem', 'porta', 'quota', 'rapaz', 'sinal', 'total', 'ultra',
-          'valor', 'yogur', 'água', 'beira', 'coisa', 'diabo', 'exato', 'forno', 'grama', 'honey',
-          'idade', 'julho', 'leite', 'morar', 'nervo', 'ossos', 'pedra', 'quase', 'razão', 'sopro',
-          'trono', 'união', 'viver', 'wanda', 'xadre', 'zurro', 'andar', 'bravo', 'calma', 'deusa',
-          'ainda', 'baixo', 'carro', 'dizer', 'estar', 'filho', 'grupo', 'haver', 'levar', 'mesmo',
-          'nunca', 'outro', 'pedir', 'quais', 'resto', 'sobre', 'tomar', 'único', 'volta', 'sonho'
-        ];
+        // Carregar palavras do JSON
+        const wordlePath = pathz.join(__dirname, 'funcs', 'json', 'wordle.json');
+        let palavrasPorTamanho = {};
+        try {
+          const wordleData = JSON.parse(fs.readFileSync(wordlePath, 'utf-8'));
+          palavrasPorTamanho = wordleData.palavras || {};
+        } catch (e) {
+          console.error('Erro ao carregar wordle.json:', e);
+          palavrasPorTamanho = { "5": ['amigo', 'barco', 'canto', 'dança', 'entre', 'falar', 'gosto', 'hotel', 'igual', 'jogar'] };
+        }
 
         // Estado dos jogos de wordle ativos
         if (!global.wordleGames) global.wordleGames = {};
         const gameKey = isGroup ? from : sender;
 
         // Subcomando para chutar
-        if (args[0] && args[0].length === 5 && global.wordleGames[gameKey]) {
+        if (args[0] && global.wordleGames[gameKey]) {
           const game = global.wordleGames[gameKey];
           const chute = normalizar(args[0].toLowerCase());
+          const tamanhoEsperado = game.palavra.length;
+          
+          // Validar tamanho do chute
+          if (chute.length !== tamanhoEsperado) {
+            return reply(`❌ A palavra deve ter ${tamanhoEsperado} letras!\n\n💡 Você tem um jogo ativo com palavra de ${tamanhoEsperado} letras.\n\n📝 Chute: ${prefix}wordle [palavra de ${tamanhoEsperado} letras]`);
+          }
           
           game.tentativas++;
           
-          // Verificar letras
+          // Verificar letras com lógica correta do Wordle
           let resultado = '';
           const palavraArray = game.palavra.split('');
           const chuteArray = chute.split('');
           
-          for (let i = 0; i < 5; i++) {
+          // Array para rastrear letras disponíveis na palavra original
+          const letrasDisponiveis = [...palavraArray];
+          const statusLetras = new Array(tamanhoEsperado).fill(null); // null = não processado
+          
+          // Primeira passada: marcar letras no lugar certo (verde)
+          for (let i = 0; i < tamanhoEsperado; i++) {
             if (chuteArray[i] === palavraArray[i]) {
-              resultado += '🟩'; // Letra certa no lugar certo
-            } else if (palavraArray.includes(chuteArray[i])) {
-              resultado += '🟨'; // Letra certa no lugar errado
-            } else {
-              resultado += '⬛'; // Letra errada
+              statusLetras[i] = '🟩'; // Verde
+              // Remover essa letra do array disponível
+              const index = letrasDisponiveis.indexOf(chuteArray[i]);
+              if (index !== -1) {
+                letrasDisponiveis.splice(index, 1);
+              }
             }
           }
+          
+          // Segunda passada: marcar letras no lugar errado (amarelo) ou erradas (preto)
+          for (let i = 0; i < tamanhoEsperado; i++) {
+            if (statusLetras[i] === null) {
+              // Letra não está no lugar certo
+              if (letrasDisponiveis.includes(chuteArray[i])) {
+                // Letra existe na palavra e ainda há ocorrências disponíveis
+                statusLetras[i] = '🟨'; // Amarelo
+                // Remover essa ocorrência do array disponível
+                const index = letrasDisponiveis.indexOf(chuteArray[i]);
+                if (index !== -1) {
+                  letrasDisponiveis.splice(index, 1);
+                }
+              } else {
+                // Letra não existe ou já foi usada
+                statusLetras[i] = '⬛'; // Preto
+              }
+            }
+          }
+          
+          resultado = statusLetras.join('');
           
           game.historico.push(`${chute.toUpperCase()} ${resultado}`);
           
@@ -11194,13 +11224,14 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
             return reply(`😢 *GAME OVER!*\n\n${game.historico.join('\n')}\n\n❌ Suas tentativas acabaram!\n\nA palavra era: *${game.palavra.toUpperCase()}*`);
           }
           
-          return reply(`🎯 *WORDLE* (${game.tentativas}/6)\n\n${game.historico.join('\n')}\n\n💡 Continue chutando com: ${prefix}wordle [palavra]`);
+          return reply(`🎯 *WORDLE* (${game.tentativas}/6)\n\n${game.historico.join('\n')}\n\n💡 Continue chutando com: ${prefix}wordle [palavra de ${tamanhoEsperado} letras]`);
         }
 
         // Novo jogo
         if (global.wordleGames[gameKey]) {
           const game = global.wordleGames[gameKey];
-          return reply(`🎮 *Jogo em andamento!*\n\n${game.historico.length > 0 ? game.historico.join('\n') + '\n\n' : ''}Tentativas: ${game.tentativas}/6\n\n💡 Chute uma palavra de 5 letras:\n${prefix}wordle [palavra]\n\n🔄 Para desistir: ${prefix}wordle desistir`);
+          const tamanho = game.palavra.length;
+          return reply(`🎮 *Jogo em andamento!*\n\n${game.historico.length > 0 ? game.historico.join('\n') + '\n\n' : ''}Tentativas: ${game.tentativas}/6\n📏 Tamanho: ${tamanho} letras\n\n💡 Chute uma palavra de ${tamanho} letras:\n${prefix}wordle [palavra]\n\n🔄 Para desistir: ${prefix}wordle desistir`);
         }
 
         if (args[0] === 'desistir' && global.wordleGames[gameKey]) {
@@ -11209,8 +11240,16 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           return reply(`🏳️ Você desistiu!\n\nA palavra era: *${palavra.toUpperCase()}*`);
         }
 
-        // Iniciar novo jogo
-        const palavraEscolhida = palavrasWordle[Math.floor(Math.random() * palavrasWordle.length)];
+        // Iniciar novo jogo - escolher tamanho aleatório
+        const tamanhosDisponiveis = Object.keys(palavrasPorTamanho).filter(t => palavrasPorTamanho[t] && palavrasPorTamanho[t].length > 0);
+        if (tamanhosDisponiveis.length === 0) {
+          return reply('❌ Erro: Nenhuma palavra disponível no banco de dados!');
+        }
+        
+        const tamanhoEscolhido = tamanhosDisponiveis[Math.floor(Math.random() * tamanhosDisponiveis.length)];
+        const palavrasDoTamanho = palavrasPorTamanho[tamanhoEscolhido];
+        const palavraEscolhida = palavrasDoTamanho[Math.floor(Math.random() * palavrasDoTamanho.length)];
+        
         global.wordleGames[gameKey] = {
           palavra: normalizar(palavraEscolhida.toLowerCase()),
           tentativas: 0,
@@ -11218,7 +11257,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           iniciado: Date.now()
         };
 
-        await reply(`🎮 *WORDLE - Adivinhe a Palavra!*\n\n📝 Tente adivinhar a palavra de 5 letras!\n\n🟩 = Letra certa no lugar certo\n🟨 = Letra certa no lugar errado\n⬛ = Letra não existe\n\n💡 Você tem 6 tentativas!\n\n*Chute com:* ${prefix}wordle [palavra]`);
+        await reply(`🎮 *WORDLE - Adivinhe a Palavra!*\n\n📝 Tente adivinhar a palavra de ${tamanhoEscolhido} letras!\n\n🟩 = Letra certa no lugar certo\n🟨 = Letra certa no lugar errado\n⬛ = Letra não existe\n\n💡 Você tem 6 tentativas!\n\n*Chute com:* ${prefix}wordle [palavra de ${tamanhoEscolhido} letras]`);
         break;
       }
 
@@ -11228,63 +11267,31 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
       case 'quiz':
       case 'trivia':
       case 'pergunta': {
-        // Banco de perguntas por categoria
-        const quizDB = {
-          'geral': [
-            { p: 'Qual é o maior planeta do sistema solar?', r: ['jupiter', 'júpiter'], d: 'Júpiter' },
-            { p: 'Quantos ossos tem o corpo humano adulto?', r: ['206'], d: '206' },
-            { p: 'Qual é o elemento químico representado pelo símbolo "O"?', r: ['oxigenio', 'oxigênio'], d: 'Oxigênio' },
-            { p: 'Em que ano o Brasil foi descoberto?', r: ['1500'], d: '1500' },
-            { p: 'Qual é a capital da Austrália?', r: ['canberra', 'camberra'], d: 'Canberra' },
-            { p: 'Quantos continentes existem no mundo?', r: ['7', 'sete'], d: '7' },
-            { p: 'Qual é o maior oceano do mundo?', r: ['pacifico', 'pacífico'], d: 'Pacífico' },
-            { p: 'Quem pintou a Mona Lisa?', r: ['leonardo da vinci', 'da vinci', 'leonardo'], d: 'Leonardo da Vinci' },
-          ],
-          'anime': [
-            { p: 'Qual é o nome do protagonista de Naruto?', r: ['naruto', 'naruto uzumaki'], d: 'Naruto Uzumaki' },
-            { p: 'Em Death Note, qual é o nome do shinigami que dá o caderno a Light?', r: ['ryuk'], d: 'Ryuk' },
-            { p: 'Qual é o nome do titan de Eren em Attack on Titan?', r: ['titan atacante', 'attack titan', 'titã atacante'], d: 'Titã Atacante' },
-            { p: 'Quantas Dragon Balls são necessárias para invocar Shenlong?', r: ['7', 'sete'], d: '7' },
-            { p: 'Qual é o nome do irmão mais velho de Luffy em One Piece?', r: ['ace', 'portgas d ace'], d: 'Ace' },
-            { p: 'Em qual anime aparece o personagem Goku?', r: ['dragon ball', 'dragonball', 'dbz'], d: 'Dragon Ball' },
-            { p: 'Qual é o nome da organização vilã em Naruto Shippuden?', r: ['akatsuki'], d: 'Akatsuki' },
-            { p: 'Qual é o verdadeiro nome de L em Death Note?', r: ['l lawliet', 'lawliet'], d: 'L Lawliet' },
-          ],
-          'games': [
-            { p: 'Qual é o nome do personagem principal de The Legend of Zelda?', r: ['link'], d: 'Link' },
-            { p: 'Em que ano foi lançado o primeiro Minecraft?', r: ['2011'], d: '2011' },
-            { p: 'Qual é o nome da princesa em Super Mario?', r: ['peach', 'princesa peach'], d: 'Princesa Peach' },
-            { p: 'Quantos jogadores tem um time de CS:GO/CS2?', r: ['5', 'cinco'], d: '5' },
-            { p: 'Qual empresa criou o Fortnite?', r: ['epic games', 'epic'], d: 'Epic Games' },
-            { p: 'Qual é o nome do protagonista de God of War?', r: ['kratos'], d: 'Kratos' },
-            { p: 'Em qual cidade se passa GTA V?', r: ['los santos'], d: 'Los Santos' },
-            { p: 'Qual é a moeda do jogo League of Legends?', r: ['rp', 'riot points', 'be', 'blue essence'], d: 'RP ou Blue Essence' },
-          ],
-          'ciencia': [
-            { p: 'Qual é a fórmula química da água?', r: ['h2o'], d: 'H2O' },
-            { p: 'Quantos planetas tem o sistema solar?', r: ['8', 'oito'], d: '8' },
-            { p: 'Qual é a velocidade da luz em km/s (aproximado)?', r: ['300000', '300.000', '299792'], d: '~300.000 km/s' },
-            { p: 'Quem formulou a teoria da relatividade?', r: ['einstein', 'albert einstein'], d: 'Albert Einstein' },
-            { p: 'Qual é o símbolo químico do ouro?', r: ['au'], d: 'Au' },
-            { p: 'Quantos cromossomos tem uma célula humana normal?', r: ['46', 'quarenta e seis'], d: '46' },
-            { p: 'Qual planeta é conhecido como Planeta Vermelho?', r: ['marte', 'mars'], d: 'Marte' },
-          ],
-          'historia': [
-            { p: 'Em que ano começou a Segunda Guerra Mundial?', r: ['1939'], d: '1939' },
-            { p: 'Quem foi o primeiro presidente do Brasil?', r: ['deodoro', 'deodoro da fonseca', 'marechal deodoro'], d: 'Marechal Deodoro da Fonseca' },
-            { p: 'Em que ano o homem pisou na Lua pela primeira vez?', r: ['1969'], d: '1969' },
-            { p: 'Qual civilização construiu as pirâmides de Gizé?', r: ['egipcia', 'egípcia', 'egito', 'egipcios'], d: 'Egípcia' },
-            { p: 'Quem descobriu o Brasil?', r: ['pedro alvares cabral', 'cabral', 'pedro cabral'], d: 'Pedro Álvares Cabral' },
-            { p: 'Em que ano acabou a escravidão no Brasil?', r: ['1888'], d: '1888' },
-          ]
-        };
+        // Carregar perguntas do JSON
+        const quizPath = pathz.join(__dirname, 'funcs', 'json', 'quiz.json');
+        let quizDB = {};
+        try {
+          quizDB = JSON.parse(fs.readFileSync(quizPath, 'utf-8'));
+        } catch (e) {
+          console.error('Erro ao carregar quiz.json:', e);
+          quizDB = {
+            'geral': [{ p: 'Qual é o maior planeta do sistema solar?', r: ['jupiter', 'júpiter'], d: 'Júpiter' }],
+            'anime': [{ p: 'Qual é o nome do protagonista de Naruto?', r: ['naruto'], d: 'Naruto Uzumaki' }],
+            'games': [{ p: 'Qual é o nome do personagem principal de The Legend of Zelda?', r: ['link'], d: 'Link' }],
+            'ciencia': [{ p: 'Qual é a fórmula química da água?', r: ['h2o'], d: 'H2O' }],
+            'historia': [{ p: 'Em que ano começou a Segunda Guerra Mundial?', r: ['1939'], d: '1939' }]
+          };
+        }
 
         // Estado dos jogos de quiz ativos
         if (!global.quizGames) global.quizGames = {};
         const quizKey = isGroup ? from : sender;
 
+        // Carregar categorias disponíveis
+        const categoriasDisponiveis = Object.keys(quizDB);
+        
         // Responder quiz ativo
-        if (global.quizGames[quizKey] && args.length > 0 && !['geral', 'anime', 'games', 'ciencia', 'historia'].includes(args[0].toLowerCase())) {
+        if (global.quizGames[quizKey] && args.length > 0 && !categoriasDisponiveis.includes(args[0].toLowerCase())) {
           const game = global.quizGames[quizKey];
           const resposta = normalizar(args.join(' ').toLowerCase());
           
@@ -11316,7 +11323,8 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
 
         // Mostrar categorias
         if (!args[0]) {
-          return reply(`❓ *QUIZ - Teste seus conhecimentos!*\n\n📚 *Categorias disponíveis:*\n• ${prefix}quiz geral\n• ${prefix}quiz anime\n• ${prefix}quiz games\n• ${prefix}quiz ciencia\n• ${prefix}quiz historia\n\n💡 Responda rápido para ganhar mais pontos!`);
+          const categoriasList = Object.keys(quizDB).map(cat => `• ${prefix}quiz ${cat}`).join('\n');
+          return reply(`❓ *QUIZ - Teste seus conhecimentos!*\n\n📚 *Categorias disponíveis:*\n${categoriasList}\n\n💡 Responda rápido para ganhar mais pontos!`);
         }
 
         // Nova pergunta
@@ -11324,7 +11332,8 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
         const perguntas = quizDB[categoria];
         
         if (!perguntas) {
-          return reply(`❌ Categoria "${categoria}" não encontrada!\n\n📚 Categorias: geral, anime, games, ciencia, historia`);
+          const categoriasDisponiveis = Object.keys(quizDB).join(', ');
+          return reply(`❌ Categoria "${categoria}" não encontrada!\n\n📚 Categorias disponíveis: ${categoriasDisponiveis}`);
         }
 
         const perguntaEscolhida = perguntas[Math.floor(Math.random() * perguntas.length)];
@@ -11345,29 +11354,20 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
       // ═══════════════════════════════════════════════════════════════
       case 'forca':
       case 'hangman': {
-        // Banco de palavras para forca
-        const palavrasForca = [
-          { palavra: 'elefante', dica: 'Animal grande com tromba' },
-          { palavra: 'computador', dica: 'Máquina eletrônica' },
-          { palavra: 'chocolate', dica: 'Doce feito de cacau' },
-          { palavra: 'abacaxi', dica: 'Fruta tropical com coroa' },
-          { palavra: 'biblioteca', dica: 'Lugar com muitos livros' },
-          { palavra: 'jacaré', dica: 'Réptil encontrado em rios' },
-          { palavra: 'guitarra', dica: 'Instrumento musical de cordas' },
-          { palavra: 'borboleta', dica: 'Inseto colorido que voa' },
-          { palavra: 'astronauta', dica: 'Viaja para o espaço' },
-          { palavra: 'dinossauro', dica: 'Animal pré-histórico' },
-          { palavra: 'pizza', dica: 'Comida italiana redonda' },
-          { palavra: 'futebol', dica: 'Esporte mais popular do Brasil' },
-          { palavra: 'arcoiris', dica: 'Fenômeno colorido após chuva' },
-          { palavra: 'celular', dica: 'Aparelho de comunicação portátil' },
-          { palavra: 'oceano', dica: 'Grande massa de água salgada' },
-          { palavra: 'vulcão', dica: 'Montanha que expele lava' },
-          { palavra: 'pinguim', dica: 'Ave que não voa e vive no gelo' },
-          { palavra: 'cachoeira', dica: 'Queda de água natural' },
-          { palavra: 'relógio', dica: 'Mostra as horas' },
-          { palavra: 'unicórnio', dica: 'Criatura mítica com chifre' }
-        ];
+        // Carregar palavras do JSON
+        const forcaPath = pathz.join(__dirname, 'funcs', 'json', 'forca.json');
+        let palavrasForca = [];
+        try {
+          const forcaData = JSON.parse(fs.readFileSync(forcaPath, 'utf-8'));
+          palavrasForca = forcaData.palavras || [];
+        } catch (e) {
+          console.error('Erro ao carregar forca.json:', e);
+          palavrasForca = [
+            { palavra: 'elefante', dica: 'Animal grande com tromba' },
+            { palavra: 'computador', dica: 'Máquina eletrônica' },
+            { palavra: 'chocolate', dica: 'Doce feito de cacau' }
+          ];
+        }
 
         const desenhoForca = [
           '```\n  ┌───┐\n  │   │\n      │\n      │\n      │\n══════╧══```',

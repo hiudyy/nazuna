@@ -1,0 +1,500 @@
+{
+  "palavras": [
+    {
+      "palavra": "elefante",
+      "dica": "Animal grande com tromba"
+    },
+    {
+      "palavra": "computador",
+      "dica": "Máquina eletrônica"
+    },
+    {
+      "palavra": "chocolate",
+      "dica": "Doce feito de cacau"
+    },
+    {
+      "palavra": "abacaxi",
+      "dica": "Fruta tropical com coroa"
+    },
+    {
+      "palavra": "biblioteca",
+      "dica": "Lugar com muitos livros"
+    },
+    {
+      "palavra": "jacaré",
+      "dica": "Réptil encontrado em rios"
+    },
+    {
+      "palavra": "guitarra",
+      "dica": "Instrumento musical de cordas"
+    },
+    {
+      "palavra": "borboleta",
+      "dica": "Inseto colorido que voa"
+    },
+    {
+      "palavra": "astronauta",
+      "dica": "Viaja para o espaço"
+    },
+    {
+      "palavra": "dinossauro",
+      "dica": "Animal pré-histórico"
+    },
+    {
+      "palavra": "pizza",
+      "dica": "Comida italiana redonda"
+    },
+    {
+      "palavra": "futebol",
+      "dica": "Esporte mais popular do Brasil"
+    },
+    {
+      "palavra": "arcoiris",
+      "dica": "Fenômeno colorido após chuva"
+    },
+    {
+      "palavra": "celular",
+      "dica": "Aparelho de comunicação portátil"
+    },
+    {
+      "palavra": "oceano",
+      "dica": "Grande massa de água salgada"
+    },
+    {
+      "palavra": "vulcão",
+      "dica": "Montanha que expele lava"
+    },
+    {
+      "palavra": "pinguim",
+      "dica": "Ave que não voa e vive no gelo"
+    },
+    {
+      "palavra": "cachoeira",
+      "dica": "Queda de água natural"
+    },
+    {
+      "palavra": "relógio",
+      "dica": "Mostra as horas"
+    },
+    {
+      "palavra": "unicórnio",
+      "dica": "Criatura mítica com chifre"
+    },
+    {
+      "palavra": "girafa",
+      "dica": "Animal com pescoço muito longo"
+    },
+    {
+      "palavra": "helicóptero",
+      "dica": "Aeronave com hélices no topo"
+    },
+    {
+      "palavra": "escola",
+      "dica": "Lugar onde se estuda"
+    },
+    {
+      "palavra": "hospital",
+      "dica": "Lugar onde se trata doenças"
+    },
+    {
+      "palavra": "cachorro",
+      "dica": "Melhor amigo do homem"
+    },
+    {
+      "palavra": "gato",
+      "dica": "Animal doméstico que mia"
+    },
+    {
+      "palavra": "leão",
+      "dica": "Rei da selva"
+    },
+    {
+      "palavra": "tigre",
+      "dica": "Felino com listras"
+    },
+    {
+      "palavra": "urso",
+      "dica": "Animal grande e peludo"
+    },
+    {
+      "palavra": "macaco",
+      "dica": "Primata que vive em árvores"
+    },
+    {
+      "palavra": "cavalo",
+      "dica": "Animal usado para montaria"
+    },
+    {
+      "palavra": "vaca",
+      "dica": "Animal que dá leite"
+    },
+    {
+      "palavra": "porco",
+      "dica": "Animal rosa que gosta de lama"
+    },
+    {
+      "palavra": "galinha",
+      "dica": "Ave que bota ovos"
+    },
+    {
+      "palavra": "pato",
+      "dica": "Ave que nada e voa"
+    },
+    {
+      "palavra": "abelha",
+      "dica": "Inseto que faz mel"
+    },
+    {
+      "palavra": "formiga",
+      "dica": "Inseto pequeno e trabalhador"
+    },
+    {
+      "palavra": "aranha",
+      "dica": "Aracnídeo com oito pernas"
+    },
+    {
+      "palavra": "cobra",
+      "dica": "Réptil sem pernas"
+    },
+    {
+      "palavra": "peixe",
+      "dica": "Animal que vive na água"
+    },
+    {
+      "palavra": "tubarão",
+      "dica": "Peixe grande e perigoso"
+    },
+    {
+      "palavra": "golfinho",
+      "dica": "Mamífero marinho inteligente"
+    },
+    {
+      "palavra": "baleia",
+      "dica": "Maior mamífero do mundo"
+    },
+    {
+      "palavra": "tartaruga",
+      "dica": "Réptil com casco"
+    },
+    {
+      "palavra": "coelho",
+      "dica": "Animal com orelhas grandes"
+    },
+    {
+      "palavra": "rato",
+      "dica": "Roedor pequeno"
+    },
+    {
+      "palavra": "esquilo",
+      "dica": "Roedor que come nozes"
+    },
+    {
+      "palavra": "coruja",
+      "dica": "Ave noturna sábia"
+    },
+    {
+      "palavra": "águia",
+      "dica": "Ave de rapina poderosa"
+    },
+    {
+      "palavra": "papagaio",
+      "dica": "Ave que imita sons"
+    },
+    {
+      "palavra": "flamingo",
+      "dica": "Ave rosa de pernas longas"
+    },
+    {
+      "palavra": "pavão",
+      "dica": "Ave com cauda colorida"
+    },
+    {
+      "palavra": "camelo",
+      "dica": "Animal do deserto com corcova"
+    },
+    {
+      "palavra": "zebra",
+      "dica": "Animal com listras pretas e brancas"
+    },
+    {
+      "palavra": "hipopótamo",
+      "dica": "Animal grande que vive na água"
+    },
+    {
+      "palavra": "rinoceronte",
+      "dica": "Animal com chifre no nariz"
+    },
+    {
+      "palavra": "crocodilo",
+      "dica": "Réptil grande e perigoso"
+    },
+    {
+      "palavra": "lagarto",
+      "dica": "Réptil pequeno com cauda"
+    },
+    {
+      "palavra": "sapo",
+      "dica": "Anfíbio que pula"
+    },
+    {
+      "palavra": "rã",
+      "dica": "Anfíbio pequeno e verde"
+    },
+    {
+      "palavra": "caranguejo",
+      "dica": "Crustáceo com garras"
+    },
+    {
+      "palavra": "lagosta",
+      "dica": "Crustáceo marinho grande"
+    },
+    {
+      "palavra": "polvo",
+      "dica": "Molusco com oito tentáculos"
+    },
+    {
+      "palavra": "lula",
+      "dica": "Molusco com dez tentáculos"
+    },
+    {
+      "palavra": "estrela",
+      "dica": "Corpo celeste que brilha"
+    },
+    {
+      "palavra": "lua",
+      "dica": "Satélite natural da Terra"
+    },
+    {
+      "palavra": "sol",
+      "dica": "Estrela do nosso sistema"
+    },
+    {
+      "palavra": "planeta",
+      "dica": "Corpo celeste que orbita uma estrela"
+    },
+    {
+      "palavra": "cometa",
+      "dica": "Corpo celeste com cauda"
+    },
+    {
+      "palavra": "meteoro",
+      "dica": "Rocha que cai do céu"
+    },
+    {
+      "palavra": "galáxia",
+      "dica": "Sistema de estrelas"
+    },
+    {
+      "palavra": "universo",
+      "dica": "Tudo que existe"
+    },
+    {
+      "palavra": "telescópio",
+      "dica": "Instrumento para ver estrelas"
+    },
+    {
+      "palavra": "foguete",
+      "dica": "Veículo espacial"
+    },
+    {
+      "palavra": "satélite",
+      "dica": "Objeto que orbita um planeta"
+    },
+    {
+      "palavra": "avião",
+      "dica": "Veículo que voa"
+    },
+    {
+      "palavra": "navio",
+      "dica": "Embarcação grande"
+    },
+    {
+      "palavra": "submarino",
+      "dica": "Veículo que navega debaixo d'água"
+    },
+    {
+      "palavra": "trem",
+      "dica": "Veículo que anda sobre trilhos"
+    },
+    {
+      "palavra": "ônibus",
+      "dica": "Veículo de transporte público"
+    },
+    {
+      "palavra": "bicicleta",
+      "dica": "Veículo de duas rodas"
+    },
+    {
+      "palavra": "motocicleta",
+      "dica": "Veículo de duas rodas motorizado"
+    },
+    {
+      "palavra": "carro",
+      "dica": "Veículo de quatro rodas"
+    },
+    {
+      "palavra": "caminhão",
+      "dica": "Veículo grande para cargas"
+    },
+    {
+      "palavra": "barco",
+      "dica": "Embarcação pequena"
+    },
+    {
+      "palavra": "canoa",
+      "dica": "Embarcação pequena e estreita"
+    },
+    {
+      "palavra": "iate",
+      "dica": "Embarcação de luxo"
+    },
+    {
+      "palavra": "maçã",
+      "dica": "Fruta vermelha ou verde"
+    },
+    {
+      "palavra": "banana",
+      "dica": "Fruta amarela e comprida"
+    },
+    {
+      "palavra": "laranja",
+      "dica": "Fruta cítrica laranja"
+    },
+    {
+      "palavra": "uva",
+      "dica": "Fruta pequena em cachos"
+    },
+    {
+      "palavra": "morango",
+      "dica": "Fruta vermelha com sementes"
+    },
+    {
+      "palavra": "manga",
+      "dica": "Fruta tropical amarela"
+    },
+    {
+      "palavra": "melancia",
+      "dica": "Fruta grande e verde por fora"
+    },
+    {
+      "palavra": "abacate",
+      "dica": "Fruta verde com caroço grande"
+    },
+    {
+      "palavra": "limão",
+      "dica": "Fruta cítrica amarela"
+    },
+    {
+      "palavra": "coco",
+      "dica": "Fruta com casca dura"
+    },
+    {
+      "palavra": "kiwi",
+      "dica": "Fruta pequena e peluda"
+    },
+    {
+      "palavra": "pêssego",
+      "dica": "Fruta com caroço e pele aveludada"
+    },
+    {
+      "palavra": "cereja",
+      "dica": "Fruta pequena e vermelha"
+    },
+    {
+      "palavra": "pêra",
+      "dica": "Fruta verde ou amarela"
+    },
+    {
+      "palavra": "ameixa",
+      "dica": "Fruta pequena e roxa"
+    },
+    {
+      "palavra": "figo",
+      "dica": "Fruta doce e macia"
+    },
+    {
+      "palavra": "tangerina",
+      "dica": "Fruta cítrica fácil de descascar"
+    },
+    {
+      "palavra": "goiaba",
+      "dica": "Fruta tropical com sementes"
+    },
+    {
+      "palavra": "maracujá",
+      "dica": "Fruta usada para suco"
+    },
+    {
+      "palavra": "caju",
+      "dica": "Fruta do nordeste brasileiro"
+    },
+    {
+      "palavra": "açaí",
+      "dica": "Fruta roxa do Pará"
+    },
+    {
+      "palavra": "pitaya",
+      "dica": "Fruta exótica colorida"
+    },
+    {
+      "palavra": "carambola",
+      "dica": "Fruta em formato de estrela"
+    },
+    {
+      "palavra": "jabuticaba",
+      "dica": "Fruta que cresce no tronco"
+    },
+    {
+      "palavra": "framboesa",
+      "dica": "Fruta vermelha pequena"
+    },
+    {
+      "palavra": "amora",
+      "dica": "Fruta pequena e roxa"
+    },
+    {
+      "palavra": "mirtilo",
+      "dica": "Fruta pequena e azul"
+    },
+    {
+      "palavra": "groselha",
+      "dica": "Fruta pequena e azeda"
+    },
+    {
+      "palavra": "cranberry",
+      "dica": "Fruta vermelha azeda"
+    },
+    {
+      "palavra": "romã",
+      "dica": "Fruta com muitas sementes"
+    },
+    {
+      "palavra": "damasco",
+      "dica": "Fruta laranja pequena"
+    },
+    {
+      "palavra": "tâmara",
+      "dica": "Fruta doce do deserto"
+    },
+    {
+      "palavra": "caqui",
+      "dica": "Fruta laranja doce"
+    },
+    {
+      "palavra": "nectarina",
+      "dica": "Fruta similar ao pêssego"
+    },
+    {
+      "palavra": "mamão",
+      "dica": "Fruta laranja tropical"
+    },
+    {
+      "palavra": "melão",
+      "dica": "Fruta grande e doce"
+    },
+    {
+      "palavra": "abóbora",
+      "dica": "Fruta grande e laranja"
+    }
+  ]
+}
