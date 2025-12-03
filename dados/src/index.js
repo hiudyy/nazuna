@@ -1255,9 +1255,12 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       return;
     }
     if (isGroup && info.message.protocolMessage && info.message.protocolMessage.type === 0 && isAntiDel) {
-      const msg = messagesCache.get(info.message.protocolMessage.key.id);
-      if (!msg) return;
-      const clone = JSON.parse(JSON.stringify(msg).replaceAll('conversation', 'text').replaceAll('Message', ''));
+      // Chave composta: remoteJid_messageId
+      const deletedMsgKey = info.message.protocolMessage.key;
+      const cacheKey = `${deletedMsgKey.remoteJid || from}_${deletedMsgKey.id}`;
+      const cachedInfo = messagesCache.get(cacheKey);
+      if (!cachedInfo || !cachedInfo.message) return;
+      const clone = JSON.parse(JSON.stringify(cachedInfo.message).replaceAll('conversation', 'text').replaceAll('Message', ''));
       for (const key in clone) {
         const media = clone[key];
         if (media && typeof media === 'object' && media.url) {
@@ -10912,22 +10915,23 @@ Entre em contato com o dono do bot:
           // Buscar mensagens do cache
           const mensagensGrupo = [];
           
-          if (messagesCache && messagesCache.get) {
+          if (messagesCache && typeof messagesCache.keys === 'function') {
             // Tentar pegar do cache de mensagens
-            const cacheKeys = Array.from(messagesCache.keys?.() || []);
+            // Chaves estão no formato: remoteJid_messageId
+            const cacheKeys = Array.from(messagesCache.keys());
             const groupMessages = cacheKeys
-              .filter(key => key.startsWith(from))
+              .filter(key => key.startsWith(`${from}_`))
               .slice(-limite);
             
             for (const key of groupMessages) {
-              const msg = messagesCache.get(key);
-              if (msg?.message) {
-                const texto = msg.message?.conversation || 
-                             msg.message?.extendedTextMessage?.text ||
-                             msg.message?.imageMessage?.caption ||
-                             msg.message?.videoMessage?.caption || '';
+              const cachedInfo = messagesCache.get(key);
+              if (cachedInfo?.message) {
+                const texto = cachedInfo.message?.conversation || 
+                             cachedInfo.message?.extendedTextMessage?.text ||
+                             cachedInfo.message?.imageMessage?.caption ||
+                             cachedInfo.message?.videoMessage?.caption || '';
                 if (texto && texto.length > 0) {
-                  const pushName = msg.pushName || 'Usuário';
+                  const pushName = cachedInfo.pushName || 'Usuário';
                   mensagensGrupo.push(`${pushName}: ${texto}`);
                 }
               }

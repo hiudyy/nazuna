@@ -1060,9 +1060,11 @@ async function createBotSocket(authDir) {
                 return;
             }
             
-            // Cache da mensagem para uso posterior no processamento
-            if (messagesCache && info.key?.id) {
-                messagesCache.set(info.key.id, info.message);
+            // Cache da mensagem para uso posterior no processamento (anti-delete, resumirchat, etc)
+            if (messagesCache && info.key?.id && info.key?.remoteJid) {
+                // Chave composta: remoteJid_messageId para permitir filtrar por grupo
+                const cacheKey = `${info.key.remoteJid}_${info.key.id}`;
+                messagesCache.set(cacheKey, info);
             }
             
             // Processa mensagem

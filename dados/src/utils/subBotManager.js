@@ -290,12 +290,13 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber, generatePairing
                         // Carrega o módulo de processamento
                         const indexModule = await import('../index.js');
                         
-                        // Cria um cache simples para este sub-bot
-                        // NodeCache already imported at top
-                        const messagesCache = new NodeCache({ stdTTL: 300 });
+                        // Cria um cache simples para este sub-bot usando Map (compatível com bot principal)
+                        const messagesCache = new Map();
                         
-                        if (info.key?.id) {
-                            messagesCache.set(info.key.id, info.message);
+                        // Chave composta: remoteJid_messageId para permitir filtrar por grupo
+                        if (info.key?.id && info.key?.remoteJid) {
+                            const cacheKey = `${info.key.remoteJid}_${info.key.id}`;
+                            messagesCache.set(cacheKey, info);
                         }
                         
                         // Processa a mensagem usando a mesma lógica do bot principal
