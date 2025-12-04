@@ -1,0 +1,13 @@
+{
+  "config": {
+    "tamanhoTabuleiro": 10,
+    "navios": [
+      { "nome": "Porta-aviões", "tamanho": 5, "quantidade": 1 },
+      { "nome": "Encouraçado", "tamanho": 4, "quantidade": 1 },
+      { "nome": "Cruzador", "tamanho": 3, "quantidade": 2 },
+      { "nome": "Destroyer", "tamanho": 2, "quantidade": 2 },
+      { "nome": "Submarino", "tamanho": 1, "quantidade": 2 }
+    ]
+  }
+}
+

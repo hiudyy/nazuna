@@ -25,6 +25,12 @@ ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}wordle
 ${middleBorder}${menuItemIcon}${prefix}quiz <categoria>
 ${middleBorder}${menuItemIcon}${prefix}forca
+${middleBorder}${menuItemIcon}${prefix}digitar @usuario
+${middleBorder}${menuItemIcon}${prefix}batalhanaval @usuario
+${middleBorder}${menuItemIcon}${prefix}stop
+${middleBorder}${menuItemIcon}${prefix}anagrama
+${middleBorder}${menuItemIcon}${prefix}dueloquiz @usuario [número]
+${middleBorder}${menuItemIcon}${prefix}cacapalavras [dificuldade]
 ${middleBorder}${menuItemIcon}${prefix}jogodavelha
 ${middleBorder}${menuItemIcon}${prefix}eununca
 ${middleBorder}${menuItemIcon}${prefix}vab

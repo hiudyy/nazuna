@@ -1,0 +1,35 @@
+{
+  "palavras": [
+    { "palavra": "computador", "dica": "Máquina eletrônica" },
+    { "palavra": "elefante", "dica": "Animal grande com tromba" },
+    { "palavra": "chocolate", "dica": "Doce feito de cacau" },
+    { "palavra": "biblioteca", "dica": "Lugar com muitos livros" },
+    { "palavra": "astronauta", "dica": "Viaja para o espaço" },
+    { "palavra": "dinossauro", "dica": "Animal pré-histórico" },
+    { "palavra": "helicóptero", "dica": "Aeronave com hélices" },
+    { "palavra": "guitarra", "dica": "Instrumento musical" },
+    { "palavra": "borboleta", "dica": "Inseto colorido" },
+    { "palavra": "cachoeira", "dica": "Queda de água" },
+    { "palavra": "universo", "dica": "Tudo que existe" },
+    { "palavra": "tecnologia", "dica": "Conjunto de técnicas" },
+    { "palavra": "fotografia", "dica": "Arte de capturar imagens" },
+    { "palavra": "adventure", "dica": "Aventura em inglês" },
+    { "palavra": "misterioso", "dica": "Algo desconhecido" },
+    { "palavra": "fantasia", "dica": "Gênero literário" },
+    { "palavra": "criatividade", "dica": "Capacidade de criar" },
+    { "palavra": "descoberta", "dica": "Ato de encontrar algo" },
+    { "palavra": "exploracao", "dica": "Ato de explorar" },
+    { "palavra": "jornada", "dica": "Viagem longa" },
+    { "palavra": "desafio", "dica": "Prova difícil" },
+    { "palavra": "vitoria", "dica": "Sucesso em competição" },
+    { "palavra": "campeao", "dica": "Vencedor" },
+    { "palavra": "estrela", "dica": "Corpo celeste" },
+    { "palavra": "planeta", "dica": "Corpo que orbita estrela" },
+    { "palavra": "oceano", "dica": "Grande massa de água" },
+    { "palavra": "montanha", "dica": "Elevação de terra" },
+    { "palavra": "floresta", "dica": "Área com muitas árvores" },
+    { "palavra": "deserto", "dica": "Área seca e arenosa" },
+    { "palavra": "ilha", "dica": "Terra cercada por água" }
+  ]
+}
+

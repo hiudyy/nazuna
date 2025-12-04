@@ -1,0 +1,30 @@
+{
+  "config": {
+    "tamanho": 15,
+    "dificuldades": {
+      "facil": {
+        "palavras": 5,
+        "tamanhoMin": 4,
+        "tamanhoMax": 6
+      },
+      "medio": {
+        "palavras": 7,
+        "tamanhoMin": 5,
+        "tamanhoMax": 8
+      },
+      "dificil": {
+        "palavras": 10,
+        "tamanhoMin": 6,
+        "tamanhoMax": 10
+      }
+    }
+  },
+  "palavras": [
+    "amor", "fogo", "gato", "hora", "jogo", "rosa", "tipo", "vida", "zona", "água",
+    "amigo", "barco", "canto", "dança", "entre", "falar", "gosto", "hotel", "igual", "jogar",
+    "desejo", "jardim", "tulipa", "aurora", "mágico", "pérola", "safira", "abelha", "iguana", "jacaré",
+    "estrela", "quintal", "cristal", "violeta", "coração", "formiga", "hamster", "cadeira", "passaro", "galinha",
+    "fogueira", "girassol", "harmonia", "natureza", "universo", "diamante", "cachorro", "telefone", "papagaio", "flamingo"
+  ]
+}
+

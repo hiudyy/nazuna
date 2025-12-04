@@ -11479,6 +11479,1182 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
       }
 
       // ═══════════════════════════════════════════════════════════════
+      // ⚡ CORRIDA DE DIGITAÇÃO - Quem digita mais rápido?
+      // ═══════════════════════════════════════════════════════════════
+      case 'digitar':
+      case 'typing':
+      case 'digitacao': {
+        if (!isGroup) return reply('⚡ Este jogo só funciona em grupos!');
+
+        // Carregar frases do JSON
+        const digitacaoPath = pathz.join(__dirname, 'funcs', 'json', 'digitacao.json');
+        let frasesDigitacao = [];
+        try {
+          const digitacaoData = JSON.parse(fs.readFileSync(digitacaoPath, 'utf-8'));
+          frasesDigitacao = digitacaoData.frases || [];
+        } catch (e) {
+          console.error('Erro ao carregar digitacao.json:', e);
+          frasesDigitacao = ['A tecnologia está mudando o mundo rapidamente'];
+        }
+
+        // Estado dos desafios de digitação
+        if (!global.digitacaoChallenges) global.digitacaoChallenges = {};
+        if (!global.digitacaoGames) global.digitacaoGames = {};
+
+        const challengeKey = isGroup ? from : sender;
+
+        // Verificar se há menção (desafiar alguém)
+        const mentionedJid = message?.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+        
+        // Desafiar alguém
+        if (mentionedJid && mentionedJid !== sender) {
+          // Verificar se já existe desafio pendente
+          if (global.digitacaoChallenges[challengeKey]) {
+            return reply('⚠️ Já existe um desafio pendente neste grupo!');
+          }
+
+          // Criar desafio
+          global.digitacaoChallenges[challengeKey] = {
+            challenger: sender,
+            challenged: mentionedJid,
+            status: 'pending',
+            created: Date.now()
+          };
+
+          return reply(`⚡ *DESAFIO DE DIGITAÇÃO*\n\n@${sender.split('@')[0]} desafiou @${mentionedJid.split('@')[0]} para uma corrida de digitação!\n\n💡 O desafiado deve usar: ${prefix}digitar aceitar\n⏱️ O desafio expira em 60 segundos.`, { mentions: [sender, mentionedJid] });
+        }
+
+        // Aceitar desafio
+        if (args[0]?.toLowerCase() === 'aceitar' || args[0]?.toLowerCase() === 'aceitar') {
+          const challenge = global.digitacaoChallenges[challengeKey];
+          
+          if (!challenge) {
+            return reply('❌ Não há desafio pendente para você aceitar!');
+          }
+
+          if (challenge.challenged !== sender) {
+            return reply('❌ Este desafio não é para você!');
+          }
+
+          if (challenge.status !== 'pending') {
+            return reply('❌ Este desafio já foi aceito ou expirado!');
+          }
+
+          // Verificar expiração (60 segundos)
+          if (Date.now() - challenge.created > 60000) {
+            delete global.digitacaoChallenges[challengeKey];
+            return reply('⏰ O desafio expirou!');
+          }
+
+          // Iniciar jogo
+          const fraseEscolhida = frasesDigitacao[Math.floor(Math.random() * frasesDigitacao.length)];
+          const gameId = `game_${Date.now()}`;
+          
+          challenge.status = 'accepted';
+          challenge.gameId = gameId;
+
+          // Enviar frase para ambos (com delay mínimo para evitar copy/paste)
+          const delay = 2000; // 2 segundos de delay
+          
+          setTimeout(async () => {
+            // Iniciar o jogo quando a frase for enviada
+            global.digitacaoGames[gameId] = {
+              challenger: challenge.challenger,
+              challenged: challenge.challenged,
+              frase: fraseEscolhida,
+              fraseNormalizada: normalizar(fraseEscolhida.toLowerCase()),
+              status: 'active',
+              iniciado: Date.now(), // Timer começa quando frase é enviada
+              resultados: {}
+            };
+            
+            await reply(`⚡ *CORRIDA DE DIGITAÇÃO INICIADA!*\n\n📝 *Digite exatamente esta frase:*\n\n"${fraseEscolhida}"\n\n⏱️ Quem digitar primeiro e corretamente vence!\n\n💡 Digite: ${prefix}digitar ${fraseEscolhida}`, { mentions: [challenge.challenger, challenge.challenged] });
+          }, delay);
+
+          return reply(`✅ Desafio aceito! A frase será enviada em ${delay/1000} segundos... ⏱️`, { mentions: [challenge.challenger] });
+        }
+
+        // Verificar resposta (digitação)
+        if (global.digitacaoGames) {
+          // Procurar jogo ativo onde o jogador participa
+          for (const [gameId, game] of Object.entries(global.digitacaoGames)) {
+            if (game.status === 'active' && (game.challenger === sender || game.challenged === sender)) {
+              const resposta = normalizar(q.toLowerCase());
+              const fraseEsperada = game.fraseNormalizada;
+              
+              // Verificar tempo mínimo (proteção anti-copy/paste) - 3 segundos
+              const tempoDecorrido = Date.now() - game.iniciado;
+              const tempoMinimo = 3000; // 3 segundos
+              
+              if (tempoDecorrido < tempoMinimo) {
+                return reply(`⏱️ Muito rápido! Aguarde pelo menos ${(tempoMinimo - tempoDecorrido) / 1000} segundos antes de responder.\n\n⚠️ Isso previne cópia e cola!`);
+              }
+
+              // Verificar se já respondeu
+              if (game.resultados[sender]) {
+                return reply('⚠️ Você já respondeu! Aguarde o resultado.');
+              }
+
+              // Verificar se acertou
+              const acertou = resposta === fraseEsperada;
+              const tempoResposta = Date.now() - game.iniciado;
+              
+              game.resultados[sender] = {
+                acertou: acertou,
+                tempo: tempoResposta,
+                resposta: q
+              };
+
+              // Verificar se ambos responderam
+              if (game.resultados[game.challenger] && game.resultados[game.challenged]) {
+                game.status = 'finished';
+                
+                const challengerResult = game.resultados[game.challenger];
+                const challengedResult = game.resultados[game.challenged];
+                
+                let vencedor = null;
+                let perdedor = null;
+                
+                if (challengerResult.acertou && challengedResult.acertou) {
+                  // Ambos acertaram, quem foi mais rápido?
+                  if (challengerResult.tempo < challengedResult.tempo) {
+                    vencedor = game.challenger;
+                    perdedor = game.challenged;
+                  } else {
+                    vencedor = game.challenged;
+                    perdedor = game.challenger;
+                  }
+                } else if (challengerResult.acertou) {
+                  vencedor = game.challenger;
+                  perdedor = game.challenged;
+                } else if (challengedResult.acertou) {
+                  vencedor = game.challenged;
+                  perdedor = game.challenger;
+                }
+
+                let resultadoMsg = `⚡ *RESULTADO DA CORRIDA*\n\n`;
+                resultadoMsg += `📝 Frase: "${game.frase}"\n\n`;
+                
+                if (vencedor) {
+                  const vencedorResult = game.resultados[vencedor];
+                  const perdedorResult = game.resultados[perdedor];
+                  
+                  resultadoMsg += `🏆 *VENCEDOR:* @${vencedor.split('@')[0]}\n`;
+                  resultadoMsg += `⏱️ Tempo: ${(vencedorResult.tempo / 1000).toFixed(2)}s\n\n`;
+                  resultadoMsg += `😔 *PERDEDOR:* @${perdedor.split('@')[0]}\n`;
+                  resultadoMsg += `⏱️ Tempo: ${(perdedorResult.tempo / 1000).toFixed(2)}s`;
+                  
+                  if (!perdedorResult.acertou) {
+                    resultadoMsg += `\n❌ Resposta incorreta!`;
+                  }
+                } else {
+                  resultadoMsg += `😔 *EMPATE!*\n\n`;
+                  resultadoMsg += `Nenhum dos dois acertou a frase corretamente.\n\n`;
+                  resultadoMsg += `@${game.challenger.split('@')[0]}: ${challengerResult.acertou ? '✅' : '❌'} ${(challengerResult.tempo / 1000).toFixed(2)}s\n`;
+                  resultadoMsg += `@${game.challenged.split('@')[0]}: ${challengedResult.acertou ? '✅' : '❌'} ${(challengedResult.tempo / 1000).toFixed(2)}s`;
+                }
+
+                // Limpar desafio e jogo
+                delete global.digitacaoChallenges[challengeKey];
+                delete global.digitacaoGames[gameId];
+
+                return reply(resultadoMsg, { mentions: [game.challenger, game.challenged] });
+              } else {
+                // Ainda aguardando outro jogador
+                return reply(`✅ Resposta recebida! Aguardando o oponente...`);
+              }
+            }
+          }
+        }
+
+        // Mostrar ajuda
+        return reply(`⚡ *CORRIDA DE DIGITAÇÃO*\n\n💡 *Como jogar:*\n\n1️⃣ Desafie alguém:\n${prefix}digitar @usuario\n\n2️⃣ O desafiado aceita:\n${prefix}digitar aceitar\n\n3️⃣ Digite a frase exatamente como aparecer!\n\n🏆 Quem digitar primeiro e corretamente vence!\n\n⚠️ Proteção anti-cópia: mínimo de 3 segundos`);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🚢 BATALHA NAVAL - Jogo de estratégia naval
+      // ═══════════════════════════════════════════════════════════════
+      case 'batalhanaval':
+      case 'batalha':
+      case 'naval': {
+        if (!isGroup) return reply('🚢 Este jogo só funciona em grupos!');
+
+        // Carregar configuração do JSON
+        const navalPath = pathz.join(__dirname, 'funcs', 'json', 'batalhanaval.json');
+        let configNaval = {
+          tamanhoTabuleiro: 10,
+          navios: [
+            { nome: "Porta-aviões", tamanho: 5, quantidade: 1 },
+            { nome: "Encouraçado", tamanho: 4, quantidade: 1 },
+            { nome: "Cruzador", tamanho: 3, quantidade: 2 },
+            { nome: "Destroyer", tamanho: 2, quantidade: 2 },
+            { nome: "Submarino", tamanho: 1, quantidade: 2 }
+          ]
+        };
+        try {
+          const navalData = JSON.parse(fs.readFileSync(navalPath, 'utf-8'));
+          configNaval = { ...configNaval, ...navalData.config };
+        } catch (e) {
+          console.error('Erro ao carregar batalhanaval.json:', e);
+        }
+
+        // Estado dos jogos
+        if (!global.navalGames) global.navalGames = {};
+        if (!global.navalChallenges) global.navalChallenges = {};
+
+        const gameKey = isGroup ? from : sender;
+
+        // Função para criar tabuleiro vazio
+        const criarTabuleiro = (tamanho) => {
+          return Array(tamanho).fill(null).map(() => Array(tamanho).fill('🌊'));
+        };
+
+        // Função para posicionar navios automaticamente
+        const posicionarNavios = (tabuleiro, navios) => {
+          const tamanho = tabuleiro.length;
+          const naviosPosicionados = [];
+          
+          for (const navio of navios) {
+            for (let qtd = 0; qtd < navio.quantidade; qtd++) {
+              let posicionado = false;
+              let tentativas = 0;
+              
+              while (!posicionado && tentativas < 100) {
+                tentativas++;
+                const horizontal = Math.random() < 0.5;
+                const linha = Math.floor(Math.random() * tamanho);
+                const coluna = Math.floor(Math.random() * tamanho);
+                
+                // Verificar se cabe
+                let cabe = true;
+                const posicoes = [];
+                
+                for (let i = 0; i < navio.tamanho; i++) {
+                  const l = horizontal ? linha : linha + i;
+                  const c = horizontal ? coluna + i : coluna;
+                  
+                  if (l >= tamanho || c >= tamanho || tabuleiro[l][c] !== '🌊') {
+                    cabe = false;
+                    break;
+                  }
+                  posicoes.push({ linha: l, coluna: c });
+                }
+                
+                if (cabe) {
+                  posicoes.forEach(pos => {
+                    tabuleiro[pos.linha][pos.coluna] = '🚢';
+                  });
+                  naviosPosicionados.push({
+                    nome: navio.nome,
+                    tamanho: navio.tamanho,
+                    posicoes: posicoes,
+                    acertos: 0
+                  });
+                  posicionado = true;
+                }
+              }
+            }
+          }
+          
+          return naviosPosicionados;
+        };
+
+        // Função para converter coordenada (A1, B5, etc) para índices
+        const parseCoordenada = (coord) => {
+          const match = coord.match(/^([A-J])(\d+)$/i);
+          if (!match) return null;
+          const coluna = match[1].toUpperCase().charCodeAt(0) - 65;
+          const linha = parseInt(match[2]) - 1;
+          if (linha < 0 || linha >= 10 || coluna < 0 || coluna >= 10) return null;
+          return { linha, coluna };
+        };
+
+        // Função para formatar tabuleiro para exibição
+        const formatarTabuleiro = (tabuleiro, mostrarNavios = false) => {
+          let resultado = '   A B C D E F G H I J\n';
+          for (let i = 0; i < tabuleiro.length; i++) {
+            resultado += `${(i + 1).toString().padStart(2)} `;
+            for (let j = 0; j < tabuleiro[i].length; j++) {
+              const celula = tabuleiro[i][j];
+              if (celula === '🌊') resultado += '🌊';
+              else if (celula === '🚢' && !mostrarNavios) resultado += '🌊';
+              else if (celula === '💥') resultado += '💥';
+              else if (celula === '❌') resultado += '❌';
+              else resultado += celula;
+              resultado += ' ';
+            }
+            resultado += '\n';
+          }
+          return resultado;
+        };
+
+        // Verificar se há menção (desafiar alguém)
+        const mentionedJid = message?.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+        
+        // Desafiar alguém
+        if (mentionedJid && mentionedJid !== sender) {
+          if (global.navalChallenges[gameKey] || global.navalGames[gameKey]) {
+            return reply('⚠️ Já existe um jogo ou desafio pendente neste grupo!');
+          }
+
+          global.navalChallenges[gameKey] = {
+            challenger: sender,
+            challenged: mentionedJid,
+            status: 'pending',
+            created: Date.now()
+          };
+
+          return reply(`🚢 *DESAFIO DE BATALHA NAVAL*\n\n@${sender.split('@')[0]} desafiou @${mentionedJid.split('@')[0]} para uma batalha naval!\n\n💡 O desafiado deve usar: ${prefix}batalhanaval aceitar\n⏱️ O desafio expira em 60 segundos.`, { mentions: [sender, mentionedJid] });
+        }
+
+        // Aceitar desafio
+        if (args[0]?.toLowerCase() === 'aceitar') {
+          const challenge = global.navalChallenges[gameKey];
+          
+          if (!challenge || challenge.challenged !== sender || challenge.status !== 'pending') {
+            return reply('❌ Não há desafio pendente para você aceitar!');
+          }
+
+          if (Date.now() - challenge.created > 60000) {
+            delete global.navalChallenges[gameKey];
+            return reply('⏰ O desafio expirou!');
+          }
+
+          // Criar tabuleiros e posicionar navios
+          const tabuleiro1 = criarTabuleiro(configNaval.tamanhoTabuleiro);
+          const tabuleiro2 = criarTabuleiro(configNaval.tamanhoTabuleiro);
+          const navios1 = posicionarNavios(tabuleiro1, configNaval.navios);
+          const navios2 = posicionarNavios(tabuleiro2, configNaval.navios);
+
+          // Criar tabuleiros de tiros (o que o jogador vê do oponente)
+          const tiros1 = criarTabuleiro(configNaval.tamanhoTabuleiro);
+          const tiros2 = criarTabuleiro(configNaval.tamanhoTabuleiro);
+
+          global.navalGames[gameKey] = {
+            jogador1: challenge.challenger,
+            jogador2: challenge.challenged,
+            tabuleiro1: tabuleiro1,
+            tabuleiro2: tabuleiro2,
+            tiros1: tiros1,
+            tiros2: tiros2,
+            navios1: navios1,
+            navios2: navios2,
+            turno: challenge.challenger, // Jogador 1 começa
+            status: 'active'
+          };
+
+          delete global.navalChallenges[gameKey];
+
+          return reply(`🚢 *BATALHA NAVAL INICIADA!*\n\n@${challenge.challenger.split('@')[0]} vs @${challenge.challenged.split('@')[0]}\n\n🎯 É a vez de @${challenge.challenger.split('@')[0]} atirar!\n\n💡 Use: ${prefix}batalhanaval [coordenada]\n📌 Exemplo: ${prefix}batalhanaval A5`, { mentions: [challenge.challenger, challenge.challenged] });
+        }
+
+        // Processar tiro
+        if (global.navalGames[gameKey] && args[0]) {
+          const game = global.navalGames[gameKey];
+          
+          if (game.status !== 'active') {
+            return reply('❌ Este jogo já terminou!');
+          }
+
+          // Verificar se é a vez do jogador
+          if (game.turno !== sender) {
+            return reply('⏳ Não é sua vez! Aguarde o oponente.');
+          }
+
+          const coordenada = parseCoordenada(args[0].toUpperCase());
+          if (!coordenada) {
+            return reply(`❌ Coordenada inválida! Use formato: A1, B5, J10, etc.\n\n💡 Exemplo: ${prefix}batalhanaval A5`);
+          }
+
+          // Determinar qual tabuleiro atacar e qual tabuleiro de tiros atualizar
+          let tabuleiroAlvo, tirosJogador, naviosAlvo, jogadorAtual, oponente;
+          
+          if (sender === game.jogador1) {
+            tabuleiroAlvo = game.tabuleiro2;
+            tirosJogador = game.tiros1;
+            naviosAlvo = game.navios2;
+            jogadorAtual = game.jogador1;
+            oponente = game.jogador2;
+          } else {
+            tabuleiroAlvo = game.tabuleiro1;
+            tirosJogador = game.tiros2;
+            naviosAlvo = game.navios1;
+            jogadorAtual = game.jogador2;
+            oponente = game.jogador1;
+          }
+
+          // Verificar se já atirou aqui
+          if (tirosJogador[coordenada.linha][coordenada.coluna] !== '🌊') {
+            return reply('⚠️ Você já atirou nesta coordenada!');
+          }
+
+          // Processar tiro
+          const celula = tabuleiroAlvo[coordenada.linha][coordenada.coluna];
+          let resultado = '';
+          let acertou = false;
+          let navioAfundado = null;
+
+          if (celula === '🚢') {
+            // Acertou um navio
+            acertou = true;
+            tabuleiroAlvo[coordenada.linha][coordenada.coluna] = '💥';
+            tirosJogador[coordenada.linha][coordenada.coluna] = '💥';
+            
+            // Verificar se afundou algum navio
+            for (const navio of naviosAlvo) {
+              const posicao = navio.posicoes.find(p => p.linha === coordenada.linha && p.coluna === coordenada.coluna);
+              if (posicao) {
+                navio.acertos++;
+                if (navio.acertos === navio.tamanho) {
+                  navioAfundado = navio;
+                }
+                break;
+              }
+            }
+            
+            resultado = '💥 *ACERTOU!*';
+          } else {
+            // Errou
+            tabuleiroAlvo[coordenada.linha][coordenada.coluna] = '❌';
+            tirosJogador[coordenada.linha][coordenada.coluna] = '❌';
+            resultado = '❌ *ÁGUA!*';
+          }
+
+          // Verificar vitória
+          const todosNaviosAfundados = naviosAlvo.every(n => n.acertos === n.tamanho);
+          
+          if (todosNaviosAfundados) {
+            game.status = 'finished';
+            delete global.navalGames[gameKey];
+            
+            let msgVitoria = `🏆 *VITÓRIA!*\n\n`;
+            msgVitoria += `@${jogadorAtual.split('@')[0]} venceu a batalha naval!\n\n`;
+            msgVitoria += `🎯 Último tiro: ${args[0].toUpperCase()} - ${resultado}\n`;
+            if (navioAfundado) {
+              msgVitoria += `🚢 Afundou: ${navioAfundado.nome}\n`;
+            }
+            
+            return reply(msgVitoria, { mentions: [jogadorAtual, oponente] });
+          }
+
+          // Preparar resposta
+          let resposta = `${resultado}\n\n`;
+          resposta += `🎯 Coordenada: ${args[0].toUpperCase()}\n`;
+          
+          if (navioAfundado) {
+            resposta += `🚢 *${navioAfundado.nome} AFUNDADO!*\n\n`;
+          }
+          
+          // Trocar turno
+          game.turno = oponente;
+          
+          resposta += `\n📊 *Seu tabuleiro de tiros:*\n\`\`\`${formatarTabuleiro(tirosJogador)}\`\`\`\n\n`;
+          resposta += `⏭️ Agora é a vez de @${oponente.split('@')[0]}!\n`;
+          resposta += `💡 Use: ${prefix}batalhanaval [coordenada]`;
+
+          return reply(resposta, { mentions: [jogadorAtual, oponente] });
+        }
+
+        // Ver status do jogo
+        if (global.navalGames[gameKey]) {
+          const game = global.navalGames[gameKey];
+          const isJogador1 = sender === game.jogador1;
+          const tirosJogador = isJogador1 ? game.tiros1 : game.tiros2;
+          
+          let status = `🚢 *BATALHA NAVAL*\n\n`;
+          status += `@${game.jogador1.split('@')[0]} vs @${game.jogador2.split('@')[0]}\n\n`;
+          status += `🎯 Turno: @${game.turno.split('@')[0]}\n\n`;
+          status += `📊 *Seu tabuleiro de tiros:*\n\`\`\`${formatarTabuleiro(tirosJogador)}\`\`\`\n\n`;
+          status += `💡 Use: ${prefix}batalhanaval [coordenada]\n📌 Exemplo: ${prefix}batalhanaval A5`;
+          
+          return reply(status, { mentions: [game.jogador1, game.jogador2] });
+        }
+
+        // Mostrar ajuda
+        return reply(`🚢 *BATALHA NAVAL*\n\n💡 *Como jogar:*\n\n1️⃣ Desafie alguém:\n${prefix}batalhanaval @usuario\n\n2️⃣ O desafiado aceita:\n${prefix}batalhanaval aceitar\n\n3️⃣ Atire em coordenadas:\n${prefix}batalhanaval A5\n\n🎯 Objetivo: Afundar todos os navios do oponente!\n\n📌 Coordenadas: A-J (colunas) e 1-10 (linhas)\n💥 = Acerto | ❌ = Água`);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🛑 STOP/ADEDONHA - Jogo de palavras por categorias
+      // ═══════════════════════════════════════════════════════════════
+      case 'stop':
+      case 'adedonha': {
+        if (!isGroup) return reply('🛑 Este jogo só funciona em grupos!');
+
+        // Carregar categorias do JSON
+        const stopPath = pathz.join(__dirname, 'funcs', 'json', 'stop.json');
+        let categoriasStop = ['Nome', 'País', 'Cidade', 'Animal', 'Cor', 'Fruta', 'Objeto', 'Profissão'];
+        try {
+          const stopData = JSON.parse(fs.readFileSync(stopPath, 'utf-8'));
+          categoriasStop = stopData.categorias || categoriasStop;
+        } catch (e) {
+          console.error('Erro ao carregar stop.json:', e);
+        }
+
+        // Estado dos jogos
+        if (!global.stopGames) global.stopGames = {};
+
+        const gameKey = isGroup ? from : sender;
+
+        // Letras válidas (sem acentos problemáticos)
+        const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+        // Iniciar novo jogo
+        if (!global.stopGames[gameKey] || global.stopGames[gameKey].status === 'finished') {
+          const letraEscolhida = letras[Math.floor(Math.random() * letras.length)];
+          const numCategorias = Math.min(5, categoriasStop.length);
+          const categoriasEscolhidas = [];
+          const categoriasDisponiveis = [...categoriasStop];
+          
+          for (let i = 0; i < numCategorias; i++) {
+            const idx = Math.floor(Math.random() * categoriasDisponiveis.length);
+            categoriasEscolhidas.push(categoriasDisponiveis.splice(idx, 1)[0]);
+          }
+
+          global.stopGames[gameKey] = {
+            letra: letraEscolhida,
+            categorias: categoriasEscolhidas,
+            respostas: {},
+            status: 'active',
+            iniciado: Date.now(),
+            tempoLimite: 300000 // 5 minutos
+          };
+
+          let msg = `🛑 *STOP/ADEDONHA*\n\n`;
+          msg += `🔤 *Letra:* ${letraEscolhida}\n\n`;
+          msg += `📋 *Categorias:*\n`;
+          categoriasEscolhidas.forEach((cat, idx) => {
+            msg += `${idx + 1}. ${cat}\n`;
+          });
+          msg += `\n💡 *Como jogar:*\n`;
+          msg += `Use: ${prefix}stop [categoria] [palavra]\n\n`;
+          msg += `📌 *Exemplo:*\n`;
+          msg += `${prefix}stop Nome Ana\n`;
+          msg += `${prefix}stop País Argentina\n\n`;
+          msg += `⏱️ Tempo limite: 5 minutos\n`;
+          msg += `🏆 Quem completar todas as categorias primeiro vence!`;
+
+          return reply(msg);
+        }
+
+        const game = global.stopGames[gameKey];
+
+        // Verificar tempo limite
+        if (Date.now() - game.iniciado > game.tempoLimite) {
+          game.status = 'finished';
+          let resultado = `⏰ *TEMPO ESGOTADO!*\n\n`;
+          resultado += `🔤 Letra: ${game.letra}\n\n`;
+          resultado += `📊 *Resultados:*\n`;
+          
+          const jogadores = Object.keys(game.respostas);
+          if (jogadores.length === 0) {
+            resultado += `Ninguém respondeu! 😔`;
+            delete global.stopGames[gameKey];
+            return reply(resultado);
+          }
+
+          // Contar pontos
+          const pontos = {};
+          jogadores.forEach(jogador => {
+            pontos[jogador] = Object.keys(game.respostas[jogador]).length;
+          });
+
+          const sorted = jogadores.sort((a, b) => pontos[b] - pontos[a]);
+          sorted.forEach((jogador, idx) => {
+            const nome = jogador.split('@')[0];
+            resultado += `${idx + 1}º @${nome}: ${pontos[jogador]} pontos\n`;
+          });
+
+          delete global.stopGames[gameKey];
+          return reply(resultado, { mentions: jogadores });
+        }
+
+        // Processar resposta
+        if (args.length >= 2) {
+          const categoriaInput = args[0];
+          const palavraInput = args.slice(1).join(' ');
+
+          // Encontrar categoria (case insensitive, parcial)
+          const categoria = game.categorias.find(cat => 
+            normalizar(cat.toLowerCase()) === normalizar(categoriaInput.toLowerCase())
+          );
+
+          if (!categoria) {
+            return reply(`❌ Categoria inválida!\n\n📋 Categorias disponíveis:\n${game.categorias.map((c, i) => `${i + 1}. ${c}`).join('\n')}`);
+          }
+
+          // Verificar se palavra começa com a letra
+          const palavraNorm = normalizar(palavraInput.toLowerCase());
+          const letraNorm = normalizar(game.letra.toLowerCase());
+
+          if (palavraNorm[0] !== letraNorm) {
+            return reply(`❌ A palavra "${palavraInput}" não começa com a letra "${game.letra}"!`);
+          }
+
+          // Inicializar respostas do jogador se necessário
+          if (!game.respostas[sender]) {
+            game.respostas[sender] = {};
+          }
+
+          // Verificar se já respondeu esta categoria
+          if (game.respostas[sender][categoria]) {
+            return reply(`⚠️ Você já respondeu a categoria "${categoria}"!\n\n📝 Sua resposta: ${game.respostas[sender][categoria]}`);
+          }
+
+          // Verificar se outro jogador já usou esta palavra
+          const palavraJaUsada = Object.values(game.respostas).some(resp => 
+            Object.values(resp).some(pal => normalizar(pal.toLowerCase()) === palavraNorm)
+          );
+
+          if (palavraJaUsada) {
+            return reply(`⚠️ Outro jogador já usou a palavra "${palavraInput}"!`);
+          }
+
+          // Adicionar resposta
+          game.respostas[sender][categoria] = palavraInput;
+
+          // Verificar se completou todas as categorias
+          const categoriasCompletas = Object.keys(game.respostas[sender]).length;
+          const totalCategorias = game.categorias.length;
+
+          if (categoriasCompletas === totalCategorias) {
+            game.status = 'finished';
+            const tempoDecorrido = ((Date.now() - game.iniciado) / 1000).toFixed(1);
+            
+            let vitoria = `🏆 *VITÓRIA!*\n\n`;
+            vitoria += `@${sender.split('@')[0]} completou todas as categorias!\n\n`;
+            vitoria += `🔤 Letra: ${game.letra}\n`;
+            vitoria += `⏱️ Tempo: ${tempoDecorrido}s\n\n`;
+            vitoria += `📋 *Respostas:*\n`;
+            game.categorias.forEach(cat => {
+              vitoria += `• ${cat}: ${game.respostas[sender][cat]}\n`;
+            });
+
+            delete global.stopGames[gameKey];
+            return reply(vitoria, { mentions: [sender] });
+          }
+
+          // Mostrar progresso
+          let progresso = `✅ *Resposta aceita!*\n\n`;
+          progresso += `📋 ${categoria}: ${palavraInput}\n\n`;
+          progresso += `📊 *Seu progresso:* ${categoriasCompletas}/${totalCategorias}\n\n`;
+          progresso += `📝 *Categorias restantes:*\n`;
+          game.categorias.forEach(cat => {
+            if (!game.respostas[sender][cat]) {
+              progresso += `• ${cat}\n`;
+            }
+          });
+
+          return reply(progresso);
+        }
+
+        // Mostrar status do jogo
+        let status = `🛑 *STOP/ADEDONHA*\n\n`;
+        status += `🔤 *Letra:* ${game.letra}\n\n`;
+        status += `📋 *Categorias:*\n`;
+        game.categorias.forEach((cat, idx) => {
+          const resposta = game.respostas[sender]?.[cat];
+          status += `${idx + 1}. ${cat}${resposta ? `: ${resposta} ✅` : ''}\n`;
+        });
+
+        const categoriasCompletas = game.respostas[sender] ? Object.keys(game.respostas[sender]).length : 0;
+        status += `\n📊 *Seu progresso:* ${categoriasCompletas}/${game.categorias.length}\n\n`;
+        status += `💡 Use: ${prefix}stop [categoria] [palavra]\n`;
+        status += `📌 Exemplo: ${prefix}stop Nome Ana`;
+
+        return reply(status);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🔀 ANAGRAMA - Descubra a palavra embaralhada
+      // ═══════════════════════════════════════════════════════════════
+      case 'anagrama': {
+        // Carregar palavras do JSON
+        const anagramaPath = pathz.join(__dirname, 'funcs', 'json', 'anagrama.json');
+        let palavrasAnagrama = [];
+        try {
+          const anagramaData = JSON.parse(fs.readFileSync(anagramaPath, 'utf-8'));
+          palavrasAnagrama = anagramaData.palavras || [];
+        } catch (e) {
+          console.error('Erro ao carregar anagrama.json:', e);
+          palavrasAnagrama = [
+            { palavra: 'computador', dica: 'Máquina eletrônica' }
+          ];
+        }
+
+        // Estado dos jogos
+        if (!global.anagramaGames) global.anagramaGames = {};
+        const gameKey = isGroup ? from : sender;
+
+        // Função para embaralhar palavra
+        const embaralhar = (palavra) => {
+          const letras = palavra.split('');
+          for (let i = letras.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [letras[i], letras[j]] = [letras[j], letras[i]];
+          }
+          return letras.join('');
+        };
+
+        // Verificar resposta
+        if (global.anagramaGames[gameKey] && args.length > 0) {
+          const game = global.anagramaGames[gameKey];
+          const resposta = normalizar(args.join(' ').toLowerCase());
+          const palavraCorreta = normalizar(game.palavra.toLowerCase());
+
+          if (resposta === palavraCorreta) {
+            const tentativas = game.tentativas;
+            const pontos = Math.max(100 - (tentativas * 10), 10);
+            delete global.anagramaGames[gameKey];
+            return reply(`🎉 *PARABÉNS!*\n\n✅ Você acertou!\n\n📝 Palavra: *${game.palavra.toUpperCase()}*\n🎯 Tentativas: ${tentativas}\n🏆 Pontos: +${pontos}`);
+          } else {
+            game.tentativas++;
+            if (game.tentativas >= 5) {
+              delete global.anagramaGames[gameKey];
+              return reply(`😢 *GAME OVER!*\n\n❌ Você esgotou suas tentativas!\n\n📝 A palavra era: *${game.palavra.toUpperCase()}*\n💡 Dica: ${game.dica}`);
+            }
+            return reply(`❌ Resposta incorreta!\n\n🔀 Anagrama: ${game.embaralhada}\n💡 Dica: ${game.dica}\n📊 Tentativas: ${game.tentativas}/5\n\n💡 Tente novamente: ${prefix}anagrama [palavra]`);
+          }
+        }
+
+        // Verificar se há jogo ativo
+        if (global.anagramaGames[gameKey]) {
+          const game = global.anagramaGames[gameKey];
+          return reply(`🔀 *ANAGRAMA*\n\n📝 Anagrama: *${game.embaralhada.toUpperCase()}*\n💡 Dica: ${game.dica}\n📊 Tentativas: ${game.tentativas}/5\n\n💡 Descubra a palavra: ${prefix}anagrama [palavra]`);
+        }
+
+        // Iniciar novo jogo
+        const palavraEscolhida = palavrasAnagrama[Math.floor(Math.random() * palavrasAnagrama.length)];
+        const palavraEmbaralhada = embaralhar(palavraEscolhida.palavra);
+
+        global.anagramaGames[gameKey] = {
+          palavra: palavraEscolhida.palavra,
+          embaralhada: palavraEmbaralhada,
+          dica: palavraEscolhida.dica,
+          tentativas: 0,
+          iniciado: Date.now()
+        };
+
+        await reply(`🔀 *ANAGRAMA - Novo Jogo!*\n\n📝 Anagrama: *${palavraEmbaralhada.toUpperCase()}*\n💡 Dica: ${palavraEscolhida.dica}\n\n🎯 Descubra a palavra original!\n💡 Use: ${prefix}anagrama [palavra]\n📊 Você tem 5 tentativas`);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // ⚔️ DUELO DE QUIZ - Competição de perguntas
+      // ═══════════════════════════════════════════════════════════════
+      case 'dueloquiz':
+      case 'duelo': {
+        if (!isGroup) return reply('⚔️ Este jogo só funciona em grupos!');
+
+        // Carregar perguntas do JSON
+        const quizPath = pathz.join(__dirname, 'funcs', 'json', 'quiz.json');
+        let quizDB = {};
+        try {
+          quizDB = JSON.parse(fs.readFileSync(quizPath, 'utf-8'));
+        } catch (e) {
+          console.error('Erro ao carregar quiz.json:', e);
+          quizDB = { 'geral': [{ p: 'Qual é o maior planeta?', r: ['jupiter'], d: 'Júpiter' }] };
+        }
+
+        // Estado dos duelos
+        if (!global.dueloQuizGames) global.dueloQuizGames = {};
+        if (!global.dueloQuizChallenges) global.dueloQuizChallenges = {};
+
+        const gameKey = isGroup ? from : sender;
+
+        // Verificar se há menção (desafiar alguém)
+        const mentionedJid = message?.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+        
+        // Desafiar alguém
+        if (mentionedJid && mentionedJid !== sender) {
+          // Verificar quantidade de perguntas
+          const numPerguntas = parseInt(args.find(arg => !isNaN(parseInt(arg)))) || 5;
+          
+          if (numPerguntas < 3 || numPerguntas > 20) {
+            return reply('❌ Número de perguntas inválido! Use entre 3 e 20 perguntas.\n\n💡 Exemplo: ${prefix}dueloquiz @usuario 10');
+          }
+
+          if (global.dueloQuizChallenges[gameKey] || global.dueloQuizGames[gameKey]) {
+            return reply('⚠️ Já existe um duelo ou desafio pendente neste grupo!');
+          }
+
+          global.dueloQuizChallenges[gameKey] = {
+            challenger: sender,
+            challenged: mentionedJid,
+            numPerguntas: numPerguntas,
+            status: 'pending',
+            created: Date.now()
+          };
+
+          return reply(`⚔️ *DESAFIO DE QUIZ*\n\n@${sender.split('@')[0]} desafiou @${mentionedJid.split('@')[0]} para um duelo de ${numPerguntas} perguntas!\n\n💡 O desafiado deve usar: ${prefix}dueloquiz aceitar\n⏱️ O desafio expira em 60 segundos.`, { mentions: [sender, mentionedJid] });
+        }
+
+        // Aceitar desafio
+        if (args[0]?.toLowerCase() === 'aceitar') {
+          const challenge = global.dueloQuizChallenges[gameKey];
+          
+          if (!challenge || challenge.challenged !== sender || challenge.status !== 'pending') {
+            return reply('❌ Não há desafio pendente para você aceitar!');
+          }
+
+          if (Date.now() - challenge.created > 60000) {
+            delete global.dueloQuizChallenges[gameKey];
+            return reply('⏰ O desafio expirou!');
+          }
+
+          // Selecionar perguntas aleatórias de categorias diferentes
+          const categoriasDisponiveis = Object.keys(quizDB);
+          const perguntasSelecionadas = [];
+          const categoriasUsadas = new Set();
+          const perguntasUsadas = new Set();
+
+          // Coletar todas as perguntas disponíveis
+          const todasPerguntas = [];
+          categoriasDisponiveis.forEach(cat => {
+            quizDB[cat].forEach((pergunta, idx) => {
+              todasPerguntas.push({
+                categoria: cat,
+                pergunta: pergunta,
+                id: `${cat}_${idx}`
+              });
+            });
+          });
+
+          // Selecionar perguntas aleatórias sem repetir
+          while (perguntasSelecionadas.length < challenge.numPerguntas && todasPerguntas.length > 0) {
+            const idx = Math.floor(Math.random() * todasPerguntas.length);
+            const pergunta = todasPerguntas.splice(idx, 1)[0];
+            
+            if (!perguntasUsadas.has(pergunta.id)) {
+              perguntasSelecionadas.push(pergunta);
+              perguntasUsadas.add(pergunta.id);
+              categoriasUsadas.add(pergunta.categoria);
+            }
+          }
+
+          if (perguntasSelecionadas.length < challenge.numPerguntas) {
+            return reply(`❌ Não há perguntas suficientes no banco de dados!`);
+          }
+
+          global.dueloQuizGames[gameKey] = {
+            jogador1: challenge.challenger,
+            jogador2: challenge.challenged,
+            perguntas: perguntasSelecionadas,
+            perguntaAtual: 0,
+            respostas1: [],
+            respostas2: [],
+            turno: challenge.challenger, // Jogador 1 começa
+            status: 'active',
+            iniciado: Date.now()
+          };
+
+          delete global.dueloQuizChallenges[gameKey];
+
+          const primeiraPergunta = perguntasSelecionadas[0];
+          return reply(`⚔️ *DUELO DE QUIZ INICIADO!*\n\n@${challenge.challenger.split('@')[0]} vs @${challenge.challenged.split('@')[0]}\n\n📊 ${challenge.numPerguntas} perguntas\n\n🎯 *Pergunta 1/${challenge.numPerguntas}*\n📂 Categoria: ${primeiraPergunta.categoria}\n\n❓ ${primeiraPergunta.pergunta.pergunta}\n\n💡 É a vez de @${challenge.challenger.split('@')[0]} responder!\nUse: ${prefix}dueloquiz [resposta]`, { mentions: [challenge.challenger, challenge.challenged] });
+        }
+
+        // Processar resposta
+        if (global.dueloQuizGames[gameKey] && args.length > 0 && args[0].toLowerCase() !== 'aceitar') {
+          const game = global.dueloQuizGames[gameKey];
+          
+          if (game.status !== 'active') {
+            return reply('❌ Este duelo já terminou!');
+          }
+
+          // Verificar se é a vez do jogador
+          if (game.turno !== sender) {
+            return reply('⏳ Não é sua vez! Aguarde o oponente.');
+          }
+
+          const perguntaAtual = game.perguntas[game.perguntaAtual];
+          const resposta = normalizar(args.join(' ').toLowerCase());
+          const acertou = perguntaAtual.pergunta.r.some(r => 
+            normalizar(r) === resposta || resposta.includes(normalizar(r))
+          );
+
+          // Registrar resposta
+          if (sender === game.jogador1) {
+            game.respostas1.push({ acertou, tempo: Date.now() - game.iniciado });
+          } else {
+            game.respostas2.push({ acertou, tempo: Date.now() - game.iniciado });
+          }
+
+          // Avançar pergunta
+          game.perguntaAtual++;
+          
+          // Trocar turno
+          game.turno = sender === game.jogador1 ? game.jogador2 : game.jogador1;
+
+          // Verificar se terminou
+          if (game.perguntaAtual >= game.perguntas.length) {
+            game.status = 'finished';
+            
+            const acertos1 = game.respostas1.filter(r => r.acertou).length;
+            const acertos2 = game.respostas2.filter(r => r.acertou).length;
+            
+            let resultado = `⚔️ *DUELO FINALIZADO!*\n\n`;
+            resultado += `📊 *Resultado:*\n`;
+            resultado += `@${game.jogador1.split('@')[0]}: ${acertos1}/${game.perguntas.length} acertos\n`;
+            resultado += `@${game.jogador2.split('@')[0]}: ${acertos2}/${game.perguntas.length} acertos\n\n`;
+
+            if (acertos1 > acertos2) {
+              resultado += `🏆 *VENCEDOR:* @${game.jogador1.split('@')[0]}!`;
+            } else if (acertos2 > acertos1) {
+              resultado += `🏆 *VENCEDOR:* @${game.jogador2.split('@')[0]}!`;
+            } else {
+              resultado += `🤝 *EMPATE!*`;
+            }
+
+            delete global.dueloQuizGames[gameKey];
+            return reply(resultado, { mentions: [game.jogador1, game.jogador2] });
+          }
+
+          // Mostrar resultado e próxima pergunta
+          const proximaPergunta = game.perguntas[game.perguntaAtual];
+          let respostaMsg = acertou ? `✅ *CORRETO!*` : `❌ *ERRADO!*\n✅ Resposta: ${perguntaAtual.pergunta.d}`;
+          respostaMsg += `\n\n🎯 *Pergunta ${game.perguntaAtual + 1}/${game.perguntas.length}*\n`;
+          respostaMsg += `📂 Categoria: ${proximaPergunta.categoria}\n\n`;
+          respostaMsg += `❓ ${proximaPergunta.pergunta.pergunta}\n\n`;
+          respostaMsg += `💡 É a vez de @${game.turno.split('@')[0]} responder!\n`;
+          respostaMsg += `Use: ${prefix}dueloquiz [resposta]`;
+
+          return reply(respostaMsg, { mentions: [game.jogador1, game.jogador2] });
+        }
+
+        // Ver status do duelo
+        if (global.dueloQuizGames[gameKey]) {
+          const game = global.dueloQuizGames[gameKey];
+          const perguntaAtual = game.perguntas[game.perguntaAtual];
+          
+          let status = `⚔️ *DUELO DE QUIZ*\n\n`;
+          status += `@${game.jogador1.split('@')[0]} vs @${game.jogador2.split('@')[0]}\n\n`;
+          status += `🎯 *Pergunta ${game.perguntaAtual + 1}/${game.perguntas.length}*\n`;
+          status += `📂 Categoria: ${perguntaAtual.categoria}\n\n`;
+          status += `❓ ${perguntaAtual.pergunta.pergunta}\n\n`;
+          status += `⏭️ Turno: @${game.turno.split('@')[0]}\n`;
+          status += `💡 Use: ${prefix}dueloquiz [resposta]`;
+
+          return reply(status, { mentions: [game.jogador1, game.jogador2] });
+        }
+
+        // Mostrar ajuda
+        return reply(`⚔️ *DUELO DE QUIZ*\n\n💡 *Como jogar:*\n\n1️⃣ Desafie alguém:\n${prefix}dueloquiz @usuario [número]\n\n2️⃣ O desafiado aceita:\n${prefix}dueloquiz aceitar\n\n3️⃣ Respondam as perguntas alternadamente!\n\n🏆 Quem acertar mais perguntas vence!\n\n📌 Exemplo: ${prefix}dueloquiz @usuario 10`);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🔍 CAÇA PALAVRAS - Encontre palavras escondidas
+      // ═══════════════════════════════════════════════════════════════
+      case 'cacapalavras':
+      case 'cacapalavra':
+      case 'caca': {
+        // Carregar configuração e palavras do JSON
+        const cacaPath = pathz.join(__dirname, 'funcs', 'json', 'cacapalavras.json');
+        let configCaca = {
+          tamanho: 15,
+          dificuldades: {
+            facil: { palavras: 5, tamanhoMin: 4, tamanhoMax: 6 },
+            medio: { palavras: 7, tamanhoMin: 5, tamanhoMax: 8 },
+            dificil: { palavras: 10, tamanhoMin: 6, tamanhoMax: 10 }
+          }
+        };
+        let palavrasCaca = ['amor', 'fogo', 'gato', 'hora', 'jogo', 'rosa', 'vida', 'água', 'amigo', 'barco'];
+        
+        try {
+          const cacaData = JSON.parse(fs.readFileSync(cacaPath, 'utf-8'));
+          configCaca = { ...configCaca, ...cacaData.config };
+          palavrasCaca = cacaData.palavras || palavrasCaca;
+        } catch (e) {
+          console.error('Erro ao carregar cacapalavras.json:', e);
+        }
+
+        // Estado dos jogos
+        if (!global.cacaPalavrasGames) global.cacaPalavrasGames = {};
+        const gameKey = isGroup ? from : sender;
+
+        // Função para gerar grade de caça palavras
+        const gerarGrade = (palavras, tamanho) => {
+          const grade = Array(tamanho).fill(null).map(() => Array(tamanho).fill(''));
+          const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+          
+          // Posicionar palavras
+          const palavrasPosicionadas = [];
+          
+          for (const palavra of palavras) {
+            let posicionado = false;
+            let tentativas = 0;
+            
+            while (!posicionado && tentativas < 50) {
+              tentativas++;
+              const direcao = Math.floor(Math.random() * 8); // 0-7: horizontal, vertical, diagonais
+              const linha = Math.floor(Math.random() * tamanho);
+              const coluna = Math.floor(Math.random() * tamanho);
+              
+              // Verificar se cabe
+              let cabe = true;
+              const posicoes = [];
+              
+              for (let i = 0; i < palavra.length; i++) {
+                let l, c;
+                switch (direcao) {
+                  case 0: l = linha; c = coluna + i; break; // Horizontal →
+                  case 1: l = linha; c = coluna - i; break; // Horizontal ←
+                  case 2: l = linha + i; c = coluna; break; // Vertical ↓
+                  case 3: l = linha - i; c = coluna; break; // Vertical ↑
+                  case 4: l = linha + i; c = coluna + i; break; // Diagonal ↘
+                  case 5: l = linha + i; c = coluna - i; break; // Diagonal ↙
+                  case 6: l = linha - i; c = coluna + i; break; // Diagonal ↗
+                  case 7: l = linha - i; c = coluna - i; break; // Diagonal ↖
+                }
+                
+                if (l < 0 || l >= tamanho || c < 0 || c >= tamanho || 
+                    (grade[l][c] !== '' && grade[l][c] !== palavra[i].toUpperCase())) {
+                  cabe = false;
+                  break;
+                }
+                posicoes.push({ linha: l, coluna: c, letra: palavra[i].toUpperCase() });
+              }
+              
+              if (cabe) {
+                posicoes.forEach(pos => {
+                  grade[pos.linha][pos.coluna] = pos.letra;
+                });
+                palavrasPosicionadas.push({
+                  palavra: palavra.toUpperCase(),
+                  posicoes: posicoes
+                });
+                posicionado = true;
+              }
+            }
+          }
+          
+          // Preencher espaços vazios com letras aleatórias
+          for (let i = 0; i < tamanho; i++) {
+            for (let j = 0; j < tamanho; j++) {
+              if (grade[i][j] === '') {
+                grade[i][j] = letras[Math.floor(Math.random() * letras.length)];
+              }
+            }
+          }
+          
+          return { grade, palavrasPosicionadas };
+        };
+
+        // Função para formatar grade
+        const formatarGrade = (grade) => {
+          let resultado = '   ';
+          for (let i = 0; i < grade.length; i++) {
+            resultado += String.fromCharCode(65 + i) + ' ';
+          }
+          resultado += '\n';
+          
+          for (let i = 0; i < grade.length; i++) {
+            resultado += `${(i + 1).toString().padStart(2)} `;
+            for (let j = 0; j < grade[i].length; j++) {
+              resultado += grade[i][j] + ' ';
+            }
+            resultado += '\n';
+          }
+          return resultado;
+        };
+
+        // Verificar resposta
+        if (global.cacaPalavrasGames[gameKey] && args.length > 0) {
+          const game = global.cacaPalavrasGames[gameKey];
+          const palavraChutada = normalizar(args.join(' ').toUpperCase());
+          
+          // Verificar se a palavra está na lista
+          const palavraEncontrada = game.palavras.find(p => 
+            normalizar(p) === palavraChutada
+          );
+          
+          if (!palavraEncontrada) {
+            return reply(`❌ "${args.join(' ')}" não está na lista de palavras!\n\n📋 Palavras encontradas: ${game.palavrasEncontradas.length}/${game.palavras.length}\n💡 Tente novamente: ${prefix}cacapalavras [palavra]`);
+          }
+          
+          // Verificar se já encontrou
+          if (game.palavrasEncontradas.includes(palavraEncontrada)) {
+            return reply(`⚠️ Você já encontrou a palavra "${palavraEncontrada}"!\n\n📋 Palavras encontradas: ${game.palavrasEncontradas.length}/${game.palavras.length}`);
+          }
+          
+          // Adicionar à lista de encontradas
+          game.palavrasEncontradas.push(palavraEncontrada);
+          
+          // Verificar vitória
+          if (game.palavrasEncontradas.length === game.palavras.length) {
+            const tempoDecorrido = ((Date.now() - game.iniciado) / 1000).toFixed(1);
+            delete global.cacaPalavrasGames[gameKey];
+            return reply(`🎉 *PARABÉNS!*\n\n✅ Você encontrou todas as palavras!\n\n📋 Palavras: ${game.palavras.join(', ')}\n⏱️ Tempo: ${tempoDecorrido}s\n🏆 Excelente trabalho!`);
+          }
+          
+          return reply(`✅ *PALAVRA ENCONTRADA!*\n\n📝 "${palavraEncontrada}"\n\n📋 Progresso: ${game.palavrasEncontradas.length}/${game.palavras.length}\n💡 Continue procurando: ${prefix}cacapalavras [palavra]`);
+        }
+
+        // Verificar se há jogo ativo
+        if (global.cacaPalavrasGames[gameKey]) {
+          const game = global.cacaPalavrasGames[gameKey];
+          let status = `🔍 *CAÇA PALAVRAS*\n\n`;
+          status += `📊 Progresso: ${game.palavrasEncontradas.length}/${game.palavras.length}\n\n`;
+          status += `📋 *Palavras encontradas:*\n`;
+          if (game.palavrasEncontradas.length > 0) {
+            status += game.palavrasEncontradas.join(', ') + '\n\n';
+          } else {
+            status += 'Nenhuma ainda\n\n';
+          }
+          status += `📋 *Palavras restantes:*\n`;
+          const restantes = game.palavras.filter(p => !game.palavrasEncontradas.includes(p));
+          status += restantes.join(', ') + '\n\n';
+          status += `💡 Use: ${prefix}cacapalavras [palavra]`;
+          return reply(status);
+        }
+
+        // Escolher dificuldade
+        const dificuldade = args[0]?.toLowerCase() || 'medio';
+        const configDificuldade = configCaca.dificuldades[dificuldade] || configCaca.dificuldades.medio;
+        
+        // Filtrar palavras por tamanho
+        const palavrasFiltradas = palavrasCaca.filter(p => 
+          p.length >= configDificuldade.tamanhoMin && 
+          p.length <= configDificuldade.tamanhoMax
+        );
+        
+        if (palavrasFiltradas.length < configDificuldade.palavras) {
+          return reply(`❌ Não há palavras suficientes para a dificuldade "${dificuldade}"!`);
+        }
+        
+        // Selecionar palavras aleatórias
+        const palavrasSelecionadas = [];
+        const palavrasDisponiveis = [...palavrasFiltradas];
+        for (let i = 0; i < configDificuldade.palavras; i++) {
+          const idx = Math.floor(Math.random() * palavrasDisponiveis.length);
+          palavrasSelecionadas.push(palavrasDisponiveis.splice(idx, 1)[0]);
+        }
+
+        // Gerar grade
+        const { grade, palavrasPosicionadas } = gerarGrade(palavrasSelecionadas, configCaca.tamanho);
+        
+        global.cacaPalavrasGames[gameKey] = {
+          grade: grade,
+          palavras: palavrasSelecionadas.map(p => p.toUpperCase()),
+          palavrasEncontradas: [],
+          dificuldade: dificuldade,
+          iniciado: Date.now()
+        };
+
+        let msg = `🔍 *CAÇA PALAVRAS - Novo Jogo!*\n\n`;
+        msg += `📊 Dificuldade: ${dificuldade.toUpperCase()}\n`;
+        msg += `📋 Encontre ${palavrasSelecionadas.length} palavras escondidas!\n\n`;
+        msg += `📝 *Palavras para encontrar:*\n`;
+        msg += palavrasSelecionadas.map(p => p.toUpperCase()).join(', ') + '\n\n';
+        msg += `\`\`\`${formatarGrade(grade)}\`\`\`\n\n`;
+        msg += `💡 Use: ${prefix}cacapalavras [palavra]\n`;
+        msg += `📌 Exemplo: ${prefix}cacapalavras AMOR`;
+
+        await reply(msg);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
       // 🔒 VERIFICADOR DE URL - FishFish API
       // ═══════════════════════════════════════════════════════════════
       case 'verificarurl':
