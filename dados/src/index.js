@@ -11202,7 +11202,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
                 if (index !== -1) {
                   letrasDisponiveis.splice(index, 1);
                 }
-              } else {
+            } else {
                 // Letra não existe ou já foi usada
                 statusLetras[i] = '⬛'; // Preto
               }
@@ -11289,7 +11289,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
 
         // Carregar categorias disponíveis
         const categoriasDisponiveis = Object.keys(quizDB);
-        
+
         // Responder quiz ativo
         if (global.quizGames[quizKey] && args.length > 0 && !categoriasDisponiveis.includes(args[0].toLowerCase())) {
           const game = global.quizGames[quizKey];
@@ -11363,8 +11363,8 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
         } catch (e) {
           console.error('Erro ao carregar forca.json:', e);
           palavrasForca = [
-            { palavra: 'elefante', dica: 'Animal grande com tromba' },
-            { palavra: 'computador', dica: 'Máquina eletrônica' },
+          { palavra: 'elefante', dica: 'Animal grande com tromba' },
+          { palavra: 'computador', dica: 'Máquina eletrônica' },
             { palavra: 'chocolate', dica: 'Doce feito de cacau' }
           ];
         }
@@ -11503,11 +11503,8 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
 
         const challengeKey = isGroup ? from : sender;
 
-        // Verificar se há menção (desafiar alguém)
-        const mentionedJid = message?.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-        
         // Desafiar alguém
-        if (mentionedJid && mentionedJid !== sender) {
+        if (menc_os2 && menc_os2 !== sender) {
           // Verificar se já existe desafio pendente
           if (global.digitacaoChallenges[challengeKey]) {
             return reply('⚠️ Já existe um desafio pendente neste grupo!');
@@ -11516,12 +11513,12 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           // Criar desafio
           global.digitacaoChallenges[challengeKey] = {
             challenger: sender,
-            challenged: mentionedJid,
+            challenged: menc_os2,
             status: 'pending',
             created: Date.now()
           };
 
-          return reply(`⚡ *DESAFIO DE DIGITAÇÃO*\n\n@${sender.split('@')[0]} desafiou @${mentionedJid.split('@')[0]} para uma corrida de digitação!\n\n💡 O desafiado deve usar: ${prefix}digitar aceitar\n⏱️ O desafio expira em 60 segundos.`, { mentions: [sender, mentionedJid] });
+          return reply(`⚡ *DESAFIO DE DIGITAÇÃO*\n\n@${sender.split('@')[0]} desafiou @${menc_os2.split('@')[0]} para uma corrida de digitação!\n\n💡 O desafiado deve usar: ${prefix}digitar aceitar\n⏱️ O desafio expira em 60 segundos.`, { mentions: [sender, menc_os2] });
         }
 
         // Aceitar desafio
@@ -11788,23 +11785,20 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           return resultado;
         };
 
-        // Verificar se há menção (desafiar alguém)
-        const mentionedJid = message?.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-        
         // Desafiar alguém
-        if (mentionedJid && mentionedJid !== sender) {
+        if (menc_os2 && menc_os2 !== sender) {
           if (global.navalChallenges[gameKey] || global.navalGames[gameKey]) {
             return reply('⚠️ Já existe um jogo ou desafio pendente neste grupo!');
           }
 
           global.navalChallenges[gameKey] = {
             challenger: sender,
-            challenged: mentionedJid,
+            challenged: menc_os2,
             status: 'pending',
             created: Date.now()
           };
 
-          return reply(`🚢 *DESAFIO DE BATALHA NAVAL*\n\n@${sender.split('@')[0]} desafiou @${mentionedJid.split('@')[0]} para uma batalha naval!\n\n💡 O desafiado deve usar: ${prefix}batalhanaval aceitar\n⏱️ O desafio expira em 60 segundos.`, { mentions: [sender, mentionedJid] });
+          return reply(`🚢 *DESAFIO DE BATALHA NAVAL*\n\n@${sender.split('@')[0]} desafiou @${menc_os2.split('@')[0]} para uma batalha naval!\n\n💡 O desafiado deve usar: ${prefix}batalhanaval aceitar\n⏱️ O desafio expira em 60 segundos.`, { mentions: [sender, menc_os2] });
         }
 
         // Aceitar desafio
@@ -12262,11 +12256,8 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
 
         const gameKey = isGroup ? from : sender;
 
-        // Verificar se há menção (desafiar alguém)
-        const mentionedJid = message?.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-        
         // Desafiar alguém
-        if (mentionedJid && mentionedJid !== sender) {
+        if (menc_os2 && menc_os2 !== sender) {
           // Verificar quantidade de perguntas
           const numPerguntas = parseInt(args.find(arg => !isNaN(parseInt(arg)))) || 5;
           
@@ -12280,13 +12271,13 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
 
           global.dueloQuizChallenges[gameKey] = {
             challenger: sender,
-            challenged: mentionedJid,
+            challenged: menc_os2,
             numPerguntas: numPerguntas,
             status: 'pending',
             created: Date.now()
           };
 
-          return reply(`⚔️ *DESAFIO DE QUIZ*\n\n@${sender.split('@')[0]} desafiou @${mentionedJid.split('@')[0]} para um duelo de ${numPerguntas} perguntas!\n\n💡 O desafiado deve usar: ${prefix}dueloquiz aceitar\n⏱️ O desafio expira em 60 segundos.`, { mentions: [sender, mentionedJid] });
+          return reply(`⚔️ *DESAFIO DE QUIZ*\n\n@${sender.split('@')[0]} desafiou @${menc_os2.split('@')[0]} para um duelo de ${numPerguntas} perguntas!\n\n💡 O desafiado deve usar: ${prefix}dueloquiz aceitar\n⏱️ O desafio expira em 60 segundos.`, { mentions: [sender, menc_os2] });
         }
 
         // Aceitar desafio
@@ -12593,17 +12584,17 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
         // Verificar se há jogo ativo
         if (global.cacaPalavrasGames[gameKey]) {
           const game = global.cacaPalavrasGames[gameKey];
+          const restantes = game.palavras.length - game.palavrasEncontradas.length;
           let status = `🔍 *CAÇA PALAVRAS*\n\n`;
-          status += `📊 Progresso: ${game.palavrasEncontradas.length}/${game.palavras.length}\n\n`;
+          status += `📊 Progresso: ${game.palavrasEncontradas.length}/${game.palavras.length}\n`;
+          status += `🔎 Faltam ${restantes} palavra${restantes !== 1 ? 's' : ''} para encontrar!\n\n`;
           status += `📋 *Palavras encontradas:*\n`;
           if (game.palavrasEncontradas.length > 0) {
             status += game.palavrasEncontradas.join(', ') + '\n\n';
           } else {
             status += 'Nenhuma ainda\n\n';
           }
-          status += `📋 *Palavras restantes:*\n`;
-          const restantes = game.palavras.filter(p => !game.palavrasEncontradas.includes(p));
-          status += restantes.join(', ') + '\n\n';
+          status += `\`\`\`${formatarGrade(game.grade)}\`\`\`\n\n`;
           status += `💡 Use: ${prefix}cacapalavras [palavra]`;
           return reply(status);
         }
@@ -12643,12 +12634,11 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
 
         let msg = `🔍 *CAÇA PALAVRAS - Novo Jogo!*\n\n`;
         msg += `📊 Dificuldade: ${dificuldade.toUpperCase()}\n`;
-        msg += `📋 Encontre ${palavrasSelecionadas.length} palavras escondidas!\n\n`;
-        msg += `📝 *Palavras para encontrar:*\n`;
-        msg += palavrasSelecionadas.map(p => p.toUpperCase()).join(', ') + '\n\n';
+        msg += `📋 Encontre ${palavrasSelecionadas.length} palavras escondidas na grade!\n\n`;
         msg += `\`\`\`${formatarGrade(grade)}\`\`\`\n\n`;
+        msg += `🔎 Procure palavras na horizontal, vertical ou diagonal!\n`;
         msg += `💡 Use: ${prefix}cacapalavras [palavra]\n`;
-        msg += `📌 Exemplo: ${prefix}cacapalavras AMOR`;
+        msg += `📌 Dica: As palavras têm de ${configDificuldade.tamanhoMin} a ${configDificuldade.tamanhoMax} letras`;
 
         await reply(msg);
         break;
