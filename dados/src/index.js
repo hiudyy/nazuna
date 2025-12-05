@@ -11505,6 +11505,11 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
 
         // Desafiar alguém
         if (menc_os2 && menc_os2 !== sender) {
+          // Limpar desafios expirados (60 segundos)
+          if (global.digitacaoChallenges[challengeKey] && Date.now() - global.digitacaoChallenges[challengeKey].created > 60000) {
+            delete global.digitacaoChallenges[challengeKey];
+          }
+          
           // Verificar se já existe desafio pendente
           if (global.digitacaoChallenges[challengeKey]) {
             return reply('⚠️ Já existe um desafio pendente neste grupo!');
@@ -11787,6 +11792,16 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
 
         // Desafiar alguém
         if (menc_os2 && menc_os2 !== sender) {
+          // Limpar desafios expirados (60 segundos)
+          if (global.navalChallenges[gameKey] && Date.now() - global.navalChallenges[gameKey].created > 60000) {
+            delete global.navalChallenges[gameKey];
+          }
+          
+          // Limpar jogos abandonados (10 minutos sem atividade)
+          if (global.navalGames[gameKey] && global.navalGames[gameKey].ultimaJogada && Date.now() - global.navalGames[gameKey].ultimaJogada > 600000) {
+            delete global.navalGames[gameKey];
+          }
+          
           if (global.navalChallenges[gameKey] || global.navalGames[gameKey]) {
             return reply('⚠️ Já existe um jogo ou desafio pendente neste grupo!');
           }
@@ -11834,7 +11849,8 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
             navios1: navios1,
             navios2: navios2,
             turno: challenge.challenger, // Jogador 1 começa
-            status: 'active'
+            status: 'active',
+            ultimaJogada: Date.now()
           };
 
           delete global.navalChallenges[gameKey];
@@ -11894,11 +11910,13 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
             tabuleiroAlvo[coordenada.linha][coordenada.coluna] = '💥';
             tirosJogador[coordenada.linha][coordenada.coluna] = '💥';
             
-            // Verificar se afundou algum navio
+            // Verificar qual navio foi atingido
+            let navioAtingido = null;
             for (const navio of naviosAlvo) {
               const posicao = navio.posicoes.find(p => p.linha === coordenada.linha && p.coluna === coordenada.coluna);
               if (posicao) {
                 navio.acertos++;
+                navioAtingido = navio;
                 if (navio.acertos === navio.tamanho) {
                   navioAfundado = navio;
                 }
@@ -11906,7 +11924,32 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
               }
             }
             
-            resultado = '💥 *ACERTOU!*';
+            if (navioAfundado) {
+              resultado = '💥 *ACERTOU E AFUNDOU!*';
+            } else if (navioAtingido) {
+              const faltam = navioAtingido.tamanho - navioAtingido.acertos;
+              resultado = `💥 *ACERTOU!*\n🚢 Navio de ${navioAtingido.tamanho} partes\n✅ Acertou: ${navioAtingido.acertos}/${navioAtingido.tamanho}\n🎯 Faltam: ${faltam} parte${faltam > 1 ? 's' : ''}`;
+              
+              // Verificar direção do navio baseado nos acertos
+              if (navioAtingido.acertos >= 2) {
+                const acertosPos = navioAtingido.posicoes.filter((pos, idx) => {
+                  // Verificar se essa posição já foi acertada
+                  return tabuleiroAlvo[pos.linha][pos.coluna] === '💥';
+                });
+                
+                if (acertosPos.length >= 2) {
+                  const p1 = acertosPos[0];
+                  const p2 = acertosPos[1];
+                  if (p1.linha === p2.linha) {
+                    resultado += `\n➡️ Direção: HORIZONTAL`;
+                  } else {
+                    resultado += `\n⬇️ Direção: VERTICAL`;
+                  }
+                }
+              }
+            } else {
+              resultado = '💥 *ACERTOU!*';
+            }
           } else {
             // Errou
             tabuleiroAlvo[coordenada.linha][coordenada.coluna] = '❌';
@@ -11936,11 +11979,28 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           resposta += `🎯 Coordenada: ${args[0].toUpperCase()}\n`;
           
           if (navioAfundado) {
-            resposta += `🚢 *${navioAfundado.nome} AFUNDADO!*\n\n`;
+            resposta += `\n🚢 *${navioAfundado.nome} AFUNDADO!*\n`;
           }
+          
+          // Mostrar status dos navios do oponente
+          const naviosAfundados = naviosAlvo.filter(n => n.acertos === n.tamanho);
+          const naviosAtingidos = naviosAlvo.filter(n => n.acertos > 0 && n.acertos < n.tamanho);
+          const naviosIntactos = naviosAlvo.filter(n => n.acertos === 0);
+          
+          resposta += `\n📋 *Status da frota inimiga:*\n`;
+          resposta += `💀 Afundados: ${naviosAfundados.length}/${naviosAlvo.length}`;
+          if (naviosAfundados.length > 0) {
+            resposta += ` (${naviosAfundados.map(n => n.nome).join(', ')})`;
+          }
+          resposta += `\n🔥 Atingidos: ${naviosAtingidos.length}`;
+          if (naviosAtingidos.length > 0) {
+            resposta += ` (${naviosAtingidos.map(n => `${n.nome} ${n.acertos}/${n.tamanho}`).join(', ')})`;
+          }
+          resposta += `\n🌊 Intactos: ${naviosIntactos.length}\n`;
           
           // Trocar turno
           game.turno = oponente;
+          game.ultimaJogada = Date.now();
           
           resposta += `\n📊 *Seu tabuleiro de tiros:*\n\`\`\`${formatarTabuleiro(tirosJogador)}\`\`\`\n\n`;
           resposta += `⏭️ Agora é a vez de @${oponente.split('@')[0]}!\n`;
@@ -11954,10 +12014,28 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           const game = global.navalGames[gameKey];
           const isJogador1 = sender === game.jogador1;
           const tirosJogador = isJogador1 ? game.tiros1 : game.tiros2;
+          const naviosAlvoStatus = isJogador1 ? game.navios2 : game.navios1;
+          
+          // Status dos navios do oponente
+          const naviosAfundadosStatus = naviosAlvoStatus.filter(n => n.acertos === n.tamanho);
+          const naviosAtingidosStatus = naviosAlvoStatus.filter(n => n.acertos > 0 && n.acertos < n.tamanho);
+          const naviosIntactosStatus = naviosAlvoStatus.filter(n => n.acertos === 0);
           
           let status = `🚢 *BATALHA NAVAL*\n\n`;
           status += `@${game.jogador1.split('@')[0]} vs @${game.jogador2.split('@')[0]}\n\n`;
           status += `🎯 Turno: @${game.turno.split('@')[0]}\n\n`;
+          
+          status += `📋 *Frota inimiga:*\n`;
+          status += `💀 Afundados: ${naviosAfundadosStatus.length}/${naviosAlvoStatus.length}`;
+          if (naviosAfundadosStatus.length > 0) {
+            status += `\n   └ ${naviosAfundadosStatus.map(n => n.nome).join(', ')}`;
+          }
+          status += `\n🔥 Atingidos: ${naviosAtingidosStatus.length}`;
+          if (naviosAtingidosStatus.length > 0) {
+            status += `\n   └ ${naviosAtingidosStatus.map(n => `${n.nome} (${n.acertos}/${n.tamanho})`).join(', ')}`;
+          }
+          status += `\n🌊 Intactos: ${naviosIntactosStatus.length}\n\n`;
+          
           status += `📊 *Seu tabuleiro de tiros:*\n\`\`\`${formatarTabuleiro(tirosJogador)}\`\`\`\n\n`;
           status += `💡 Use: ${prefix}batalhanaval [coordenada]\n📌 Exemplo: ${prefix}batalhanaval A5`;
           
@@ -12258,6 +12336,16 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
 
         // Desafiar alguém
         if (menc_os2 && menc_os2 !== sender) {
+          // Limpar desafios expirados (60 segundos)
+          if (global.dueloQuizChallenges[gameKey] && Date.now() - global.dueloQuizChallenges[gameKey].created > 60000) {
+            delete global.dueloQuizChallenges[gameKey];
+          }
+          
+          // Limpar jogos abandonados (5 minutos sem atividade)
+          if (global.dueloQuizGames[gameKey] && Date.now() - global.dueloQuizGames[gameKey].iniciado > 300000) {
+            delete global.dueloQuizGames[gameKey];
+          }
+          
           // Verificar quantidade de perguntas
           const numPerguntas = parseInt(args.find(arg => !isNaN(parseInt(arg)))) || 5;
           
@@ -12342,7 +12430,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           delete global.dueloQuizChallenges[gameKey];
 
           const primeiraPergunta = perguntasSelecionadas[0];
-          return reply(`⚔️ *DUELO DE QUIZ INICIADO!*\n\n@${challenge.challenger.split('@')[0]} vs @${challenge.challenged.split('@')[0]}\n\n📊 ${challenge.numPerguntas} perguntas\n\n🎯 *Pergunta 1/${challenge.numPerguntas}*\n📂 Categoria: ${primeiraPergunta.categoria}\n\n❓ ${primeiraPergunta.pergunta.pergunta}\n\n💡 É a vez de @${challenge.challenger.split('@')[0]} responder!\nUse: ${prefix}dueloquiz [resposta]`, { mentions: [challenge.challenger, challenge.challenged] });
+          return reply(`⚔️ *DUELO DE QUIZ INICIADO!*\n\n@${challenge.challenger.split('@')[0]} vs @${challenge.challenged.split('@')[0]}\n\n📊 ${challenge.numPerguntas} perguntas\n\n🎯 *Pergunta 1/${challenge.numPerguntas}*\n📂 Categoria: ${primeiraPergunta.categoria}\n\n❓ ${primeiraPergunta.pergunta.p}\n\n💡 É a vez de @${challenge.challenger.split('@')[0]} responder!\nUse: ${prefix}dueloquiz [resposta]`, { mentions: [challenge.challenger, challenge.challenged] });
         }
 
         // Processar resposta
@@ -12406,7 +12494,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           let respostaMsg = acertou ? `✅ *CORRETO!*` : `❌ *ERRADO!*\n✅ Resposta: ${perguntaAtual.pergunta.d}`;
           respostaMsg += `\n\n🎯 *Pergunta ${game.perguntaAtual + 1}/${game.perguntas.length}*\n`;
           respostaMsg += `📂 Categoria: ${proximaPergunta.categoria}\n\n`;
-          respostaMsg += `❓ ${proximaPergunta.pergunta.pergunta}\n\n`;
+          respostaMsg += `❓ ${proximaPergunta.pergunta.p}\n\n`;
           respostaMsg += `💡 É a vez de @${game.turno.split('@')[0]} responder!\n`;
           respostaMsg += `Use: ${prefix}dueloquiz [resposta]`;
 
@@ -12422,7 +12510,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           status += `@${game.jogador1.split('@')[0]} vs @${game.jogador2.split('@')[0]}\n\n`;
           status += `🎯 *Pergunta ${game.perguntaAtual + 1}/${game.perguntas.length}*\n`;
           status += `📂 Categoria: ${perguntaAtual.categoria}\n\n`;
-          status += `❓ ${perguntaAtual.pergunta.pergunta}\n\n`;
+          status += `❓ ${perguntaAtual.pergunta.p}\n\n`;
           status += `⏭️ Turno: @${game.turno.split('@')[0]}\n`;
           status += `💡 Use: ${prefix}dueloquiz [resposta]`;
 
