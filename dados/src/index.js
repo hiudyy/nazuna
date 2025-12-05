@@ -21743,29 +21743,68 @@ Exemplos:
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         }
         break;
-      case 'banghost':
+      case 'banghost': //corrigido por kauan revil
         try {
           if (!isGroup) return reply("❌ Só pode ser usado em grupos.");
           if (!isGroupAdmin) return reply("❌ Apenas administradores.");
           if (!isBotAdmin) return reply("❌ Preciso ser administrador.");
+          
           const limite = parseInt(q);
           if (isNaN(limite) || limite < 0) return reply("⚠️ Use um número válido. Ex: " + prefix + "banghost 1");
+          
           const arquivoGrupo = `${GRUPOS_DIR}/${from}.json`;
           if (!fs.existsSync(arquivoGrupo)) return reply("📂 Sem dados de mensagens.");
-          const dados = JSON.parse(fs.readFileSync(arquivoGrupo));
-          const contador = dados.contador;
-          if (!Array.isArray(contador)) return reply("⚠️ Contador não disponível.");
+          
+          let dados = JSON.parse(fs.readFileSync(arquivoGrupo))
+          let contador = dados.contador
+          
+          if (!Array.isArray(contador)) return reply("⚠️ Contador não disponível.")
+          
+          const currentMembers = AllgroupMembers
+          
+          const contadorMap = new Map()
+          contador.forEach(user => contadorMap.set(user.id, user))
+          
+          let updatedContador = []
+          let validUsers = []
+          const now = new Date().toISOString()
+          
+          currentMembers.forEach(memberId => {
+            if (contadorMap.has(memberId)) {
+              const existingUser = contadorMap.get(memberId);
+              validUsers.push(existingUser);
+              updatedContador.push(existingUser);
+            } else {
+              const newUser = {
+                id: memberId,
+                msg: 0,
+                cmd: 0,
+                figu: 0,
+                pushname: 'null', 
+                firstSeen: now,
+                lastActivity: now
+              };
+              validUsers.push(newUser);
+              updatedContador.push(newUser);
+            }
+          });
+          
+          
           const admins = groupAdmins || [];
-          const fantasmas = contador.filter(u => (u.msg || 0) <= limite && !admins.includes(u.id) && u.id !== botNumber && u.id !== sender && u.id !== nmrdn).map(u => u.id);
+          
+          
+          const fantasmas = validUsers.filter(u => (u.msg || 0) <= limite && !admins.includes(u.id) && u.id !== botNumber && u.id !== sender && u.id !== nmrdn).map(u => u.id)
+          
           if (!fantasmas.length) return reply(`🎉 Nenhum fantasma com até ${limite} msg.`);
-          const antes = (await getCachedGroupMetadata(from)).participants.map(p => p.lid || p.id);
+          
           try {
             await nazu.groupParticipantsUpdate(from, fantasmas, 'remove');
           } catch (e) {
             console.error("Erro ao remover:", e);
           }
-          const depois = (await getCachedGroupMetadata(from)).participants.map(p => p.lid || p.id);
-          const removidos = fantasmas.filter(jid => antes.includes(jid) && !depois.includes(jid)).length;
+
+          const removidos = fantasmas.length
+          
           reply(removidos === 0 ? `⚠️ Nenhum fantasma pôde ser removido com até ${limite} msg.` : `✅ ${removidos} fantasma(s) removido(s).`);
         } catch (e) {
           console.error("Erro no banghost:", e);
