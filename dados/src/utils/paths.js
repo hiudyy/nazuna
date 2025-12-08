@@ -46,6 +46,7 @@ const SUBDONOS_FILE = path.join(DONO_DIR, 'subdonos.json');
 const ALUGUEIS_FILE = path.join(DONO_DIR, 'alugueis.json');
 const CODIGOS_ALUGUEL_FILE = path.join(DONO_DIR, 'codigos_aluguel.json');
 const RELATIONSHIPS_FILE = path.join(DATABASE_DIR, 'relationships.json');
+const MASS_MENTION_LIMIT_FILE = path.join(DATABASE_DIR, 'massMentionLimit.json');
 
 // Detecta se é sub-bot e ajusta o caminho do config
 const CONFIG_FILE = process.env.CONFIG_PATH || path.join(SRC_DIR, 'config.json');
@@ -90,6 +91,7 @@ export {
   ALUGUEIS_FILE,
   CODIGOS_ALUGUEL_FILE,
   RELATIONSHIPS_FILE,
+  MASS_MENTION_LIMIT_FILE,
   CONFIG_FILE,
   PACKAGE_JSON_PATH
 };

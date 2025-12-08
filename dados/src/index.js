@@ -199,7 +199,8 @@ import {
   AUTO_HORARIOS_FILE,
   AUTO_MENSAGENS_FILE,
   MODO_LITE_FILE,
-  JID_LID_CACHE_FILE
+  JID_LID_CACHE_FILE,
+  MASS_MENTION_LIMIT_FILE
 } from './utils/paths.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -275,6 +276,115 @@ const writeJsonFile = (filePath, data) => {
     return false;
   }
 };
+
+// ==================== PROTEÇÃO ANTI-BAN: Rate Limit para Menções em Massa ====================
+// Grupos com 150+ membros: limite de 2 usos a cada 5 horas para comandos que mencionam todos
+const MASS_MENTION_THRESHOLD = 150; // Membros mínimos para ativar proteção
+const MASS_MENTION_MAX_USES = 2;    // Máximo de usos permitidos
+const MASS_MENTION_COOLDOWN = 5 * 60 * 60 * 1000; // 5 horas em milissegundos
+
+// Cache em memória para rate limit (persistido em arquivo)
+let massMentionLimitCache = null;
+
+const loadMassMentionLimit = () => {
+  if (massMentionLimitCache) return massMentionLimitCache;
+  try {
+    if (fs.existsSync(MASS_MENTION_LIMIT_FILE)) {
+      massMentionLimitCache = JSON.parse(fs.readFileSync(MASS_MENTION_LIMIT_FILE, 'utf-8'));
+    } else {
+      massMentionLimitCache = {};
+    }
+  } catch (e) {
+    console.error('Erro ao carregar massMentionLimit:', e.message);
+    massMentionLimitCache = {};
+  }
+  return massMentionLimitCache;
+};
+
+const saveMassMentionLimit = (data) => {
+  massMentionLimitCache = data;
+  try {
+    ensureDirectoryExists(pathz.dirname(MASS_MENTION_LIMIT_FILE));
+    fs.writeFileSync(MASS_MENTION_LIMIT_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Erro ao salvar massMentionLimit:', e.message);
+  }
+};
+
+/**
+ * Verifica se o grupo pode usar comandos de menção em massa
+ * @param {string} groupId - ID do grupo
+ * @param {number} memberCount - Número de membros do grupo
+ * @returns {{ allowed: boolean, remainingUses: number, resetTime: number|null, message: string|null }}
+ */
+const checkMassMentionLimit = (groupId, memberCount) => {
+  // Se grupo tem menos de 150 membros, não aplica limite
+  if (memberCount < MASS_MENTION_THRESHOLD) {
+    return { allowed: true, remainingUses: -1, resetTime: null, message: null };
+  }
+
+  const data = loadMassMentionLimit();
+  const now = Date.now();
+  
+  // Inicializa dados do grupo se não existir
+  if (!data[groupId]) {
+    data[groupId] = { uses: [], lastReset: now };
+  }
+  
+  const groupData = data[groupId];
+  
+  // Remove usos antigos (mais de 5 horas)
+  groupData.uses = groupData.uses.filter(timestamp => (now - timestamp) < MASS_MENTION_COOLDOWN);
+  
+  // Verifica se atingiu o limite
+  if (groupData.uses.length >= MASS_MENTION_MAX_USES) {
+    const oldestUse = Math.min(...groupData.uses);
+    const resetTime = oldestUse + MASS_MENTION_COOLDOWN;
+    const timeLeft = resetTime - now;
+    const hours = Math.floor(timeLeft / (60 * 60 * 1000));
+    const minutes = Math.floor((timeLeft % (60 * 60 * 1000)) / (60 * 1000));
+    
+    return {
+      allowed: false,
+      remainingUses: 0,
+      resetTime: resetTime,
+      message: `⚠️ *Proteção Anti-Ban Ativada*\n\n` +
+               `Este grupo tem ${memberCount} membros. Para evitar banimento do número do bot pela Meta, ` +
+               `comandos que mencionam todos os membros estão limitados a *${MASS_MENTION_MAX_USES} usos a cada 5 horas*.\n\n` +
+               `⏰ Próximo uso disponível em: *${hours}h ${minutes}min*`
+    };
+  }
+  
+  saveMassMentionLimit(data);
+  
+  return {
+    allowed: true,
+    remainingUses: MASS_MENTION_MAX_USES - groupData.uses.length,
+    resetTime: null,
+    message: null
+  };
+};
+
+/**
+ * Registra um uso de menção em massa
+ * @param {string} groupId - ID do grupo
+ */
+const registerMassMentionUse = (groupId) => {
+  const data = loadMassMentionLimit();
+  const now = Date.now();
+  
+  if (!data[groupId]) {
+    data[groupId] = { uses: [], lastReset: now };
+  }
+  
+  // Remove usos antigos antes de adicionar novo
+  data[groupId].uses = data[groupId].uses.filter(timestamp => (now - timestamp) < MASS_MENTION_COOLDOWN);
+  data[groupId].uses.push(now);
+  
+  saveMassMentionLimit(data);
+};
+
+// ==================== FIM: Proteção Anti-Ban ====================
 
 let performanceOptimizerInstance = null;
 let performanceOptimizerInitPromise = null;
@@ -4123,6 +4233,13 @@ Entre em contato com o dono do bot:
           break;
         }
 
+        // Proteção Anti-Ban: Verifica rate limit para grupos grandes
+        const massMentionCheckResenha = checkMassMentionLimit(from, AllgroupMembers.length);
+        if (!massMentionCheckResenha.allowed) {
+          await reply(massMentionCheckResenha.message);
+          break;
+        }
+
         const resenhaData = ensureResenhaData();
         const paidSet = new Set(Object.keys(resenhaData.payments || {}));
         const toMention = AllgroupMembers.filter(memberId => memberId && memberId !== botNumber && !paidSet.has(memberId));
@@ -4130,6 +4247,11 @@ Entre em contato com o dono do bot:
         if (!toMention.length) {
           await reply('🙌 Todos os participantes já estão com o pagamento confirmado ou não há membros a marcar.');
           break;
+        }
+
+        // Registra uso para grupos grandes (proteção anti-ban)
+        if (AllgroupMembers.length >= MASS_MENTION_THRESHOLD) {
+          registerMassMentionUse(from);
         }
 
         const mentionText = `🔔 ${formatMentionList(toMention)}`;
@@ -20744,6 +20866,12 @@ case 'roubar':
         if (!isGroupAdmin) return reply("Comando restrito a Administradores ou Moderadores com permissão. 💔");
         if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
         try {
+          // Proteção Anti-Ban: Verifica rate limit para grupos grandes
+          const massMentionCheck = checkMassMentionLimit(from, AllgroupMembers.length);
+          if (!massMentionCheck.allowed) {
+            return reply(massMentionCheck.message);
+          }
+          
           let path = pathz.join(GRUPOS_DIR, `${from}.json`);
           // Otimização: Usar cache para leitura de arquivo
           let data = await optimizer.loadJsonWithCache(path, { mark: {} });
@@ -20752,6 +20880,12 @@ case 'roubar':
           }
           let membros = AllgroupMembers.filter(m => !['0', 'games'].includes(data.mark[m]));
           if (!membros.length) return reply('❌ Nenhum membro para mencionar.');
+          
+          // Registra uso para grupos grandes (proteção anti-ban)
+          if (AllgroupMembers.length >= MASS_MENTION_THRESHOLD) {
+            registerMassMentionUse(from);
+          }
+          
           let msg = `📢 *Membros mencionados:* ${q ? `\n💬 *Mensagem:* ${q}` : ''}\n\n`;
           await nazu.sendMessage(from, {
             text: msg + membros.map(m => `➤ @${getUserName(m)}`).join('\n'),
@@ -21318,6 +21452,13 @@ A mensagem será enviada todos os dias às ${normalizedTime} (horário de São P
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Comando restrito a Administradores ou Moderadores com permissão. 💔");
           if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
+          
+          // Proteção Anti-Ban: Verifica rate limit para grupos grandes
+          const massMentionCheckHidetag = checkMassMentionLimit(from, AllgroupMembers.length);
+          if (!massMentionCheckHidetag.allowed) {
+            return reply(massMentionCheckHidetag.message);
+          }
+          
           var DFC4 = "";
           var rsm4 = info.message?.extendedTextMessage?.contextInfo?.quotedMessage;
           var pink4 = isQuotedImage ? rsm4?.imageMessage : info.message?.imageMessage;
@@ -21406,6 +21547,12 @@ A mensagem será enviada todos os dias às ${normalizedTime} (horário de São P
             
             aud_d4.ptt = true;
           }
+          
+          // Registra uso para grupos grandes (proteção anti-ban)
+          if (AllgroupMembers.length >= MASS_MENTION_THRESHOLD) {
+            registerMassMentionUse(from);
+          }
+          
           await nazu.sendMessage(from, DFC4).catch(error => {});
         } catch (e) {
           console.error(e);
@@ -21471,6 +21618,19 @@ case 'divulgar':
         
         if (!messageText) return reply(`❌ Nenhuma mensagem para divulgar.`);
         if (isNaN(count) || count <= 0 || count > maxCount) return reply(`❌ Quantidade inválida.`);
+
+        // Proteção Anti-Ban: Verifica rate limit para grupos grandes (apenas se markAll estiver ativo)
+        if (markAll) {
+          const massMentionCheckDiv = checkMassMentionLimit(from, AllgroupMembers.length);
+          if (!massMentionCheckDiv.allowed) {
+            return reply(massMentionCheckDiv.message);
+          }
+          
+          // Registra uso para grupos grandes (proteção anti-ban)
+          if (AllgroupMembers.length >= MASS_MENTION_THRESHOLD) {
+            registerMassMentionUse(from);
+          }
+        }
 
         const contextInfo = markAll ? { contextInfo: { mentionedJid: AllgroupMembers } } : {};
 
