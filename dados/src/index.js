@@ -4659,11 +4659,17 @@ Entre em contato com o dono do bot:
           const amount = parseAmount(q.split(' ')[0], me.bank);
           if (!isFinite(amount) || amount <= 0) return reply('❌ Informe um valor válido (ou "all").');
           if (amount > me.bank) return reply('❌ Saldo insuficiente no banco.');
-          me.bank -= amount; me.wallet += amount;
+          // TAXA DE SAQUE: 5%
+          const taxa = Math.floor(amount * 0.05);
+          const received = amount - taxa;
+          me.bank -= amount; 
+          me.wallet += received;
           saveEconomy(econ);
           return reply(`╭━━━⊱ 💳 *SAQUE* 💳 ⊱━━━╮
 │
-│ ✅ Sacado: ${fmt(amount)}
+│ 💰 Valor sacado: ${fmt(amount)}
+│ 💸 Taxa (5%): ${fmt(taxa)}
+│ ✅ Recebido: ${fmt(received)}
 │
 │ 🏦 Banco: ${fmt(me.bank)}
 │ 💼 Carteira: ${fmt(me.wallet)}
@@ -4672,10 +4678,12 @@ Entre em contato com o dono do bot:
         }
 
         if (sub === 'transferir' || sub === 'pix') {
-          if (!mentioned) return reply(`╭━━━⊱ � *TRANSFERÊNCIA* 💸 ⊱━━━╮
+          if (!mentioned) return reply(`╭━━━⊱ 💸 *TRANSFERÊNCIA* 💸 ⊱━━━╮
 │
 │ 👥 Marque um usuário e informe
 │    o valor a transferir
+│
+│ ⚠️ *Taxa de transferência: 15%*
 │
 │ 📝 *Exemplo:*
 │ ${prefix}${sub} @user 100
@@ -4683,14 +4691,20 @@ Entre em contato com o dono do bot:
 ╰━━━━━━━━━━━━━━━━━━━━━━━╯`);
           const amount = parseAmount(args.slice(-1)[0], me.wallet);
           if (!isFinite(amount) || amount <= 0) return reply('❌ Informe um valor válido.');
-          if (amount > me.wallet) return reply('❌ Você não tem esse valor na carteira.');
+          // TAXA DE TRANSFERÊNCIA: 15%
+          const taxa = Math.floor(amount * 0.15);
+          const totalNeeded = amount + taxa;
+          if (totalNeeded > me.wallet) return reply(`❌ Você não tem saldo suficiente.\n💰 Valor: ${fmt(amount)}\n💸 Taxa (15%): ${fmt(taxa)}\n📊 Total necessário: ${fmt(totalNeeded)}\n💼 Seu saldo: ${fmt(me.wallet)}`);
           const other = getEcoUser(econ, mentioned);
           if (mentioned === sender) return reply('❌ Você não pode transferir para si mesmo.');
-          me.wallet -= amount; other.wallet += amount;
+          me.wallet -= totalNeeded; // Desconta valor + taxa
+          other.wallet += amount; // Destinatário recebe valor sem taxa
           saveEconomy(econ);
           return reply(`╭━━━⊱ ✅ *TRANSFERÊNCIA* ✅ ⊱━━━╮
 │
 │ 💸 Transferido: ${fmt(amount)}
+│ 💰 Taxa (15%): ${fmt(taxa)}
+│ 📊 Total debitado: ${fmt(totalNeeded)}
 │ 👤 Para: @${getUserName(mentioned)}
 │
 ╰━━━━━━━━━━━━━━━━━━━━━━━━╯`, { mentions:[mentioned] });
@@ -4907,17 +4921,18 @@ Entre em contato com o dono do bot:
           const amount = parseAmount(args[0], me.wallet);
           if (!isFinite(amount) || amount <= 0) return reply('Valor inválido.');
           if (amount > me.wallet) return reply('Saldo insuficiente.');
-          const win = Math.random() < 0.47;
+          // CASSINO NERFADO: 3% de chance de ganhar (era 47%)
+          const win = Math.random() < 0.03;
           if (win) { 
-            me.wallet += amount; 
-            me.cooldowns.bet = Date.now() + 3*60*1000; // 3 minutos
+            me.wallet += Math.floor(amount * 0.8); // ganha apenas 80% do apostado
+            me.cooldowns.bet = Date.now() + 10*60*1000; // 10 minutos (era 3)
             saveEconomy(econ); 
-            return reply(`╭━━━⊱ 🍀 *VITÓRIA!* 🍀 ⊱━━━╮\n│\n│ 💰 Ganhou: *+${fmt(amount)}*\n│\n╰━━━━━━━━━━━━━━━━━━━━━╯`); 
+            return reply(`╭───⊃⊱ 🍀 *VITÓRIA RARA!* 🍀 ⊃⊱───╮\n│\n│ 💰 Ganhou: *+${fmt(Math.floor(amount * 0.8))}*\n│ 🎰 Sorte incrível!\n│\n╰─────────────────────╯`); 
           }
           me.wallet -= amount; 
-          me.cooldowns.bet = Date.now() + 3*60*1000; // 3 minutos
+          me.cooldowns.bet = Date.now() + 10*60*1000; // 10 minutos (era 3)
           saveEconomy(econ); 
-          return reply(`╭━━━⊱ 💥 *PERDEU!* 💥 ⊱━━━╮\n│\n│ 💸 Perdeu: *-${fmt(amount)}*\n│\n╰━━━━━━━━━━━━━━━━━━━━━╯`);
+          return reply(`╭───⊃⊱ 💥 *PERDEU!* 💥 ⊃⊱───╮\n│\n│ 💸 Perdeu: *-${fmt(amount)}*\n│ 🎰 A casa sempre ganha...\n│\n╰─────────────────────╯`);
         }
         if (sub === 'slots') {
           const cdSlots = me.cooldowns?.slots || 0;
@@ -4925,15 +4940,30 @@ Entre em contato com o dono do bot:
           const amount = parseAmount(args[0]||'100', me.wallet);
           if (!isFinite(amount) || amount <= 0) return reply('Valor inválido.');
           if (amount > me.wallet) return reply('Saldo insuficiente.');
-          const symbols = ['🍒','🍋','🍉','⭐','🔔'];
-          const r = [0,0,0].map(()=>symbols[Math.floor(Math.random()*symbols.length)]);
+          // SLOTS NERFADO: símbolos com pesos para quase nunca combinar
+          const symbols = ['🍒','🍋','🍉','⭐','🔔','🍇','🍊','🍓']; // mais símbolos = menos chance
+          // Cada slot é independente e viciado para não combinar
+          const getSlot = (idx) => {
+            // Cada posição tem preferência por símbolos diferentes
+            const weights = [30, 20, 15, 12, 10, 6, 4, 3];
+            const shifted = [...weights.slice(idx * 2), ...weights.slice(0, idx * 2)];
+            const total = shifted.reduce((a,b) => a+b, 0);
+            let rand = Math.random() * total;
+            for (let i = 0; i < symbols.length; i++) {
+              rand -= shifted[i];
+              if (rand <= 0) return symbols[i];
+            }
+            return symbols[0];
+          };
+          const r = [getSlot(0), getSlot(1), getSlot(2)];
           let mult = 0;
-          if (r[0]===r[1] && r[1]===r[2]) mult = 3;
-          else if (r[0]===r[1] || r[1]===r[2] || r[0]===r[2]) mult = 1.5;
+          // Jackpot quase impossível (~0.5% real)
+          if (r[0]===r[1] && r[1]===r[2]) mult = 2; // multiplicador reduzido (era 3)
+          else if (r[0]===r[1] || r[1]===r[2] || r[0]===r[2]) mult = 1.2; // par paga menos (era 1.5)
           const delta = Math.floor(amount * (mult-1));
           me.wallet += delta; // delta pode ser negativo
           saveEconomy(econ);
-          me.cooldowns.slots = Date.now() + 2*60*1000; // 2 minutos
+          me.cooldowns.slots = Date.now() + 8*60*1000; // 8 minutos (era 2)
           
           let slotText = `╭━━━⊱ 🎰 *SLOTS* 🎰 ⊱━━━╮\n`;
           slotText += `│\n`;
@@ -5034,10 +5064,10 @@ Entre em contato com o dono do bot:
 
         if (sub === 'pescar' || sub === 'fish') {
           const cd = me.cooldowns?.fish || 0; if (Date.now()<cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para pescar novamente.`);
-          const base = 25 + Math.floor(Math.random()*36); // 25-60, mais lento
+          const base = 12 + Math.floor(Math.random()*19); // 12-30 (era 25-60)
           const skillB = getSkillBonus(me,'fishing');
-          const bonus = Math.floor(base * ((fishBonus||0) + skillB)); const total = base + bonus;
-          me.wallet += total; me.cooldowns.fish = Date.now() + 4*60*1000; // cooldown maior
+          const bonus = Math.floor(base * ((fishBonus||0) + skillB) * 0.4); const total = base + bonus; // bônus reduzido 60%
+          me.wallet += total; me.cooldowns.fish = Date.now() + 15*60*1000; // 15 min (era 4 min)
           addSkillXP(me,'fishing',1); updateChallenge(me,'fish',1,true); updatePeriodChallenge(me,'fish',1,true);
           
           // Adiciona peixe como ingrediente
@@ -5063,12 +5093,12 @@ Entre em contato com o dono do bot:
         if (sub === 'explorar' || sub === 'explore') {
           const cd = me.cooldowns?.explore || 0; 
           if (Date.now()<cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para explorar novamente.`);
-          const base = 35 + Math.floor(Math.random()*56); // 35-90
+          const base = 18 + Math.floor(Math.random()*28); // 18-45 (era 35-90)
           const skillB = getSkillBonus(me,'exploring');
-          const bonus = Math.floor(base * ((exploreBonus||0) + skillB)); 
+          const bonus = Math.floor(base * ((exploreBonus||0) + skillB) * 0.4); // bônus reduzido 60%
           const total = base + bonus;
           me.wallet += total; 
-          me.cooldowns.explore = Date.now() + 5*60*1000; // cooldown maior
+          me.cooldowns.explore = Date.now() + 18*60*1000; // 18 min (era 5 min)
           addSkillXP(me,'exploring',1); 
           updateChallenge(me,'explore',1,true); 
           updatePeriodChallenge(me,'explore',1,true); 
@@ -5088,10 +5118,10 @@ Entre em contato com o dono do bot:
 
         if (sub === 'cacar' || sub === 'caçar' || sub === 'hunt') {
           const cd = me.cooldowns?.hunt || 0; if (Date.now()<cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para caçar novamente.`);
-          const base = 45 + Math.floor(Math.random()*76); // 45-120
+          const base = 22 + Math.floor(Math.random()*34); // 22-55 (era 45-120)
           const skillB = getSkillBonus(me,'hunting');
-          const bonus = Math.floor(base * ((huntBonus||0) + skillB)); const total = base + bonus;
-          me.wallet += total; me.cooldowns.hunt = Date.now() + 6*60*1000;
+          const bonus = Math.floor(base * ((huntBonus||0) + skillB) * 0.4); const total = base + bonus; // bônus reduzido 60%
+          me.wallet += total; me.cooldowns.hunt = Date.now() + 22*60*1000; // 22 min (era 6 min)
           addSkillXP(me,'hunting',1); updateChallenge(me,'hunt',1,true); updatePeriodChallenge(me,'hunt',1,true);
           
           // Adiciona carne como ingrediente
@@ -5143,18 +5173,18 @@ Entre em contato com o dono do bot:
             saveEconomy(econ);
             return reply(`⚒️ Você forjou ${item?.name||craftKey}!`);
           }
-          // Modo 2: minigame de forja (antigo)
+          // Modo 2: minigame de forja (antigo) - NERFADO
           const cd = me.cooldowns?.forge || 0; if (Date.now()<cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para forjar novamente.`);
-          const cost = 100; if (me.wallet < cost) return reply(`Você precisa de ${fmt(cost)} para materiais.`);
+          const cost = 150; if (me.wallet < cost) return reply(`Você precisa de ${fmt(cost)} para materiais.`); // custo aumentado (era 100)
           me.wallet -= cost;
-          const success = Math.random()<0.6;
+          const success = Math.random()<0.35; // 35% chance (era 60%)
           if (success) {
-            const gain = 180 + Math.floor(Math.random()*221); // 180-400
-            const bonus = Math.floor(gain * (forgeBonus||0)); const total = gain + bonus;
-            me.wallet += total; me.cooldowns.forge = Date.now()+6*60*1000; saveEconomy(econ);
+            const gain = 80 + Math.floor(Math.random()*101); // 80-180 (era 180-400)
+            const bonus = Math.floor(gain * (forgeBonus||0) * 0.5); const total = gain + bonus; // bônus reduzido
+            me.wallet += total; me.cooldowns.forge = Date.now()+25*60*1000; saveEconomy(econ); // 25 min (era 6 min)
             return reply(`⚒️ Forja bem-sucedida! Lucro ${fmt(total)} ${bonus>0?`(bônus ${fmt(bonus)})`:''}.`);
           } else {
-            me.cooldowns.forge = Date.now()+6*60*1000; saveEconomy(econ);
+            me.cooldowns.forge = Date.now()+25*60*1000; saveEconomy(econ); // 25 min (era 6 min)
             return reply(`🔥 A forja falhou e os materiais foram perdidos.`);
           }
         }
@@ -5162,13 +5192,13 @@ Entre em contato com o dono do bot:
     if (sub === 'crime') {
           const cd = me.cooldowns?.crime || 0; 
           if (Date.now()<cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para tentar de novo.`);
-          const success = Math.random() < 0.35; // 35% sucesso, mais difícil
+          const success = Math.random() < 0.18; // 18% sucesso (era 35%)
           if (success) {
-            const base = 90 + Math.floor(Math.random()*141); // 90-230, menor
+            const base = 40 + Math.floor(Math.random()*61); // 40-100 (era 90-230)
             const skillB = getSkillBonus(me,'crime');
-            const gain = Math.floor(base * (1 + skillB));
+            const gain = Math.floor(base * (1 + skillB * 0.3)); // skill bônus reduzido
             me.wallet += gain; 
-            me.cooldowns.crime = Date.now()+10*60*1000; 
+            me.cooldowns.crime = Date.now()+30*60*1000; // 30 min (era 10 min) 
             addSkillXP(me,'crime',1); 
             updateChallenge(me,'crimeSuccess',1,true); 
             updatePeriodChallenge(me,'crimeSuccess',1,true); 
@@ -5182,10 +5212,10 @@ Entre em contato com o dono do bot:
 │
 ╰━━━━━━━━━━━━━━━━━━━━━╯`);
           } else {
-            const fine = 120 + Math.floor(Math.random()*201); 
+            const fine = 200 + Math.floor(Math.random()*401); // multa maior: 200-600 (era 120-320)
             const pay = Math.min(me.wallet, fine); 
             me.wallet -= pay; 
-            me.cooldowns.crime = Date.now()+10*60*1000; 
+            me.cooldowns.crime = Date.now()+30*60*1000; // 30 min (era 10 min)
             saveEconomy(econ);
             return reply(`╭━━━⊱ 🚔 *PEGO!* 🚔 ⊱━━━╮
 │
@@ -5587,29 +5617,29 @@ Entre em contato com o dono do bot:
           if (Date.now() < cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para minerar novamente.`);
           const pk = getActivePickaxe(me);
           if (!pk) return reply(`⛏️ Você precisa de uma picareta para minerar. Compre na ${prefix}loja (ex: ${prefix}comprar pickaxe_bronze) ou repare com ${prefix}reparar.`);
-          // Cálculo de ouro com base na picareta e bônus
+          // Cálculo de ouro com base na picareta e bônus (NERFADO)
           const tierMult = PICKAXE_TIER_MULT[pk.tier] || 1.0;
-          const base = 30 + Math.floor(Math.random()*41); // 30-70
+          const base = 15 + Math.floor(Math.random()*26); // 15-40 (era 30-70)
           const skillB = getSkillBonus(me,'mining');
           const raw = Math.floor(base * tierMult);
-          const bonus = Math.floor(raw * ((mineBonus||0) + skillB));
+          const bonus = Math.floor(raw * ((mineBonus||0) + skillB) * 0.5); // bônus reduzido em 50%
           const total = raw + bonus;
           me.wallet += total;
-          // Quedas de materiais
-          let drops = { pedra: 1 + Math.floor(Math.random()*4) };
+          // Quedas de materiais (chances reduzidas)
+          let drops = { pedra: 1 + Math.floor(Math.random()*2) }; // 1-2 (era 1-4)
           if (pk.tier==='ferro' || pk.tier==='diamante') {
-            drops.ferro = (drops.ferro||0) + Math.floor(Math.random()*3); // 0-2
+            drops.ferro = (drops.ferro||0) + (Math.random() < 0.4 ? 1 : 0); // 40% chance de 1 (era 0-2)
           }
           if (pk.tier==='diamante') {
-            drops.ferro = (drops.ferro||0) + (1 + Math.floor(Math.random()*2)); // +1-2 adicionais
-            drops.ouro = (drops.ouro||0) + Math.floor(Math.random()*2); // 0-1
-            if (Math.random()<0.2) drops.diamante = (drops.diamante||0) + 1; // chance de diamante
+            drops.ferro = (drops.ferro||0) + (Math.random() < 0.5 ? 1 : 0); // 50% chance de +1
+            drops.ouro = (drops.ouro||0) + (Math.random() < 0.15 ? 1 : 0); // 15% chance (era 0-1)
+            if (Math.random()<0.05) drops.diamante = (drops.diamante||0) + 1; // 5% chance (era 20%)
           }
           for (const [mk,mq] of Object.entries(drops)) if (mq>0) giveMaterial(me, mk, mq);
-          // Durabilidade
-          const before = pk.dur; pk.dur = Math.max(0, pk.dur - 1);
-          me.tools.pickaxe = { ...pk, max: pk.max ?? (pk.tier==='bronze'?20:pk.tier==='ferro'?60:pk.tier==='diamante'?150:pk.dur) };
-          me.cooldowns.mine = Date.now() + 2*60*1000; // 2 min
+          // Durabilidade (gasta mais rápido)
+          const before = pk.dur; pk.dur = Math.max(0, pk.dur - (1 + (Math.random() < 0.3 ? 1 : 0))); // 30% chance de gastar 2
+          me.tools.pickaxe = { ...pk, max: pk.max ?? (pk.tier==='bronze'?15:pk.tier==='ferro'?45:pk.tier==='diamante'?100:pk.dur) }; // durabilidade máxima reduzida
+          me.cooldowns.mine = Date.now() + 8*60*1000; // 8 min (era 2 min)
           addSkillXP(me,'mining',1); updateChallenge(me,'mine',1,true); updatePeriodChallenge(me,'mine',1,true);
           saveEconomy(econ);
           let dropTxt = Object.entries(drops).filter(([,q])=>q>0).map(([k,q])=>`${k} x${q}`).join(', ');
@@ -5620,12 +5650,12 @@ Entre em contato com o dono do bot:
         if (sub === 'trabalhar' || sub === 'work') {
           const cd = me.cooldowns?.work || 0;
           if (Date.now() < cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para trabalhar novamente.`);
-          const base = 70 + Math.floor(Math.random()*111); // 70-180
+          const base = 35 + Math.floor(Math.random()*46); // 35-80 (era 70-180)
           const skillB = getSkillBonus(me,'working');
-          const bonus = Math.floor(base * (workBonus + skillB));
+          const bonus = Math.floor(base * (workBonus + skillB) * 0.5); // bônus reduzido em 50%
           const total = base + bonus;
           me.wallet += total;
-          me.cooldowns.work = Date.now() + 7*60*1000; // 7 min
+          me.cooldowns.work = Date.now() + 20*60*1000; // 20 min (era 7 min)
           addSkillXP(me,'working',1); updateChallenge(me,'work',1,true); updatePeriodChallenge(me,'work',1,true);
           saveEconomy(econ);
           return reply(`💼 Você trabalhou e recebeu ${fmt(total)} ${bonus>0?`(bônus ${fmt(bonus)})`:''}!`);
@@ -5813,7 +5843,7 @@ Entre em contato com o dono do bot:
         if (sub === 'diario' || sub === 'daily') {
           const cd = me.cooldowns?.daily || 0;
           if (Date.now() < cd) return reply(`⏳ Você já coletou hoje. Volte em ${timeLeft(cd)}.`);
-          const reward = 500;
+          const reward = 150; // reduzido de 500 para 150
           me.wallet += reward; me.cooldowns.daily = Date.now() + 24*60*60*1000;
           saveEconomy(econ);
           return reply(`🎁 Recompensa diária coletada: ${fmt(reward)}!`);
@@ -8994,7 +9024,7 @@ Entre em contato com o dono do bot:
         return reply(`╭━━━⊱ ✅ *COMPRA PREMIUM* ⊱━━━╮\n│\n│ 🛒 ${item.name}\n│ 💰 -${item.price.toLocaleString()}\n│\n│ ✨ Item adicionado com sucesso!\n│\n╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
       }
       
-      // Cassino Roleta
+      // Cassino Roleta - NERFADO
       case 'roleta':
       case 'roulette': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
@@ -9003,10 +9033,14 @@ Entre em contato com o dono do bot:
         const econ = loadEconomy();
         const me = getEcoUser(econ, sender);
         
+        // Cooldown de 10 minutos
+        const cdRoleta = me.cooldowns?.roleta || 0;
+        if (Date.now() < cdRoleta) return reply(`⏳ Aguarde ${timeLeft(cdRoleta)} para jogar roleta novamente.`);
+        
         const bet = parseInt(args[0]) || 0;
         const rawChoice = (args[1] || '');
         
-        if (bet <= 0) return reply(`🎰 *ROLETA*\n\n💡 Uso: ${prefix}roleta <valor> <cor>\n\nCores: vermelho, preto, verde\n\n🔴 Vermelho: 2x\n⚫ Preto: 2x\n🟢 Verde (0): 14x`);
+        if (bet <= 0) return reply(`🎰 *ROLETA*\n\n💡 Uso: ${prefix}roleta <valor> <cor>\n\nCores: vermelho, preto, verde\n\n🔴 Vermelho: 1.5x\n⚫ Preto: 1.5x\n🟢 Verde (0): 5x`);
         
         // Normaliza a cor escolhida
         const colorMap = {
@@ -9023,31 +9057,40 @@ Entre em contato com o dono do bot:
         
         if (bet > me.wallet) return reply('❌ Saldo insuficiente na carteira!');
         
+        // ROLETA NERFADA: A cor que o jogador NÃO escolheu tem 85% de chance de sair
         const result = Math.random();
         let winColor;
-        if (result < 0.0714) { // ~7% chance verde
+        const otherColors = ['vermelho', 'preto', 'verde'].filter(c => c !== choice);
+        
+        if (result < 0.85) {
+          // 85% de chance de cair na cor que o jogador NÃO escolheu
+          winColor = otherColors[Math.floor(Math.random() * otherColors.length)];
+        } else if (result < 0.97) {
+          // 12% de chance de cair na cor escolhida (se não for verde)
+          winColor = choice === 'verde' ? otherColors[0] : choice;
+        } else {
+          // 3% de chance de verde (se escolheu verde, ainda assim só 3%)
           winColor = 'verde';
-        } else if (result < 0.5357) { // ~46% vermelho
-          winColor = 'vermelho';
-        } else { // ~46% preto
-          winColor = 'preto';
         }
         
         const colorEmoji = { vermelho: '🔴', preto: '⚫', verde: '🟢' };
         const normalizedChoice = choice;
+        
+        me.cooldowns = me.cooldowns || {};
+        me.cooldowns.roleta = Date.now() + 10*60*1000; // 10 minutos
         
         let text = `╭━━━⊱ 🎰 *ROLETA* ⊱━━━╮\n\n`;
         text += `🎯 Sua aposta: ${colorEmoji[choice]} ${bet.toLocaleString()}\n`;
         text += `🎲 Resultado: ${colorEmoji[winColor]} ${winColor.toUpperCase()}\n\n`;
         
         if (normalizedChoice === winColor) {
-          const multiplier = winColor === 'verde' ? 14 : 2;
-          const winnings = bet * multiplier;
+          const multiplier = winColor === 'verde' ? 5 : 1.5; // multiplicadores reduzidos (era 14x e 2x)
+          const winnings = Math.floor(bet * multiplier);
           me.wallet += winnings - bet;
-          text += `🏆 *VOCÊ GANHOU!*\n💰 +${winnings.toLocaleString()} (${multiplier}x)`;
+          text += `🏆 *VITÓRIA RARA!*\n💰 +${winnings.toLocaleString()} (${multiplier}x)`;
         } else {
           me.wallet -= bet;
-          text += `💀 *VOCÊ PERDEU!*\n💸 -${bet.toLocaleString()}`;
+          text += `💀 *VOCÊ PERDEU!*\n💸 -${bet.toLocaleString()}\n🎰 A roleta parece viciada...`;
         }
         
         text += `\n\n╰━━━━━━━━━━━━━━━━━━━━╯`;
@@ -9056,7 +9099,7 @@ Entre em contato com o dono do bot:
         return reply(text);
       }
       
-      // Blackjack
+      // Blackjack - NERFADO
       case 'blackjack':
       case 'bj':
       case '21': {
@@ -9066,13 +9109,39 @@ Entre em contato com o dono do bot:
         const econ = loadEconomy();
         const me = getEcoUser(econ, sender);
         
+        // Cooldown de 10 minutos
+        const cdBJ = me.cooldowns?.blackjack || 0;
+        if (Date.now() < cdBJ) return reply(`⏳ Aguarde ${timeLeft(cdBJ)} para jogar blackjack novamente.`);
+        
         const bet = parseInt(args[0]) || 0;
         if (bet <= 0) return reply(`🃏 *BLACKJACK*\n\n💡 Uso: ${prefix}blackjack <valor>\n\n📜 Regras: Chegue mais perto de 21 sem passar!`);
         if (bet > me.wallet) return reply('❌ Saldo insuficiente!');
         
-        const getCard = () => {
+        // BLACKJACK NERFADO: Dealer tem cartas viciadas
+        const getPlayerCard = () => {
+          // Jogador tem mais chance de pegar cartas altas (que causam bust)
           const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-          return values[Math.floor(Math.random() * values.length)];
+          const weights = [5, 3, 3, 4, 5, 6, 8, 10, 12, 15, 12, 10, 7]; // Cartas altas mais prováveis
+          const total = weights.reduce((a, b) => a + b, 0);
+          let rand = Math.random() * total;
+          for (let i = 0; i < values.length; i++) {
+            rand -= weights[i];
+            if (rand <= 0) return values[i];
+          }
+          return values[0];
+        };
+        
+        const getDealerCard = () => {
+          // Dealer tem mais chance de pegar cartas médias (evita bust)
+          const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+          const weights = [8, 6, 7, 8, 9, 10, 12, 10, 8, 6, 5, 5, 6]; // Cartas médias mais prováveis
+          const total = weights.reduce((a, b) => a + b, 0);
+          let rand = Math.random() * total;
+          for (let i = 0; i < values.length; i++) {
+            rand -= weights[i];
+            if (rand <= 0) return values[i];
+          }
+          return values[0];
         };
         
         const getValue = (cards) => {
@@ -9087,15 +9156,18 @@ Entre em contato com o dono do bot:
           return total;
         };
         
-        const playerCards = [getCard(), getCard()];
-        const dealerCards = [getCard(), getCard()];
+        const playerCards = [getPlayerCard(), getPlayerCard()];
+        const dealerCards = [getDealerCard(), getDealerCard()];
         
-        // Simular jogo (simplificado)
-        while (getValue(playerCards) < 17) playerCards.push(getCard());
-        while (getValue(dealerCards) < 17) dealerCards.push(getCard());
+        // Simular jogo (simplificado) - jogador mais agressivo
+        while (getValue(playerCards) < 17) playerCards.push(getPlayerCard());
+        while (getValue(dealerCards) < 17) dealerCards.push(getDealerCard());
         
         const playerValue = getValue(playerCards);
         const dealerValue = getValue(dealerCards);
+        
+        me.cooldowns = me.cooldowns || {};
+        me.cooldowns.blackjack = Date.now() + 10*60*1000; // 10 minutos
         
         let text = `╭━━━⊱ 🃏 *BLACKJACK* ⊱━━━╮\n\n`;
         text += `👤 Você: ${playerCards.join(' ')} = ${playerValue}\n`;
@@ -9103,16 +9175,20 @@ Entre em contato com o dono do bot:
         
         if (playerValue > 21) {
           me.wallet -= bet;
-          text += `💀 *BUST!* Você passou de 21!\n💸 -${bet.toLocaleString()}`;
+          text += `💀 *BUST!* Você passou de 21!\n💸 -${bet.toLocaleString()}\n🃏 Que azar...`;
         } else if (dealerValue > 21 || playerValue > dealerValue) {
-          const winnings = playerValue === 21 && playerCards.length === 2 ? bet * 2.5 : bet * 2;
+          // Ganhos reduzidos
+          const winnings = playerValue === 21 && playerCards.length === 2 ? Math.floor(bet * 1.8) : Math.floor(bet * 1.4);
           me.wallet += winnings - bet;
-          text += `🏆 *VOCÊ GANHOU!*\n💰 +${Math.floor(winnings).toLocaleString()}`;
+          text += `🏆 *VITÓRIA RARA!*\n💰 +${(winnings - bet).toLocaleString()}`;
         } else if (playerValue === dealerValue) {
-          text += `🤝 *EMPATE!*\nAposta devolvida`;
+          // Empate agora perde 30% da aposta
+          const loss = Math.floor(bet * 0.3);
+          me.wallet -= loss;
+          text += `🤝 *EMPATE!*\n💸 Taxa de empate: -${loss.toLocaleString()}`;
         } else {
           me.wallet -= bet;
-          text += `💀 *DEALER VENCEU!*\n💸 -${bet.toLocaleString()}`;
+          text += `💀 *DEALER VENCEU!*\n💸 -${bet.toLocaleString()}\n🃏 O dealer parece ter sorte demais...`;
         }
         
         text += `\n\n╰━━━━━━━━━━━━━━━━━━━━╯`;
@@ -9121,7 +9197,7 @@ Entre em contato com o dono do bot:
         return reply(text);
       }
       
-      // Sistema de Slots (Caça-níqueis)
+      // Sistema de Slots (Caça-níqueis) - NERFADO
       case 'slots':
       case 'slotmachine':
       case 'cacaniquel': {
@@ -9131,30 +9207,41 @@ Entre em contato com o dono do bot:
         const econ = loadEconomy();
         const me = getEcoUser(econ, sender);
         
+        // Cooldown de 8 minutos
+        const cdSlots2 = me.cooldowns?.slots2 || 0;
+        if (Date.now() < cdSlots2) return reply(`⏳ Aguarde ${timeLeft(cdSlots2)} para jogar slots novamente.`);
+        
         const bet = parseInt(args[0]) || 0;
         if (bet <= 0) return reply(`🎰 *CAÇA-NÍQUEIS*\n\n💡 Uso: ${prefix}slots <valor>\n\n🎲 Alinhe 3 símbolos iguais para ganhar!`);
         if (bet > me.wallet) return reply('❌ Saldo insuficiente!');
         
+        // SLOTS NERFADO: Cada posição tem preferência por símbolos diferentes
         const symbols = ['🍒', '🍋', '🍊', '🍇', '⭐', '💎', '7️⃣'];
-        const weights = [25, 20, 18, 15, 12, 7, 3]; // Raridade
         
-        const getSymbol = () => {
-          const total = weights.reduce((a, b) => a + b);
+        const getSymbol = (position) => {
+          // Cada posição tem pesos diferentes para quase nunca combinar
+          const baseWeights = [25, 20, 18, 15, 12, 7, 3];
+          const shifted = [...baseWeights.slice(position * 2), ...baseWeights.slice(0, position * 2)];
+          const total = shifted.reduce((a, b) => a + b);
           let random = Math.random() * total;
           for (let i = 0; i < symbols.length; i++) {
-            random -= weights[i];
+            random -= shifted[i];
             if (random <= 0) return symbols[i];
           }
           return symbols[0];
         };
         
-        const slot1 = getSymbol();
-        const slot2 = getSymbol();
-        const slot3 = getSymbol();
+        const slot1 = getSymbol(0);
+        const slot2 = getSymbol(1);
+        const slot3 = getSymbol(2);
         
+        // Multiplicadores reduzidos
         const multipliers = {
-          '🍒': 2, '🍋': 3, '🍊': 4, '🍇': 5, '⭐': 10, '💎': 25, '7️⃣': 77
+          '🍒': 1.5, '🍋': 2, '🍊': 2.5, '🍇': 3, '⭐': 5, '💎': 10, '7️⃣': 25
         };
+        
+        me.cooldowns = me.cooldowns || {};
+        me.cooldowns.slots2 = Date.now() + 8*60*1000; // 8 minutos
         
         let text = `╭━━━⊱ 🎰 *SLOTS* ⊱━━━╮\n\n`;
         text += `┏━━━━━━━━━━━━━━┓\n`;
@@ -9162,21 +9249,21 @@ Entre em contato com o dono do bot:
         text += `┗━━━━━━━━━━━━━━┛\n\n`;
         
         if (slot1 === slot2 && slot2 === slot3) {
-          // Jackpot!
+          // Jackpot! (muito raro agora)
           const multi = multipliers[slot1];
-          const winnings = bet * multi;
+          const winnings = Math.floor(bet * multi);
           me.wallet += winnings - bet;
-          text += `🎉 *JACKPOT!* 🎉\n`;
+          text += `🎉 *JACKPOT RARO!* 🎉\n`;
           text += `💰 Você ganhou ${winnings.toLocaleString()}! (${multi}x)`;
         } else if (slot1 === slot2 || slot2 === slot3 || slot1 === slot3) {
-          // 2 iguais
-          const winnings = Math.floor(bet * 1.5);
+          // 2 iguais - agora paga menos
+          const winnings = Math.floor(bet * 1.1);
           me.wallet += winnings - bet;
           text += `⭐ *PAR!*\n`;
-          text += `💰 Você ganhou ${winnings.toLocaleString()}! (1.5x)`;
+          text += `💰 Você ganhou ${(winnings - bet).toLocaleString()}! (1.1x)`;
         } else {
           me.wallet -= bet;
-          text += `💀 *PERDEU!*\n💸 -${bet.toLocaleString()}`;
+          text += `💀 *PERDEU!*\n💸 -${bet.toLocaleString()}\n🎰 A máquina parece viciada...`;
         }
         
         text += `\n\n╰━━━━━━━━━━━━━━━━━━━━╯`;
@@ -10018,7 +10105,7 @@ Entre em contato com o dono do bot:
         break;
       }
 
-      // Sistema de Apostas/Cassino
+      // Sistema de Apostas/Cassino - NERFADO
       case 'dados':
       case 'dice': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
@@ -10031,8 +10118,19 @@ Entre em contato com o dono do bot:
         if (bet < 100) return reply('💰 Aposta mínima: 100 moedas');
         if (me.wallet < bet) return reply('💰 Você não tem moedas suficientes!');
         
+        // Cooldown de 8 minutos
+        const cdDados = me.cooldowns?.dados || 0;
+        if (Date.now() < cdDados) return reply(`⏳ Aguarde ${timeLeft(cdDados)} para jogar dados novamente.`);
+        
+        // DADOS NERFADO: Bot tem dados viciados (sempre rola 4-6, jogador rola 1-6)
         const playerRoll = Math.floor(Math.random() * 6) + 1;
-        const botRoll = Math.floor(Math.random() * 6) + 1;
+        // Bot tem 80% de chance de rolar 5 ou 6
+        let botRoll;
+        const botLuck = Math.random();
+        if (botLuck < 0.4) botRoll = 6;
+        else if (botLuck < 0.8) botRoll = 5;
+        else if (botLuck < 0.9) botRoll = 4;
+        else botRoll = Math.floor(Math.random() * 3) + 1; // 1-3 apenas 10% das vezes
         
         let text = `╭━━━⊱ 🎲 *JOGO DE DADOS* 🎲 ⊱━━━╮\n`;
         text += `╰━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
@@ -10040,13 +10138,16 @@ Entre em contato com o dono do bot:
         text += `🎲 *Bot:* ${botRoll}\n\n`;
         text += `╭━━━━━━━━━━━━━━━━━━━━━╮\n`;
         
+        me.cooldowns = me.cooldowns || {};
+        me.cooldowns.dados = Date.now() + 8*60*1000; // 8 minutos
+        
         if (playerRoll > botRoll) {
-          const win = bet * 2;
-          me.wallet += win;
+          const win = Math.floor(bet * 1.5); // ganha apenas 1.5x (era 2x)
+          me.wallet += win - bet;
           text += `│\n`;
-          text += `│ 🎉 *VOCÊ GANHOU!*\n`;
+          text += `│ 🎉 *VITÓRIA RARA!*\n`;
           text += `│\n`;
-          text += `│ 💰 Ganhou: *+${win.toLocaleString()}*\n`;
+          text += `│ 💰 Ganhou: *+${(win - bet).toLocaleString()}*\n`;
           text += `│\n`;
         } else if (playerRoll < botRoll) {
           me.wallet -= bet;
@@ -10054,12 +10155,16 @@ Entre em contato com o dono do bot:
           text += `│ 😢 *VOCÊ PERDEU!*\n`;
           text += `│\n`;
           text += `│ 💸 Perdeu: *-${bet.toLocaleString()}*\n`;
+          text += `│ 🎲 Os dados parecem viciados...\n`;
           text += `│\n`;
         } else {
+          // Empate agora perde metade da aposta
+          const loss = Math.floor(bet * 0.5);
+          me.wallet -= loss;
           text += `│\n`;
           text += `│ 🤝 *EMPATE!*\n`;
           text += `│\n`;
-          text += `│ 💰 *Aposta devolvida*\n`;
+          text += `│ 💸 Taxa de empate: *-${loss.toLocaleString()}*\n`;
           text += `│\n`;
         }
         
@@ -10092,22 +10197,32 @@ Entre em contato com o dono do bot:
         if (bet < 100) return reply('💰 Aposta mínima: 100 moedas');
         if (me.wallet < bet) return reply('💰 Você não tem moedas suficientes!');
         
-        const result = Math.random() < 0.5 ? 'cara' : 'coroa';
+        // Cooldown de 8 minutos
+        const cdCoin = me.cooldowns?.coinflip || 0;
+        if (Date.now() < cdCoin) return reply(`⏳ Aguarde ${timeLeft(cdCoin)} para jogar novamente.`);
+        
+        // COINFLIP NERFADO: 5% de chance de ganhar (era 50%)
+        // A moeda é "viciada" - quase sempre cai no lado oposto
+        const playerWins = Math.random() < 0.05;
+        const result = playerWins ? choice : (choice === 'cara' ? 'coroa' : 'cara');
         
         let text = `╭━━━⊱ 🪙 *COIN FLIP* ⊱━━━╮\n`;
         text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
         text += `🪙 Você escolheu: *${choice}*\n`;
         text += `🪙 Resultado: *${result}*\n\n`;
         
+        me.cooldowns = me.cooldowns || {};
+        me.cooldowns.coinflip = Date.now() + 8*60*1000; // 8 minutos
+        
         if (choice === result) {
-          const win = bet * 2;
-          me.wallet += win;
-          text += `🎉 *VOCÊ GANHOU!*\n\n`;
+          const win = Math.floor(bet * 1.5); // ganha apenas 1.5x (era 2x)
+          me.wallet += win - bet;
+          text += `🎉 *VITÓRIA RARA!*\n\n`;
           text += `💰 +${win.toLocaleString()}`;
         } else {
           me.wallet -= bet;
           text += `😢 *VOCÊ PERDEU!*\n\n`;
-          text += `💸 -${bet.toLocaleString()}`;
+          text += `💸 -${bet.toLocaleString()}\n🪙 A moeda parece viciada...`;
         }
         
         saveEconomy(econ);
@@ -10126,23 +10241,42 @@ Entre em contato com o dono do bot:
         if (bet < 100) return reply('💰 Aposta mínima: 100 moedas');
         if (me.wallet < bet) return reply('💰 Você não tem moedas suficientes!');
         
-        const crashPoint = (Math.random() * 4 + 1).toFixed(2); // 1.00x a 5.00x
-        const userExit = (Math.random() * 4 + 0.5).toFixed(2);
+        // Cooldown de 10 minutos
+        const cdCrash = me.cooldowns?.crash || 0;
+        if (Date.now() < cdCrash) return reply(`⏳ Aguarde ${timeLeft(cdCrash)} para jogar crash novamente.`);
+        
+        // CRASH NERFADO: 85% de chance de crashar antes de 1.1x (perda quase garantida)
+        // Crash point viciado para valores baixos
+        let crashPoint;
+        const crashRoll = Math.random();
+        if (crashRoll < 0.85) {
+          crashPoint = (1.00 + Math.random() * 0.1).toFixed(2); // 1.00x a 1.10x (crash instantâneo)
+        } else if (crashRoll < 0.95) {
+          crashPoint = (1.10 + Math.random() * 0.4).toFixed(2); // 1.10x a 1.50x
+        } else {
+          crashPoint = (1.50 + Math.random() * 1.5).toFixed(2); // 1.50x a 3.00x (raro)
+        }
+        
+        // User exit também viciado para sair tarde demais
+        const userExit = (1.05 + Math.random() * 1.5).toFixed(2); // 1.05x a 2.55x
         
         let text = `╭━━━⊱ 🚀 *CRASH* ⊱━━━╮\n`;
         text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
         text += `🚀 Você saiu em: ${userExit}x\n`;
         text += `💥 Crash em: ${crashPoint}x\n\n`;
         
+        me.cooldowns = me.cooldowns || {};
+        me.cooldowns.crash = Date.now() + 10*60*1000; // 10 minutos
+        
         if (parseFloat(userExit) < parseFloat(crashPoint)) {
-          const win = Math.floor(bet * parseFloat(userExit));
+          const win = Math.floor(bet * (parseFloat(userExit) - 1)); // ganha apenas a diferença, não o total
           me.wallet += win;
           text += `🎉 *VOCÊ GANHOU!*\n\n`;
           text += `💰 +${win.toLocaleString()}`;
         } else {
           me.wallet -= bet;
           text += `💥 *CRASHED!*\n\n`;
-          text += `💸 -${bet.toLocaleString()}`;
+          text += `💸 -${bet.toLocaleString()}\n🚀 O foguete explodiu cedo demais...`;
         }
         
         saveEconomy(econ);
