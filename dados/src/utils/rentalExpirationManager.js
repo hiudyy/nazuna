@@ -369,7 +369,7 @@ O aluguel deste grupo expirou e o bot está saindo agora. Para voltar a usar o b
 
   async loadRentalData() {
     try {
-      const DONO_DIR = path.join(__dirname, '../database');
+      const DONO_DIR = path.join(__dirname, '../../database/dono');
       const ALUGUEIS_FILE = path.join(DONO_DIR, 'alugueis.json');
       
       // Check if file exists
@@ -395,7 +395,7 @@ O aluguel deste grupo expirou e o bot está saindo agora. Para voltar a usar o b
 
   async saveRentalData(data) {
     try {
-      const DONO_DIR = path.join(__dirname, '../database');
+      const DONO_DIR = path.join(__dirname, '../../database/dono');
       const ALUGUEIS_FILE = path.join(DONO_DIR, 'alugueis.json');
       
       await fs.writeFile(ALUGUEIS_FILE, JSON.stringify(data, null, 2));
