@@ -1296,6 +1296,12 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     }
     const isModoBn = groupData.modobrincadeira;
     const isOnlyAdmin = groupData.soadm;
+    
+    // Se modo soadm ativo e não é admin, ignorar aliases silenciosamente
+    if (isGroup && isOnlyAdmin && !isGroupAdmin && !isOwner && matchedAlias) {
+      return; // Ignora silenciosamente o alias para não-admins
+    }
+    
     const isAntiPorn = groupData.antiporn;
     const isMuted = groupData.mutedUsers?.[sender];
     const isAntiLinkGp = groupData.antilinkgp;
@@ -3170,28 +3176,33 @@ Código: *${roleCode}*`,
       }
     }
     if (!isCmd) {
-      // Otimização: Cache de comandos sem prefixo
-      const noPrefixCommands = await optimizer.memoize(
-        `noprefix:${from}`,
-        () => Promise.resolve(loadNoPrefixCommands()),
-        10000 // 10 segundos
-      );
-      // Otimização: Usar regex pré-compilada para split
-      const splitRegex = optimizer.getRegex('commandSplit') || /\s+/;
-      const firstWord = budy2.split(splitRegex)[0]?.trim();
-      const matchedCommand = noPrefixCommands.find(item => firstWord === item.trigger);
-      if (matchedCommand) {
-        var command = matchedCommand.command;
-        var isCmd = true;
-        const bodyParts = body.trim().split(/ +/);
-        const dynamicArgs = bodyParts.slice(1);
-        const fixedParams = matchedCommand.fixedParams || '';
-        const allParams = fixedParams ? (fixedParams + (dynamicArgs.length > 0 ? ' ' + dynamicArgs.join(' ') : '')) : dynamicArgs.join(' ');
-        args.length = 0;
-        if (allParams) {
-          args.push(...allParams.split(/ +/));
+      // Se modo soadm ativo e não é admin, ignorar comandos sem prefixo silenciosamente
+      if (isGroup && isOnlyAdmin && !isGroupAdmin && !isOwner) {
+        // Não processar comandos sem prefixo para não-admins quando soadm está ativo
+      } else {
+        // Otimização: Cache de comandos sem prefixo
+        const noPrefixCommands = await optimizer.memoize(
+          `noprefix:${from}`,
+          () => Promise.resolve(loadNoPrefixCommands()),
+          10000 // 10 segundos
+        );
+        // Otimização: Usar regex pré-compilada para split
+        const splitRegex = optimizer.getRegex('commandSplit') || /\s+/;
+        const firstWord = budy2.split(splitRegex)[0]?.trim();
+        const matchedCommand = noPrefixCommands.find(item => firstWord === item.trigger);
+        if (matchedCommand) {
+          var command = matchedCommand.command;
+          var isCmd = true;
+          const bodyParts = body.trim().split(/ +/);
+          const dynamicArgs = bodyParts.slice(1);
+          const fixedParams = matchedCommand.fixedParams || '';
+          const allParams = fixedParams ? (fixedParams + (dynamicArgs.length > 0 ? ' ' + dynamicArgs.join(' ') : '')) : dynamicArgs.join(' ');
+          args.length = 0;
+          if (allParams) {
+            args.push(...allParams.split(/ +/));
+          }
+          q = allParams;
         }
-        q = allParams;
       }
     }
 
