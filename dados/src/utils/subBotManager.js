@@ -157,7 +157,7 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber, generatePairing
         const sock = makeWASocket({
             version,
             logger,
-            browser: ['Mac OS', 'Safari', '18.6'],
+            browser: ['Windows', 'Edge', '143.0.3650.66'],
             emitOwnEvents: true,
             fireInitQueries: true,
             generateHighQualityLinkPreview: true,
