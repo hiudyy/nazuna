@@ -12415,10 +12415,45 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           const categoriaInput = args[0];
           const palavraInput = args.slice(1).join(' ');
 
-          // Encontrar categoria (case insensitive, parcial)
-          const categoria = game.categorias.find(cat => 
-            normalizar(cat.toLowerCase()) === normalizar(categoriaInput.toLowerCase())
+          // Normalizar input
+          const categoriaInputNorm = normalizar(categoriaInput.toLowerCase()).trim();
+          
+          // Encontrar categoria (case insensitive, com busca parcial)
+          let categoria = null;
+          
+          // Primeiro tenta correspondência exata
+          categoria = game.categorias.find(cat => 
+            normalizar(cat.toLowerCase()) === categoriaInputNorm
           );
+          
+          // Se não encontrou, tenta correspondência parcial (includes)
+          if (!categoria) {
+            const matches = game.categorias.map(cat => {
+              const catNorm = normalizar(cat.toLowerCase());
+              const score = {
+                categoria: cat,
+                exact: catNorm === categoriaInputNorm,
+                startsWith: catNorm.startsWith(categoriaInputNorm),
+                includes: catNorm.includes(categoriaInputNorm) || categoriaInputNorm.includes(catNorm),
+                length: cat.length
+              };
+              return score;
+            }).filter(score => score.exact || score.startsWith || score.includes);
+            
+            if (matches.length > 0) {
+              // Prioriza: exata > começa com > inclui, depois pela maior similaridade
+              matches.sort((a, b) => {
+                if (a.exact && !b.exact) return -1;
+                if (!a.exact && b.exact) return 1;
+                if (a.startsWith && !b.startsWith) return -1;
+                if (!a.startsWith && b.startsWith) return 1;
+                // Se ambas incluem, escolhe a mais longa (mais específica)
+                return b.length - a.length;
+              });
+              
+              categoria = matches[0].categoria;
+            }
+          }
 
           if (!categoria) {
             return reply(`❌ Categoria inválida!\n\n📋 Categorias disponíveis:\n${game.categorias.map((c, i) => `${i + 1}. ${c}`).join('\n')}`);
