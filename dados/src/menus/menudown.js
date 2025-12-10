@@ -37,6 +37,7 @@ ${menuTopBorder}${separatorIcon} *${videoMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}playvid
 ${middleBorder}${menuItemIcon}${prefix}assistir
+${middleBorder}${menuItemIcon}${prefix}iptv
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${downloadMenuTitle}*
