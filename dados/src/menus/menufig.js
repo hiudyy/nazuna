@@ -21,7 +21,6 @@ ${middleBorder}${menuItemIcon}${prefix}attp
 ${middleBorder}${menuItemIcon}${prefix}sticker
 ${middleBorder}${menuItemIcon}${prefix}sticker2
 ${middleBorder}${menuItemIcon}${prefix}qc
-${middleBorder}${menuItemIcon}${prefix}brat
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${managementMenuTitle}*

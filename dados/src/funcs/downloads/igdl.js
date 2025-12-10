@@ -1,6 +1,6 @@
 /**
  * Download Instagram usando API Cognima
- * Updated to use cog2.cognima.com.br API
+ * Updated to use cog.api.br API
  */
 
 import axios from 'axios';
@@ -13,7 +13,7 @@ async function igdl(url, apiKey) {
       throw new Error('API key não fornecida');
     }
 
-    const response = await axios.post('https://cog2.cognima.com.br/api/v1/instagram/download', {
+    const response = await axios.post('https://cog.api.br/api/v1/instagram/download', {
       url: url
     }, {
       headers: {

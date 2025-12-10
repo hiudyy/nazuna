@@ -1,5 +1,5 @@
 /**
- * Pinterest API-only helper for Cognima (cog2.cognima.com.br)
+ * Pinterest API-only helper for Cognima (cog.api.br)
  * Author: Hiudy (adapted)
  * Version: 3.0.0
  *
@@ -11,7 +11,7 @@
 import axios from 'axios';
 import { isApiKeyError } from '../utils/apiKeyNotifier.js';
 
-const API_BASE = 'https://cog2.cognima.com.br/api/v1';
+const API_BASE = 'https://cog.api.br/api/v1';
 
 // Simple LRU-ish cache shared across calls
 class SimpleCache {

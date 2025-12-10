@@ -8,7 +8,7 @@ import axios from 'axios';
 
 // Configuração
 const CONFIG = {
-  API_BASE_URL: 'https://cog2.cognima.com.br',
+  API_BASE_URL: 'https://cog.api.br',
   TIMEOUT: 10000
 };
 

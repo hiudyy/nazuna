@@ -16901,7 +16901,7 @@ case 'ytmp3':
           await reply('⏳ Buscando informações do arquivo...');
           
           // Fazer requisição para a API
-          const gdriveResponse = await axios.get('https://cog2.cognima.com.br/api/v1/gdrive/info', {
+          const gdriveResponse = await axios.get('https://cog.api.br/api/v1/gdrive/info', {
             params: { url: q },
             headers: { 'X-API-Key': KeyCog },
             timeout: 30000
@@ -17006,7 +17006,7 @@ case 'ytmp3':
           await reply('⏳ Buscando informações do arquivo...');
           
           // Fazer requisição para a API
-          const mfResponse = await axios.get('https://cog2.cognima.com.br/api/v1/mediafire/info', {
+          const mfResponse = await axios.get('https://cog.api.br/api/v1/mediafire/info', {
             params: { url: q },
             headers: { 'X-API-Key': KeyCog },
             timeout: 30000
@@ -17126,7 +17126,7 @@ case 'ytmp3':
           await reply('⏳ Buscando informações do tweet...');
           
           // Fazer requisição para a API
-          const twtResponse = await axios.get('https://cog2.cognima.com.br/api/v1/twitter/info', {
+          const twtResponse = await axios.get('https://cog.api.br/api/v1/twitter/info', {
             params: { url: q },
             headers: { 'X-API-Key': KeyCog },
             timeout: 30000
@@ -17211,7 +17211,7 @@ case 'ytmp3':
           
           await reply('🔍 Pesquisando...');
           
-          const searchResponse = await axios.get('https://cog2.cognima.com.br/api/v1/search', {
+          const searchResponse = await axios.get('https://cog.api.br/api/v1/search', {
             params: { q: q, max: 10 },
             headers: { 'X-API-Key': KeyCog },
             timeout: 30000
@@ -17256,7 +17256,7 @@ case 'ytmp3':
           
           await reply('📰 Buscando notícias...');
           
-          const newsResponse = await axios.get('https://cog2.cognima.com.br/api/v1/search/news', {
+          const newsResponse = await axios.get('https://cog.api.br/api/v1/search/news', {
             params: { q: q, max: 10 },
             headers: { 'X-API-Key': KeyCog },
             timeout: 30000
@@ -17303,7 +17303,7 @@ case 'ytmp3':
           
           await reply('📱 Buscando aplicativos...');
           
-          const appResponse = await axios.get('https://cog2.cognima.com.br/api/v1/apps/search', {
+          const appResponse = await axios.get('https://cog.api.br/api/v1/apps/search', {
             params: { q: q, num: 5, country: 'br', lang: 'pt' },
             headers: { 'X-API-Key': KeyCog },
             timeout: 30000
@@ -20518,23 +20518,6 @@ ${prefix}togglecmdvip premium_ia off`);
         } catch (e) {
           console.error(e);
           await reply("❌ Ocorreu um erro ao criar o sticker animado. Tente novamente em alguns minutos.");
-        }
-        break;
-      case 'brat':
-        try {
-          if (!q) return reply('falta o texto');
-          await sendSticker(nazu, from, {
-            sticker: {
-              url: `https://api.cognima.com.br/api/image/brat?key=CognimaTeamFreeKey&texto=${encodeURIComponent(q)}`
-            },
-            author: `『${pushname}』\n『${nomebot}』\n『${nomedono}』\n『cognima.com.br』`,
-            packname: '👤 Usuario(a)ᮀ۟❁’￫\n🤖 Botᮀ۟❁’￫\n👑 Donoᮀ۟❁’￫\n🌐 Siteᮀ۟❁’￫',
-            type: 'image'
-          }, {
-            quoted: info
-          });
-        } catch (e) {
-          console.error(e);
         }
         break;
       case 'st':

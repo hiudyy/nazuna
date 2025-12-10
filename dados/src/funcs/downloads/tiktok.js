@@ -1,6 +1,6 @@
 /**
  * Download e Pesquisa TikTok usando API Cognima
- * Updated to use cog2.cognima.com.br API
+ * Updated to use cog.api.br API
  */
 
 import axios from 'axios';
@@ -13,7 +13,7 @@ async function tiktokSearch(query, apiKey) {
       throw new Error('API key não fornecida');
     }
 
-    const response = await axios.post('https://cog2.cognima.com.br/api/v1/tiktok/search', {
+    const response = await axios.post('https://cog.api.br/api/v1/tiktok/search', {
       query: query
     }, {
       headers: {
@@ -58,7 +58,7 @@ async function tiktokDownload(url, apiKey) {
       throw new Error('API key não fornecida');
     }
 
-    const response = await axios.post('https://cog2.cognima.com.br/api/v1/tiktok/download', {
+    const response = await axios.post('https://cog.api.br/api/v1/tiktok/download', {
       url: url
     }, {
       headers: {

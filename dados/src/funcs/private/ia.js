@@ -668,7 +668,7 @@ async function makeCognimaRequest(modelo, texto, systemPrompt = null, key, histo
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
       const response = await axios.post(
-        `https://cog2.cognima.com.br/api/v1/completion`,
+        `https://cog.api.br/api/v1/completion`,
         {
           messages,
           model: modelo,

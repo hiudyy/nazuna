@@ -1,6 +1,6 @@
 /**
  * Download e Pesquisa YouTube usando API Cognima
- * Updated to use cog2.cognima.com.br API
+ * Updated to use cog.api.br API
  */
 
 import axios from 'axios';
@@ -13,7 +13,7 @@ async function search(query, apiKey) {
   try {
     if (!apiKey) throw new Error('API key não fornecida');
 
-    const response = await axios.post('https://cog2.cognima.com.br/api/v1/youtube/search', {
+    const response = await axios.post('https://cog.api.br/api/v1/youtube/search', {
       query: query
     }, {
       headers: {
@@ -54,7 +54,7 @@ async function mp3(url, quality = 128, apiKey) {
   try {
     if (!apiKey) throw new Error('API key não fornecida');
 
-    const response = await axios.post('https://cog2.cognima.com.br/api/v1/youtube/mp3', {
+    const response = await axios.post('https://cog.api.br/api/v1/youtube/mp3', {
       url: url,
       quality: 'mp3'
     }, {
@@ -93,7 +93,7 @@ async function mp4(url, quality = 360, apiKey) {
   try {
     if (!apiKey) throw new Error('API key não fornecida');
 
-    const response = await axios.post('https://cog2.cognima.com.br/api/v1/youtube/mp4', {
+    const response = await axios.post('https://cog.api.br/api/v1/youtube/mp4', {
       url: url,
       quality: '360p'
     }, {
