@@ -27,6 +27,7 @@ import { fileURLToPath } from 'url';
 import { PerformanceOptimizer, getPerformanceOptimizer } from './utils/performanceOptimizer.js';
 import * as ia from './funcs/private/ia.js';
 import * as vipCommandsManager from './utils/vipCommandsManager.js';
+import { notifyOwnerAboutApiKey, isApiKeyError } from './funcs/utils/apiKeyNotifier.js';
 import {
   formatUptime,
   normalizar,
@@ -675,7 +676,8 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     menuLogos,
     menuTopCmd,
     menuRPG,
-    menuVIP
+    menuVIP,
+    menuBuscas
   } = menus;
   const prefix = prefixo;
   const numerodonoStr = String(numerodono);
@@ -15984,79 +15986,1177 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         }
         break;
       case 'cpf':
+      case 'vizinhos':
+      case 'proprietario':
+      case 'empregos':
+      case 'vacinas':
+      case 'beneficios':
+      case 'internet':
+      case 'parentes':
+      case 'enderecos':
+      case 'obito':
+      case 'score':
+      case 'compras':
+      case 'cnh':
         try {
-          if (!q) return reply(`🔍 *CONSULTA DE CPF*\n\n📝 *Como usar:*\n• Digite o CPF após o comando\n• Exemplo: ${prefix}cpf 12345678900\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços`);
+          // Mapeamento de comandos para tipos de consulta
+          const consultaTypes = {
+            'cpf': { type: 'cpf', name: 'CPF', exemplo: `${prefix}cpf 12345678900` },
+            'vizinhos': { type: 'vizinhos', name: 'Vizinhos', exemplo: `${prefix}vizinhos 12345678900` },
+            'proprietario': { type: 'proprietario', name: 'Proprietário', exemplo: `${prefix}proprietario 12345678900` },
+            'empregos': { type: 'empregos', name: 'Empregos', exemplo: `${prefix}empregos 12345678900` },
+            'vacinas': { type: 'vacinas', name: 'Vacinas', exemplo: `${prefix}vacinas 12345678900` },
+            'beneficios': { type: 'beneficios', name: 'Benefícios', exemplo: `${prefix}beneficios 12345678900` },
+            'internet': { type: 'internet', name: 'Internet', exemplo: `${prefix}internet 12345678900` },
+            'parentes': { type: 'parentes', name: 'Parentes', exemplo: `${prefix}parentes 12345678900` },
+            'enderecos': { type: 'enderecos', name: 'Endereços', exemplo: `${prefix}enderecos 12345678900` },
+            'obito': { type: 'obito', name: 'Óbito', exemplo: `${prefix}obito 12345678900` },
+            'score': { type: 'score', name: 'Score', exemplo: `${prefix}score 12345678900` },
+            'compras': { type: 'compras', name: 'Compras', exemplo: `${prefix}compras 12345678900` },
+            'cnh': { type: 'cnh', name: 'CNH', exemplo: `${prefix}cnh 12345678900` }
+          };
+
+          const consultaInfo = consultaTypes[command.toLowerCase()];
+          
+          if (!consultaInfo) {
+            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
+          }
+          
+          // Verificar API key
+          if (!KeyCog) {
+            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+
+          if (!q) {
+            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o CPF após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços`);
+          }
+
           const cpf = q.replace(/\D/g, '');
-          if (cpf.length !== 11) return reply(`❌ *CPF inválido!*\n\n📝 O CPF deve conter exatamente 11 dígitos.\n💡 Exemplo: ${prefix}cpf 12345678900`);
-          await reply('🔍 *Consultando CPF...*\n⏳ Aguarde um momento...');
-          const response = await axios.get(`http://api.buscas.black.com.cognima.com.br/api/cpf?cpf=${cpf}`, { timeout: 30000 });
-          if (response.data.success && response.data.link) {
-            const shortLink = await axios.post("https://spoo.me/api/v1/shorten", { 
-              long_url: response.data.link, 
-              alias: `nazuna_${Math.floor(10000 + Math.random() * 90000)}` 
+          if (cpf.length !== 11) {
+            return reply(`❌ *CPF inválido!*\n\n📝 O CPF deve conter exatamente 11 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
+          }
+
+          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+          try {
+            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
+              params: {
+                type: consultaInfo.type,
+                dados: cpf
+              },
+              headers: {
+                'Authorization': `Bearer ${KeyCog}`
+              },
+              timeout: 30000
             });
-            await reply(`✅ *Consulta realizada com sucesso!*\n\n🔗 *Link do resultado:*\n${shortLink.data.short_url}\n\n📋 *Acesse o link acima para visualizar os dados completos.*`);
+
+            // Verificar se a resposta indica erro de limite
+            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+              const errorData = response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                // Notificar dono sobre necessidade de plano ilimitado
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados (CPF, Vizinhos, Proprietário, Empregos, Vacinas, Benefícios, Internet, Parentes, Endereços, Óbito, Score, Compras, CNH) estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade
+
+⚙️ *Como atualizar API key:*
+• Use o comando: !apikey suachave
+• Reinicie o bot após configurar`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+              await reply(`✅ *Consulta realizada com sucesso!*\n\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
           } else {
             await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CPF consultado.\n\n💡 *Possíveis motivos:*\n• CPF não cadastrado na base de dados\n• Dados não disponíveis no momento\n\n🔄 Tente novamente mais tarde.`);
+          }
+          } catch (apiError) {
+            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+            // Verificar se é erro de API key
+            if (isApiKeyError(apiError)) {
+              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
+            }
+
+            // Verificar se é erro de limite
+            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+              const errorData = apiError.response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            // Erro genérico
+            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CPF consultado.\n\n💡 *Possíveis motivos:*\n• CPF não cadastrado na base de dados\n• Dados não disponíveis no momento\n\n🔄 Tente novamente mais tarde.`);
+          } else {
+              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+          }
           }
         } catch (e) {
-          console.error('Erro no comando cpf:', e);
-          if (e.response?.status === 404 || (e.response?.data && !e.response.data.success)) {
-            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CPF consultado.\n\n💡 *Possíveis motivos:*\n• CPF não cadastrado na base de dados\n• Dados não disponíveis no momento\n\n🔄 Tente novamente mais tarde.`);
-          } else {
-            await reply(`❌ *Erro ao consultar CPF*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
-          }
+          console.error(`Erro geral no comando ${command}:`, e);
+          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
         }
         break;
       case 'nome':
+      case 'pai':
+      case 'mae':
         try {
-          if (!q) return reply(`🔍 *CONSULTA DE NOME*\n\n📝 *Como usar:*\n• Digite o nome completo após o comando\n• Exemplo: ${prefix}nome João Silva Santos\n\n⚠️ *Dica:* Use o nome completo para melhores resultados`);
+          // Mapeamento de comandos para tipos de consulta
+          const consultaTypes = {
+            'nome': { type: 'nome', name: 'Nome', exemplo: `${prefix}nome João Silva Santos` },
+            'pai': { type: 'pai', name: 'Pai', exemplo: `${prefix}pai João Silva Santos` },
+            'mae': { type: 'mae', name: 'Mãe', exemplo: `${prefix}mae Maria Silva Santos` }
+          };
+
+          const consultaInfo = consultaTypes[command.toLowerCase()];
+          
+          if (!consultaInfo) {
+            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
+          }
+          
+          // Verificar API key
+          if (!KeyCog) {
+            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+
+          if (!q) {
+            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o nome completo após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Dica:* Use o nome completo para melhores resultados`);
+          }
+
           const nome = q.trim();
-          if (nome.length < 3) return reply(`❌ *Nome muito curto!*\n\n📝 O nome deve conter pelo menos 3 caracteres.\n💡 Exemplo: ${prefix}nome João Silva`);
-          await reply('🔍 *Consultando nome...*\n⏳ Aguarde um momento...');
-          const response = await axios.get(`http://api.buscas.black.com.cognima.com.br/api/nome?nome=${encodeURIComponent(nome)}`, { timeout: 30000 });
-          if (response.data.success && response.data.link) {
-            const shortLink = await axios.post("https://spoo.me/api/v1/shorten", { 
-              long_url: response.data.link, 
-              alias: `nazuna_${Math.floor(10000 + Math.random() * 90000)}` 
+          if (nome.length < 3) {
+            return reply(`❌ *Nome muito curto!*\n\n📝 O nome deve conter pelo menos 3 caracteres.\n💡 Exemplo: ${consultaInfo.exemplo}`);
+          }
+
+          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+          try {
+            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
+              params: {
+                type: consultaInfo.type,
+                dados: nome
+              },
+              headers: {
+                'Authorization': `Bearer ${KeyCog}`
+              },
+              timeout: 30000
             });
-            await reply(`✅ *Consulta realizada com sucesso!*\n\n👤 *Nome consultado:* ${nome}\n🔗 *Link do resultado:*\n${shortLink.data.short_url}\n\n📋 *Acesse o link acima para visualizar os dados completos.*`);
+
+            // Verificar se a resposta indica erro de limite
+            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+              const errorData = response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                // Notificar dono sobre necessidade de plano ilimitado
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados (Nome, Pai, Mãe) estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade
+
+⚙️ *Como atualizar API key:*
+• Use o comando: !apikey suachave
+• Reinicie o bot após configurar`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+              await reply(`✅ *Consulta realizada com sucesso!*\n\n👤 *${consultaInfo.name} consultado(a):* ${nome}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
           } else {
-            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o nome consultado.\n\n💡 *Possíveis motivos:*\n• Nome não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Nome digitado incorretamente\n\n🔄 Tente verificar a grafia e tentar novamente.`);
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o ${consultaInfo.name.toLowerCase()} consultado.\n\n💡 *Possíveis motivos:*\n• ${consultaInfo.name} não cadastrado na base de dados\n• Dados não disponíveis no momento\n• ${consultaInfo.name} digitado incorretamente\n\n🔄 Tente verificar a grafia e tentar novamente.`);
+            }
+          } catch (apiError) {
+            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+            // Verificar se é erro de API key
+            if (isApiKeyError(apiError)) {
+              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
+            }
+
+            // Verificar se é erro de limite
+            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+              const errorData = apiError.response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            // Erro genérico
+            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o ${consultaInfo.name.toLowerCase()} consultado.\n\n💡 *Possíveis motivos:*\n• ${consultaInfo.name} não cadastrado na base de dados\n• Dados não disponíveis no momento\n• ${consultaInfo.name} digitado incorretamente\n\n🔄 Tente verificar a grafia e tentar novamente.`);
+          } else {
+              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+          }
           }
         } catch (e) {
-          console.error('Erro no comando nome:', e);
-          if (e.response?.status === 404 || (e.response?.data && !e.response.data.success)) {
-            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o nome consultado.\n\n💡 *Possíveis motivos:*\n• Nome não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Nome digitado incorretamente\n\n🔄 Tente verificar a grafia e tentar novamente.`);
-          } else {
-            await reply(`❌ *Erro ao consultar nome*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
-          }
+          console.error(`Erro geral no comando ${command}:`, e);
+          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
         }
         break;
       case 'telefone':
       case 'tel':
         try {
-          if (!q) return reply(`🔍 *CONSULTA DE TELEFONE*\n\n📝 *Como usar:*\n• Digite o telefone após o comando\n• Exemplo: ${prefix}telefone 11987654321\n\n⚠️ *Formato:* DDD + número com o 9 da operadora\n💡 Exemplo: 11987654321 (11 = DDD, 9 = operadora, 87654321 = número)`);
+          // Mapeamento de comandos para tipos de consulta
+          const consultaTypes = {
+            'telefone': { type: 'telefone', name: 'Telefone', exemplo: `${prefix}telefone 11987654321` },
+            'tel': { type: 'telefone', name: 'Telefone', exemplo: `${prefix}tel 11987654321` }
+          };
+
+          const consultaInfo = consultaTypes[command.toLowerCase()];
+          
+          if (!consultaInfo) {
+            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
+          }
+          
+          // Verificar API key
+          if (!KeyCog) {
+            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+
+          if (!q) {
+            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o telefone após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* DDD + número com o 9 da operadora\n💡 Exemplo: 11987654321 (11 = DDD, 9 = operadora, 87654321 = número)`);
+          }
+
           const telefone = q.replace(/\D/g, '');
-          if (telefone.length < 10 || telefone.length > 11) return reply(`❌ *Telefone inválido!*\n\n📝 O telefone deve conter 10 ou 11 dígitos (com DDD e o 9 da operadora).\n💡 Exemplo: ${prefix}telefone 11987654321\n\n📋 *Formato esperado:*\n• DDD (2 dígitos)\n• 9 (operadora)\n• Número (8 dígitos)`);
-          await reply('🔍 *Consultando telefone...*\n⏳ Aguarde um momento...');
-          const response = await axios.get(`http://api.buscas.black.com.cognima.com.br/api/telefone?telefone=${telefone}`, { timeout: 30000 });
-          if (response.data.success && response.data.link) {
-            const shortLink = await axios.post("https://spoo.me/api/v1/shorten", { 
-              long_url: response.data.link, 
-              alias: `nazuna_${Math.floor(10000 + Math.random() * 90000)}` 
+          if (telefone.length < 10 || telefone.length > 11) {
+            return reply(`❌ *Telefone inválido!*\n\n📝 O telefone deve conter 10 ou 11 dígitos (com DDD e o 9 da operadora).\n💡 Exemplo: ${consultaInfo.exemplo}\n\n📋 *Formato esperado:*\n• DDD (2 dígitos)\n• 9 (operadora)\n• Número (8 dígitos)`);
+          }
+
+          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+          try {
+            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
+              params: {
+                type: consultaInfo.type,
+                dados: telefone
+              },
+              headers: {
+                'Authorization': `Bearer ${KeyCog}`
+              },
+              timeout: 30000
             });
-            await reply(`✅ *Consulta realizada com sucesso!*\n\n📱 *Telefone consultado:* ${telefone}\n🔗 *Link do resultado:*\n${shortLink.data.short_url}\n\n📋 *Acesse o link acima para visualizar os dados completos.*`);
+
+            // Verificar se a resposta indica erro de limite
+            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+              const errorData = response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                // Notificar dono sobre necessidade de plano ilimitado
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados (Telefone) estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade
+
+⚙️ *Como atualizar API key:*
+• Use o comando: !apikey suachave
+• Reinicie o bot após configurar`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+              await reply(`✅ *Consulta realizada com sucesso!*\n\n📱 *Telefone consultado:* ${telefone}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
           } else {
             await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o telefone consultado.\n\n💡 *Possíveis motivos:*\n• Telefone não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Número digitado incorretamente\n\n🔄 Verifique o número e tente novamente.`);
+          }
+          } catch (apiError) {
+            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+            // Verificar se é erro de API key
+            if (isApiKeyError(apiError)) {
+              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
+            }
+
+            // Verificar se é erro de limite
+            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+              const errorData = apiError.response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            // Erro genérico
+            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o telefone consultado.\n\n💡 *Possíveis motivos:*\n• Telefone não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Número digitado incorretamente\n\n🔄 Verifique o número e tente novamente.`);
+          } else {
+              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+            }
           }
         } catch (e) {
-          console.error('Erro no comando telefone:', e);
-          if (e.response?.status === 404 || (e.response?.data && !e.response.data.success)) {
-            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o telefone consultado.\n\n💡 *Possíveis motivos:*\n• Telefone não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Número digitado incorretamente\n\n🔄 Verifique o número e tente novamente.`);
-          } else {
-            await reply(`❌ *Erro ao consultar telefone*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+          console.error(`Erro geral no comando ${command}:`, e);
+          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+        }
+        break;
+      case 'placa':
+        try {
+          // Mapeamento de comandos para tipos de consulta
+          const consultaTypes = {
+            'placa': { type: 'placa', name: 'Placa', exemplo: `${prefix}placa ABC1234` }
+          };
+
+          const consultaInfo = consultaTypes[command.toLowerCase()];
+          
+          if (!consultaInfo) {
+            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
           }
+          
+          // Verificar API key
+          if (!KeyCog) {
+            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+
+          if (!q) {
+            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite a placa após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* 3 letras e 4 números (ex: ABC1234)`);
+          }
+
+          const placa = q.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+          // Aceita formato antigo (ABC1234) ou Mercosul (ABC1D23)
+          if (placa.length !== 7 || (!/^[A-Z]{3}[0-9]{4}$/.test(placa) && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(placa))) {
+            return reply(`❌ *Placa inválida!*\n\n📝 A placa deve ter 7 caracteres.\n💡 Formato antigo: ABC1234\n💡 Formato Mercosul: ABC1D23\n💡 Exemplo: ${consultaInfo.exemplo}`);
+          }
+
+          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+          try {
+            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
+              params: {
+                type: consultaInfo.type,
+                dados: placa
+              },
+              headers: {
+                'Authorization': `Bearer ${KeyCog}`
+              },
+              timeout: 30000
+            });
+
+            // Verificar se a resposta indica erro de limite
+            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+              const errorData = response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados (Placa) estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade
+
+⚙️ *Como atualizar API key:*
+• Use o comando: !apikey suachave
+• Reinicie o bot após configurar`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+              await reply(`✅ *Consulta realizada com sucesso!*\n\n🚗 *Placa consultada:* ${placa}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+            } else {
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para a placa consultada.\n\n💡 *Possíveis motivos:*\n• Placa não cadastrada na base de dados\n• Dados não disponíveis no momento\n• Placa digitada incorretamente\n\n🔄 Verifique a placa e tente novamente.`);
+            }
+          } catch (apiError) {
+            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+            if (isApiKeyError(apiError)) {
+              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
+            }
+
+            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+              const errorData = apiError.response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para a placa consultada.\n\n💡 *Possíveis motivos:*\n• Placa não cadastrada na base de dados\n• Dados não disponíveis no momento\n• Placa digitada incorretamente\n\n🔄 Verifique a placa e tente novamente.`);
+            } else {
+              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+            }
+          }
+        } catch (e) {
+          console.error(`Erro geral no comando ${command}:`, e);
+          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+        }
+        break;
+      case 'chassi':
+        try {
+          const consultaTypes = {
+            'chassi': { type: 'chassi', name: 'Chassi', exemplo: `${prefix}chassi 9BW11111111111111` }
+          };
+
+          const consultaInfo = consultaTypes[command.toLowerCase()];
+          
+          if (!consultaInfo) {
+            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
+          }
+          
+          if (!KeyCog) {
+            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+
+          if (!q) {
+            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o chassi após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* 17 caracteres alfanuméricos`);
+          }
+
+          const chassi = q.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+          if (chassi.length !== 17) {
+            return reply(`❌ *Chassi inválido!*\n\n📝 O chassi deve conter exatamente 17 caracteres alfanuméricos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
+          }
+
+          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+          try {
+            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
+              params: {
+                type: consultaInfo.type,
+                dados: chassi
+              },
+              headers: {
+                'Authorization': `Bearer ${KeyCog}`
+              },
+              timeout: 30000
+            });
+
+            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+              const errorData = response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados (Chassi) estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade
+
+⚙️ *Como atualizar API key:*
+• Use o comando: !apikey suachave
+• Reinicie o bot após configurar`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+              await reply(`✅ *Consulta realizada com sucesso!*\n\n🔧 *Chassi consultado:* ${chassi}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+            } else {
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o chassi consultado.\n\n💡 *Possíveis motivos:*\n• Chassi não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Chassi digitado incorretamente\n\n🔄 Verifique o chassi e tente novamente.`);
+            }
+          } catch (apiError) {
+            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+            if (isApiKeyError(apiError)) {
+              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
+            }
+
+            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+              const errorData = apiError.response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o chassi consultado.\n\n💡 *Possíveis motivos:*\n• Chassi não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Chassi digitado incorretamente\n\n🔄 Verifique o chassi e tente novamente.`);
+            } else {
+              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+            }
+          }
+        } catch (e) {
+          console.error(`Erro geral no comando ${command}:`, e);
+          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+        }
+        break;
+      case 'cnpj':
+      case 'funcionarios':
+        try {
+          const consultaTypes = {
+            'cnpj': { type: 'cnpj', name: 'CNPJ', exemplo: `${prefix}cnpj 12345678000190` },
+            'funcionarios': { type: 'funcionarios', name: 'Funcionários', exemplo: `${prefix}funcionarios 12345678000190` }
+          };
+
+          const consultaInfo = consultaTypes[command.toLowerCase()];
+          
+          if (!consultaInfo) {
+            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
+          }
+          
+          if (!KeyCog) {
+            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+
+          if (!q) {
+            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o CNPJ após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços (14 dígitos)`);
+          }
+
+          const cnpj = q.replace(/\D/g, '');
+          if (cnpj.length !== 14) {
+            return reply(`❌ *CNPJ inválido!*\n\n📝 O CNPJ deve conter exatamente 14 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
+          }
+
+          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+          try {
+            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
+              params: {
+                type: consultaInfo.type,
+                dados: cnpj
+              },
+              headers: {
+                'Authorization': `Bearer ${KeyCog}`
+              },
+              timeout: 30000
+            });
+
+            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+              const errorData = response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados (CNPJ, Funcionários) estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade
+
+⚙️ *Como atualizar API key:*
+• Use o comando: !apikey suachave
+• Reinicie o bot após configurar`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+              await reply(`✅ *Consulta realizada com sucesso!*\n\n🏢 *CNPJ consultado:* ${cnpj}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+            } else {
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CNPJ consultado.\n\n💡 *Possíveis motivos:*\n• CNPJ não cadastrado na base de dados\n• Dados não disponíveis no momento\n• CNPJ digitado incorretamente\n\n🔄 Verifique o CNPJ e tente novamente.`);
+            }
+          } catch (apiError) {
+            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+            if (isApiKeyError(apiError)) {
+              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
+            }
+
+            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+              const errorData = apiError.response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CNPJ consultado.\n\n💡 *Possíveis motivos:*\n• CNPJ não cadastrado na base de dados\n• Dados não disponíveis no momento\n• CNPJ digitado incorretamente\n\n🔄 Verifique o CNPJ e tente novamente.`);
+            } else {
+              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+            }
+          }
+        } catch (e) {
+          console.error(`Erro geral no comando ${command}:`, e);
+          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+        }
+        break;
+      case 'cep':
+        try {
+          const consultaTypes = {
+            'cep': { type: 'cep', name: 'CEP', exemplo: `${prefix}cep 12345678` }
+          };
+
+          const consultaInfo = consultaTypes[command.toLowerCase()];
+          
+          if (!consultaInfo) {
+            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
+          }
+          
+          if (!KeyCog) {
+            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+
+          if (!q) {
+            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o CEP após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços (8 dígitos)`);
+          }
+
+          const cep = q.replace(/\D/g, '');
+          if (cep.length !== 8) {
+            return reply(`❌ *CEP inválido!*\n\n📝 O CEP deve conter exatamente 8 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
+          }
+
+          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+          try {
+            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
+              params: {
+                type: consultaInfo.type,
+                dados: cep
+              },
+              headers: {
+                'Authorization': `Bearer ${KeyCog}`
+              },
+              timeout: 30000
+            });
+
+            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+              const errorData = response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados (CEP) estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade
+
+⚙️ *Como atualizar API key:*
+• Use o comando: !apikey suachave
+• Reinicie o bot após configurar`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+              await reply(`✅ *Consulta realizada com sucesso!*\n\n📍 *CEP consultado:* ${cep}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+            } else {
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CEP consultado.\n\n💡 *Possíveis motivos:*\n• CEP não cadastrado na base de dados\n• Dados não disponíveis no momento\n• CEP digitado incorretamente\n\n🔄 Verifique o CEP e tente novamente.`);
+            }
+          } catch (apiError) {
+            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+            if (isApiKeyError(apiError)) {
+              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
+            }
+
+            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+              const errorData = apiError.response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CEP consultado.\n\n💡 *Possíveis motivos:*\n• CEP não cadastrado na base de dados\n• Dados não disponíveis no momento\n• CEP digitado incorretamente\n\n🔄 Verifique o CEP e tente novamente.`);
+            } else {
+              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+            }
+          }
+        } catch (e) {
+          console.error(`Erro geral no comando ${command}:`, e);
+          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+        }
+        break;
+      case 'email':
+        try {
+          const consultaTypes = {
+            'email': { type: 'email', name: 'Email', exemplo: `${prefix}email exemplo@email.com` }
+          };
+
+          const consultaInfo = consultaTypes[command.toLowerCase()];
+          
+          if (!consultaInfo) {
+            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
+          }
+          
+          if (!KeyCog) {
+            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+
+          if (!q) {
+            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o email após o comando\n• Exemplo: ${consultaInfo.exemplo}`);
+          }
+
+          const email = q.trim().toLowerCase();
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(email)) {
+            return reply(`❌ *Email inválido!*\n\n📝 O email deve ter um formato válido.\n💡 Exemplo: ${consultaInfo.exemplo}`);
+          }
+
+          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+          try {
+            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
+              params: {
+                type: consultaInfo.type,
+                dados: email
+              },
+              headers: {
+                'Authorization': `Bearer ${KeyCog}`
+              },
+              timeout: 30000
+            });
+
+            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+              const errorData = response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados (Email) estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade
+
+⚙️ *Como atualizar API key:*
+• Use o comando: !apikey suachave
+• Reinicie o bot após configurar`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+              await reply(`✅ *Consulta realizada com sucesso!*\n\n📧 *Email consultado:* ${email}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+            } else {
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o email consultado.\n\n💡 *Possíveis motivos:*\n• Email não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Email digitado incorretamente\n\n🔄 Verifique o email e tente novamente.`);
+            }
+          } catch (apiError) {
+            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+            if (isApiKeyError(apiError)) {
+              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
+            }
+
+            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+              const errorData = apiError.response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o email consultado.\n\n💡 *Possíveis motivos:*\n• Email não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Email digitado incorretamente\n\n🔄 Verifique o email e tente novamente.`);
+            } else {
+              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+            }
+          }
+        } catch (e) {
+          console.error(`Erro geral no comando ${command}:`, e);
+          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+        }
+        break;
+      case 'titulo':
+        try {
+          const consultaTypes = {
+            'titulo': { type: 'titulo', name: 'Título de Eleitor', exemplo: `${prefix}titulo 123456789012` }
+          };
+
+          const consultaInfo = consultaTypes[command.toLowerCase()];
+          
+          if (!consultaInfo) {
+            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
+          }
+          
+          if (!KeyCog) {
+            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+
+          if (!q) {
+            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o título de eleitor após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços (12 dígitos)`);
+          }
+
+          const titulo = q.replace(/\D/g, '');
+          if (titulo.length !== 12) {
+            return reply(`❌ *Título de eleitor inválido!*\n\n📝 O título de eleitor deve conter exatamente 12 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
+          }
+
+          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+          try {
+            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
+              params: {
+                type: consultaInfo.type,
+                dados: titulo
+              },
+              headers: {
+                'Authorization': `Bearer ${KeyCog}`
+              },
+              timeout: 30000
+            });
+
+            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+              const errorData = response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados (Título de Eleitor) estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade
+
+⚙️ *Como atualizar API key:*
+• Use o comando: !apikey suachave
+• Reinicie o bot após configurar`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+              await reply(`✅ *Consulta realizada com sucesso!*\n\n🗳️ *Título de eleitor consultado:* ${titulo}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+            } else {
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o título de eleitor consultado.\n\n💡 *Possíveis motivos:*\n• Título de eleitor não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Título digitado incorretamente\n\n🔄 Verifique o título e tente novamente.`);
+            }
+          } catch (apiError) {
+            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+            if (isApiKeyError(apiError)) {
+              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
+            }
+
+            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+              const errorData = apiError.response.data;
+              if (errorData.required_limit && errorData.required_limit > 500) {
+                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de consulta:* ${consultaInfo.name}
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+As consultas de dados estão disponíveis apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade`;
+
+                try {
+                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
+                } catch (notifyErr) {
+                  console.error('Erro ao notificar dono:', notifyErr.message);
+                }
+
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+              }
+            }
+
+            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o título de eleitor consultado.\n\n💡 *Possíveis motivos:*\n• Título de eleitor não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Título digitado incorretamente\n\n🔄 Verifique o título e tente novamente.`);
+            } else {
+              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+            }
+          }
+        } catch (e) {
+          console.error(`Erro geral no comando ${command}:`, e);
+          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
         }
         break;
       case 'nick':
@@ -17622,6 +18722,19 @@ case 'ytmp3':
         } catch (error) {
           console.error('Erro ao enviar menu de ferramentas:', error);
           await reply("❌ Ocorreu um erro ao carregar o menu de ferramentas");
+        }
+        break;
+      case 'buscas':
+      case 'menubuscas':
+      case 'menubusca':
+      case 'searchmenu':
+      case 'consultas':
+      case 'menuconsultas':
+        try {
+          await sendMenuWithMedia('buscas', menuBuscas);
+        } catch (error) {
+          console.error('Erro ao enviar menu de buscas:', error);
+          await reply("❌ Ocorreu um erro ao carregar o menu de buscas");
         }
         break;
       case 'menuadm':

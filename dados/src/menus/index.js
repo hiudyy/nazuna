@@ -22,7 +22,8 @@ const menuModules = {
     menuIa: './menuia.js',
     menuTopCmd: './topcmd.js',
     menuRPG: './menurpg.js',
-    menuVIP: './menuvip.js'
+    menuVIP: './menuvip.js',
+    menuBuscas: './menubuscas.js'
 };
 
 let menusPromise;
