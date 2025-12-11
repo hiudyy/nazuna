@@ -24,6 +24,7 @@ ${middleBorder}${menuItemIcon}${prefix}menufig
 ${middleBorder}${menuItemIcon}${prefix}alteradores
 ${middleBorder}${menuItemIcon}${prefix}menurpg
 ${middleBorder}${menuItemIcon}${prefix}menuvip
+${middleBorder}${menuItemIcon}${prefix}menubuscas
 ${bottomBorder}
 `;
 }

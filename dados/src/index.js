@@ -1090,6 +1090,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       groupData.moderators = groupData.moderators || [];
       groupData.allowedModCommands = groupData.allowedModCommands || [];
       groupData.mutedUsers = groupData.mutedUsers || {};
+      groupData.mutedUsers2 = groupData.mutedUsers2 || {};
       groupData.levelingEnabled = groupData.levelingEnabled || false;
       groupData.adminWhitelist = groupData.adminWhitelist || {};
       if (!groupData.roles || typeof groupData.roles !== 'object') {
@@ -1306,7 +1307,9 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     
     const isAntiPorn = groupData.antiporn;
     const isMuted = groupData.mutedUsers?.[sender];
+    const isMuted2 = groupData.mutedUsers2?.[sender];
     const isAntiLinkGp = groupData.antilinkgp;
+    const isAntiLinkSoft = groupData.antilinksoft;
     const isAntiDel = groupData.antidel;
     const isAntiBtn = groupData.antibtn;
     const isAntiStatus = groupData.antistatus;
@@ -1485,15 +1488,30 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
           await reply("⚠️ Não posso remover o usuário porque não sou administrador.");
         }
         delete groupData.mutedUsers[sender];
-    writeJsonFile(groupFile, groupData);
-  // Otimização: Invalida cache quando groupData é salvo
-  if (isGroup) {
-    optimizer.invalidateGroup(from);
-  }
+        writeJsonFile(groupFile, groupData);
+        // Otimização: Invalida cache quando groupData é salvo
+        if (isGroup) {
+          optimizer.invalidateGroup(from);
+        }
         return;
       } catch (error) {
         console.error("Erro ao processar usuário mutado:", error);
       }
+    }
+    if (isGroup && isMuted2) {
+      try {
+        await nazu.sendMessage(from, {
+          delete: {
+            remoteJid: from,
+            fromMe: false,
+            id: info.key.id,
+            participant: sender
+          }
+        });
+      } catch (error) {
+        console.error("Erro ao deletar mensagem de usuário mutado2:", error);
+      }
+      return;
     }
     const rentalModeOn = isRentalModeActive();
     let groupHasActiveRental = false;
@@ -2691,20 +2709,28 @@ Código: *${roleCode}*`,
     if (isGroup && groupData.antilinkhard && !isGroupAdmin && budy2.includes('http') && !isOwner) {
       if (!isUserWhitelisted(sender, 'antilinkhard')) {
         try {
-          await nazu.sendMessage(from, {
-            delete: {
-              remoteJid: from,
-              fromMe: false,
-              id: info.key.id,
-              participant: sender
-            }
-          });
           if (isBotAdmin) {
             await nazu.groupParticipantsUpdate(from, [sender], 'remove');
+            await nazu.sendMessage(from, {
+              delete: {
+                remoteJid: from,
+                fromMe: false,
+                id: info.key.id,
+                participant: sender
+              }
+            });
             await reply(`🔗 @${getUserName(sender)}, links não são permitidos. Você foi removido do grupo.`, {
               mentions: [sender]
             });
           } else {
+            await nazu.sendMessage(from, {
+              delete: {
+                remoteJid: from,
+                fromMe: false,
+                id: info.key.id,
+                participant: sender
+              }
+            });
             await reply(`🔗 Atenção, @${getUserName(sender)}! Links não são permitidos. Não consigo remover você, mas evite enviar links.`, {
               mentions: [sender]
             });
@@ -2806,21 +2832,29 @@ Código: *${roleCode}*`,
           }
           if (foundGroupLink) {
             if (isOwner) return;
-            await nazu.sendMessage(from, {
-              delete: {
-                remoteJid: from,
-                fromMe: false,
-                id: info.key.id,
-                participant: sender
-              }
-            });
             if (!AllgroupMembers.includes(sender)) return;
             if (isBotAdmin) {
               await nazu.groupParticipantsUpdate(from, [sender], 'remove');
+              await nazu.sendMessage(from, {
+                delete: {
+                  remoteJid: from,
+                  fromMe: false,
+                  id: info.key.id,
+                  participant: sender
+                }
+              });
               await reply(`🔗 @${getUserName(sender)}, links de outros grupos não são permitidos. Você foi removido do grupo.`, {
                 mentions: [sender]
               });
             } else {
+              await nazu.sendMessage(from, {
+                delete: {
+                  remoteJid: from,
+                  fromMe: false,
+                  id: info.key.id,
+                  participant: sender
+                }
+              });
               await reply(`🔗 Atenção, @${getUserName(sender)}! Links de outros grupos não são permitidos. Não consigo remover você, mas evite compartilhar esses links.`, {
                 mentions: [sender]
               });
@@ -2829,6 +2863,23 @@ Código: *${roleCode}*`,
           }
         } catch (error) {
           console.error("Erro no sistema antilink de grupos:", error);
+        }
+      }
+    }
+    if (isGroup && isAntiLinkSoft && !isGroupAdmin && budy2.includes('http') && !isOwner) {
+      if (!isUserWhitelisted(sender, 'antilinksoft')) {
+        try {
+          await nazu.sendMessage(from, {
+            delete: {
+              remoteJid: from,
+              fromMe: false,
+              id: info.key.id,
+              participant: sender
+            }
+          });
+          return;
+        } catch (error) {
+          console.error("Erro no sistema antilinksoft:", error);
         }
       }
     }
@@ -13390,6 +13441,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           if (groupData.welcome) recursos.push('👋 Boas-vindas');
           if (groupData.antifake) recursos.push('🛡️ Anti-fake');
           if (groupData.antilink) recursos.push('🔗 Anti-link');
+          if (groupData.antilinksoft) recursos.push('🔗 Anti-link Soft');
           if (groupData.antiflood) recursos.push('🌊 Anti-flood');
           
           const recursosStr = recursos.length > 0 ? `\n\n✨ *Recursos ativos:*\n${recursos.join('\n')}` : '';
@@ -20004,7 +20056,115 @@ ${prefix}addcmdvip <comando> | <descrição> | <categoria>
 
 *Exemplo:*
 ${prefix}addcmdvip premium_ia | IA avançada exclusiva | ia
-${prefix}addcmdvip premium_ia | IA avançada exclusiva | ia | premium_ia <pergunta>`);
+${prefix}addcmdvip premium_ia | IA avançada exclusiva | ia | premium_ia <pergunta>
+
+*Adicionar todos de um menu:*
+${prefix}addcmdvip <nomeMenu> all
+
+*Exemplos:*
+${prefix}addcmdvip menubuscas all
+${prefix}addcmdvip menuadm all
+${prefix}addcmdvip menudown all`);
+          }
+          
+          // Verifica se é para adicionar todos os comandos de um menu
+          const menuAllMatch = q.toLowerCase().trim().match(/^(\w+)\s+all$/);
+          if (menuAllMatch) {
+            const menuName = menuAllMatch[1];
+            
+            // Mapeia nomes de menus para suas funções
+            const menuMap = {
+              'menubuscas': menuBuscas,
+              'menuadm': menuadm,
+              'menudono': menuDono,
+              'menu': menu,
+              'menudown': menudown,
+              'menubn': menubn,
+              'menufig': menuSticker,
+              'menuia': menuIa,
+              'menurpg': menuRPG,
+              'menuvip': menuVIP,
+              'ferramentas': menuFerramentas,
+              'alteradores': menuAlterador,
+              'menumemb': menuMembros
+            };
+            
+            const menuFunction = menuMap[menuName];
+            
+            if (!menuFunction) {
+              return reply(`❌ Menu "${menuName}" não encontrado!\n\n*Menus disponíveis:*\n${Object.keys(menuMap).map(m => `• ${m}`).join('\n')}`);
+            }
+            
+            try {
+              // Gera o menu para extrair os comandos
+              const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
+              const menuText = await menuFunction(prefix, nomebot, pushname, customDesign);
+              
+              // Extrai comandos do menu usando regex
+              // Procura por padrões como ${prefix}comando ou ${prefix}comando <param>
+              const commands = new Set();
+              
+              // Padrão principal: ${prefix}comando ou ${prefix}comando <param>
+              const commandPattern = new RegExp(`\\$\\{prefix\\}([a-zA-Z0-9_]+)(?:\\s*<[^>]*>)?`, 'g');
+              let match;
+              while ((match = commandPattern.exec(menuText)) !== null) {
+                const cmd = match[1];
+                if (cmd && cmd.length > 0) {
+                  commands.add(cmd);
+                }
+              }
+              
+              // Padrão alternativo para comandos com pontos: ${prefix}comando.sub
+              const dotPattern = new RegExp(`\\$\\{prefix\\}([a-zA-Z0-9_]+(?:\\.[a-zA-Z0-9_]+)+)`, 'g');
+              while ((match = dotPattern.exec(menuText)) !== null) {
+                const cmd = match[1];
+                if (cmd && cmd.length > 0) {
+                  commands.add(cmd);
+                }
+              }
+              
+              if (commands.size === 0) {
+                return reply(`❌ Nenhum comando encontrado no menu "${menuName}"!`);
+              }
+              
+              const commandsArray = Array.from(commands).sort();
+              let added = 0;
+              let skipped = 0;
+              
+              for (const cmdName of commandsArray) {
+                // Pula comandos que são outros menus
+                if (cmdName.startsWith('menu') || cmdName === 'ferramentas' || cmdName === 'alteradores') {
+                  continue;
+                }
+                
+                const result = vipCommandsManager.addVipCommand(
+                  cmdName,
+                  `Comando do menu ${menuName}`,
+                  'outros',
+                  `${cmdName}`
+                );
+                
+                if (result.success) {
+                  added++;
+                  console.log(`[VIP CMD] Comando "${cmdName}" adicionado por ${pushname} (${sender})`);
+                } else {
+                  skipped++;
+                }
+              }
+              
+              await reply(`✅ *Comandos do menu "${menuName}" adicionados!*
+
+📊 *Resultado:*
+• ✅ Adicionados: ${added}
+• ⏭️ Já existiam: ${skipped}
+• 📦 Total encontrados: ${commandsArray.length}
+
+💡 Use ${prefix}listcmdvip para ver todos os comandos VIP.`);
+            } catch (error) {
+              console.error(`Erro ao processar menu ${menuName}:`, error);
+              return reply(`❌ Erro ao processar o menu "${menuName}": ${error.message}`);
+            }
+            break;
           }
           
           const parts = q.split('|').map(p => p.trim());
@@ -21327,6 +21487,7 @@ ${prefix}togglecmdvip premium_ia off`);
             ["Antiporn", !!isAntiPorn],
             ["AntiLink", !!isAntiLinkGp],
             ["AntiLinkHard", !!groupData.antilinkhard],
+            ["AntiLinkSoft", !!groupData.antilinksoft],
             ["AntiDoc", !!groupData.antidoc],
             ["AntiLoc", !!groupData.antiloc],
             ["AntiBtn", !!groupData.antibtn],
@@ -23930,6 +24091,24 @@ Exemplos:
           reply("ocorreu um erro 💔");
         }
         break;
+      case 'antilinksoft':
+        try {
+          if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
+          if (!isGroupAdmin) return reply("você precisa ser adm 💔");
+          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
+            antilinksoft: false
+          };
+          
+          groupData.antilinksoft = !groupData.antilinksoft;
+          fs.writeFileSync(groupFilePath, JSON.stringify(groupData));
+          const message = groupData.antilinksoft ? `✅ *Antilinksoft foi ativado com sucesso!*\n\nAgora, se alguém enviar links, a mensagem será apagada automaticamente (sem banir o usuário).` : `✅ *Antilinksoft foi desativado.*\n\nLinks não serão mais bloqueados.`;
+          reply(`${message}`);
+        } catch (e) {
+          console.error(e);
+          reply("ocorreu um erro 💔");
+        }
+        break;
       case 'antiporn':
         try {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
@@ -24078,6 +24257,62 @@ Exemplos:
           groupData.mutedUsers = groupData.mutedUsers || {};
           if (groupData.mutedUsers[menc_os2]) {
             delete groupData.mutedUsers[menc_os2];
+            fs.writeFileSync(groupFilePath, JSON.stringify(groupData));
+            await nazu.sendMessage(from, {
+              text: `✅ @${getUserName(menc_os2)} foi desmutado e pode enviar mensagens novamente.`,
+              mentions: [menc_os2]
+            }, {
+              quoted: info
+            });
+          } else {
+            reply('❌ Este usuário não está mutado.');
+          }
+        } catch (e) {
+          console.error(e);
+          reply("ocorreu um erro 💔");
+        }
+        break;
+      case 'mute2':
+      case 'mutar2':
+        try {
+          if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
+          if (!isGroupAdmin) return reply("você precisa ser adm 💔");
+          if (!menc_os2) return reply("Marque alguém 🙄");
+          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
+            mutedUsers2: {}
+          };
+          
+          groupData.mutedUsers2 = groupData.mutedUsers2 || {};
+          
+          groupData.mutedUsers2[menc_os2] = true;
+          fs.writeFileSync(groupFilePath, JSON.stringify(groupData));
+          await nazu.sendMessage(from, {
+            text: `✅ @${getUserName(menc_os2)} foi mutado. Suas mensagens serão apagadas automaticamente.`,
+            mentions: [menc_os2]
+          }, {
+            quoted: info
+          });
+        } catch (e) {
+          console.error(e);
+          reply("ocorreu um erro 💔");
+        }
+        break;
+      case 'desmute2':
+      case 'desmutar2':
+      case 'unmute2':
+        try {
+          if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
+          if (!isGroupAdmin) return reply("você precisa ser adm 💔");
+          if (!menc_os2) return reply("Marque alguém 🙄");
+          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
+            mutedUsers2: {}
+          };
+          
+          groupData.mutedUsers2 = groupData.mutedUsers2 || {};
+          if (groupData.mutedUsers2[menc_os2]) {
+            delete groupData.mutedUsers2[menc_os2];
             fs.writeFileSync(groupFilePath, JSON.stringify(groupData));
             await nazu.sendMessage(from, {
               text: `✅ @${getUserName(menc_os2)} foi desmutado e pode enviar mensagens novamente.`,
@@ -25876,7 +26111,7 @@ ${groupData.rules.length}. ${q}`);
           if (!isGroupAdmin) return reply("Apenas administradores podem adicionar usuários à whitelist.");
           
           if (!menc_os2) {
-            const availableAntis = ['antilink', 'antilinkgp', 'antilinkhard', 'antiporn', 'antistatus', 'antibtn', 'antidoc', 'antiloc', 'antifig'];
+            const availableAntis = ['antilink', 'antilinkgp', 'antilinkhard', 'antilinksoft', 'antiporn', 'antistatus', 'antibtn', 'antidoc', 'antiloc', 'antifig'];
             return reply(`📋 *Uso do comando:*
 ${prefix}wl.add @usuario | anti1,anti2,anti3
 
@@ -25905,7 +26140,7 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
             return reply('⚠️ Nenhum anti válido foi especificado. Use o formato: antilink,antistatus,antiporn');
           }
           
-          const validAntis = ['antilink', 'antilinkgp', 'antilinkhard', 'antiporn', 'antistatus', 'antibtn', 'antidoc', 'antiloc', 'antifig'];
+          const validAntis = ['antilink', 'antilinkgp', 'antilinkhard', 'antilinksoft', 'antiporn', 'antistatus', 'antibtn', 'antidoc', 'antiloc', 'antifig'];
           const invalidAntis = antis.filter(a => !validAntis.includes(a));
           
           if (invalidAntis.length > 0) {

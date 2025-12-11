@@ -25,6 +25,8 @@ ${middleBorder}${menuItemIcon}${prefix}promover
 ${middleBorder}${menuItemIcon}${prefix}rebaixar
 ${middleBorder}${menuItemIcon}${prefix}mute
 ${middleBorder}${menuItemIcon}${prefix}desmute
+${middleBorder}${menuItemIcon}${prefix}mute2
+${middleBorder}${menuItemIcon}${prefix}desmute2
 ${middleBorder}${menuItemIcon}${prefix}adv
 ${middleBorder}${menuItemIcon}${prefix}rmadv
 ${middleBorder}${menuItemIcon}${prefix}listadv
@@ -121,6 +123,7 @@ ${middleBorder}${menuItemIcon}${prefix}antifig
 ${middleBorder}${menuItemIcon}${prefix}antibtn
 ${middleBorder}${menuItemIcon}${prefix}antilinkgp
 ${middleBorder}${menuItemIcon}${prefix}antilinkhard
+${middleBorder}${menuItemIcon}${prefix}antilinksoft
 ${middleBorder}${menuItemIcon}${prefix}antiporn
 ${middleBorder}${menuItemIcon}${prefix}antistatus
 ${bottomBorder}
