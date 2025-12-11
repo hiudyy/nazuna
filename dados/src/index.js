@@ -20101,21 +20101,34 @@ ${prefix}addcmdvip menudown all`);
               const menuText = await menuFunction(prefix, nomebot, pushname, customDesign);
               
               // Extrai comandos do menu usando regex
-              // Procura por padrões como ${prefix}comando ou ${prefix}comando <param>
+              // O menu já foi processado, então ${prefix} foi substituído pelo prefixo real
               const commands = new Set();
               
-              // Padrão principal: ${prefix}comando ou ${prefix}comando <param>
-              const commandPattern = new RegExp(`\\$\\{prefix\\}([a-zA-Z0-9_]+)(?:\\s*<[^>]*>)?`, 'g');
+              // Padrão 1: Procura por ${prefix}comando (caso ainda não tenha sido substituído)
+              const templatePattern = new RegExp(`\\$\\{prefix\\}([a-zA-Z0-9_]+)(?:\\s*<[^>]*>)?`, 'g');
               let match;
-              while ((match = commandPattern.exec(menuText)) !== null) {
+              while ((match = templatePattern.exec(menuText)) !== null) {
                 const cmd = match[1];
                 if (cmd && cmd.length > 0) {
                   commands.add(cmd);
                 }
               }
               
-              // Padrão alternativo para comandos com pontos: ${prefix}comando.sub
-              const dotPattern = new RegExp(`\\$\\{prefix\\}([a-zA-Z0-9_]+(?:\\.[a-zA-Z0-9_]+)+)`, 'g');
+              // Padrão 2: Procura por prefixoComando <param> (já processado)
+              // Escapa o prefixo para usar na regex
+              const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              
+              // Procura por linhas que contenham o prefixo seguido de comando
+              const processedPattern = new RegExp(`${escapedPrefix}([a-zA-Z0-9_]+)(?:\\s*<[^>]*>)?`, 'g');
+              while ((match = processedPattern.exec(menuText)) !== null) {
+                const cmd = match[1];
+                if (cmd && cmd.length > 0 && !cmd.startsWith('menu') && cmd !== 'ferramentas' && cmd !== 'alteradores') {
+                  commands.add(cmd);
+                }
+              }
+              
+              // Padrão 3: Procura por comandos com pontos: prefixoComando.sub
+              const dotPattern = new RegExp(`${escapedPrefix}([a-zA-Z0-9_]+(?:\\.[a-zA-Z0-9_]+)+)`, 'g');
               while ((match = dotPattern.exec(menuText)) !== null) {
                 const cmd = match[1];
                 if (cmd && cmd.length > 0) {
@@ -20123,8 +20136,35 @@ ${prefix}addcmdvip menudown all`);
                 }
               }
               
+              // Padrão 4: Procura por qualquer ocorrência do prefixo seguido de palavra
+              // Isso captura comandos mesmo que o formato do menu seja diferente
+              const genericPattern = new RegExp(`(?:^|\\s|\\n|\\r)${escapedPrefix}([a-zA-Z0-9_]+)(?:\\s*<[^>]*>)?(?:\\s|$|\\n|\\r)`, 'gm');
+              while ((match = genericPattern.exec(menuText)) !== null) {
+                const cmd = match[1];
+                if (cmd && cmd.length > 0 && 
+                    !cmd.startsWith('menu') && 
+                    cmd !== 'ferramentas' && 
+                    cmd !== 'alteradores' &&
+                    cmd.length < 50) { // Evita capturar coisas muito longas
+                  commands.add(cmd);
+                }
+              }
+              
+              // Padrão 4: Procura por ${prefix}comando.sub (template)
+              const templateDotPattern = new RegExp(`\\$\\{prefix\\}([a-zA-Z0-9_]+(?:\\.[a-zA-Z0-9_]+)+)`, 'g');
+              while ((match = templateDotPattern.exec(menuText)) !== null) {
+                const cmd = match[1];
+                if (cmd && cmd.length > 0) {
+                  commands.add(cmd);
+                }
+              }
+              
               if (commands.size === 0) {
-                return reply(`❌ Nenhum comando encontrado no menu "${menuName}"!`);
+                // Debug: mostra um trecho do menu para ajudar a identificar o problema
+                const menuPreview = menuText.substring(0, 500).replace(/\n/g, '\\n');
+                console.log(`[DEBUG] Menu "${menuName}" gerado (primeiros 500 chars):`, menuPreview);
+                console.log(`[DEBUG] Prefix usado: "${prefix}"`);
+                return reply(`❌ Nenhum comando encontrado no menu "${menuName}"!\n\n*Debug:* Prefixo usado: "${prefix}"\nVerifique o console para mais detalhes.`);
               }
               
               const commandsArray = Array.from(commands).sort();
