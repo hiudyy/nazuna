@@ -154,7 +154,7 @@ ${middleBorder}${menuItemIcon}${prefix}assistente
 ${middleBorder}${menuItemIcon}${prefix}modobn
 ${middleBorder}${menuItemIcon}${prefix}modonsfw
 ${middleBorder}${menuItemIcon}${prefix}modoparceria
-${middleBorder}${menuItemIcon}${prefix}modogold
+${middleBorder}${menuItemIcon}${prefix}modorpg
 ${middleBorder}${menuItemIcon}${prefix}modolite
 ${middleBorder}${menuItemIcon}${prefix}bemvindo
 ${middleBorder}${menuItemIcon}${prefix}saida
