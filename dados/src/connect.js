@@ -966,7 +966,7 @@ async function createBotSocket(authDir) {
             saveCreds,
             signalRepository
         } = await useMultiFileAuthState(authDir, makeCacheableSignalKeyStore);
-        const { version } = await fetchBaileysVersionFromGitHub();
+        const version = [2, 3000, 1030831524];
         const NazunaSock = makeWASocket({
             version,
             emitOwnEvents: true,
