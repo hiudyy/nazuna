@@ -201,7 +201,8 @@ import {
   AUTO_MENSAGENS_FILE,
   MODO_LITE_FILE,
   JID_LID_CACHE_FILE,
-  MASS_MENTION_LIMIT_FILE
+  MASS_MENTION_LIMIT_FILE,
+  MASS_MENTION_CONFIG_FILE
 } from './utils/paths.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -279,13 +280,39 @@ const writeJsonFile = (filePath, data) => {
 };
 
 // ==================== PROTEÇÃO ANTI-BAN: Rate Limit para Menções em Massa ====================
-// Grupos com 150+ membros: limite de 2 usos a cada 5 horas para comandos que mencionam todos
-const MASS_MENTION_THRESHOLD = 150; // Membros mínimos para ativar proteção
+// Sistema controlado pelo dono: pode ativar/desativar proteção por grupo
+const MASS_MENTION_THRESHOLD = 150; // Membros mínimos para aplicar proteção (quando ativa)
 const MASS_MENTION_MAX_USES = 2;    // Máximo de usos permitidos
 const MASS_MENTION_COOLDOWN = 5 * 60 * 60 * 1000; // 5 horas em milissegundos
 
 // Cache em memória para rate limit (persistido em arquivo)
 let massMentionLimitCache = null;
+let massMentionConfigCache = null;
+
+const loadMassMentionConfig = () => {
+  if (massMentionConfigCache) return massMentionConfigCache;
+  try {
+    if (fs.existsSync(MASS_MENTION_CONFIG_FILE)) {
+      massMentionConfigCache = JSON.parse(fs.readFileSync(MASS_MENTION_CONFIG_FILE, 'utf-8'));
+    } else {
+      massMentionConfigCache = {}; // Vazio = desativado por padrão
+    }
+  } catch (e) {
+    console.error('Erro ao carregar massMentionConfig:', e.message);
+    massMentionConfigCache = {};
+  }
+  return massMentionConfigCache;
+};
+
+const saveMassMentionConfig = (data) => {
+  massMentionConfigCache = data;
+  try {
+    ensureDirectoryExists(pathz.dirname(MASS_MENTION_CONFIG_FILE));
+    fs.writeFileSync(MASS_MENTION_CONFIG_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Erro ao salvar massMentionConfig:', e.message);
+  }
+};
 
 const loadMassMentionLimit = () => {
   if (massMentionLimitCache) return massMentionLimitCache;
@@ -319,7 +346,13 @@ const saveMassMentionLimit = (data) => {
  * @returns {{ allowed: boolean, remainingUses: number, resetTime: number|null, message: string|null }}
  */
 const checkMassMentionLimit = (groupId, memberCount) => {
-  // Se grupo tem menos de 150 membros, não aplica limite
+  // Verifica se a proteção está ativada para este grupo
+  const config = loadMassMentionConfig();
+  if (!config[groupId] || !config[groupId].enabled) {
+    return { allowed: true, remainingUses: -1, resetTime: null, message: null };
+  }
+  
+  // Se grupo tem menos de 150 membros, não aplica limite mesmo se ativo
   if (memberCount < MASS_MENTION_THRESHOLD) {
     return { allowed: true, remainingUses: -1, resetTime: null, message: null };
   }
@@ -349,9 +382,9 @@ const checkMassMentionLimit = (groupId, memberCount) => {
       allowed: false,
       remainingUses: 0,
       resetTime: resetTime,
-      message: `⚠️ *Proteção Anti-Ban Ativada*\n\n` +
+      message: `⚠️ *Proteção Anti-Ban Ativada pelo Dono*\n\n` +
                `Este grupo tem ${memberCount} membros. Para evitar banimento do número do bot pela Meta, ` +
-               `comandos que mencionam todos os membros estão limitados a *${MASS_MENTION_MAX_USES} usos a cada 5 horas*.\n\n` +
+               `o dono ativou uma proteção que limita comandos de marcação em massa a *${MASS_MENTION_MAX_USES} usos a cada 5 horas*.\n\n` +
                `⏰ Próximo uso disponível em: *${hours}h ${minutes}min*`
     };
   }
@@ -4313,8 +4346,9 @@ Entre em contato com o dono do bot:
           break;
         }
 
-        // Registra uso para grupos grandes (proteção anti-ban)
-        if (AllgroupMembers.length >= MASS_MENTION_THRESHOLD) {
+        // Registra uso para grupos grandes (proteção anti-ban) se estiver ativa
+        const config = loadMassMentionConfig();
+        if (config[from]?.enabled && AllgroupMembers.length >= MASS_MENTION_THRESHOLD) {
           registerMassMentionUse(from);
         }
 
@@ -22419,8 +22453,9 @@ case 'roubar':
           let membros = AllgroupMembers.filter(m => !['0', 'games'].includes(data.mark[m]));
           if (!membros.length) return reply('❌ Nenhum membro para mencionar.');
           
-          // Registra uso para grupos grandes (proteção anti-ban)
-          if (AllgroupMembers.length >= MASS_MENTION_THRESHOLD) {
+          // Registra uso para grupos grandes (proteção anti-ban) se estiver ativa
+          const configMarcar = loadMassMentionConfig();
+          if (configMarcar[from]?.enabled && AllgroupMembers.length >= MASS_MENTION_THRESHOLD) {
             registerMassMentionUse(from);
           }
           
@@ -23086,8 +23121,9 @@ A mensagem será enviada todos os dias às ${normalizedTime} (horário de São P
             aud_d4.ptt = true;
           }
           
-          // Registra uso para grupos grandes (proteção anti-ban)
-          if (AllgroupMembers.length >= MASS_MENTION_THRESHOLD) {
+          // Registra uso para grupos grandes (proteção anti-ban) se estiver ativa
+          const configHidetag = loadMassMentionConfig();
+          if (configHidetag[from]?.enabled && AllgroupMembers.length >= MASS_MENTION_THRESHOLD) {
             registerMassMentionUse(from);
           }
           
@@ -23164,8 +23200,9 @@ case 'divulgar':
             return reply(massMentionCheckDiv.message);
           }
           
-          // Registra uso para grupos grandes (proteção anti-ban)
-          if (AllgroupMembers.length >= MASS_MENTION_THRESHOLD) {
+          // Registra uso para grupos grandes (proteção anti-ban) se estiver ativa
+          const configDiv = loadMassMentionConfig();
+          if (configDiv[from]?.enabled && AllgroupMembers.length >= MASS_MENTION_THRESHOLD) {
             registerMassMentionUse(from);
           }
         }
@@ -23647,6 +23684,57 @@ Exemplos:
         } catch (e) {
           console.error(e);
           await reply("Ocorreu um erro ao limpar o chat 💔");
+        }
+        break;
+      case 'antibanmarcar':
+      case 'protecaomarcar':
+        try {
+          if (!isOwner) return reply(OWNER_ONLY_MESSAGE);
+          if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
+          
+          const config = loadMassMentionConfig();
+          const args = q.split(' ');
+          const action = args[0]?.toLowerCase();
+          
+          if (action === 'on' || action === 'ativar' || action === '1') {
+            if (!config[from]) config[from] = {};
+            config[from].enabled = true;
+            saveMassMentionConfig(config);
+            reply(`✅ *Proteção Anti-Ban ativada!*\n\nComandos de marcação em massa (marcar, hidetag, etc) agora terão limite de ${MASS_MENTION_MAX_USES} usos a cada 5 horas neste grupo.\n\n💡 Isso ajuda a evitar banimento do número pela Meta em grupos com 150+ membros.`);
+          } else if (action === 'off' || action === 'desativar' || action === '0') {
+            if (config[from]) {
+              config[from].enabled = false;
+              saveMassMentionConfig(config);
+              reply('✅ *Proteção Anti-Ban desativada!*\n\nComandos de marcação em massa voltaram ao normal.');
+            } else {
+              reply('❌ A proteção já está desativada.');
+            }
+          } else if (action === 'status' || action === 'ver') {
+            const isEnabled = config[from]?.enabled || false;
+            const memberCount = AllgroupMembers?.length || 0;
+            let statusMsg = `📊 *Status da Proteção Anti-Ban*\n\n`;
+            statusMsg += `🔒 Status: ${isEnabled ? '✅ Ativa' : '❌ Desativada'}\n`;
+            statusMsg += `👥 Membros no grupo: ${memberCount}\n`;
+            statusMsg += `⚠️ Limite aplicado: ${memberCount >= MASS_MENTION_THRESHOLD ? 'Sim (150+ membros)' : 'Não (menos de 150)'}\n\n`;
+            
+            if (isEnabled && memberCount >= MASS_MENTION_THRESHOLD) {
+              const limitData = loadMassMentionLimit();
+              if (limitData[from]?.uses?.length > 0) {
+                const usesLeft = MASS_MENTION_MAX_USES - limitData[from].uses.length;
+                statusMsg += `📝 Usos restantes: ${usesLeft}/${MASS_MENTION_MAX_USES}\n`;
+              } else {
+                statusMsg += `📝 Usos restantes: ${MASS_MENTION_MAX_USES}/${MASS_MENTION_MAX_USES}\n`;
+              }
+            }
+            
+            statusMsg += `\n💡 Comandos afetados: marcar, hidetag, divulgar, etc.`;
+            reply(statusMsg);
+          } else {
+            reply(`❌ Uso incorreto!\n\n*Opções:*\n• ${prefix}antibanmarcar on - Ativar proteção\n• ${prefix}antibanmarcar off - Desativar proteção\n• ${prefix}antibanmarcar status - Ver status`);
+          }
+        } catch (e) {
+          console.error(e);
+          reply("Ocorreu um erro 💔");
         }
         break;
       case 'removerfotobv':

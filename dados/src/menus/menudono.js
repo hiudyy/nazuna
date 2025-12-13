@@ -153,6 +153,7 @@ ${middleBorder}${menuItemIcon}${prefix}unblockcmdg
 ${middleBorder}${menuItemIcon}${prefix}blockuserg
 ${middleBorder}${menuItemIcon}${prefix}unblockuserg
 ${middleBorder}${menuItemIcon}${prefix}listblocks
+${middleBorder}${menuItemIcon}${prefix}antibanmarcar
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${monitoringMenuTitle}*
