@@ -3,7 +3,6 @@ import {
   downloadContentFromMessage,
   generateWAMessageFromContent,
   generateWAMessage,
-  isJidNewsletter,
   getContentType,
   useMultiFileAuthState,
   DisconnectReason,
