@@ -21,62 +21,6 @@ import { buildUserId } from './utils/helpers.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Cache para versão do Baileys
-let baileysVersionCache = null;
-let baileysVersionCacheTime = 0;
-const BAILEYS_VERSION_CACHE_TTL = 60 * 60 * 1000; // 1 hora
-
-/**
- * Busca a versão do Baileys diretamente do JSON do GitHub
- * Com cache para evitar requisições excessivas
- * @returns {Promise<{version: number[]}>}
- */
-async function fetchBaileysVersionFromGitHub() {
-    const now = Date.now();
-    
-    // Retorna cache se ainda válido
-    if (baileysVersionCache && (now - baileysVersionCacheTime) < BAILEYS_VERSION_CACHE_TTL) {
-        return baileysVersionCache;
-    }
-    
-    try {
-        const response = await axios.get('https://raw.githubusercontent.com/WhiskeySockets/Baileys/refs/heads/master/src/Defaults/baileys-version.json', {
-            timeout: 10000,
-            validateStatus: (status) => status === 200
-        });
-        
-        if (!response.data || !Array.isArray(response.data.version)) {
-            throw new Error('Resposta inválida do GitHub');
-        }
-        
-        baileysVersionCache = {
-            version: response.data.version
-        };
-        baileysVersionCacheTime = now;
-        
-        return baileysVersionCache;
-    } catch (error) {
-        console.error('❌ Erro ao buscar versão do Baileys do GitHub, usando função fetchLatestBaileysVersion como fallback:', error.message);
-        
-        // Se tem cache, usa ele mesmo expirado
-        if (baileysVersionCache) {
-            console.warn('⚠️ Usando versão em cache (pode estar desatualizada)');
-            return baileysVersionCache;
-        }
-        
-        // Fallback para função original caso falhe
-        try {
-            const fallbackVersion = await fetchLatestBaileysVersion();
-            baileysVersionCache = fallbackVersion;
-            baileysVersionCacheTime = now;
-            return fallbackVersion;
-        } catch (fallbackError) {
-            console.error('❌ Erro no fallback também:', fallbackError.message);
-            throw new Error('Não foi possível obter a versão do Baileys');
-        }
-    }
-}
-
 class MessageQueue {
     constructor(maxWorkers = 4, batchSize = 10, messagesPerBatch = 2) {
         this.queue = [];
@@ -1135,7 +1079,11 @@ async function createBotSocket(authDir) {
             saveCreds,
             signalRepository
         } = await useMultiFileAuthState(authDir, makeCacheableSignalKeyStore);
-        const version = [2, 3000, 1030831524];
+        
+        // Busca a versão mais recente do Baileys
+        const { version } = await fetchLatestBaileysVersion();
+        console.log(`📱 Usando versão do WhatsApp: ${version.join('.')}`);
+        
         const NazunaSock = makeWASocket({
             version,
             emitOwnEvents: true,
@@ -1211,8 +1159,8 @@ async function createBotSocket(authDir) {
                 console.log('🆔 Group ID:', inf.id || inf.jid || 'unknown');
                 console.log('⚡ Action:', inf.action);
                 console.log('👥 Participants:', inf.participants);
-                console.log('👤 Author:', inf.author || 'N/A');
-                console.log('📦 Full event data:', JSON.stringify(inf, null, 2));
+                console.log('� Author:', inf.author || 'N/A');
+                console.log('�📦 Full event data:', JSON.stringify(inf, null, 2));
                 console.log('🐛 ================================================\n');
             }
             await handleGroupParticipantsUpdate(NazunaSock, inf);
