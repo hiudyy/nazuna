@@ -875,17 +875,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     
     // ==================== PROCESSAMENTO DE SOLICITAÇÕES DE ENTRADA NO GRUPO ====================
     // Solicitações de entrada são processadas via messageStubType, não eventos separados
-    if (isGroup && info.message?.messageStubType) {
-      if (debug) {
-        console.log('[DEBUG JOIN REQUEST] messageStubType detectado:', {
-          messageStubType: info.message.messageStubType,
-          messageStubParameters: info.message.messageStubParameters,
-          from: from,
-          groupName: groupName
-        });
-      }
-    }
-    
     if (isGroup && info.message?.messageStubType && info.message.messageStubType === 172) { // GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD
       try {
         const groupFile = buildGroupFilePath(from);
