@@ -652,16 +652,21 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
     }
 }
 
-// Handler para mudanças em solicitações de participantes
-async function handleGroupMembershipRequest(NazunaSock, inf) {
+// Handler para mudanças em solicitações de participantes (group.join-request)
+// Estrutura do evento:
+// { id, author, authorPn?, participant (LID), participantPn?, action: 'created'|'revoked'|'rejected', method }
+async function handleGroupJoinRequest(NazunaSock, inf) {
     try {
         const from = inf.id;
         
         if (DEBUG_MODE) {
-            console.log('🐛 [handleGroupMembershipRequest] Processando solicitação...');
+            console.log('🐛 [handleGroupJoinRequest] Processando solicitação...');
             console.log('🐛 Group ID:', from);
             console.log('🐛 Action:', inf.action);
-            console.log('🐛 Participants:', inf.participants);
+            console.log('🐛 Participant (LID):', inf.participant);
+            console.log('🐛 Participant Phone:', inf.participantPn);
+            console.log('🐛 Author:', inf.author);
+            console.log('🐛 Method:', inf.method);
         }
         
         if (!from) {
@@ -678,74 +683,91 @@ async function handleGroupMembershipRequest(NazunaSock, inf) {
             console.log('  - x9:', groupSettings.x9);
         }
         
-        // Notificação X9 para aprovações/recusas manuais
-        if (groupSettings.x9) {
-            for (const participant of inf.participants || []) {
-                if (inf.action === 'approve' && inf.author) {
-                    await NazunaSock.sendMessage(from, {
-                        text: `✅ *X9 Report:* Solicitação de @${participant.split('@')[0]} foi aprovada ${inf.author ? `por @${inf.author.split('@')[0]}` : 'manualmente'}.`,
-                        mentions: [participant, ...(inf.author ? [inf.author] : [])],
-                    }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
-                } else if (inf.action === 'reject' && inf.author) {
-                    await NazunaSock.sendMessage(from, {
-                        text: `❌ *X9 Report:* Solicitação de @${participant.split('@')[0]} foi recusada ${inf.author ? `por @${inf.author.split('@')[0]}` : 'manualmente'}.`,
-                        mentions: [participant, ...(inf.author ? [inf.author] : [])],
-                    }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
-                }
+        // O participante pode vir como LID ou phone number
+        const participantJid = inf.participantPn || inf.participant;
+        const participantDisplay = participantJid ? participantJid.split('@')[0] : 'Desconhecido';
+        
+        // Notificação X9 para aprovações/recusas
+        if (groupSettings.x9 && participantJid) {
+            if (inf.action === 'rejected' && inf.author) {
+                // Solicitação foi rejeitada por um admin
+                await NazunaSock.sendMessage(from, {
+                    text: `❌ *X9 Report:* Solicitação de @${participantDisplay} foi recusada por @${inf.author.split('@')[0]}.`,
+                    mentions: [participantJid, inf.author],
+                }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+            } else if (inf.action === 'revoked') {
+                // Solicitação foi cancelada pelo próprio usuário
+                await NazunaSock.sendMessage(from, {
+                    text: `🔄 *X9 Report:* @${participantDisplay} cancelou sua solicitação de entrada.`,
+                    mentions: [participantJid],
+                }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
             }
+            // 'created' = nova solicitação - não notificamos aqui, só processamos auto-aceitar
         }
         
-        // Auto-aceitar se configurado
-        if (groupSettings.autoAcceptRequests && inf.action === 'create') {
-            for (const participant of inf.participants || []) {
-                try {
-                    // Se captcha estiver ativado
-                    if (groupSettings.captchaEnabled) {
-                        const num1 = Math.floor(Math.random() * 10) + 1;
-                        const num2 = Math.floor(Math.random() * 10) + 1;
-                        const answer = num1 + num2;
-                        
-                        // Salvar captcha pendente
-                        if (!groupSettings.pendingCaptchas) groupSettings.pendingCaptchas = {};
-                        groupSettings.pendingCaptchas[participant] = {
-                            answer,
-                            groupId: from,
-                            timestamp: Date.now()
-                        };
-                        await saveGroupSettings(from, groupSettings);
-                        
-                        // Enviar captcha no PV
-                        await NazunaSock.sendMessage(participant, {
-                            text: `🔐 *Verificação de Segurança*\n\nVocê solicitou entrar no grupo. Para ser aprovado, resolva esta conta:\n\n❓ Quanto é *${num1} + ${num2}*?\n\n⏱️ Você tem 5 minutos para responder.\n\n💡 Responda apenas com o número.`
-                        }).catch(err => console.error(`❌ Erro ao enviar captcha: ${err.message}`));
-                        
-                        // Auto-rejeitar após 5 minutos se não responder
-                        setTimeout(async () => {
-                            const currentSettings = await loadGroupSettings(from);
-                            if (currentSettings.pendingCaptchas?.[participant]) {
-                                delete currentSettings.pendingCaptchas[participant];
-                                await saveGroupSettings(from, currentSettings);
-                                await NazunaSock.groupRequestParticipantsUpdate(from, [participant], 'reject').catch(() => {});
-                            }
-                        }, 5 * 60 * 1000);
-                    } else {
-                        // Auto-aceitar direto sem captcha
-                        await NazunaSock.groupRequestParticipantsUpdate(from, [participant], 'approve');
-                        
-                        if (groupSettings.x9) {
-                            await NazunaSock.sendMessage(from, {
-                                text: `✅ *X9 Report:* Solicitação de @${participant.split('@')[0]} foi aprovada automaticamente pelo bot.`,
-                                mentions: [participant],
-                            }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
-                        }
+        // Auto-aceitar se configurado e for uma nova solicitação
+        if (groupSettings.autoAcceptRequests && inf.action === 'created' && participantJid) {
+            try {
+                // Se captcha estiver ativado
+                if (groupSettings.captchaEnabled) {
+                    const num1 = Math.floor(Math.random() * 10) + 1;
+                    const num2 = Math.floor(Math.random() * 10) + 1;
+                    const answer = num1 + num2;
+                    
+                    // Salvar captcha pendente
+                    if (!groupSettings.pendingCaptchas) groupSettings.pendingCaptchas = {};
+                    groupSettings.pendingCaptchas[participantJid] = {
+                        answer,
+                        groupId: from,
+                        timestamp: Date.now()
+                    };
+                    await saveGroupSettings(from, groupSettings);
+                    
+                    // Enviar captcha no PV
+                    await NazunaSock.sendMessage(participantJid, {
+                        text: `🔐 *Verificação de Segurança*\n\nVocê solicitou entrar no grupo. Para ser aprovado, resolva esta conta:\n\n❓ Quanto é *${num1} + ${num2}*?\n\n⏱️ Você tem 5 minutos para responder.\n\n💡 Responda apenas com o número.`
+                    }).catch(err => console.error(`❌ Erro ao enviar captcha: ${err.message}`));
+                    
+                    if (groupSettings.x9) {
+                        await NazunaSock.sendMessage(from, {
+                            text: `🔐 *X9 Report:* Nova solicitação de @${participantDisplay}. Captcha enviado no PV.`,
+                            mentions: [participantJid],
+                        }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
                     }
-                } catch (err) {
-                    console.error(`Erro ao processar auto-aceitar: ${err.message}`);
+                    
+                    // Auto-rejeitar após 5 minutos se não responder
+                    setTimeout(async () => {
+                        const currentSettings = await loadGroupSettings(from);
+                        if (currentSettings.pendingCaptchas?.[participantJid]) {
+                            delete currentSettings.pendingCaptchas[participantJid];
+                            await saveGroupSettings(from, currentSettings);
+                            await NazunaSock.groupRequestParticipantsUpdate(from, [participantJid], 'reject').catch(() => {});
+                            
+                            if (currentSettings.x9) {
+                                await NazunaSock.sendMessage(from, {
+                                    text: `⏱️ *X9 Report:* Solicitação de @${participantDisplay} foi rejeitada (timeout do captcha).`,
+                                    mentions: [participantJid],
+                                }).catch(() => {});
+                            }
+                        }
+                    }, 5 * 60 * 1000);
+                } else {
+                    // Auto-aceitar direto sem captcha
+                    await NazunaSock.groupRequestParticipantsUpdate(from, [participantJid], 'approve');
+                    
+                    if (groupSettings.x9) {
+                        await NazunaSock.sendMessage(from, {
+                            text: `✅ *X9 Report:* Solicitação de @${participantDisplay} foi aprovada automaticamente pelo bot.`,
+                            mentions: [participantJid],
+                        }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+                    }
                 }
+            } catch (err) {
+                console.error(`Erro ao processar auto-aceitar: ${err.message}`);
             }
         }
     } catch (error) {
-        console.error(`❌ Erro em handleGroupMembershipRequest: ${error.message}`);
+        console.error(`❌ Erro em handleGroupJoinRequest: ${error.message}`);
     }
 }
 
@@ -1197,18 +1219,22 @@ async function createBotSocket(authDir) {
         });
         
         // Listener para solicitações de participantes (aprovação/recusa)
-        NazunaSock.ev.on('group.membership.request', async (inf) => {
+        // Evento correto: 'group.join-request' (não 'group.membership.request')
+        NazunaSock.ev.on('group.join-request', async (inf) => {
             if (DEBUG_MODE) {
-                console.log('\n🐛 ========== GROUP MEMBERSHIP REQUEST ==========');
+                console.log('\n🐛 ========== GROUP JOIN REQUEST ==========');
                 console.log('📅 Timestamp:', new Date().toISOString());
                 console.log('🆔 Group ID:', inf.id || 'unknown');
-                console.log('⚡ Action:', inf.action);
-                console.log('👥 Participants:', inf.participants);
+                console.log('⚡ Action:', inf.action); // 'created' | 'revoked' | 'rejected'
                 console.log('👤 Author:', inf.author || 'N/A');
+                console.log('👤 AuthorPn:', inf.authorPn || 'N/A');
+                console.log('👥 Participant:', inf.participant || 'N/A'); // LID do participante
+                console.log('👥 ParticipantPn:', inf.participantPn || 'N/A'); // Phone number
+                console.log('📝 Method:', inf.method || 'N/A'); // 'invite_link' | 'linked_group_join' | 'non_admin_add'
                 console.log('📦 Full event data:', JSON.stringify(inf, null, 2));
-                console.log('🐛 ================================================\n');
+                console.log('🐛 ==========================================\n');
             }
-            await handleGroupMembershipRequest(NazunaSock, inf);
+            await handleGroupJoinRequest(NazunaSock, inf);
         });
 
         let messagesListenerAttached = false;
