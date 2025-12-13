@@ -1257,9 +1257,18 @@ async function createBotSocket(authDir) {
                     console.log('📦 Messages count:', m.messages?.length || 0);
                 }
                 
-                if (!m.messages || !Array.isArray(m.messages) || m.type !== 'notify') {
+                if (!m.messages || !Array.isArray(m.messages)) {
                     if (DEBUG_MODE) {
-                        console.log('❌ Mensagens ignoradas (type !== notify ou array inválido)');
+                        console.log('❌ Mensagens ignoradas (array inválido)');
+                        console.log('🐛 ====================================\n');
+                    }
+                    return;
+                }
+                
+                // Processa 'notify' (mensagens normais) e 'append' (solicitações de entrada, etc)
+                if (m.type !== 'notify' && m.type !== 'append') {
+                    if (DEBUG_MODE) {
+                        console.log('❌ Tipo de mensagem ignorado:', m.type);
                         console.log('🐛 ====================================\n');
                     }
                     return;
