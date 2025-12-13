@@ -1352,7 +1352,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const isPremium = premiumListaZinha[sender] || premiumListaZinha[from] || isOwner;
     
     // Verificação de captcha para solicitações de entrada em grupos (DEVE vir ANTES de antipv)
-    if (!isGroup) {
+    if (!isGroup && !info.key.fromMe) { // Ignora mensagens do próprio bot
       // Procurar se há captcha pendente para este usuário
       const groupFiles = fs.existsSync(GRUPOS_DIR) ? fs.readdirSync(GRUPOS_DIR) : [];
       for (const file of groupFiles) {
