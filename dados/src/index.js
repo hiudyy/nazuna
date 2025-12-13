@@ -2965,8 +2965,13 @@ Código: *${roleCode}*`,
         console.error("Erro ao converter mídia em figurinha automática:", e);
       }
     }
-    if (isGroup && groupData.antilinkhard && !isGroupAdmin && budy2.includes('http') && !isOwner) {
-      if (!isUserWhitelisted(sender, 'antilinkhard')) {
+    
+    // AntiLink Hard - Remove qualquer link compartilhado
+    if (isGroup && groupData.antilinkhard && !isGroupAdmin && !isOwner) {
+      const linkRegex = /(https?:\/\/|www\.)[^\s]+|([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/[^\s]*)?/gi;
+      const hasLink = linkRegex.test(budy2);
+      
+      if (hasLink && !isUserWhitelisted(sender, 'antilinkhard')) {
         try {
           if (isBotAdmin) {
             await nazu.groupParticipantsUpdate(from, [sender], 'remove');
