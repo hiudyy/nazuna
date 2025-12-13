@@ -1196,12 +1196,38 @@ async function createBotSocket(authDir) {
         messageQueue.setErrorHandler(queueErrorHandler);
 
         const processMessage = async (info) => {
+            if (DEBUG_MODE) {
+                console.log('\n🐛 ========== PROCESS MESSAGE ==========');
+                console.log('📅 Processing timestamp:', new Date().toISOString());
+                console.log('🆔 Message ID:', info?.key?.id);
+                console.log('👥 Remote JID:', info?.key?.remoteJid);
+                console.log('👤 Participant:', info?.key?.participant);
+                
+                if (info?.message?.messageStubType !== undefined) {
+                    console.log('🔴 *** messageStubType no processMessage:', info.message.messageStubType, '***');
+                    console.log('📋 messageStubParameters:', info.message.messageStubParameters);
+                }
+            }
+            
             if (!info || !info.message || !info.key?.remoteJid) {
+                if (DEBUG_MODE) {
+                    console.log('❌ Mensagem ignorada (info/message/remoteJid inválido)');
+                    console.log('🐛 ====================================\n');
+                }
                 return;
             }
                 
             if (info?.WebMessageInfo) {
+                if (DEBUG_MODE) {
+                    console.log('❌ Mensagem ignorada (WebMessageInfo detectado)');
+                    console.log('🐛 ====================================\n');
+                }
                 return;
+            }
+            
+            if (DEBUG_MODE) {
+                console.log('✅ Mensagem será processada pelo index.js');
+                console.log('🐛 ====================================\n');
             }
             
             // Cache da mensagem para uso posterior no processamento (anti-delete, resumirchat, etc)
@@ -1224,10 +1250,47 @@ async function createBotSocket(authDir) {
             messagesListenerAttached = true;
 
             NazunaSock.ev.on('messages.upsert', async (m) => {
-                if (!m.messages || !Array.isArray(m.messages) || m.type !== 'notify')
+                if (DEBUG_MODE) {
+                    console.log('\n🐛 ========== MESSAGES UPSERT ==========');
+                    console.log('📅 Timestamp:', new Date().toISOString());
+                    console.log('📊 Type:', m.type);
+                    console.log('📦 Messages count:', m.messages?.length || 0);
+                }
+                
+                if (!m.messages || !Array.isArray(m.messages) || m.type !== 'notify') {
+                    if (DEBUG_MODE) {
+                        console.log('❌ Mensagens ignoradas (type !== notify ou array inválido)');
+                        console.log('🐛 ====================================\n');
+                    }
                     return;
+                }
                     
                 try {
+                    if (DEBUG_MODE) {
+                        m.messages.forEach((msg, index) => {
+                            console.log(`\n--- Message ${index + 1} ---`);
+                            console.log('🆔 Message ID:', msg.key?.id);
+                            console.log('👥 From:', msg.key?.remoteJid);
+                            console.log('👤 Participant:', msg.key?.participant);
+                            console.log('📱 fromMe:', msg.key?.fromMe);
+                            
+                            if (msg.message) {
+                                const messageKeys = Object.keys(msg.message);
+                                console.log('📝 Message type(s):', messageKeys);
+                                
+                                // CRITICAL: Log messageStubType
+                                if (msg.message.messageStubType !== undefined) {
+                                    console.log('🔴 *** messageStubType DETECTADO:', msg.message.messageStubType, '***');
+                                    console.log('📋 messageStubParameters:', msg.message.messageStubParameters);
+                                }
+                                
+                                // Log de todos os campos da mensagem
+                                console.log('📦 Message content:', JSON.stringify(msg.message, null, 2));
+                            }
+                        });
+                        console.log('🐛 ====================================\n');
+                    }
+                    
                     const messageProcessingPromises = m.messages.map(info =>
                         messageQueue.add(info, processMessage).catch(err => {
                             console.error(`❌ Failed to queue message ${info.key?.id}: ${err.message}`);
