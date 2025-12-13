@@ -596,10 +596,10 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
     }
 }
 
-// Handler para mudanças em solicitações de participantes (group.join-request)
-// Estrutura do evento:
-// { id, author, authorPn?, participant (LID), participantPn?, action: 'created'|'revoked'|'rejected', method }
-async function handleGroupJoinRequest(NazunaSock, inf) {
+// DEPRECATED: Este handler não é mais usado pois o whaileys não emite evento 'group.join-request'
+// As solicitações são processadas via messageStubType no index.js
+// Mantido aqui apenas para referência e pode ser removido futuramente
+async function handleGroupJoinRequest_DEPRECATED(NazunaSock, inf) {
     try {
         const from = inf.id;
         
@@ -1166,24 +1166,8 @@ async function createBotSocket(authDir) {
             await handleGroupParticipantsUpdate(NazunaSock, inf);
         });
         
-        // Listener para solicitações de participantes (aprovação/recusa)
-        // Evento correto: 'group.join-request' (não 'group.membership.request')
-        NazunaSock.ev.on('group.join-request', async (inf) => {
-            if (DEBUG_MODE) {
-                console.log('\n🐛 ========== GROUP JOIN REQUEST ==========');
-                console.log('📅 Timestamp:', new Date().toISOString());
-                console.log('🆔 Group ID:', inf.id || 'unknown');
-                console.log('⚡ Action:', inf.action); // 'created' | 'revoked' | 'rejected'
-                console.log('👤 Author:', inf.author || 'N/A');
-                console.log('👤 AuthorPn:', inf.authorPn || 'N/A');
-                console.log('👥 Participant:', inf.participant || 'N/A'); // LID do participante
-                console.log('👥 ParticipantPn:', inf.participantPn || 'N/A'); // Phone number
-                console.log('📝 Method:', inf.method || 'N/A'); // 'invite_link' | 'linked_group_join' | 'non_admin_add'
-                console.log('📦 Full event data:', JSON.stringify(inf, null, 2));
-                console.log('🐛 ==========================================\n');
-            }
-            await handleGroupJoinRequest(NazunaSock, inf);
-        });
+        // NOTA: Solicitações de entrada no grupo (join requests) são processadas via messageStubType
+        // GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD no index.js, não via evento separado
 
         let messagesListenerAttached = false;
 
