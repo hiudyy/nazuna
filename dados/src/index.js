@@ -937,6 +937,16 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
               
               fs.writeFileSync(groupFile, JSON.stringify(groupSettings, null, 2));
               
+              if (debug) {
+                console.log('[DEBUG CAPTCHA] Captcha salvo:', {
+                  participantJid,
+                  num1,
+                  num2,
+                  correctAnswer,
+                  groupId: from
+                });
+              }
+              
               try {
                 await nazu.sendMessage(participantJid, { text: captchaMessage });
                 console.log(`[JOIN REQUEST] Captcha enviado para ${participantJid}`);
@@ -1337,8 +1347,8 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     var command = isCmd ? matchedAlias ? matchedAlias.command : normalizar(body.trim().slice(groupPrefix.length).split(/ +/).shift().trim()).replace(/\s+/g, '') : null;
     const isPremium = premiumListaZinha[sender] || premiumListaZinha[from] || isOwner;
     
-    // Verificação de captcha para solicitações de entrada em grupos
-    if (!isGroup && !isCmd) {
+    // Verificação de captcha para solicitações de entrada em grupos (DEVE vir ANTES de antipv)
+    if (!isGroup) {
       // Procurar se há captcha pendente para este usuário
       const groupFiles = fs.existsSync(GRUPOS_DIR) ? fs.readdirSync(GRUPOS_DIR) : [];
       for (const file of groupFiles) {
@@ -1349,7 +1359,21 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
           
           if (groupDataCaptcha.pendingCaptchas && groupDataCaptcha.pendingCaptchas[sender]) {
             const captchaData = groupDataCaptcha.pendingCaptchas[sender];
+            
+            if (debug) {
+              console.log('[DEBUG CAPTCHA] Captcha pendente encontrado:', {
+                sender,
+                body: body.trim(),
+                expectedAnswer: captchaData.answer,
+                groupId: captchaData.groupId
+              });
+            }
+            
             const userAnswer = parseInt(body.trim());
+            
+            if (debug) {
+              console.log('[DEBUG CAPTCHA] Resposta do usuário:', userAnswer, 'É número?', !isNaN(userAnswer));
+            }
             
             if (isNaN(userAnswer)) {
               await reply('❌ Resposta inválida! Por favor, envie apenas o número da resposta.');
@@ -1359,6 +1383,9 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
             if (userAnswer === captchaData.answer) {
               // Resposta correta - aprovar no grupo
               try {
+                if (debug) {
+                  console.log('[DEBUG CAPTCHA] ✅ Resposta correta! Aprovando no grupo:', captchaData.groupId);
+                }
                 await nazu.groupRequestParticipantsUpdate(captchaData.groupId, [sender], 'approve');
                 await reply('✅ *Correto!* Você foi aprovado no grupo. Bem-vindo! 🎉');
                 
@@ -1380,6 +1407,9 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
             } else {
               // Resposta incorreta - recusar
               try {
+                if (debug) {
+                  console.log('[DEBUG CAPTCHA] ❌ Resposta incorreta! Recusando no grupo:', captchaData.groupId);
+                }
                 await nazu.groupRequestParticipantsUpdate(captchaData.groupId, [sender], 'reject');
                 await reply('❌ *Resposta incorreta!* Sua solicitação foi recusada. Você pode tentar solicitar novamente.');
                 
