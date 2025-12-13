@@ -1232,8 +1232,15 @@ async function createBotSocket(authDir) {
             messagesListenerAttached = true;
 
             NazunaSock.ev.on('messages.upsert', async (m) => {
-                // Processa 'notify' (mensagens normais) e 'append' (solicitações de entrada, etc)
                 if (!m.messages || !Array.isArray(m.messages)) return;
+                
+                // Se for 'append', só processa se for solicitação de entrada (messageStubType 172)
+                if (m.type === 'append') {
+                    const isJoinRequest = m.messages.some(info => info?.messageStubType === 172);
+                    if (!isJoinRequest) return;
+                }
+                
+                // Processa 'notify' (mensagens normais) e 'append' (apenas solicitações de entrada)
                 if (m.type !== 'notify' && m.type !== 'append') return;
                     
                 try {
