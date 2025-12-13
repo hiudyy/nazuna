@@ -1196,7 +1196,30 @@ async function createBotSocket(authDir) {
         messageQueue.setErrorHandler(queueErrorHandler);
 
         const processMessage = async (info) => {
-            if (DEBUG_MODE) {
+            // Debug específico para solicitações de entrada (participant = bot)
+            const isBotParticipant = info?.key?.participant?.includes('@lid');
+            
+            if (DEBUG_MODE && isBotParticipant) {
+                console.log('\n🔴🔴🔴 ========== SOLICITAÇÃO DE ENTRADA DETECTADA ========== 🔴🔴🔴');
+                console.log('📅 Timestamp:', new Date().toISOString());
+                console.log('\n📦 INFO COMPLETO:');
+                console.log(JSON.stringify(info, null, 2));
+                console.log('\n🔑 KEY:');
+                console.log('  - id:', info?.key?.id);
+                console.log('  - remoteJid:', info?.key?.remoteJid);
+                console.log('  - participant:', info?.key?.participant);
+                console.log('  - fromMe:', info?.key?.fromMe);
+                console.log('\n📨 MESSAGE:');
+                console.log('  - Existe?:', !!info?.message);
+                console.log('  - Keys:', info?.message ? Object.keys(info.message) : 'N/A');
+                console.log('  - messageStubType:', info?.message?.messageStubType);
+                console.log('  - messageStubParameters:', info?.message?.messageStubParameters);
+                console.log('\n📋 MESSAGE COMPLETO:');
+                console.log(JSON.stringify(info?.message, null, 2));
+                console.log('🔴🔴🔴 ========================================== 🔴🔴🔴\n');
+            }
+            
+            if (DEBUG_MODE && !isBotParticipant) {
                 console.log('\n🐛 ========== PROCESS MESSAGE ==========');
                 console.log('📅 Processing timestamp:', new Date().toISOString());
                 console.log('🆔 Message ID:', info?.key?.id);
@@ -1210,7 +1233,7 @@ async function createBotSocket(authDir) {
             }
             
             if (!info || !info.message || !info.key?.remoteJid) {
-                if (DEBUG_MODE) {
+                if (DEBUG_MODE && !isBotParticipant) {
                     console.log('❌ Mensagem ignorada (info/message/remoteJid inválido)');
                     console.log('🐛 ====================================\n');
                 }
@@ -1218,14 +1241,14 @@ async function createBotSocket(authDir) {
             }
                 
             if (info?.WebMessageInfo) {
-                if (DEBUG_MODE) {
+                if (DEBUG_MODE && !isBotParticipant) {
                     console.log('❌ Mensagem ignorada (WebMessageInfo detectado)');
                     console.log('🐛 ====================================\n');
                 }
                 return;
             }
             
-            if (DEBUG_MODE) {
+            if (DEBUG_MODE && !isBotParticipant) {
                 console.log('✅ Mensagem será processada pelo index.js');
                 console.log('🐛 ====================================\n');
             }
