@@ -1198,16 +1198,7 @@ async function createBotSocket(authDir) {
         const processMessage = async (info) => {
             // Verifica se é uma solicitação de entrada (messageStubType no info, não em message)
             const isJoinRequest = info?.messageStubType === 172; // GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD
-            
-            if (DEBUG_MODE && isJoinRequest) {
-                console.log('\n🔴 [JOIN REQUEST] Solicitação de entrada detectada:');
-                console.log('  - messageStubType:', info.messageStubType);
-                console.log('  - messageStubParameters:', info.messageStubParameters);
-                console.log('  - participant:', info.messageStubParameters?.[0]);
-                console.log('  - action:', info.messageStubParameters?.[1]);
-                console.log('  - method:', info.messageStubParameters?.[2]);
-            }
-            
+          
             // Solicitações de entrada não têm message, apenas messageStubType
             if (isJoinRequest) {
                 // Cria um objeto message fake para o index.js processar
@@ -1219,19 +1210,6 @@ async function createBotSocket(authDir) {
             
             if (!info || !info.message || !info.key?.remoteJid) {
                 return;
-            }
-                
-            if (info?.WebMessageInfo) {
-                if (DEBUG_MODE && !isBotParticipant) {
-                    console.log('❌ Mensagem ignorada (WebMessageInfo detectado)');
-                    console.log('🐛 ====================================\n');
-                }
-                return;
-            }
-            
-            if (DEBUG_MODE && !isBotParticipant) {
-                console.log('✅ Mensagem será processada pelo index.js');
-                console.log('🐛 ====================================\n');
             }
             
             // Cache da mensagem para uso posterior no processamento (anti-delete, resumirchat, etc)
