@@ -23570,6 +23570,42 @@ A mensagem será enviada todos os dias às ${normalizedTime} (horário de São P
           
           var DFC4 = "";
           var rsm4 = info.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+          
+          // Para mensagens marcadas, precisa baixar a mídia
+          if (isQuotedMsg && rsm4) {
+            const quotedMsg = info.message?.extendedTextMessage?.contextInfo;
+            
+            // Se for mídia marcada, baixa primeiro
+            if (isQuotedImage || isQuotedVideo || isQuotedAudio || isQuotedDocument || isQuotedDocW || isQuotedSticker) {
+              try {
+                const buffer = await downloadContentBuffer(quotedMsg, 
+                  isQuotedImage ? 'image' : 
+                  isQuotedVideo ? 'video' : 
+                  isQuotedAudio ? 'audio' :
+                  isQuotedSticker ? 'sticker' : 'document'
+                );
+                
+                // Atualiza as mensagens para incluir o buffer baixado
+                if (isQuotedImage && rsm4.imageMessage) {
+                  rsm4.imageMessage.buffer = buffer;
+                } else if (isQuotedVideo && rsm4.videoMessage) {
+                  rsm4.videoMessage.buffer = buffer;
+                } else if (isQuotedAudio && rsm4.audioMessage) {
+                  rsm4.audioMessage.buffer = buffer;
+                } else if (isQuotedSticker && rsm4.stickerMessage) {
+                  rsm4.stickerMessage.buffer = buffer;
+                } else if (isQuotedDocument && rsm4.documentMessage) {
+                  rsm4.documentMessage.buffer = buffer;
+                } else if (isQuotedDocW && rsm4.documentWithCaptionMessage?.message?.documentMessage) {
+                  rsm4.documentWithCaptionMessage.message.documentMessage.buffer = buffer;
+                }
+              } catch (err) {
+                console.error('Erro ao baixar mídia marcada para hidetag:', err);
+                return reply('❌ Erro ao baixar a mídia marcada. Tente novamente.');
+              }
+            }
+          }
+          
           var pink4 = isQuotedImage ? rsm4?.imageMessage : info.message?.imageMessage;
           var blue4 = isQuotedVideo ? rsm4?.videoMessage : info.message?.videoMessage;
           var purple4 = isQuotedDocument ? rsm4?.documentMessage : info.message?.documentMessage;
@@ -23588,21 +23624,35 @@ A mensagem será enviada todos os dias às ${normalizedTime} (horário de São P
           if (pink4 && !aud_d4 && !purple4) {
             var DFC4 = pink4;
             
-            pink4.caption = q.length > 1 ? q : pink4.caption.replace(new RegExp(prefix + command, "gi"), ` `);
+            pink4.caption = q.length > 1 ? q : pink4.caption?.replace(new RegExp(prefix + command, "gi"), ` `) || '';
 
-            pink4.image = {
-              url: pink4.url
-            };
+            // Se tiver buffer (mídia baixada), usa ele. Senão usa URL
+            if (pink4.buffer) {
+              pink4.image = pink4.buffer;
+              delete pink4.buffer;
+              delete pink4.url;
+            } else {
+              pink4.image = {
+                url: pink4.url
+              };
+            }
             
             pink4.mentions = MRC_TD4;
           } else if (blue4 && !aud_d4 && !purple4) {
             var DFC4 = blue4;
             
-            blue4.caption = q.length > 1 ? q.trim() : blue4.caption.replace(new RegExp(prefix + command, "gi"), ` `).trim();
+            blue4.caption = q.length > 1 ? q.trim() : blue4.caption?.replace(new RegExp(prefix + command, "gi"), ` `).trim() || '';
             
-            blue4.video = {
-              url: blue4.url
-            };
+            // Se tiver buffer (mídia baixada), usa ele. Senão usa URL
+            if (blue4.buffer) {
+              blue4.video = blue4.buffer;
+              delete blue4.buffer;
+              delete blue4.url;
+            } else {
+              blue4.video = {
+                url: blue4.url
+              };
+            }
             
             blue4.mentions = MRC_TD4;
           } else if (red4 && !aud_d4 && !purple4) {
@@ -23622,35 +23672,63 @@ A mensagem será enviada todos os dias às ${normalizedTime} (horário de São P
           } else if (purple4) {
             var DFC4 = purple4;
             
-            purple4.document = {
-              url: purple4.url
-            };
+            // Se tiver buffer (mídia baixada), usa ele. Senão usa URL
+            if (purple4.buffer) {
+              purple4.document = purple4.buffer;
+              delete purple4.buffer;
+              delete purple4.url;
+            } else {
+              purple4.document = {
+                url: purple4.url
+              };
+            }
             
             purple4.mentions = MRC_TD4;
           } else if (yellow4 && !aud_d4) {
             var DFC4 = yellow4;
             
-            yellow4.caption = q.length > 1 ? q.trim() : yellow4.caption.replace(new RegExp(prefix + command, "gi"), `${pushname}\n\n`).trim();
+            yellow4.caption = q.length > 1 ? q.trim() : yellow4.caption?.replace(new RegExp(prefix + command, "gi"), `${pushname}\n\n`).trim() || '';
             
-            yellow4.document = {
-              url: yellow4.url
-            };
+            // Se tiver buffer (mídia baixada), usa ele. Senão usa URL
+            if (yellow4.buffer) {
+              yellow4.document = yellow4.buffer;
+              delete yellow4.buffer;
+              delete yellow4.url;
+            } else {
+              yellow4.document = {
+                url: yellow4.url
+              };
+            }
             
             yellow4.mentions = MRC_TD4;
           } else if (figu_d4 && !aud_d4) {
             var DFC4 = figu_d4;
             
-            figu_d4.sticker = {
-              url: figu_d4.url
-            };
+            // Se tiver buffer (mídia baixada), usa ele. Senão usa URL
+            if (figu_d4.buffer) {
+              figu_d4.sticker = figu_d4.buffer;
+              delete figu_d4.buffer;
+              delete figu_d4.url;
+            } else {
+              figu_d4.sticker = {
+                url: figu_d4.url
+              };
+            }
             
             figu_d4.mentions = MRC_TD4;
           } else if (aud_d4) {
             var DFC4 = aud_d4;
             
-            aud_d4.audio = {
-              url: aud_d4.url
-            };
+            // Se tiver buffer (mídia baixada), usa ele. Senão usa URL
+            if (aud_d4.buffer) {
+              aud_d4.audio = aud_d4.buffer;
+              delete aud_d4.buffer;
+              delete aud_d4.url;
+            } else {
+              aud_d4.audio = {
+                url: aud_d4.url
+              };
+            }
             
             aud_d4.mentions = MRC_TD4;
             
