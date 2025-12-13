@@ -916,13 +916,17 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
           // Auto-aceitar (com ou sem captcha)
           if (groupSettings.autoAcceptRequests) {
             if (groupSettings.captchaEnabled) {
+              // Pega o nome do grupo
+              const groupMetadata = await nazu.groupMetadata(from).catch(() => null);
+              const groupNameCaptcha = groupMetadata?.subject || 'Desconhecido';
+              
               // Gera captcha e envia para o usuário
               const num1 = Math.floor(Math.random() * 10) + 1;
               const num2 = Math.floor(Math.random() * 10) + 1;
               const correctAnswer = num1 + num2;
               
               const captchaMessage = `🤖 *Verificação de Entrada no Grupo*\n\n` +
-                `Você solicitou entrada no grupo *${groupName || 'Desconhecido'}*.\n\n` +
+                `Você solicitou entrada no grupo *${groupNameCaptcha}*.\n\n` +
                 `Para confirmar que você é humano, resolva esta conta:\n\n` +
                 `❓ *${num1} + ${num2} = ?*\n\n` +
                 `Responda apenas com o número da resposta.`;
