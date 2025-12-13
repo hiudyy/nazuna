@@ -88,6 +88,14 @@ ${middleBorder}${menuItemIcon}${prefix}automsg
 ${middleBorder}${menuItemIcon}${prefix}banghost
 ${middleBorder}${menuItemIcon}${prefix}limitmessage
 ${middleBorder}${menuItemIcon}${prefix}dellimitmessage
+${middleBorder}
+${middleBorder}${menuTitleIcon} *SOLICITAÇÕES* ${menuTitleIcon}
+${middleBorder}${menuItemIcon}${prefix}solicitacoes
+${middleBorder}${menuItemIcon}${prefix}aprovar
+${middleBorder}${menuItemIcon}${prefix}aprovar all
+${middleBorder}${menuItemIcon}${prefix}recusarsolic
+${middleBorder}${menuItemIcon}${prefix}autoaceitarsolic
+${middleBorder}${menuItemIcon}${prefix}captchasolic
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${moderatorsMenuTitle}*

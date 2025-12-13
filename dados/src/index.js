@@ -1207,6 +1207,69 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     
     var command = isCmd ? matchedAlias ? matchedAlias.command : normalizar(body.trim().slice(groupPrefix.length).split(/ +/).shift().trim()).replace(/\s+/g, '') : null;
     const isPremium = premiumListaZinha[sender] || premiumListaZinha[from] || isOwner;
+    
+    // Verificação de captcha para solicitações de entrada em grupos
+    if (!isGroup && !isCmd) {
+      // Procurar se há captcha pendente para este usuário
+      const groupFiles = fs.existsSync(GRUPOS_DIR) ? fs.readdirSync(GRUPOS_DIR) : [];
+      for (const file of groupFiles) {
+        if (!file.endsWith('.json')) continue;
+        try {
+          const groupPath = pathz.join(GRUPOS_DIR, file);
+          const groupDataCaptcha = JSON.parse(fs.readFileSync(groupPath, 'utf-8'));
+          
+          if (groupDataCaptcha.pendingCaptchas && groupDataCaptcha.pendingCaptchas[sender]) {
+            const captchaData = groupDataCaptcha.pendingCaptchas[sender];
+            const userAnswer = parseInt(body.trim());
+            
+            if (isNaN(userAnswer)) {
+              await reply('❌ Resposta inválida! Por favor, envie apenas o número da resposta.');
+              return;
+            }
+            
+            if (userAnswer === captchaData.answer) {
+              // Resposta correta - aprovar no grupo
+              try {
+                await nazu.groupRequestParticipantsUpdate(captchaData.groupId, [sender], 'approve');
+                await reply('✅ *Correto!* Você foi aprovado no grupo. Bem-vindo! 🎉');
+                
+                // Limpar captcha pendente
+                delete groupDataCaptcha.pendingCaptchas[sender];
+                fs.writeFileSync(groupPath, JSON.stringify(groupDataCaptcha, null, 2));
+                
+                // Notificação X9
+                if (groupDataCaptcha.x9) {
+                  await nazu.sendMessage(captchaData.groupId, {
+                    text: `✅ *X9 Report:* @${sender.split('@')[0]} passou na verificação de captcha e foi aprovado automaticamente.`,
+                    mentions: [sender],
+                  }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+                }
+              } catch (err) {
+                await reply('❌ Erro ao aprovar sua solicitação. Tente novamente mais tarde.');
+                console.error('Erro ao aprovar após captcha:', err);
+              }
+            } else {
+              // Resposta incorreta - recusar
+              try {
+                await nazu.groupRequestParticipantsUpdate(captchaData.groupId, [sender], 'reject');
+                await reply('❌ *Resposta incorreta!* Sua solicitação foi recusada. Você pode tentar solicitar novamente.');
+                
+                // Limpar captcha pendente
+                delete groupDataCaptcha.pendingCaptchas[sender];
+                fs.writeFileSync(groupPath, JSON.stringify(groupDataCaptcha, null, 2));
+              } catch (err) {
+                await reply('❌ Resposta incorreta!');
+                console.error('Erro ao recusar após captcha:', err);
+              }
+            }
+            return;
+          }
+        } catch (err) {
+          console.error('Erro ao verificar captcha:', err);
+        }
+      }
+    }
+    
     if (!isGroup) {
       if (antipvData.mode === 'antipv' && !isOwner && !isPremium) {
         return;
@@ -22317,6 +22380,16 @@ case 'roubar':
           if (menc_os2 === nmrdn) return reply("❌ Não posso banir o dono do bot.");
           if (menc_os2 === botNumber) return reply("❌ Ops! Eu faço parte da bagunça, não dá pra me remover 💔");
           await nazu.groupParticipantsUpdate(from, [menc_os2], 'remove');
+          
+          // Notificação X9 para banimento
+          if (groupData.x9) {
+            const reason = q && q.length > 0 ? `\n📝 Motivo: ${q}` : '';
+            await nazu.sendMessage(from, {
+              text: `🚪 *X9 Report:* @${menc_os2.split('@')[0]} foi removido(a) do grupo por @${sender.split('@')[0]}.${reason}`,
+              mentions: [menc_os2, sender],
+            }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+          }
+          
           reply(`✅ Usuário banido com sucesso!${q && q.length > 0 ? '\n\nMotivo: ' + q : ''}`);
         } catch (e) {
           console.error(e);
@@ -22337,6 +22410,241 @@ case 'roubar':
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         }
         break;
+      case 'solicitacoes':
+      case 'pendentes':
+      case 'requests':
+        try {
+          if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
+          if (!isGroupAdmin) return reply("Comando restrito a Administradores 💔");
+          if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
+          
+          const requests = await nazu.groupRequestParticipantsList(from);
+          
+          if (!requests || requests.length === 0) {
+            return reply('📭 Não há solicitações pendentes neste grupo.');
+          }
+          
+          let msg = `📨 *Solicitações Pendentes* (${requests.length})\n\n`;
+          requests.forEach((req, index) => {
+            const number = req.jid.split('@')[0];
+            msg += `${index + 1}. @${number}\n`;
+          });
+          msg += `\n💡 Comandos disponíveis:\n`;
+          msg += `• ${prefix}aprovar @usuario - Aceitar uma solicitação\n`;
+          msg += `• ${prefix}aprovar all - Aceitar TODAS\n`;
+          msg += `• ${prefix}recusarsolic @usuario - Recusar solicitação`;
+          
+          await reply(msg, { mentions: requests.map(r => r.jid) });
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Erro ao buscar solicitações. Verifique se há solicitações pendentes.");
+        }
+        break;
+      case 'aprovar':
+      case 'aceitar':
+      case 'approve':
+        try {
+          if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
+          if (!isGroupAdmin) return reply("Comando restrito a Administradores 💔");
+          if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
+          
+          // Verificar se é "all" para aceitar todos
+          if (q && q.toLowerCase().trim() === 'all') {
+            const allRequests = await nazu.groupRequestParticipantsList(from);
+            
+            if (!allRequests || allRequests.length === 0) {
+              return reply('📭 Não há solicitações pendentes para aprovar.');
+            }
+            
+            const approved = [];
+            const failed = [];
+            
+            for (const req of allRequests) {
+              try {
+                await nazu.groupRequestParticipantsUpdate(from, [req.jid], 'approve');
+                approved.push(req.jid);
+              } catch (err) {
+                failed.push(req.jid);
+                console.error(`Erro ao aprovar ${req.jid}:`, err);
+              }
+            }
+            
+            // Notificação X9 para aprovação em massa
+            if (groupData.x9 && approved.length > 0) {
+              await nazu.sendMessage(from, {
+                text: `✅ *X9 Report:* ${approved.length} solicitações foram aprovadas em massa por @${sender.split('@')[0]}.`,
+                mentions: [sender],
+              }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+            }
+            
+            let responseMsg = `✅ *Aprovação em Massa Concluída!*\n\n`;
+            responseMsg += `✅ Aprovados: ${approved.length}\n`;
+            if (failed.length > 0) responseMsg += `❌ Falhas: ${failed.length}\n`;
+            
+            return reply(responseMsg);
+          }
+          
+          if (!menc_jid2 || menc_jid2.length === 0) {
+            return reply(`❌ Marque alguém ou use "all" para aprovar todos.\n\n💡 Exemplos:\n• ${prefix}aprovar @usuario\n• ${prefix}aprovar all\n\nUse ${prefix}solicitacoes para ver pendentes.`);
+          }
+          
+          const usersToApprove = menc_jid2;
+          const approved = [];
+          const failed = [];
+          
+          for (const user of usersToApprove) {
+            try {
+              await nazu.groupRequestParticipantsUpdate(from, [user], 'approve');
+              approved.push(user);
+              
+              // Notificação X9 para aprovação de solicitação
+              if (groupData.x9) {
+                await nazu.sendMessage(from, {
+                  text: `✅ *X9 Report:* Solicitação de @${user.split('@')[0]} foi aprovada por @${sender.split('@')[0]}.`,
+                  mentions: [user, sender],
+                }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+              }
+            } catch (err) {
+              failed.push(user);
+              console.error(`Erro ao aprovar ${user}:`, err);
+            }
+          }
+          
+          let responseMsg = '';
+          if (approved.length > 0) {
+            responseMsg += `✅ *Solicitações aprovadas:* (${approved.length})\n`;
+            approved.forEach(u => responseMsg += `• @${u.split('@')[0]}\n`);
+          }
+          if (failed.length > 0) {
+            responseMsg += `\n❌ *Falhas:* (${failed.length})\n`;
+            failed.forEach(u => responseMsg += `• @${u.split('@')[0]}\n`);
+          }
+          
+          await reply(responseMsg, { mentions: [...approved, ...failed] });
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Erro ao aprovar solicitações.");
+        }
+        break;
+      case 'recusarsolic':
+      case 'recusarsolicitacao':
+      case 'reject':
+        try {
+          if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
+          if (!isGroupAdmin) return reply("Comando restrito a Administradores 💔");
+          if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
+          
+          if (!menc_jid2 || menc_jid2.length === 0) {
+            return reply(`❌ Marque alguém ou mencione números.\n\n💡 Exemplo: ${prefix}recusarsolic @usuario\n\nUse ${prefix}solicitacoes para ver pendentes.`);
+          }
+          
+          const usersToReject = menc_jid2;
+          const rejected = [];
+          const failed = [];
+          
+          for (const user of usersToReject) {
+            try {
+              await nazu.groupRequestParticipantsUpdate(from, [user], 'reject');
+              rejected.push(user);
+              
+              // Notificação X9 para recusa de solicitação
+              if (groupData.x9) {
+                await nazu.sendMessage(from, {
+                  text: `❌ *X9 Report:* Solicitação de @${user.split('@')[0]} foi recusada por @${sender.split('@')[0]}.`,
+                  mentions: [user, sender],
+                }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+              }
+            } catch (err) {
+              failed.push(user);
+              console.error(`Erro ao recusar ${user}:`, err);
+            }
+          }
+          
+          let responseMsg = '';
+          if (rejected.length > 0) {
+            responseMsg += `❌ *Solicitações recusadas:* (${rejected.length})\n`;
+            rejected.forEach(u => responseMsg += `• @${u.split('@')[0]}\n`);
+          }
+          if (failed.length > 0) {
+            responseMsg += `\n⚠️ *Falhas:* (${failed.length})\n`;
+            failed.forEach(u => responseMsg += `• @${u.split('@')[0]}\n`);
+          }
+          
+          await reply(responseMsg, { mentions: [...rejected, ...failed] });
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Erro ao recusar solicitações.");
+        }
+        break;
+      case 'autoaceitarsolic':
+      case 'autoaprovar':
+      case 'autoacceptr':
+        try {
+          if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
+          if (!isGroupAdmin) return reply("Comando restrito a Administradores 💔");
+          
+          groupData.autoAcceptRequests = !groupData.autoAcceptRequests;
+          fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+          
+          const status = groupData.autoAcceptRequests ? 'ativado' : 'desativado';
+          const emoji = groupData.autoAcceptRequests ? '✅' : '❌';
+          
+          let msg = `${emoji} *Auto-Aceitar Solicitações ${status}!*\n\n`;
+          
+          if (groupData.autoAcceptRequests) {
+            msg += `🤖 O bot agora irá aprovar automaticamente todas as solicitações de entrada no grupo.\n\n`;
+            if (groupData.captchaEnabled) {
+              msg += `🔐 *Captcha ativo:* Novos membros precisarão resolver uma conta no PV antes de serem aceitos.\n\n`;
+            } else {
+              msg += `💡 Quer adicionar segurança? Use ${prefix}captchasolic para ativar verificação por captcha.\n\n`;
+            }
+          } else {
+            msg += `📝 Solicitações precisarão ser aprovadas manualmente pelos administradores.`;
+          }
+          
+          await reply(msg);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro ao configurar auto-aceitar.");
+        }
+        break;
+      case 'captchasolic':
+      case 'captcha':
+      case 'captcharequests':
+        try {
+          if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
+          if (!isGroupAdmin) return reply("Comando restrito a Administradores 💔");
+          
+          groupData.captchaEnabled = !groupData.captchaEnabled;
+          fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
+          
+          const status = groupData.captchaEnabled ? 'ativado' : 'desativado';
+          const emoji = groupData.captchaEnabled ? '🔐' : '❌';
+          
+          let msg = `${emoji} *Captcha para Solicitações ${status}!*\n\n`;
+          
+          if (groupData.captchaEnabled) {
+            msg += `🔒 Quando alguém solicitar entrar no grupo:\n`;
+            msg += `1️⃣ Receberá uma conta matemática no PV\n`;
+            msg += `2️⃣ Terá 5 minutos para responder\n`;
+            msg += `3️⃣ Se acertar, será aprovado\n`;
+            msg += `4️⃣ Se errar ou não responder, será recusado\n\n`;
+            
+            if (!groupData.autoAcceptRequests) {
+              msg += `⚠️ *Atenção:* Para o captcha funcionar automaticamente, ative também:\n${prefix}autoaceitarsolic`;
+            } else {
+              msg += `✅ Auto-aceitar já está ativo! O captcha será usado automaticamente.`;
+            }
+          } else {
+            msg += `📝 Captcha desativado. ${groupData.autoAcceptRequests ? 'Solicitações serão aprovadas automaticamente sem verificação.' : 'Solicitações precisarão ser aprovadas manualmente.'}`;
+          }
+          
+          await reply(msg);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro ao configurar captcha.");
+        }
+        break;
       case 'promover':
       case 'promote':
         try {
@@ -22345,6 +22653,15 @@ case 'roubar':
           if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
           if (!menc_os2) return reply("Marque alguém 🙄");
           await nazu.groupParticipantsUpdate(from, [menc_os2], 'promote');
+          
+          // Notificação X9 para promoção
+          if (groupData.x9) {
+            await nazu.sendMessage(from, {
+              text: `⬆️ *X9 Report:* @${menc_os2.split('@')[0]} foi promovido(a) a ADM por @${sender.split('@')[0]}.`,
+              mentions: [menc_os2, sender],
+            }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+          }
+          
           reply(`✅ Usuário promovido a administrador!`);
         } catch (e) {
           console.error(e);
@@ -22359,6 +22676,15 @@ case 'roubar':
           if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
           if (!menc_os2) return reply("Marque alguém 🙄");
           await nazu.groupParticipantsUpdate(from, [menc_os2], 'demote');
+          
+          // Notificação X9 para rebaixamento
+          if (groupData.x9) {
+            await nazu.sendMessage(from, {
+              text: `⬇️ *X9 Report:* @${menc_os2.split('@')[0]} foi rebaixado(a) de ADM por @${sender.split('@')[0]}.`,
+              mentions: [menc_os2, sender],
+            }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+          }
+          
           reply(`✅ Usuário rebaixado com sucesso!`);
         } catch (e) { 
           console.error(e);
@@ -22376,7 +22702,18 @@ case 'roubar':
           if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
           const newName = q.trim();
           if (!newName) return reply('❌ Digite um novo nome para o grupo.\n\n📝 *Uso:* ' + groupPrefix + 'nomegrupo Nome do Grupo');
+          
+          const oldName = groupMetadata?.subject || 'Nome anterior';
           await nazu.groupUpdateSubject(from, newName);
+          
+          // Notificação X9 para mudança de nome
+          if (groupData.x9) {
+            await nazu.sendMessage(from, {
+              text: `✏️ *X9 Report:* Nome do grupo alterado por @${sender.split('@')[0]}\n\n🔹 Anterior: *${oldName}*\n🔸 Novo: *${newName}*`,
+              mentions: [sender],
+            }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+          }
+          
           reply(`✅ Nome do grupo alterado para: *${newName}*`);
         } catch (e) {
           console.error(e);
@@ -22395,6 +22732,15 @@ case 'roubar':
           const newDesc = q.trim();
           if (!newDesc) return reply('❌ Digite uma nova descrição para o grupo.\n\n📝 *Uso:* ' + groupPrefix + 'descgrupo Descrição do grupo aqui');
           await nazu.groupUpdateDescription(from, newDesc);
+          
+          // Notificação X9 para mudança de descrição
+          if (groupData.x9) {
+            await nazu.sendMessage(from, {
+              text: `📝 *X9 Report:* Descrição do grupo alterada por @${sender.split('@')[0]}`,
+              mentions: [sender],
+            }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+          }
+          
           reply(`✅ Descrição do grupo alterada!`);
         } catch (e) {
           console.error(e);
@@ -22422,6 +22768,15 @@ case 'roubar':
             // Processa a imagem com ffmpeg antes de atualizar
             const processedBuffer = await processImageForProfile(imageBuffer);
             await nazu.updateProfilePicture(from, processedBuffer);
+            
+            // Notificação X9 para mudança de foto
+            if (groupData.x9) {
+              await nazu.sendMessage(from, {
+                text: `📸 *X9 Report:* Foto do grupo alterada por @${sender.split('@')[0]}`,
+                mentions: [sender],
+              }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+            }
+            
             reply('✅ Foto do grupo alterada com sucesso!');
           } catch (updateError) {
             console.error('Erro ao alterar foto do grupo:', updateError);
@@ -22478,9 +22833,27 @@ case 'roubar':
           if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
           if (q.toLowerCase() === 'a' || q.toLowerCase() === 'o' || q.toLowerCase() === 'open' || q.toLowerCase() === 'abrir') {
             await nazu.groupSettingUpdate(from, 'not_announcement');
+            
+            // Notificação X9 para abertura do grupo
+            if (groupData.x9) {
+              await nazu.sendMessage(from, {
+                text: `🔓 *X9 Report:* Grupo aberto por @${sender.split('@')[0]}. Agora todos podem enviar mensagens.`,
+                mentions: [sender],
+              }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+            }
+            
             await reply('Grupo aberto.');
           } else if (q.toLowerCase() === 'f' || q.toLowerCase() === 'c' || q.toLowerCase() === 'close' || q.toLowerCase() === 'fechar') {
             await nazu.groupSettingUpdate(from, 'announcement');
+            
+            // Notificação X9 para fechamento do grupo
+            if (groupData.x9) {
+              await nazu.sendMessage(from, {
+                text: `🔒 *X9 Report:* Grupo fechado por @${sender.split('@')[0]}. Apenas ADMs podem enviar mensagens.`,
+                mentions: [sender],
+              }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+            }
+            
             await reply('Grupo fechado.');
           }
         } catch (e) {
@@ -23316,7 +23689,12 @@ case 'divulgar':
           
           groupData.x9 = !groupData.x9;
           fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
-          await reply(`✅ Modo X9 ${groupData.x9 ? 'ativado' : 'desativado'}! Agora eu aviso sobre promoções e rebaixamentos.`);
+          
+          const statusMsg = groupData.x9 
+            ? `✅ *Modo X9 ativado!* 🔍\n\nAgora eu vou reportar:\n• ⬆️ Promoções a ADM\n• ⬇️ Rebaixamentos de ADM\n• 🚪 Adições de membros\n• 🚶 Remoções e saídas\n• 🔒 Abertura/fechamento do grupo\n• 🔨 Banimentos\n• ✅ Aprovações de solicitações (manuais e automáticas)\n• ❌ Recusas de solicitações\n• 🤖 Aprovações automáticas do bot\n• ✏️ Mudanças de nome\n• 📝 Mudanças de descrição\n• 📸 Mudanças de foto\n\nTodas as ações administrativas serão notificadas com o responsável!`
+            : `❌ *Modo X9 desativado!*\n\nNotificações de ações administrativas foram desativadas.`;
+          
+          await reply(statusMsg);
         } catch (e) {
           console.error(e);
           await reply("Ocorreu um erro 💔");
