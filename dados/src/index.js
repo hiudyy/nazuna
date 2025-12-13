@@ -875,7 +875,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     
     // ==================== PROCESSAMENTO DE SOLICITAÇÕES DE ENTRADA NO GRUPO ====================
     // Solicitações de entrada são processadas via messageStubType, não eventos separados
-    if (isGroup && info.message?.messageStubType && info.message.messageStubType === 28) { // GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD
+    if (isGroup && info.message?.messageStubType && info.message.messageStubType === 172) { // GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD
       try {
         const groupFile = buildGroupFilePath(from);
         let groupSettings = {};
