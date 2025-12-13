@@ -309,6 +309,7 @@ const messageQueue = new MessageQueue(8, 10, 2); // 8 workers, 10 lotes, 2 mensa
 
 const configPath = path.join(__dirname, "config.json");
 let config;
+let DEBUG_MODE = false; // Modo debug para logs detalhados
 
 // Validação de configuração
 try {
@@ -318,6 +319,12 @@ try {
     // Valida campos obrigatórios
     if (!config.prefixo || !config.nomebot || !config.numerodono) {
         throw new Error('Configuração inválida: campos obrigatórios ausentes (prefixo, nomebot, numerodono)');
+    }
+    
+    // Ativa modo debug se configurado
+    DEBUG_MODE = config.debug === true || process.env.NAZUNA_DEBUG === '1';
+    if (DEBUG_MODE) {
+        console.log('🐛 Modo DEBUG ativado - Logs detalhados habilitados');
     }
 } catch (err) {
     console.error(`❌ Erro ao carregar configuração: ${err.message}`);
@@ -495,8 +502,16 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
     try {
         const from = inf.id || inf.jid || (inf.participants && inf.participants.length > 0 ? inf.participants[0].split('@')[0] + '@s.whatsapp.net' : null);
         
+        if (DEBUG_MODE) {
+            console.log('🐛 [handleGroupParticipantsUpdate] Processando evento...');
+            console.log('🐛 Group ID extraído:', from);
+        }
+        
         if (!from) {
             console.error('❌ Erro: ID do grupo não encontrado nos dados do evento.');
+            if (DEBUG_MODE) {
+                console.log('🐛 Dados do evento:', JSON.stringify(inf, null, 2));
+            }
             return;
         }
 
@@ -641,9 +656,27 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
 async function handleGroupMembershipRequest(NazunaSock, inf) {
     try {
         const from = inf.id;
-        if (!from) return;
+        
+        if (DEBUG_MODE) {
+            console.log('🐛 [handleGroupMembershipRequest] Processando solicitação...');
+            console.log('🐛 Group ID:', from);
+            console.log('🐛 Action:', inf.action);
+            console.log('🐛 Participants:', inf.participants);
+        }
+        
+        if (!from) {
+            if (DEBUG_MODE) console.log('🐛 Group ID não encontrado, abortando');
+            return;
+        }
         
         const groupSettings = await loadGroupSettings(from);
+        
+        if (DEBUG_MODE) {
+            console.log('🐛 Group settings:');
+            console.log('  - autoAcceptRequests:', groupSettings.autoAcceptRequests);
+            console.log('  - captchaEnabled:', groupSettings.captchaEnabled);
+            console.log('  - x9:', groupSettings.x9);
+        }
         
         // Notificação X9 para aprovações/recusas manuais
         if (groupSettings.x9) {
@@ -1118,6 +1151,17 @@ async function createBotSocket(authDir) {
         NazunaSock.ev.on('groups.update', async (updates) => {
             if (!Array.isArray(updates) || updates.length === 0) return;
             
+            if (DEBUG_MODE) {
+                console.log('\n🐛 ========== GROUPS UPDATE ==========');
+                console.log('📅 Timestamp:', new Date().toISOString());
+                console.log('📊 Number of updates:', updates.length);
+                updates.forEach((update, index) => {
+                    console.log(`\n--- Update ${index + 1} ---`);
+                    console.log('📦 Update data:', JSON.stringify(update, null, 2));
+                });
+                console.log('🐛 ====================================\n');
+            }
+            
             // Processa atualizações em lote para melhor performance
             const updatePromises = updates.map(async ([ev]) => {
                 if (!ev || !ev.id) return;
@@ -1126,6 +1170,9 @@ async function createBotSocket(authDir) {
                     const meta = await NazunaSock.groupMetadata(ev.id).catch(() => null);
                     if (meta) {
                         // Metadados atualizados, pode ser usado para cache futuro
+                        if (DEBUG_MODE) {
+                            console.log('🐛 Metadata fetched for group:', ev.id);
+                        }
                     }
                 } catch (e) {
                     console.error(`❌ Erro ao atualizar metadados do grupo ${ev.id}: ${e.message}`);
@@ -1136,11 +1183,31 @@ async function createBotSocket(authDir) {
         });
 
         NazunaSock.ev.on('group-participants.update', async (inf) => {
+            if (DEBUG_MODE) {
+                console.log('\n🐛 ========== GROUP PARTICIPANTS UPDATE ==========');
+                console.log('📅 Timestamp:', new Date().toISOString());
+                console.log('🆔 Group ID:', inf.id || inf.jid || 'unknown');
+                console.log('⚡ Action:', inf.action);
+                console.log('👥 Participants:', inf.participants);
+                console.log('👤 Author:', inf.author || 'N/A');
+                console.log('📦 Full event data:', JSON.stringify(inf, null, 2));
+                console.log('🐛 ================================================\n');
+            }
             await handleGroupParticipantsUpdate(NazunaSock, inf);
         });
         
         // Listener para solicitações de participantes (aprovação/recusa)
         NazunaSock.ev.on('group.membership.request', async (inf) => {
+            if (DEBUG_MODE) {
+                console.log('\n🐛 ========== GROUP MEMBERSHIP REQUEST ==========');
+                console.log('📅 Timestamp:', new Date().toISOString());
+                console.log('🆔 Group ID:', inf.id || 'unknown');
+                console.log('⚡ Action:', inf.action);
+                console.log('👥 Participants:', inf.participants);
+                console.log('👤 Author:', inf.author || 'N/A');
+                console.log('📦 Full event data:', JSON.stringify(inf, null, 2));
+                console.log('🐛 ================================================\n');
+            }
             await handleGroupMembershipRequest(NazunaSock, inf);
         });
 
