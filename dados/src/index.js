@@ -1725,7 +1725,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         console.error("Erro ao processar remoção de AFK:", error);
       }
     }
-    if (isGroup && isMuted) {
+    if (isGroup && isMuted && !isGroupAdmin && !isOwner) {
       try {
         await nazu.sendMessage(from, {
           text: `🤫 *Usuário mutado detectado*\n\n@${getUserName(sender)}, você está tentando falar enquanto está mutado neste grupo. Você será removido conforme as regras.`,
@@ -1757,7 +1757,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         console.error("Erro ao processar usuário mutado:", error);
       }
     }
-    if (isGroup && isMuted2) {
+    if (isGroup && isMuted2 && !isGroupAdmin && !isOwner) {
       try {
         await nazu.sendMessage(from, {
           delete: {
