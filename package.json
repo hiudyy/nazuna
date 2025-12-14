@@ -29,7 +29,7 @@
         "node-webpmux": "^3.2.1",
         "pino": "^10.1.0",
         "qrcode-terminal": "^0.12.0",
-        "whaileys": "npm:baileys-york@^6.7.134"
+        "whaileys": "^6.4.3"
     },
     "devDependencies": {
         "nodemon": "^3.1.4"
