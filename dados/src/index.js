@@ -98,6 +98,7 @@ import {
   applyShopBonuses,
   PICKAXE_TIER_MULT,
   PICKAXE_TIER_ORDER,
+  SHOP_ITEMS,
   getActivePickaxe,
   ensureEconomyDefaults,
   giveMaterial,

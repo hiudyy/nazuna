@@ -1555,6 +1555,23 @@ function applyShopBonuses(user, econ) {
 const PICKAXE_TIER_MULT = { bronze: 1.0, ferro: 1.25, diamante: 1.6 };
 const PICKAXE_TIER_ORDER = { bronze: 1, ferro: 2, diamante: 3 };
 
+// Definição dos itens da loja (para referência em equipamentos de pets)
+const SHOP_ITEMS = {
+  "pet_sword": { name: "Espada para Pet", price: 1200, stats: { attack: 15 } },
+  "pet_armor": { name: "Armadura para Pet", price: 1500, stats: { defense: 12 } },
+  "pet_shield": { name: "Escudo para Pet", price: 1000, stats: { defense: 8 } },
+  "pet_ring": { name: "Anel do Pet", price: 700, stats: { attack: 5, defense: 5 } },
+  "dragonslayer": { name: "Mata-Dragões", price: 3000, stats: { attack: 20, critBonus: 5 }, advantage: "dragao" },
+  "wolfbane": { name: "Maldição Lobisomem", price: 2500, stats: { attack: 18 }, advantage: "lobo" },
+  "phoenix_feather": { name: "Pena de Fênix", price: 2800, stats: { attack: 15, speed: 10 }, advantage: "fenix" },
+  "tiger_talisman": { name: "Talismã do Tigre", price: 2200, stats: { attack: 12, defense: 5 }, advantage: "tigre" },
+  "eagle_eye": { name: "Olho de Águia", price: 2400, stats: { attack: 15, critBonus: 15 }, advantage: "aguia" },
+  "mystic_collar": { name: "Coleira Mística", price: 3500, stats: { attack: 10, defense: 10, speed: 5 } },
+  "battle_potion": { name: "Poção de Batalha", price: 500, stats: { attack: 10 }, consumable: true },
+  "defense_potion": { name: "Poção de Defesa", price: 500, stats: { defense: 10 }, consumable: true },
+  "evolution_stone": { name: "Pedra da Evolução", price: 10000, type: "evolution" }
+};
+
 function getActivePickaxe(user) {
   const pk = user.tools?.pickaxe;
   if (!pk || pk.dur <= 0) return null;
@@ -1655,29 +1672,27 @@ function ensureEconomyDefaults(econ) {
   }
   
   // === SHOP ITEMS (itens de pets) ===
-  if (!econ.shopItems && !SHOP_ITEMS) {
-    // Garante que os itens de pets existam
-    const petItems = {
-      pet_sword: { name: 'Espada de Pet', price: 1000, stats: { attack: 5 } },
-      pet_armor: { name: 'Armadura de Pet', price: 1200, stats: { defense: 5 } },
-      pet_shield: { name: 'Escudo de Pet', price: 800, stats: { defense: 3 } },
-      pet_ring: { name: 'Anel de Pet', price: 1500, stats: { attack: 3, defense: 2 } },
-      dragonslayer: { name: 'Dragonslayer', price: 3000, stats: { attack: 10, critBonus: 5 }, advantage: 'dragao' },
-      wolfbane: { name: 'Wolfbane', price: 2500, stats: { attack: 8 }, advantage: 'lobo' },
-      phoenix_feather: { name: 'Phoenix Feather', price: 2800, stats: { attack: 9, speed: 5 }, advantage: 'fenix' },
-      tiger_talisman: { name: 'Tiger Talisman', price: 2200, stats: { attack: 7, defense: 3 }, advantage: 'tigre' },
-      eagle_eye: { name: 'Eagle Eye', price: 2400, stats: { attack: 8, critBonus: 10 }, advantage: 'aguia' },
-      mystic_collar: { name: 'Mystic Collar', price: 3500, stats: { attack: 5, defense: 5, speed: 5 } },
-      battle_potion: { name: 'Battle Potion', price: 500, stats: { attack: 10 }, consumable: true },
-      defense_potion: { name: 'Defense Potion', price: 500, stats: { defense: 10 }, consumable: true },
-      evolution_stone: { name: 'Evolution Stone', price: 10000, type: 'evolution' }
-    };
-    
-    for (const [k, v] of Object.entries(petItems)) {
-      if (!econ.shop[k]) {
-        econ.shop[k] = v;
-        changed = true;
-      }
+  // Garante que os itens de pets existam no shop
+  const petItems = {
+    pet_sword: { name: 'Espada de Pet', price: 1200, stats: { attack: 15 } },
+    pet_armor: { name: 'Armadura de Pet', price: 1500, stats: { defense: 12 } },
+    pet_shield: { name: 'Escudo de Pet', price: 1000, stats: { defense: 8 } },
+    pet_ring: { name: 'Anel de Pet', price: 700, stats: { attack: 5, defense: 5 } },
+    dragonslayer: { name: 'Mata-Dragões', price: 3000, stats: { attack: 20, critBonus: 5 }, advantage: 'dragao' },
+    wolfbane: { name: 'Maldição Lobisomem', price: 2500, stats: { attack: 18 }, advantage: 'lobo' },
+    phoenix_feather: { name: 'Pena de Fênix', price: 2800, stats: { attack: 15, speed: 10 }, advantage: 'fenix' },
+    tiger_talisman: { name: 'Talismã do Tigre', price: 2200, stats: { attack: 12, defense: 5 }, advantage: 'tigre' },
+    eagle_eye: { name: 'Olho de Águia', price: 2400, stats: { attack: 15, critBonus: 15 }, advantage: 'aguia' },
+    mystic_collar: { name: 'Coleira Mística', price: 3500, stats: { attack: 10, defense: 10, speed: 5 } },
+    battle_potion: { name: 'Poção de Batalha', price: 500, stats: { attack: 10 }, consumable: true },
+    defense_potion: { name: 'Poção de Defesa', price: 500, stats: { defense: 10 }, consumable: true },
+    evolution_stone: { name: 'Pedra da Evolução', price: 10000, type: 'evolution' }
+  };
+  
+  for (const [k, v] of Object.entries(petItems)) {
+    if (!econ.shop[k]) {
+      econ.shop[k] = v;
+      changed = true;
     }
   }
   
@@ -2749,6 +2764,7 @@ export {
   applyShopBonuses,
   PICKAXE_TIER_MULT,
   PICKAXE_TIER_ORDER,
+  SHOP_ITEMS,
   getActivePickaxe,
   ensureEconomyDefaults,
   giveMaterial,
