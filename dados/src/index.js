@@ -6859,13 +6859,20 @@ Entre em contato com o dono do bot:
           return reply(`❌ ${pet.emoji} *${pet.name}* precisa estar no nível ${nextEvolution.reqLevel}!\n\n📊 Nível atual: ${pet.level}`);
         }
         
-        // Verifica pedra da evolução
-        if (!me.items.evolution_stone || me.items.evolution_stone < 1) {
+        // Verifica pedra da evolução (verifica em inventory e items)
+        const hasStoneInInventory = me.inventory?.evolution_stone && me.inventory.evolution_stone >= 1;
+        const hasStoneInItems = me.items?.evolution_stone && me.items.evolution_stone >= 1;
+        
+        if (!hasStoneInInventory && !hasStoneInItems) {
           return reply(`❌ Você precisa de uma *Pedra da Evolução* para evoluir seu pet!\n\n🛒 Compre na ${prefix}loja ou ganhe em batalhas de pets.`);
         }
         
-        // Consome a pedra e evolui
-        me.items.evolution_stone--;
+        // Consome a pedra (verifica onde está)
+        if (hasStoneInInventory) {
+          me.inventory.evolution_stone--;
+        } else {
+          me.items.evolution_stone--;
+        }
         
         const oldName = pet.name;
         const oldEmoji = pet.emoji;
@@ -7121,12 +7128,11 @@ Entre em contato com o dono do bot:
             const oppEquipment = Object.entries(oppPet.equipment || {});
             if (oppEquipment.length > 0) {
               const [slot, itemId] = oppEquipment[Math.floor(Math.random() * oppEquipment.length)];
-              const shopData = require('./utils/database.js');
-              const item = shopData.SHOP_ITEMS[itemId];
+              const item = SHOP_ITEMS[itemId];
               
               if (item) {
                 itemDropped = item.name;
-                me.items[itemId] = (me.items[itemId] || 0) + 1;
+                me.inventory[itemId] = (me.inventory[itemId] || 0) + 1;
               }
             }
           }
@@ -7252,7 +7258,7 @@ Entre em contato com o dono do bot:
         const econ = loadEconomy();
         const me = getEcoUser(econ, sender);
         
-        if (!me.items) me.items = {};
+        if (!me.inventory) me.inventory = {};
         
         const argsArr = q.split(' ');
         const petIndex = parseInt(argsArr[0]) - 1;
@@ -7265,16 +7271,15 @@ Entre em contato com o dono do bot:
         if (!itemId) return reply(`❌ Informe o item!\n\n💡 Uso: ${prefix}equippet <nº pet> <item>`);
         
         const pet = me.pets[petIndex];
-        const shopData = require('./utils/database.js');
         
         // Busca o item no inventário
-        const foundItemId = Object.keys(me.items).find(key => {
-          return key.toLowerCase().includes(itemId) && me.items[key] > 0;
+        const foundItemId = Object.keys(me.inventory).find(key => {
+          return key.toLowerCase().includes(itemId) && me.inventory[key] > 0;
         });
         
         if (!foundItemId) return reply('❌ Você não tem esse item no inventário!');
         
-        const item = shopData.SHOP_ITEMS[foundItemId];
+        const item = SHOP_ITEMS[foundItemId];
         if (!item) return reply('❌ Item inválido!');
         
         // Determina o slot do equipamento
@@ -7289,12 +7294,12 @@ Entre em contato com o dono do bot:
         
         // Se já tem item no slot, devolve ao inventário
         if (pet.equipment[slot]) {
-          me.items[pet.equipment[slot]] = (me.items[pet.equipment[slot]] || 0) + 1;
+          me.inventory[pet.equipment[slot]] = (me.inventory[pet.equipment[slot]] || 0) + 1;
         }
         
         // Equipa o novo item
         pet.equipment[slot] = foundItemId;
-        me.items[foundItemId]--;
+        me.inventory[foundItemId]--;
         
         saveEconomy(econ);
         
