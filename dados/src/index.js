@@ -11566,9 +11566,7 @@ Entre em contato com o dono do bot:
         const quantidade = parseInt(args[0]) || 50;
         const limite = Math.min(Math.max(quantidade, 10), 200); // Entre 10 e 200 mensagens
 
-        await reply(`💬 Coletando as últimas ${limite} mensagens para resumir... ⏳`);
-
-        try {
+        reply(`💬 Coletando as últimas ${limite} mensagens para resumir... ⏳`).then(() => {
           // Buscar mensagens do cache
           const mensagensGrupo = [];
           
@@ -11634,17 +11632,18 @@ ${conversaTexto.substring(0, 8000)}
 
 Faça um resumo conciso mas completo, destacando o que é mais relevante.`;
 
-          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog);
-          await reply(`💬 *Resumo da Conversa* (${mensagensGrupo.length} mensagens)\n\n${formatAIResponse(response.data.choices[0].message.content)}`);
-        } catch (e) {
+          return ia.makeCognimaRequest('abacusai/dracarys-llama-3.1-70b-instruct', prompt, null, KeyCog);
+        }).then(response => {
+          return reply(`💬 *Resumo da Conversa* (últimas mensagens)\n\n${formatAIResponse(response.data.choices[0].message.content)}`);
+        }).catch(e => {
           console.error('Erro ao resumir conversa:', e);
           if (e.message?.includes('API key inválida')) {
             ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
-            await reply('🤖 *Sistema de IA temporariamente indisponível*\n\nO administrador já foi notificado!');
+            return reply('🤖 *Sistema de IA temporariamente indisponível*\n\nO administrador já foi notificado!');
           } else {
-            await reply('😓 Não consegui resumir a conversa agora! Tente novamente em breve. 🌈');
+            return reply('😓 Não consegui resumir a conversa agora! Tente novamente em breve. 🌈');
           }
-        }
+        });
         break;
       }
 
