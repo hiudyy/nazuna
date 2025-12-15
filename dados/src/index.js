@@ -27655,11 +27655,33 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
       }
     } catch (apiError) {
       console.error('Erro no comando likes:', apiError.message);
+      console.error('Response data:', apiError.response?.data);
 
       // Verificar se é erro de API key
       if (isApiKeyError(apiError)) {
         await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, 'Envio de Likes Free Fire');
         return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
+      }
+
+      // Verificar se é o caso de menos de 100 likes (mesmo vindo como erro HTTP)
+      const errorData = apiError.response?.data;
+      if (errorData && errorData.data) {
+        const data = errorData.data;
+        const likesAdded = data.likesAdded || 0;
+        
+        let msg = `⚠️ *Likes enviados parcialmente*\n\n`;
+        msg += `👤 *Jogador:* ${data.player || 'N/A'}\n`;
+        msg += `🆔 *UID:* ${data.uid || playerId}\n`;
+        msg += `🌍 *Região:* ${data.region || 'N/A'}\n`;
+        msg += `📈 *Nível:* ${data.level || 'N/A'}\n`;
+        msg += `⭐ *Likes iniciais:* ${data.initialLikes?.toLocaleString() || '0'}\n`;
+        msg += `⭐ *Likes finais:* ${data.finalLikes?.toLocaleString() || '0'}\n`;
+        msg += `📤 *Likes adicionados:* ${likesAdded}\n\n`;
+        msg += `💡 *Aviso:* Você pode ter atingido o limite diário de likes da sua conta Free Fire.\n`;
+        msg += `🕐 *Tente novamente amanhã para receber mais likes!*\n\n`;
+        msg += `⏰ *Timestamp:* ${data.timestamp || new Date().toLocaleString('pt-BR')}`;
+        
+        return reply(msg);
       }
 
       // Outros erros
