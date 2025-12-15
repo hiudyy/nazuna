@@ -27604,15 +27604,22 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
 
       if (response.data && response.data.success && response.data.data) {
         const data = response.data.data;
+        const likesAdded = data.likesAdded || 0;
         
-        let msg = `✅ *Likes enviados com sucesso!*\n\n`;
+        let msg = `${likesAdded >= 100 ? '✅' : '⚠️'} *${likesAdded >= 100 ? 'Likes enviados com sucesso!' : 'Likes enviados parcialmente'}*\n\n`;
         msg += `👤 *Jogador:* ${data.player || 'N/A'}\n`;
         msg += `🆔 *UID:* ${data.uid || playerId}\n`;
         msg += `🌍 *Região:* ${data.region || 'N/A'}\n`;
         msg += `📈 *Nível:* ${data.level || 'N/A'}\n`;
         msg += `⭐ *Likes iniciais:* ${data.initialLikes?.toLocaleString() || '0'}\n`;
         msg += `⭐ *Likes finais:* ${data.finalLikes?.toLocaleString() || '0'}\n`;
-        msg += `📤 *Likes adicionados:* ${data.likesAdded || '0'}\n\n`;
+        msg += `📤 *Likes adicionados:* ${likesAdded}\n\n`;
+        
+        if (likesAdded < 100) {
+          msg += `💡 *Aviso:* Você pode ter atingido o limite diário de likes da sua conta Free Fire.\n`;
+          msg += `🕐 *Tente novamente amanhã para receber mais likes!*\n\n`;
+        }
+        
         msg += `⏰ *Timestamp:* ${data.timestamp || 'N/A'}`;
         
         await reply(msg);
