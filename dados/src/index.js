@@ -27193,32 +27193,104 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
   // Mandem agradecimentos a ele 🫶🏻
   case 'likeff':
   case 'likes':
+  case 'likeff':
+  case 'likesff':
   try {
-    if (!q) return reply('⚠️ Falta digitar o seu ID do Free Fire.\n\nEx: ' + prefix + command + ' 000000000');
-
-    const LikeRes = await axios.get(`https://likes.ffgarena.cloud/api/v2/likes?uid=${q}&amount_of_likes=100&auth=leroyadmff3m`);
-    const data = LikeRes.data;
-
-    if (data.status !== 200) return reply('❌ Ocorreu um erro ao tentar enviar os likes.');
-
-    if (data.sent === "0 likes") {
-      return reply(
-        `⚠️ O ID *${q}* (${data.nickname}) já recebeu likes hoje.\n\n` +
-        `⭐ Likes atuais: ${data.likes_antes}`
-      );
+    // Verificar API key
+    if (!KeyCog) {
+      await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'Envio de Likes Free Fire');
+      return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
-    let msg = `✨ *Likes enviados com sucesso!* ✨\n\n`;
-    msg += `👤 *Nickname:* ${data.nickname}\n`;
-    msg += `🌍 *Região:* ${data.region}\n`;
-    msg += `📈 *Nível:* ${data.level}\n`;
-    msg += `⭐ *Likes antes:* ${data.likes_antes}\n`;
-    msg += `⭐ *Likes depois:* ${data.likes_depois}\n`;
-    msg += `📤 *Resultado:* ${data.sent}`;
-    await reply(msg);
+    if (!q) {
+      return reply(`⭐ *ENVIAR LIKES - FREE FIRE*\n\n📝 *Como usar:*\n• Digite o ID do Free Fire após o comando\n• Exemplo: ${prefix}likes 1033857091\n\n💡 *Formato:* Apenas números do seu ID`);
+    }
+
+    const playerId = q.replace(/\D/g, '');
+    if (!playerId || playerId.length < 8) {
+      return reply(`❌ *ID inválido!*\n\n📝 Digite um ID válido do Free Fire.\n💡 Exemplo: ${prefix}likes 1033857091`);
+    }
+
+    await reply(`⭐ *Enviando likes...*\n⏳ Aguarde um momento...`);
+
+    try {
+      const response = await axios.get(`https://cog.api.br/api/v1/freefire/sendlikes`, {
+        params: {
+          playerId: playerId
+        },
+        headers: {
+          'Authorization': `Bearer ${KeyCog}`
+        },
+        timeout: 30000
+      });
+
+      // Verificar se a resposta indica erro de limite
+      if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+        const errorData = response.data;
+        if (errorData.required_limit && errorData.required_limit > 500) {
+          // Notificar dono sobre necessidade de plano ilimitado
+          const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA LIKES FF* 🚨
+
+⚠️ *Problema detectado:*
+• *Tipo de requisição:* Envio de Likes Free Fire
+• *Limite necessário:* ${errorData.required_limit} requisições diárias
+• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
+
+📋 *Solução:*
+O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
+
+💳 *Como fazer upgrade:*
+• Acesse: https://cog.api.br/plans
+• Entre em contato para fazer upgrade do seu plano
+• Configure a nova API key após o upgrade
+
+⚙️ *Como atualizar API key:*
+• Use o comando: !apikey suachave
+• Reinicie o bot após configurar`;
+
+          try {
+            await nazu.sendMessage(nmrdn, { text: ownerMessage });
+          } catch (notifyErr) {
+            console.error('Erro ao notificar dono:', notifyErr.message);
+          }
+
+          return reply(`❌ *Plano insuficiente*\n\n⚠️ O envio de likes está disponível apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+        }
+      }
+
+      if (response.data && response.data.success && response.data.data) {
+        const data = response.data.data;
+        
+        let msg = `✅ *Likes enviados com sucesso!*\n\n`;
+        msg += `👤 *Jogador:* ${data.player || 'N/A'}\n`;
+        msg += `🆔 *UID:* ${data.uid || playerId}\n`;
+        msg += `🌍 *Região:* ${data.region || 'N/A'}\n`;
+        msg += `📈 *Nível:* ${data.level || 'N/A'}\n`;
+        msg += `⭐ *Likes iniciais:* ${data.initialLikes?.toLocaleString() || '0'}\n`;
+        msg += `⭐ *Likes finais:* ${data.finalLikes?.toLocaleString() || '0'}\n`;
+        msg += `📤 *Likes adicionados:* ${data.likesAdded || '0'}\n\n`;
+        msg += `⏰ *Timestamp:* ${data.timestamp || 'N/A'}`;
+        
+        await reply(msg);
+      } else {
+        await reply(`❌ *Erro ao enviar likes*\n\n🔍 Não foi possível enviar likes para este ID.\n\n💡 *Possíveis motivos:*\n• ID não encontrado\n• Jogador já recebeu likes hoje\n• Servidor indisponível\n\n🔄 Tente novamente mais tarde.`);
+      }
+    } catch (apiError) {
+      console.error('Erro no comando likes:', apiError.message);
+
+      // Verificar se é erro de API key
+      if (isApiKeyError(apiError)) {
+        await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, 'Envio de Likes Free Fire');
+        return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
+      }
+
+      // Outros erros
+      return reply(`❌ *Erro ao enviar likes*\n\n⚠️ ${apiError.response?.data?.message || apiError.message || 'Erro desconhecido'}\n\n🔄 Tente novamente mais tarde.`);
+    }
   } catch (e) {
+    console.error('Erro geral no comando likes:', e);
     reply('❌ Ocorreu um erro ao processar sua solicitação.');
-  };
+  }
   break;
   
   case 'nuke':
