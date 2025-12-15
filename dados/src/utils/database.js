@@ -1216,13 +1216,13 @@ function timeLeft(targetMs) {
 function applyShopBonuses(user, econ) {
   const inv = user.inventory || {};
   const shop = econ.shop || {};
-  let mineBonus = 0; let workBonus = 0; let bankCapacity = Infinity; let fishBonus = 0; let exploreBonus = 0; let huntBonus = 0; let forgeBonus = 0;
+  let mineBonus = 0; let workBonus = 0; let bankCapacity = 10000; let fishBonus = 0; let exploreBonus = 0; let huntBonus = 0; let forgeBonus = 0;
   Object.entries(inv).forEach(([key, qty]) => {
     if (!qty || !shop[key]) return;
     const eff = shop[key].effect || {};
     if (eff.mineBonus) mineBonus += eff.mineBonus * qty;
     if (eff.workBonus) workBonus += eff.workBonus * qty;
-    if (eff.bankCapacity) bankCapacity = isFinite(bankCapacity) ? bankCapacity + eff.bankCapacity * qty : (eff.bankCapacity * qty);
+    if (eff.bankCapacity) bankCapacity = bankCapacity + eff.bankCapacity * qty;
     if (eff.fishBonus) fishBonus += eff.fishBonus * qty;
     if (eff.exploreBonus) exploreBonus += eff.exploreBonus * qty;
     if (eff.huntBonus) huntBonus += eff.huntBonus * qty;
