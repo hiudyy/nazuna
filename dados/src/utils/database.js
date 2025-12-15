@@ -120,7 +120,17 @@ ensureJsonFileExists(ECONOMY_FILE, {
     "pet_sword": { name: "Espada para Pet", price: 1200, type: "pet_equipment", slot: "weapon", attackBonus: 15, durability: 30 },
     "pet_armor": { name: "Armadura para Pet", price: 1500, type: "pet_equipment", slot: "armor", defenseBonus: 12, durability: 40 },
     "pet_shield": { name: "Escudo para Pet", price: 1000, type: "pet_equipment", slot: "shield", defenseBonus: 8, durability: 50 },
-    "pet_ring": { name: "Anel do Pet", price: 700, type: "pet_equipment", slot: "accessory", attackBonus: 5, defenseBonus: 5, durability: 25 }
+    "pet_ring": { name: "Anel do Pet", price: 700, type: "pet_equipment", slot: "accessory", attackBonus: 5, defenseBonus: 5, durability: 25 },
+    // Novos itens de vantagem
+    "dragonslayer": { name: "Mata-Dragões", price: 3000, type: "pet_equipment", slot: "weapon", attackBonus: 20, advantage: "dragao", durability: 40 },
+    "wolfbane": { name: "Maldiç ão Lobisomem", price: 2500, type: "pet_equipment", slot: "weapon", attackBonus: 18, advantage: "lobo", durability: 35 },
+    "phoenix_feather": { name: "Pena de Fênix", price: 2800, type: "pet_equipment", slot: "accessory", hpBonus: 30, advantage: "fenix", durability: 30 },
+    "tiger_talisman": { name: "Talismã do Tigre", price: 2200, type: "pet_equipment", slot: "accessory", attackBonus: 12, advantage: "tigre", durability: 25 },
+    "eagle_eye": { name: "Olho de Águia", price: 2400, type: "pet_equipment", slot: "accessory", critBonus: 15, advantage: "aguia", durability: 30 },
+    "mystic_collar": { name: "Coleira Mística", price: 3500, type: "pet_equipment", slot: "accessory", attackBonus: 10, defenseBonus: 10, hpBonus: 20, durability: 50 },
+    "battle_potion": { name: "Poção de Batalha", price: 500, type: "consumable", effect: { tempAttack: 10, duration: 3 } },
+    "defense_potion": { name: "Poção de Defesa", price: 500, type: "consumable", effect: { tempDefense: 10, duration: 3 } },
+    "evolution_stone": { name: "Pedra da Evolução", price: 10000, type: "consumable", effect: { evolve: true } }
   },
   materialsPrices: {
     pedra: 2,
@@ -1135,6 +1145,15 @@ function loadEconomy() {
     if (!data.shop || typeof data.shop !== 'object') data.shop = {};
     if (!data.jobCatalog || typeof data.jobCatalog !== 'object') data.jobCatalog = {};
     
+    // 🔧 AUTO-REPARO: Aplica migração automática
+    const needsSave = ensureEconomyDefaults(data);
+    
+    // Se houve mudanças, salva automaticamente
+    if (needsSave) {
+      console.log('🔧 Sistema de migração detectou e corrigiu dados faltantes/incorretos');
+      saveEconomy(data);
+    }
+    
     return data;
   } catch (error) {
     console.error('❌ Erro crítico ao carregar economia:', error.message);
@@ -1161,38 +1180,339 @@ function getEcoUser(econ, userId) {
   try {
     if (!econ || typeof econ !== 'object') {
       console.error('❌ getEcoUser: economia inválida');
-      return { wallet: 0, bank: 0, cooldowns: {}, inventory: {}, job: null, tools: {}, materials: {}, challenge: null, weeklyChallenge: null, monthlyChallenge: null, skills: {}, properties: {} };
+      return createDefaultEcoUser();
     }
     
     if (!userId || typeof userId !== 'string') {
       console.error('❌ getEcoUser: userId inválido');
-      return { wallet: 0, bank: 0, cooldowns: {}, inventory: {}, job: null, tools: {}, materials: {}, challenge: null, weeklyChallenge: null, monthlyChallenge: null, skills: {}, properties: {} };
+      return createDefaultEcoUser();
     }
     
     econ.users = econ.users || {};
-    econ.users[userId] = econ.users[userId] || { wallet: 0, bank: 0, cooldowns: {}, inventory: {}, job: null, tools: {}, materials: {}, challenge: null, weeklyChallenge: null, monthlyChallenge: null, skills: {}, properties: {} };
     
-    const u = econ.users[userId];
+    // Se usuário não existe, cria com estrutura completa
+    if (!econ.users[userId]) {
+      econ.users[userId] = createDefaultEcoUser();
+      return econ.users[userId];
+    }
     
-    // Validação e correção de campos
-    u.wallet = typeof u.wallet === 'number' && !isNaN(u.wallet) ? Math.max(0, Math.floor(u.wallet)) : 0;
-    u.bank = typeof u.bank === 'number' && !isNaN(u.bank) ? Math.max(0, Math.floor(u.bank)) : 0;
-    u.cooldowns = (u.cooldowns && typeof u.cooldowns === 'object') ? u.cooldowns : {};
-    u.inventory = (u.inventory && typeof u.inventory === 'object') ? u.inventory : {};
-    if (typeof u.job === 'undefined') u.job = null;
-    u.tools = (u.tools && typeof u.tools === 'object') ? u.tools : {};
-    u.materials = (u.materials && typeof u.materials === 'object') ? u.materials : {};
-    u.challenge = u.challenge || null;
-    u.weeklyChallenge = u.weeklyChallenge || null;
-    u.monthlyChallenge = u.monthlyChallenge || null;
-    u.skills = (u.skills && typeof u.skills === 'object') ? u.skills : {};
-    u.properties = (u.properties && typeof u.properties === 'object') ? u.properties : {};
+    // Migra e valida usuário existente
+    econ.users[userId] = migrateAndValidateEcoUser(econ.users[userId]);
     
-    return u;
+    return econ.users[userId];
   } catch (error) {
     console.error('❌ Erro em getEcoUser:', error.message);
-    return { wallet: 0, bank: 0, cooldowns: {}, inventory: {}, job: null, tools: {}, materials: {}, challenge: null, weeklyChallenge: null, monthlyChallenge: null, skills: {}, properties: {} };
+    return createDefaultEcoUser();
   }
+}
+
+/**
+ * Cria estrutura padrão completa de um usuário da economia
+ */
+function createDefaultEcoUser() {
+  return {
+    // Financeiro
+    wallet: 0,
+    bank: 0,
+    
+    // Sistema de itens
+    cooldowns: {},
+    inventory: {},
+    items: {}, // Novo sistema de itens (separado do inventory)
+    
+    // Trabalho e ferramentas
+    job: null,
+    tools: {},
+    materials: {},
+    
+    // Desafios
+    challenge: null,
+    weeklyChallenge: null,
+    monthlyChallenge: null,
+    
+    // RPG - Stats base
+    level: 1,
+    exp: 0,
+    prestige: 0,
+    classe: null,
+    clan: null,
+    house: null,
+    family: null,
+    
+    // RPG - Stats de combate
+    power: 100,
+    hp: 100,
+    maxHp: 100,
+    mana: 50,
+    maxMana: 50,
+    stamina: 100,
+    maxStamina: 100,
+    
+    // RPG - Atributos
+    strength: 10,
+    defense: 10,
+    agility: 10,
+    intelligence: 10,
+    luck: 10,
+    
+    // RPG - Bonuses
+    attackBonus: 0,
+    defenseBonus: 0,
+    
+    // Skills e habilidades
+    skills: {},
+    
+    // Propriedades
+    properties: {},
+    
+    // Sistema de Pets
+    pets: [],
+    lastPetBattle: 0,
+    
+    // Estatísticas
+    totalWork: 0,
+    totalMine: 0,
+    totalFish: 0,
+    totalHunt: 0,
+    totalExplore: 0,
+    totalCrime: 0,
+    
+    // Loteria
+    lotteryTickets: 0,
+    
+    // Timestamps
+    createdAt: Date.now(),
+    lastDaily: 0,
+    lastWeekly: 0,
+    lastMonthly: 0
+  };
+}
+
+/**
+ * Migra e valida dados de usuário existente
+ * Adiciona campos faltantes e corrige valores inválidos
+ */
+function migrateAndValidateEcoUser(user) {
+  const defaults = createDefaultEcoUser();
+  
+  // Função auxiliar para validar e corrigir números
+  const validateNumber = (value, defaultValue = 0, min = 0, max = Infinity) => {
+    if (typeof value !== 'number' || isNaN(value)) return defaultValue;
+    return Math.max(min, Math.min(max, Math.floor(value)));
+  };
+  
+  // Função auxiliar para validar objetos
+  const validateObject = (value, defaultValue = {}) => {
+    return (value && typeof value === 'object' && !Array.isArray(value)) ? value : defaultValue;
+  };
+  
+  // Função auxiliar para validar arrays
+  const validateArray = (value, defaultValue = []) => {
+    return Array.isArray(value) ? value : defaultValue;
+  };
+  
+  // === FINANCEIRO ===
+  user.wallet = validateNumber(user.wallet, 0);
+  user.bank = validateNumber(user.bank, 0);
+  
+  // === SISTEMAS ===
+  user.cooldowns = validateObject(user.cooldowns);
+  user.inventory = validateObject(user.inventory);
+  user.items = validateObject(user.items);
+  user.tools = validateObject(user.tools);
+  user.materials = validateObject(user.materials);
+  
+  // === TRABALHO ===
+  user.job = user.job || null;
+  
+  // === DESAFIOS ===
+  user.challenge = user.challenge || null;
+  user.weeklyChallenge = user.weeklyChallenge || null;
+  user.monthlyChallenge = user.monthlyChallenge || null;
+  
+  // === RPG - STATS BASE ===
+  user.level = validateNumber(user.level, 1, 1);
+  user.exp = validateNumber(user.exp, 0);
+  user.prestige = validateNumber(user.prestige, 0);
+  user.classe = user.classe || null;
+  user.clan = user.clan || null;
+  user.house = user.house || null;
+  user.family = user.family || null;
+  
+  // === RPG - STATS DE COMBATE ===
+  user.power = validateNumber(user.power, 100);
+  user.hp = validateNumber(user.hp, 100);
+  user.maxHp = validateNumber(user.maxHp, 100);
+  user.mana = validateNumber(user.mana, 50);
+  user.maxMana = validateNumber(user.maxMana, 50);
+  user.stamina = validateNumber(user.stamina, 100);
+  user.maxStamina = validateNumber(user.maxStamina, 100);
+  
+  // === RPG - ATRIBUTOS ===
+  user.strength = validateNumber(user.strength, 10);
+  user.defense = validateNumber(user.defense, 10);
+  user.agility = validateNumber(user.agility, 10);
+  user.intelligence = validateNumber(user.intelligence, 10);
+  user.luck = validateNumber(user.luck, 10);
+  
+  // === RPG - BONUSES ===
+  user.attackBonus = validateNumber(user.attackBonus, 0);
+  user.defenseBonus = validateNumber(user.defenseBonus, 0);
+  
+  // === SKILLS E PROPRIEDADES ===
+  user.skills = validateObject(user.skills);
+  user.properties = validateObject(user.properties);
+  
+  // === SISTEMA DE PETS ===
+  user.pets = validateArray(user.pets);
+  user.lastPetBattle = validateNumber(user.lastPetBattle, 0);
+  
+  // Migra pets existentes para nova estrutura
+  if (user.pets.length > 0) {
+    user.pets = user.pets.map(pet => migrateAndValidatePet(pet));
+  }
+  
+  // === ESTATÍSTICAS ===
+  user.totalWork = validateNumber(user.totalWork, 0);
+  user.totalMine = validateNumber(user.totalMine, 0);
+  user.totalFish = validateNumber(user.totalFish, 0);
+  user.totalHunt = validateNumber(user.totalHunt, 0);
+  user.totalExplore = validateNumber(user.totalExplore, 0);
+  user.totalCrime = validateNumber(user.totalCrime, 0);
+  
+  // === LOTERIA ===
+  user.lotteryTickets = validateNumber(user.lotteryTickets, 0);
+  
+  // === TIMESTAMPS ===
+  user.createdAt = validateNumber(user.createdAt, Date.now());
+  user.lastDaily = validateNumber(user.lastDaily, 0);
+  user.lastWeekly = validateNumber(user.lastWeekly, 0);
+  user.lastMonthly = validateNumber(user.lastMonthly, 0);
+  
+  return user;
+}
+
+/**
+ * Migra e valida estrutura de um pet
+ */
+function migrateAndValidatePet(pet) {
+  if (!pet || typeof pet !== 'object') {
+    return null;
+  }
+  
+  const validateNumber = (value, defaultValue = 0) => {
+    if (typeof value !== 'number' || isNaN(value)) return defaultValue;
+    return Math.max(0, Math.floor(value));
+  };
+  
+  const validateObject = (value, defaultValue = {}) => {
+    return (value && typeof value === 'object' && !Array.isArray(value)) ? value : defaultValue;
+  };
+  
+  return {
+    // Identificação
+    name: pet.name || 'Pet',
+    emoji: pet.emoji || '🐾',
+    type: pet.type || 'lobo',
+    
+    // Stats base
+    hp: validateNumber(pet.hp, 100),
+    maxHp: validateNumber(pet.maxHp, 100),
+    attack: validateNumber(pet.attack, 15),
+    defense: validateNumber(pet.defense, 10),
+    speed: validateNumber(pet.speed, 18),
+    
+    // Elemento (novo campo)
+    element: pet.element || 'normal',
+    
+    // Progressão
+    level: validateNumber(pet.level, 1),
+    exp: validateNumber(pet.exp, 0),
+    evolutions: validateNumber(pet.evolutions, 0),
+    
+    // Cuidados
+    hunger: validateNumber(pet.hunger, 100),
+    mood: validateNumber(pet.mood, 100),
+    
+    // Estatísticas de batalha
+    wins: validateNumber(pet.wins, 0),
+    losses: validateNumber(pet.losses, 0),
+    
+    // Equipamentos (novo sistema de slots)
+    equipment: validateObject(pet.equipment),
+    
+    // Timestamps
+    lastUpdate: validateNumber(pet.lastUpdate, Date.now()),
+    lastTrain: validateNumber(pet.lastTrain, 0),
+    
+    // Custo original (para referência)
+    cost: validateNumber(pet.cost, 5000)
+  };
+}
+
+/**
+ * Diagnóstico completo do database
+ * Retorna relatório de problemas encontrados e corrigidos
+ */
+function diagnosticDatabase(econ) {
+  const report = {
+    totalUsers: 0,
+    usersMigrated: 0,
+    petsFixed: 0,
+    fieldsAdded: [],
+    errors: [],
+    warnings: []
+  };
+  
+  try {
+    if (!econ || !econ.users) {
+      report.errors.push('Estrutura de economia inválida');
+      return report;
+    }
+    
+    report.totalUsers = Object.keys(econ.users).length;
+    
+    // Verifica cada usuário
+    Object.entries(econ.users).forEach(([userId, user]) => {
+      const oldUser = JSON.stringify(user);
+      econ.users[userId] = migrateAndValidateEcoUser(user);
+      
+      if (oldUser !== JSON.stringify(econ.users[userId])) {
+        report.usersMigrated++;
+      }
+      
+      // Conta pets corrigidos
+      if (econ.users[userId].pets && econ.users[userId].pets.length > 0) {
+        econ.users[userId].pets.forEach((pet, idx) => {
+          const oldPet = JSON.stringify(pet);
+          econ.users[userId].pets[idx] = migrateAndValidatePet(pet);
+          if (oldPet !== JSON.stringify(econ.users[userId].pets[idx])) {
+            report.petsFixed++;
+          }
+        });
+      }
+    });
+    
+    // Verifica estrutura global
+    const globalChanged = ensureEconomyDefaults(econ);
+    if (globalChanged) {
+      report.fieldsAdded.push('Estruturas globais (shop, lottery, clans, etc.)');
+    }
+    
+    // Warnings específicos
+    if (econ.lottery && (!econ.lottery.lastDraw || econ.lottery.lastDraw < 1000000000000)) {
+      report.warnings.push('Loteria tinha data inválida (corrigido)');
+    }
+    
+    if (report.usersMigrated === 0 && report.petsFixed === 0 && !globalChanged) {
+      report.warnings.push('Nenhum problema detectado - database está OK!');
+    }
+    
+  } catch (error) {
+    report.errors.push(`Erro no diagnóstico: ${error.message}`);
+  }
+  
+  return report;
 }
 
 function parseAmount(text, maxValue) {
@@ -1243,37 +1563,124 @@ function getActivePickaxe(user) {
 
 function ensureEconomyDefaults(econ) {
   let changed = false;
+  
+  // Inicializa estruturas básicas
   econ.shop = econ.shop || {};
+  econ.users = econ.users || {};
+  
+  // === MIGRAÇÃO AUTOMÁTICA DE USUÁRIOS ===
+  // Migra todos os usuários existentes para nova estrutura
+  Object.keys(econ.users).forEach(userId => {
+    const oldUser = { ...econ.users[userId] };
+    econ.users[userId] = migrateAndValidateEcoUser(econ.users[userId]);
+    // Verifica se houve mudanças
+    if (JSON.stringify(oldUser) !== JSON.stringify(econ.users[userId])) {
+      changed = true;
+    }
+  });
+  
+  // === FERRAMENTAS PADRÃO ===
   const defs = {
     "pickaxe_bronze": { name: "Picareta de Bronze", price: 500, type: "tool", toolType: "pickaxe", tier: "bronze", durability: 20, effect: { mineBonus: 0.1 } },
     "pickaxe_ferro": { name: "Picareta de Ferro", price: 1500, type: "tool", toolType: "pickaxe", tier: "ferro", durability: 60, effect: { mineBonus: 0.25 } },
     "pickaxe_diamante": { name: "Picareta de Diamante", price: 5000, type: "tool", toolType: "pickaxe", tier: "diamante", durability: 150, effect: { mineBonus: 0.5 } },
     "repairkit": { name: "Kit de Reparos", price: 350, type: "consumable", effect: { repair: 40 } }
   };
-  for (const [k,v] of Object.entries(defs)) { if (!econ.shop[k]) { econ.shop[k]=v; changed=true; } }
+  for (const [k,v] of Object.entries(defs)) { 
+    if (!econ.shop[k]) { 
+      econ.shop[k]=v; 
+      changed=true; 
+    } 
+  }
+  
+  // === MATERIAIS E RECEITAS ===
   econ.materialsPrices = econ.materialsPrices || { pedra: 2, ferro: 6, ouro: 12, diamante: 30 };
   econ.recipes = econ.recipes || {
     pickaxe_bronze: { requires: { pedra: 10, ferro: 2 }, gold: 100 },
     pickaxe_ferro: { requires: { ferro: 10, ouro: 2 }, gold: 300 },
     pickaxe_diamante: { requires: { ouro: 10, diamante: 4 }, gold: 1200 }
   };
-  // Mercado e Propriedades
-  if (!Array.isArray(econ.market)) { econ.market = []; changed = true; }
-  if (typeof econ.marketCounter !== 'number') { econ.marketCounter = 1; changed = true; }
+  
+  // === MERCADO ===
+  if (!Array.isArray(econ.market)) { 
+    econ.market = []; 
+    changed = true; 
+  }
+  if (typeof econ.marketCounter !== 'number') { 
+    econ.marketCounter = 1; 
+    changed = true; 
+  }
+  
+  // === PROPRIEDADES ===
   econ.propertiesCatalog = econ.propertiesCatalog || {
     casa: { name: 'Casa', price: 5000, upkeepPerDay: 50, incomeGoldPerDay: 80 },
     fazenda: { name: 'Fazenda', price: 15000, upkeepPerDay: 150, incomeMaterialsPerDay: { pedra: 6, ferro: 1 } },
     mina_privada: { name: 'Mina Privada', price: 30000, upkeepPerDay: 400, incomeMaterialsPerDay: { pedra: 12, ferro: 3, ouro: 1 } }
   };
-  // ===== Clãs =====
-  // Estrutura usada para armazenar clãs (guilds) do modo RPG
-  // Chave: id do clã, Valor: { id, name, leader, members: [], createdAt }
-  if (!econ.clans) { econ.clans = {}; changed = true; }
-  if (typeof econ.clanCounter !== 'number') { econ.clanCounter = 1; changed = true; }
-  // Garantir pendingInvites para compatibilidade com convites pendentes
-  for (const [k, c] of Object.entries(econ.clans || {})) {
-    if (!Array.isArray(c.pendingInvites)) c.pendingInvites = [];
+  
+  // === CLÃS ===
+  if (!econ.clans) { 
+    econ.clans = {}; 
+    changed = true; 
   }
+  if (typeof econ.clanCounter !== 'number') { 
+    econ.clanCounter = 1; 
+    changed = true; 
+  }
+  
+  // Garantir pendingInvites para compatibilidade
+  for (const [k, c] of Object.entries(econ.clans || {})) {
+    if (!Array.isArray(c.pendingInvites)) {
+      c.pendingInvites = [];
+      changed = true;
+    }
+  }
+  
+  // === LOTERIA ===
+  if (!econ.lottery) {
+    econ.lottery = {
+      jackpot: 10000,
+      lastDraw: Date.now(),
+      drawInterval: 86400000, // 24h
+      ticketPrice: 100,
+      winners: []
+    };
+    changed = true;
+  }
+  
+  // Corrige bug da loteria (data em 1970)
+  if (!econ.lottery.lastDraw || econ.lottery.lastDraw === 0 || econ.lottery.lastDraw < 1000000000000) {
+    econ.lottery.lastDraw = Date.now();
+    changed = true;
+  }
+  
+  // === SHOP ITEMS (itens de pets) ===
+  if (!econ.shopItems && !SHOP_ITEMS) {
+    // Garante que os itens de pets existam
+    const petItems = {
+      pet_sword: { name: 'Espada de Pet', price: 1000, stats: { attack: 5 } },
+      pet_armor: { name: 'Armadura de Pet', price: 1200, stats: { defense: 5 } },
+      pet_shield: { name: 'Escudo de Pet', price: 800, stats: { defense: 3 } },
+      pet_ring: { name: 'Anel de Pet', price: 1500, stats: { attack: 3, defense: 2 } },
+      dragonslayer: { name: 'Dragonslayer', price: 3000, stats: { attack: 10, critBonus: 5 }, advantage: 'dragao' },
+      wolfbane: { name: 'Wolfbane', price: 2500, stats: { attack: 8 }, advantage: 'lobo' },
+      phoenix_feather: { name: 'Phoenix Feather', price: 2800, stats: { attack: 9, speed: 5 }, advantage: 'fenix' },
+      tiger_talisman: { name: 'Tiger Talisman', price: 2200, stats: { attack: 7, defense: 3 }, advantage: 'tigre' },
+      eagle_eye: { name: 'Eagle Eye', price: 2400, stats: { attack: 8, critBonus: 10 }, advantage: 'aguia' },
+      mystic_collar: { name: 'Mystic Collar', price: 3500, stats: { attack: 5, defense: 5, speed: 5 } },
+      battle_potion: { name: 'Battle Potion', price: 500, stats: { attack: 10 }, consumable: true },
+      defense_potion: { name: 'Defense Potion', price: 500, stats: { defense: 10 }, consumable: true },
+      evolution_stone: { name: 'Evolution Stone', price: 10000, type: 'evolution' }
+    };
+    
+    for (const [k, v] of Object.entries(petItems)) {
+      if (!econ.shop[k]) {
+        econ.shop[k] = v;
+        changed = true;
+      }
+    }
+  }
+  
   return changed;
 }
 
@@ -2332,6 +2739,10 @@ export {
   loadEconomy,
   saveEconomy,
   getEcoUser,
+  createDefaultEcoUser,
+  migrateAndValidateEcoUser,
+  migrateAndValidatePet,
+  diagnosticDatabase,
   parseAmount,
   fmt,
   timeLeft,

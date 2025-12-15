@@ -6540,11 +6540,33 @@ Entre em contato com o dono do bot:
             hasWarnings = true;
           }
           
-          text += `${i + 1}. ${pet.emoji} *${pet.name}*${statusEmoji}\n`;
+          // Mostra evolução atual
+          let evolutionText = '';
+          if (pet.evolutions && pet.evolutions > 0) {
+            evolutionText = ` ${'⭐'.repeat(pet.evolutions)}`;
+          }
+          
+          text += `${i + 1}. ${pet.emoji} *${pet.name}*${evolutionText}${statusEmoji}\n`;
           text += `┌─────────────────\n`;
           text += `│ 📊 Level ${pet.level} | 💫 ${pet.exp}/${pet.level * 100} EXP\n`;
           text += `│ ❤️ HP: ${pet.hp}/${pet.maxHp}\n`;
           text += `│ ⚔️ ATK: ${pet.attack} | 🛡️ DEF: ${pet.defense}\n`;
+          if (pet.speed) text += `│ ⚡ SPD: ${pet.speed}\n`;
+          text += `│ 🏆 ${pet.wins || 0}V | 💀 ${pet.losses || 0}D\n`;
+          
+          // Mostra equipamentos
+          if (pet.equipment && Object.keys(pet.equipment).length > 0) {
+            text += `│ 📦 Equipado:\n`;
+            Object.entries(pet.equipment).forEach(([slot, itemId]) => {
+              const shopData = require('./utils/database.js');
+              const item = shopData.SHOP_ITEMS[itemId];
+              if (item) {
+                const slotIcon = slot === 'weapon' ? '⚔️' : slot === 'armor' ? '🛡️' : slot === 'shield' ? '🛡️' : slot === 'accessory' ? '💍' : '🧪';
+                text += `│   ${slotIcon} ${item.name}\n`;
+              }
+            });
+          }
+          
           text += `│ 🍖 Fome: ${hungerBar} ${pet.hunger}%\n`;
           text += `│ 😊 Humor: ${moodBar} ${pet.mood}%\n`;
           text += `└─────────────────\n\n`;
@@ -6578,11 +6600,11 @@ Entre em contato com o dono do bot:
         if (me.pets.length >= 5) return reply('🐾 Você já tem o máximo de 5 pets!');
         
         const petTypes = {
-          lobo: { emoji: '🐺', name: 'Lobo', hp: 100, attack: 15, defense: 10, cost: 5000, desc: 'Veloz e leal' },
-          dragao: { emoji: '🐉', name: 'Dragão', hp: 150, attack: 25, defense: 15, cost: 15000, desc: 'Poderoso e raro' },
-          fenix: { emoji: '🔥', name: 'Fênix', hp: 120, attack: 20, defense: 12, cost: 10000, desc: 'Imortal e místico' },
-          tigre: { emoji: '🐯', name: 'Tigre', hp: 110, attack: 18, defense: 11, cost: 7000, desc: 'Feroz e forte' },
-          aguia: { emoji: '🦅', name: 'Águia', hp: 90, attack: 22, defense: 8, cost: 6000, desc: 'Ágil e preciso' }
+          lobo: { emoji: '🐺', name: 'Lobo', type: 'lobo', hp: 100, attack: 15, defense: 10, speed: 18, cost: 5000, desc: 'Veloz e leal', element: 'normal' },
+          dragao: { emoji: '🐉', name: 'Dragão', type: 'dragao', hp: 150, attack: 25, defense: 15, speed: 12, cost: 15000, desc: 'Poderoso e raro', element: 'fire' },
+          fenix: { emoji: '🔥', name: 'Fênix', type: 'fenix', hp: 120, attack: 20, defense: 12, speed: 20, cost: 10000, desc: 'Imortal e místico', element: 'fire' },
+          tigre: { emoji: '🐯', name: 'Tigre', type: 'tigre', hp: 110, attack: 18, defense: 11, speed: 16, cost: 7000, desc: 'Feroz e forte', element: 'normal' },
+          aguia: { emoji: '🦅', name: 'Águia', type: 'aguia', hp: 90, attack: 22, defense: 8, speed: 25, cost: 6000, desc: 'Ágil e preciso', element: 'wind' }
         };
         
         // Normaliza o parâmetro ignorando acentos
@@ -6624,7 +6646,9 @@ Entre em contato com o dono do bot:
           mood: 100,
           wins: 0,
           losses: 0,
-          lastUpdate: Date.now() // Timestamp para degradação
+          equipment: {},
+          evolutions: 0,
+          lastUpdate: Date.now()
         });
         
         saveEconomy(econ);
@@ -6782,43 +6806,106 @@ Entre em contato com o dono do bot:
         const me = getEcoUser(econ, sender);
         
         if (!me.pets || me.pets.length === 0) return reply('🐾 Você não tem pets para evoluir!');
+        if (!me.items) me.items = {};
         
         const index = parseInt(q) - 1;
         if (isNaN(index) || index < 0 || index >= me.pets.length) {
-          return reply(`❌ Pet inválido!`);
+          return reply(`❌ Pet inválido! Use ${prefix}pets para ver seus pets.`);
         }
         
         const pet = me.pets[index];
-        const evolCost = pet.level * 1000;
-        const minLevel = 10;
+        if (!pet.evolutions) pet.evolutions = 0;
         
-        if (pet.level < minLevel) {
-          return reply(`❌ ${pet.emoji} *${pet.name}* precisa estar no nível ${minLevel}!\n\n📊 Nível atual: ${pet.level}`);
+        // Sistema de evoluções: cada pet pode evoluir 3 vezes
+        const evolutionData = {
+          lobo: [
+            { name: 'Lobo Alpha', emoji: '🐺⭐', reqLevel: 10, atkBonus: 15, defBonus: 8, hpBonus: 50, spdBonus: 10 },
+            { name: 'Lobo Lunar', emoji: '🌙🐺', reqLevel: 25, atkBonus: 30, defBonus: 18, hpBonus: 120, spdBonus: 25 },
+            { name: 'Fenrir Despertado', emoji: '🐺💫', reqLevel: 50, atkBonus: 60, defBonus: 40, hpBonus: 250, spdBonus: 50 }
+          ],
+          dragao: [
+            { name: 'Dragão de Fogo', emoji: '🐲🔥', reqLevel: 15, atkBonus: 25, defBonus: 15, hpBonus: 80, spdBonus: 5 },
+            { name: 'Dragão Ancião', emoji: '🐉⚡', reqLevel: 30, atkBonus: 50, defBonus: 35, hpBonus: 180, spdBonus: 15 },
+            { name: 'Dragão Despertado', emoji: '🐉💥', reqLevel: 60, atkBonus: 100, defBonus: 70, hpBonus: 400, spdBonus: 30 }
+          ],
+          fenix: [
+            { name: 'Fênix Flamejante', emoji: '🔥⭐', reqLevel: 12, atkBonus: 20, defBonus: 10, hpBonus: 60, spdBonus: 15 },
+            { name: 'Fênix Imortal', emoji: '🔥💫', reqLevel: 28, atkBonus: 40, defBonus: 25, hpBonus: 150, spdBonus: 35 },
+            { name: 'Fênix Celestial', emoji: '🔥👑', reqLevel: 55, atkBonus: 80, defBonus: 50, hpBonus: 320, spdBonus: 70 }
+          ],
+          tigre: [
+            { name: 'Tigre Real', emoji: '🐯👑', reqLevel: 10, atkBonus: 18, defBonus: 10, hpBonus: 55, spdBonus: 12 },
+            { name: 'Tigre de Jade', emoji: '🐯💚', reqLevel: 25, atkBonus: 35, defBonus: 22, hpBonus: 130, spdBonus: 28 },
+            { name: 'Tigre Divino', emoji: '🐯⚡', reqLevel: 50, atkBonus: 70, defBonus: 45, hpBonus: 280, spdBonus: 55 }
+          ],
+          aguia: [
+            { name: 'Águia Majestosa', emoji: '🦅⭐', reqLevel: 10, atkBonus: 22, defBonus: 7, hpBonus: 45, spdBonus: 20 },
+            { name: 'Águia Dourada', emoji: '🦅👑', reqLevel: 25, atkBonus: 45, defBonus: 15, hpBonus: 110, spdBonus: 45 },
+            { name: 'Grifo Lendário', emoji: '🦅💫', reqLevel: 50, atkBonus: 90, defBonus: 35, hpBonus: 240, spdBonus: 90 }
+          ]
+        };
+        
+        const petEvolutions = evolutionData[pet.type];
+        if (!petEvolutions || pet.evolutions >= petEvolutions.length) {
+          return reply(`❌ ${pet.emoji} *${pet.name}* já atingiu sua forma máxima!`);
         }
         
-        if (me.wallet < evolCost) {
-          return reply(`💰 Evolução custa *${evolCost.toLocaleString()}* moedas!\n\n💸 Você tem: ${me.wallet.toLocaleString()}`);
+        const nextEvolution = petEvolutions[pet.evolutions];
+        
+        // Verifica requisitos
+        if (pet.level < nextEvolution.reqLevel) {
+          return reply(`❌ ${pet.emoji} *${pet.name}* precisa estar no nível ${nextEvolution.reqLevel}!\n\n📊 Nível atual: ${pet.level}`);
         }
         
-        me.wallet -= evolCost;
-        pet.level += 5;
-        pet.attack += 10;
-        pet.defense += 5;
-        pet.maxHp += 50;
+        // Verifica pedra da evolução
+        if (!me.items.evolution_stone || me.items.evolution_stone < 1) {
+          return reply(`❌ Você precisa de uma *Pedra da Evolução* para evoluir seu pet!\n\n🛒 Compre na ${prefix}loja ou ganhe em batalhas de pets.`);
+        }
+        
+        // Consome a pedra e evolui
+        me.items.evolution_stone--;
+        
+        const oldName = pet.name;
+        const oldEmoji = pet.emoji;
+        const oldStats = {
+          attack: pet.attack,
+          defense: pet.defense,
+          maxHp: pet.maxHp,
+          speed: pet.speed || 0
+        };
+        
+        pet.name = nextEvolution.name;
+        pet.emoji = nextEvolution.emoji;
+        pet.attack += nextEvolution.atkBonus;
+        pet.defense += nextEvolution.defBonus;
+        pet.maxHp += nextEvolution.hpBonus;
+        pet.speed = (pet.speed || 0) + nextEvolution.spdBonus;
         pet.hp = pet.maxHp;
+        pet.evolutions++;
         
         saveEconomy(econ);
         
-        let text = `╭━━━⊱ ✨ *EVOLUÇÃO!* ✨ ⊱━━━╮\n`;
+        let text = `╭━━━⊱ ✨ *EVOLUÇÃO CONCLUÍDA!* ✨ ⊱━━━╮\n`;
         text += `│\n`;
-        text += `│ ${pet.emoji} *${pet.name}* evoluiu!\n`;
+        text += `│ ${oldEmoji} ➜ ${pet.emoji}\n`;
         text += `│\n`;
-        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
-        text += `🌟 Nível: +5 (${pet.level})\n`;
-        text += `⚔️ ATK: +10 (${pet.attack})\n`;
-        text += `🛡️ DEF: +5 (${pet.defense})\n`;
-        text += `❤️ HP: +50 (${pet.maxHp})\n\n`;
-        text += `💰 Custo: -${evolCost.toLocaleString()}`;
+        text += `│ 🎉 *${oldName}* evoluiu para\n`;
+        text += `│ 🌟 *${pet.name}*!\n`;
+        text += `│\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `📊 *NOVOS ATRIBUTOS:*\n\n`;
+        text += `⚔️ *ATK:* ${oldStats.attack} ➜ ${pet.attack} *(+${nextEvolution.atkBonus})*\n`;
+        text += `🛡️ *DEF:* ${oldStats.defense} ➜ ${pet.defense} *(+${nextEvolution.defBonus})*\n`;
+        text += `❤️ *HP:* ${oldStats.maxHp} ➜ ${pet.maxHp} *(+${nextEvolution.hpBonus})*\n`;
+        text += `⚡ *SPD:* ${oldStats.speed} ➜ ${pet.speed} *(+${nextEvolution.spdBonus})*\n\n`;
+        
+        if (pet.evolutions < petEvolutions.length) {
+          const next = petEvolutions[pet.evolutions];
+          text += `🔮 *Próxima Evolução:* ${next.name} ${next.emoji}\n`;
+          text += `📊 *Requisito:* Nível ${next.reqLevel}\n`;
+        } else {
+          text += `👑 *${pet.name}* atingiu sua FORMA FINAL!`;
+        }
         
         return reply(text);
         break;
@@ -6875,11 +6962,11 @@ Entre em contato com o dono do bot:
         const me = getEcoUser(econ, sender);
         const target = (menc_jid2 && menc_jid2[0]) || null;
         const now = Date.now();
-        // Cooldown para batalhas de pets: 10 minutos
+        
         const PET_BATTLE_COOLDOWN = 10 * 60 * 1000;
         if (me.lastPetBattle && (now - me.lastPetBattle) < PET_BATTLE_COOLDOWN) {
           const remaining = Math.ceil((PET_BATTLE_COOLDOWN - (now - me.lastPetBattle)) / 60000);
-          return reply(`⏰ Você acabou de batalhar com seu pet. Aguarde *${remaining} minutos* antes de batalhar novamente.`);
+          return reply(`⏰ Você acabou de batalhar. Aguarde *${remaining} minutos*.`);
         }
         
         if (!target) return reply(`❌ Marque alguém para batalhar!\n\n💡 Uso: ${prefix}batalha <número> @user`);
@@ -6902,59 +6989,184 @@ Entre em contato com o dono do bot:
         const myPet = me.pets[myIndex];
         const oppPet = opponent.pets[Math.floor(Math.random() * opponent.pets.length)];
         
-        // Sistema de batalha
+        if (!me.items) me.items = {};
+        if (!opponent.items) opponent.items = {};
+        if (!myPet.equipment) myPet.equipment = {};
+        if (!oppPet.equipment) oppPet.equipment = {};
+        
+        // Calcula stats com equipamentos
+        const calcStats = (pet, items) => {
+          const shopData = require('./utils/database.js');
+          let totalAtk = pet.attack;
+          let totalDef = pet.defense;
+          let totalSpd = pet.speed || 0;
+          let critBonus = 0;
+          let advantage = null;
+          
+          Object.entries(pet.equipment || {}).forEach(([slot, itemId]) => {
+            const item = shopData.SHOP_ITEMS[itemId];
+            if (item) {
+              totalAtk += item.stats?.attack || 0;
+              totalDef += item.stats?.defense || 0;
+              totalSpd += item.stats?.speed || 0;
+              critBonus += item.stats?.critBonus || 0;
+              if (item.advantage) advantage = item.advantage;
+            }
+          });
+          
+          return { totalAtk, totalDef, totalSpd, critBonus, advantage };
+        };
+        
+        const myStats = calcStats(myPet, me.items);
+        const oppStats = calcStats(oppPet, opponent.items);
+        
+        // Sistema de vantagem de tipo
+        const hasAdvantage = myStats.advantage === oppPet.type;
+        const oppHasAdvantage = oppStats.advantage === myPet.type;
+        
+        // Determina quem ataca primeiro (velocidade)
+        const myFirst = myStats.totalSpd >= oppStats.totalSpd;
+        
+        // Batalha detalhada
         let myHp = myPet.hp;
         let oppHp = oppPet.hp;
         let turn = 0;
-        const maxTurns = 10;
+        const maxTurns = 15;
         
-        let battleLog = `╭━━━⊱ ⚔️ *BATALHA DE PETS!* ⊱━━━╮\n\n`;
+        let battleLog = `╭━━━⊱ ⚔️ *BATALHA DE PETS!* ⚔️ ⊱━━━╮\n\n`;
         battleLog += `${myPet.emoji} *${myPet.name}* (Lv.${myPet.level})\n`;
-        battleLog += `VS\n`;
-        battleLog += `${oppPet.emoji} *${oppPet.name}* (Lv.${oppPet.level})\n\n`;
-        battleLog += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        battleLog += `❤️ ${myHp}/${myPet.maxHp} | ⚔️ ${myStats.totalAtk} | 🛡️ ${myStats.totalDef} | ⚡ ${myStats.totalSpd}\n`;
+        if (hasAdvantage) battleLog += `✨ *VANTAGEM DE TIPO!*\n`;
+        battleLog += `\n🆚\n\n`;
+        battleLog += `${oppPet.emoji} *${oppPet.name}* (Lv.${oppPet.level})\n`;
+        battleLog += `❤️ ${oppHp}/${oppPet.maxHp} | ⚔️ ${oppStats.totalAtk} | 🛡️ ${oppStats.totalDef} | ⚡ ${oppStats.totalSpd}\n`;
+        if (oppHasAdvantage) battleLog += `✨ *VANTAGEM DE TIPO!*\n`;
+        battleLog += `\n╰━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        battleLog += `⚡ *INÍCIO DA BATALHA!*\n\n`;
         
         while (myHp > 0 && oppHp > 0 && turn < maxTurns) {
-          // Meu turno
-          const myDmg = Math.max(1, myPet.attack - Math.floor(oppPet.defense / 2) + Math.floor(Math.random() * 10));
-          oppHp -= myDmg;
-          battleLog += `⚔️ ${myPet.name} causou ${myDmg} de dano!\n`;
-          
-          if (oppHp <= 0) break;
-          
-          // Turno oponente
-          const oppDmg = Math.max(1, oppPet.attack - Math.floor(myPet.defense / 2) + Math.floor(Math.random() * 10));
-          myHp -= oppDmg;
-          battleLog += `🛡️ ${oppPet.name} causou ${oppDmg} de dano!\n\n`;
-          
           turn++;
+          battleLog += `━━━ *Turno ${turn}* ━━━\n`;
+          
+          const attackers = myFirst ? 
+            [{ pet: myPet, stats: myStats, hp: myHp, isMe: true }, { pet: oppPet, stats: oppStats, hp: oppHp, isMe: false }] :
+            [{ pet: oppPet, stats: oppStats, hp: oppHp, isMe: false }, { pet: myPet, stats: myStats, hp: myHp, isMe: true }];
+          
+          for (const attacker of attackers) {
+            if (myHp <= 0 || oppHp <= 0) break;
+            
+            const defender = attacker.isMe ? 
+              { pet: oppPet, stats: oppStats, hp: oppHp, isMe: false } :
+              { pet: myPet, stats: myStats, hp: myHp, isMe: true };
+            
+            const advantage = attacker.isMe ? hasAdvantage : oppHasAdvantage;
+            
+            // Calcula dano
+            let baseDmg = Math.max(1, attacker.stats.totalAtk - Math.floor(defender.stats.totalDef / 2));
+            const variance = Math.floor(Math.random() * 11) - 5; // -5 a +5
+            baseDmg += variance;
+            
+            // Bônus de vantagem: 50% de dano extra
+            if (advantage) {
+              baseDmg = Math.floor(baseDmg * 1.5);
+            }
+            
+            // Chance de crítico (10% base + bônus de equipamento)
+            const critChance = 10 + (attacker.stats.critBonus || 0);
+            const isCrit = Math.random() * 100 < critChance;
+            if (isCrit) {
+              baseDmg = Math.floor(baseDmg * 1.8);
+            }
+            
+            // Aplica dano
+            if (attacker.isMe) {
+              oppHp -= baseDmg;
+              battleLog += `⚔️ ${attacker.pet.emoji} ${attacker.pet.name} atacou!\n`;
+              if (advantage) battleLog += `   ✨ *SUPER EFETIVO!*\n`;
+              if (isCrit) battleLog += `   💥 *CRÍTICO!*\n`;
+              battleLog += `   💔 Dano: ${baseDmg}\n`;
+              battleLog += `   ❤️ HP Oponente: ${Math.max(0, oppHp)}/${oppPet.maxHp}\n`;
+            } else {
+              myHp -= baseDmg;
+              battleLog += `🛡️ ${attacker.pet.emoji} ${attacker.pet.name} contra-atacou!\n`;
+              if (advantage) battleLog += `   ✨ *SUPER EFETIVO!*\n`;
+              if (isCrit) battleLog += `   💥 *CRÍTICO!*\n`;
+              battleLog += `   💔 Dano: ${baseDmg}\n`;
+              battleLog += `   ❤️ Seu HP: ${Math.max(0, myHp)}/${myPet.maxHp}\n`;
+            }
+          }
+          
+          battleLog += `\n`;
         }
         
         const won = myHp > oppHp;
-        const reward = won ? 1000 + (oppPet.level * 100) : 0;
+        let reward = 0;
+        let expGain = 0;
+        let itemDropped = null;
         
         if (won) {
+          // Recompensas
+          reward = 1000 + (oppPet.level * 150);
+          expGain = 75 + (oppPet.level * 5);
+          
           me.wallet += reward;
           myPet.wins = (myPet.wins || 0) + 1;
+          myPet.exp = (myPet.exp || 0) + expGain;
           oppPet.losses = (oppPet.losses || 0) + 1;
-          myPet.exp = (myPet.exp || 0) + 50;
           
-          battleLog += `╭━━━⊱ 🏆 *VITÓRIA!* ⊱━━━╮\n`;
+          // Sistema de drop de item (30% de chance)
+          if (Math.random() < 0.3) {
+            const oppEquipment = Object.entries(oppPet.equipment || {});
+            if (oppEquipment.length > 0) {
+              const [slot, itemId] = oppEquipment[Math.floor(Math.random() * oppEquipment.length)];
+              const shopData = require('./utils/database.js');
+              const item = shopData.SHOP_ITEMS[itemId];
+              
+              if (item) {
+                itemDropped = item.name;
+                me.items[itemId] = (me.items[itemId] || 0) + 1;
+              }
+            }
+          }
+          
+          battleLog += `╭━━━⊱ 🏆 *VITÓRIA!* 🏆 ⊱━━━╮\n`;
           battleLog += `│ ${myPet.emoji} *${myPet.name}* venceu!\n`;
-          battleLog += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
-          battleLog += `💰 Recompensa: +${reward.toLocaleString()}\n`;
-          battleLog += `✨ EXP: +50`;
+          battleLog += `╰━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          battleLog += `📊 *RECOMPENSAS:*\n`;
+          battleLog += `💰 Moedas: +${reward.toLocaleString()}\n`;
+          battleLog += `✨ EXP: +${expGain}\n`;
+          if (itemDropped) {
+            battleLog += `🎁 Item dropado: *${itemDropped}*\n`;
+          }
+          
+          // Verifica level up
+          if (myPet.exp >= myPet.level * 100) {
+            myPet.level++;
+            const atkGain = 2 + Math.floor(Math.random() * 3);
+            const defGain = 1 + Math.floor(Math.random() * 2);
+            const hpGain = 10 + Math.floor(Math.random() * 10);
+            
+            myPet.attack += atkGain;
+            myPet.defense += defGain;
+            myPet.maxHp += hpGain;
+            myPet.hp = myPet.maxHp;
+            myPet.exp = 0;
+            
+            battleLog += `\n╭━━━⊱ ⭐ *LEVEL UP!* ⭐ ⊱━━━╮\n`;
+            battleLog += `│ ${myPet.emoji} ${myPet.name} → Lv.${myPet.level}\n`;
+            battleLog += `│ ⚔️ ATK +${atkGain} | 🛡️ DEF +${defGain} | ❤️ HP +${hpGain}\n`;
+            battleLog += `╰━━━━━━━━━━━━━━━━━━━━━━━╯`;
+          }
         } else {
           oppPet.wins = (oppPet.wins || 0) + 1;
           myPet.losses = (myPet.losses || 0) + 1;
           
-          battleLog += `╭━━━⊱ 💀 *DERROTA!* ⊱━━━╮\n`;
+          battleLog += `╭━━━⊱ 💀 *DERROTA!* 💀 ⊱━━━╮\n`;
           battleLog += `│ ${oppPet.emoji} *${oppPet.name}* venceu!\n`;
-          battleLog += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
-          battleLog += `💪 Treine mais e tente novamente!`;
+          battleLog += `╰━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          battleLog += `💪 Continue treinando para melhorar!`;
         }
         
-        // registra cooldown e salva
         me.lastPetBattle = Date.now();
         saveEconomy(econ);
         return reply(battleLog, { mentions: [target] });
@@ -7038,36 +7250,68 @@ Entre em contato com o dono do bot:
         const econ = loadEconomy();
         const me = getEcoUser(econ, sender);
         
+        if (!me.items) me.items = {};
+        
         const argsArr = q.split(' ');
         const petIndex = parseInt(argsArr[0]) - 1;
-        const itemName = argsArr.slice(1).join(' ').toLowerCase();
+        const itemId = argsArr.slice(1).join('_').toLowerCase();
         
         if (!me.pets || me.pets.length === 0) return reply('🐾 Você não tem pets!');
         if (isNaN(petIndex) || petIndex < 0 || petIndex >= me.pets.length) {
-          return reply(`❌ Pet inválido!\n\n💡 Uso: ${prefix}equippet <nº pet> <nome do item>`);
+          return reply(`❌ Pet inválido!\n\n💡 Uso: ${prefix}equippet <nº pet> <item>`);
         }
-        if (!itemName) return reply(`❌ Informe o item!\n\n💡 Uso: ${prefix}equippet <nº pet> <nome do item>`);
+        if (!itemId) return reply(`❌ Informe o item!\n\n💡 Uso: ${prefix}equippet <nº pet> <item>`);
         
         const pet = me.pets[petIndex];
-        const invItems = Object.keys(me.inventory || {}).filter(k => me.inventory[k] > 0);
-        const foundItem = invItems.find(i => i.toLowerCase().includes(itemName));
+        const shopData = require('./utils/database.js');
         
-        if (!foundItem) return reply('❌ Você não tem esse item no inventário!');
+        // Busca o item no inventário
+        const foundItemId = Object.keys(me.items).find(key => {
+          return key.toLowerCase().includes(itemId) && me.items[key] > 0;
+        });
         
-        pet.equipment = pet.equipment || {};
-        pet.equipment.accessory = foundItem;
-        me.inventory[foundItem]--;
+        if (!foundItemId) return reply('❌ Você não tem esse item no inventário!');
         
-        // Aplicar bônus do item
-        const itemData = econ.shop?.[foundItem];
-        if (itemData?.effect) {
-          if (itemData.effect.attack) pet.attack += itemData.effect.attack;
-          if (itemData.effect.defense) pet.defense += itemData.effect.defense;
-          if (itemData.effect.hp) pet.hp += itemData.effect.hp;
+        const item = shopData.SHOP_ITEMS[foundItemId];
+        if (!item) return reply('❌ Item inválido!');
+        
+        // Determina o slot do equipamento
+        let slot = 'weapon';
+        if (item.name.includes('Armadura') || item.name.includes('Armor')) slot = 'armor';
+        else if (item.name.includes('Escudo') || item.name.includes('Shield')) slot = 'shield';
+        else if (item.name.includes('Anel') || item.name.includes('Ring') || item.name.includes('Colar') || item.name.includes('Collar')) slot = 'accessory';
+        else if (item.name.includes('Poção') || item.name.includes('Potion')) slot = 'potion';
+        else if (foundItemId.includes('slayer') || foundItemId.includes('bane') || foundItemId.includes('feather') || foundItemId.includes('talisman') || foundItemId.includes('eye')) slot = 'weapon';
+        
+        if (!pet.equipment) pet.equipment = {};
+        
+        // Se já tem item no slot, devolve ao inventário
+        if (pet.equipment[slot]) {
+          me.items[pet.equipment[slot]] = (me.items[pet.equipment[slot]] || 0) + 1;
         }
         
+        // Equipa o novo item
+        pet.equipment[slot] = foundItemId;
+        me.items[foundItemId]--;
+        
         saveEconomy(econ);
-        return reply(`✅ ${pet.emoji} *${pet.name}* equipou *${foundItem}*!`);
+        
+        let text = `✅ ${pet.emoji} *${pet.name}* equipou *${item.name}*!\n\n`;
+        text += `📦 *Slot:* ${slot === 'weapon' ? '⚔️ Arma' : slot === 'armor' ? '🛡️ Armadura' : slot === 'shield' ? '🛡️ Escudo' : slot === 'accessory' ? '💍 Acessório' : '🧪 Poção'}\n\n`;
+        
+        if (item.stats) {
+          text += `📊 *Bônus:*\n`;
+          if (item.stats.attack) text += `⚔️ ATK +${item.stats.attack}\n`;
+          if (item.stats.defense) text += `🛡️ DEF +${item.stats.defense}\n`;
+          if (item.stats.speed) text += `⚡ SPD +${item.stats.speed}\n`;
+          if (item.stats.critBonus) text += `💥 CRIT +${item.stats.critBonus}%\n`;
+        }
+        
+        if (item.advantage) {
+          text += `\n✨ *Vantagem contra:* ${item.advantage}`;
+        }
+        
+        return reply(text);
       }
 
       // Desequipar item do Pet
@@ -22113,6 +22357,74 @@ ${prefix}togglecmdvip premium_ia off`);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         }
         break;
+      
+      case 'diagnosticrpg':
+      case 'repairdb':
+      case 'fixdb': {
+        if (!isOwner && !isCreator) return reply('⚠️ Apenas o dono pode usar este comando!');
+        
+        try {
+          const econ = loadEconomy();
+          
+          await reply('🔍 Iniciando diagnóstico do database...');
+          
+          const report = diagnosticDatabase(econ);
+          
+          // Salva as correções
+          saveEconomy(econ);
+          
+          let text = `╭━━━⊱ 🔧 *DIAGNÓSTICO RPG* 🔧 ⊱━━━╮\n`;
+          text += `│\n`;
+          text += `│ 📊 *ESTATÍSTICAS:*\n`;
+          text += `│ └─ Total de usuários: ${report.totalUsers}\n`;
+          text += `│ └─ Usuários migrados: ${report.usersMigrated}\n`;
+          text += `│ └─ Pets corrigidos: ${report.petsFixed}\n`;
+          text += `│\n`;
+          
+          if (report.fieldsAdded.length > 0) {
+            text += `│ ✅ *ADICIONADO:*\n`;
+            report.fieldsAdded.forEach(field => {
+              text += `│ └─ ${field}\n`;
+            });
+            text += `│\n`;
+          }
+          
+          if (report.warnings.length > 0) {
+            text += `│ ⚠️ *AVISOS:*\n`;
+            report.warnings.forEach(warn => {
+              text += `│ └─ ${warn}\n`;
+            });
+            text += `│\n`;
+          }
+          
+          if (report.errors.length > 0) {
+            text += `│ ❌ *ERROS:*\n`;
+            report.errors.forEach(err => {
+              text += `│ └─ ${err}\n`;
+            });
+            text += `│\n`;
+          }
+          
+          const totalFixed = report.usersMigrated + report.petsFixed;
+          if (totalFixed > 0) {
+            text += `│ 🎉 *${totalFixed} correções aplicadas!*\n`;
+          } else {
+            text += `│ ✅ *Database OK - Sem problemas!*\n`;
+          }
+          
+          text += `│\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          text += `💾 Mudanças salvas automaticamente!\n`;
+          text += `🔄 Sistema de auto-reparo está ativo.`;
+          
+          return reply(text);
+        } catch (error) {
+          console.error('Erro no diagnóstico:', error);
+          return reply(`❌ Erro ao executar diagnóstico:\n${error.message}`);
+        }
+        break;
+      }
+      
       case 'ping':
         try {
           const timestamp = Date.now();
