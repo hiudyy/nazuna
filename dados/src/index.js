@@ -5001,7 +5001,129 @@ Entre em contato com o dono do bot:
           return reply(`✅ Dados RPG resetados para @${getUserName(target)}.`, { mentions:[target] });
         }
 
-        if (sub === 'perfilrpg' || sub === 'carteira') {
+        if (sub === 'perfilrpg') {
+          // Perfil completo do RPG
+          const total = (me.wallet||0) + (me.bank||0);
+          const level = me.level || 1;
+          const exp = me.exp || 0;
+          const nextLevelXp = 100 * Math.pow(1.5, level - 1);
+          const expProgress = `${exp}/${Math.floor(nextLevelXp)}`;
+          const expPercent = Math.min(100, Math.floor((exp / nextLevelXp) * 100));
+          
+          // Skills
+          ensureUserSkills(me);
+          const topSkills = SKILL_LIST.map(sk => ({ name: sk, level: me.skills[sk]?.level || 1 }))
+            .sort((a,b) => b.level - a.level).slice(0, 3);
+          
+          // Estatísticas gerais
+          const battlesWon = me.battlesWon || 0;
+          const battlesLost = me.battlesLost || 0;
+          const totalBattles = battlesWon + battlesLost;
+          const winRate = totalBattles > 0 ? Math.floor((battlesWon / totalBattles) * 100) : 0;
+          
+          const achievements = Object.keys(me.achievements || {}).length;
+          const pets = (me.pets || []).length;
+          const premiumItems = Object.keys(me.premiumItems || {}).length;
+          
+          // Progresso de prestige
+          const prestigeLevel = me.prestige?.level || 0;
+          const prestigeMultiplier = me.prestige?.bonusMultiplier || 1;
+          
+          // Reputação
+          const reputation = me.reputation?.points || 0;
+          const karma = me.reputation?.karma || 0;
+          
+          // Streak diário
+          const streak = me.streak?.count || 0;
+          
+          // Classe
+          const classes = {
+            'guerreiro': { emoji: '⚔️', name: 'Guerreiro' },
+            'mago': { emoji: '🧙', name: 'Mago' },
+            'arqueiro': { emoji: '🏹', name: 'Arqueiro' },
+            'curandeiro': { emoji: '💚', name: 'Curandeiro' },
+            'ladino': { emoji: '🗡️', name: 'Ladino' },
+            'paladino': { emoji: '🛡️', name: 'Paladino' }
+          };
+          const classeInfo = me.classe ? `${classes[me.classe]?.emoji} ${classes[me.classe]?.name}` : 'Nenhuma';
+          
+          // Clã
+          let clanInfo = 'Nenhum';
+          if (me.clan && econ.clans[me.clan]) {
+            const myClan = econ.clans[me.clan];
+            clanInfo = myClan.name || 'Sem nome';
+          }
+          
+          // Casa
+          const casas = {
+            'barraca': { emoji: '⛺', name: 'Barraca' },
+            'cabana': { emoji: '🏚️', name: 'Cabana' },
+            'casa': { emoji: '🏠', name: 'Casa' },
+            'mansao': { emoji: '🏰', name: 'Mansão' },
+            'castelo': { emoji: '🏯', name: 'Castelo' }
+          };
+          const houseInfo = me.house?.type ? `${casas[me.house.type]?.emoji || ''} ${casas[me.house.type]?.name || me.house.type}` : 'Nenhuma';
+          
+          // Família
+          if (!me.family) me.family = { spouse: null, children: [], parents: [], siblings: [] };
+          const familySpouse = me.family.spouse ? `@${me.family.spouse.split('@')[0]}` : 'Solteiro(a)';
+          const familyChildren = (me.family.children || []).length;
+          
+          let text = `╭━━━⊱ ⚔️ *PERFIL RPG* ⚔️ ⊱━━━╮\n`;
+          text += `│ ${pushname}\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          
+          text += `📊 *NÍVEL & EXPERIÊNCIA*\n`;
+          text += `├ Level: ${level}\n`;
+          text += `├ XP: ${expProgress} (${expPercent}%)\n`;
+          text += `├ Prestige: ${prestigeLevel}x (${prestigeMultiplier.toFixed(2)}x)\n`;
+          text += `└ Streak: ${streak} dia${streak !== 1 ? 's' : ''}\n\n`;
+          
+          text += `💰 *FINANÇAS*\n`;
+          text += `├ Carteira: ${fmt(me.wallet)}\n`;
+          text += `├ Banco: ${fmt(me.bank)}\n`;
+          text += `├ Total: ${fmt(total)}\n`;
+          text += `└ Emprego: ${me.job ? econ.jobCatalog[me.job]?.name || me.job : 'Desempregado(a)'}\n\n`;
+          
+          text += `🎭 *PERSONALIZAÇÃO*\n`;
+          text += `├ Classe: ${classeInfo}\n`;
+          text += `├ Clã: ${clanInfo}\n`;
+          text += `└ Casa: ${houseInfo}\n\n`;
+          
+          text += `⚔️ *COMBATE*\n`;
+          text += `├ Vitórias: ${battlesWon}\n`;
+          text += `├ Derrotas: ${battlesLost}\n`;
+          text += `├ Win Rate: ${winRate}%\n`;
+          text += `└ Poder: ${me.power || 100}\n\n`;
+          
+          text += `🛠️ *HABILIDADES (TOP 3)*\n`;
+          topSkills.forEach((sk, i) => {
+            const prefixChar = i === topSkills.length - 1 ? '└' : '├';
+            const skillName = sk.name.charAt(0).toUpperCase() + sk.name.slice(1);
+            text += `${prefixChar} ${skillName}: Lv.${sk.level}\n`;
+          });
+          text += `\n`;
+          
+          text += `👨‍👩‍👧‍👦 *FAMÍLIA*\n`;
+          text += `├ Cônjuge: ${familySpouse}\n`;
+          text += `└ Filhos: ${familyChildren}\n\n`;
+          
+          text += `🏆 *COLECIONÁVEIS*\n`;
+          text += `├ Conquistas: ${achievements}\n`;
+          text += `├ Pets: ${pets}\n`;
+          text += `└ Itens Premium: ${premiumItems}\n\n`;
+          
+          text += `⭐ *REPUTAÇÃO*\n`;
+          text += `├ Pontos: ${reputation}\n`;
+          text += `└ Karma: ${karma}\n\n`;
+          
+          text += `💎 Use ${prefix}meustats para ver estatísticas detalhadas`;
+          
+          const mentions = me.family?.spouse ? [me.family.spouse] : [];
+          return reply(text, mentions.length > 0 ? { mentions } : undefined);
+        }
+        
+        if (sub === 'carteira') {
           const total = (me.wallet||0) + (me.bank||0);
           return reply(`╭━━━⊱ 👤 *PERFIL FINANCEIRO* 👤 ⊱━━━╮
 │
