@@ -5573,16 +5573,21 @@ Entre em contato com o dono do bot:
 
         if (sub === 'pescar' || sub === 'fish') {
           const cd = me.cooldowns?.fish || 0; if (Date.now()<cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para pescar novamente.`);
-          const base = 12 + Math.floor(Math.random()*19); // 12-30 (era 25-60)
+          const base = 80 + Math.floor(Math.random()*121); // 80-200 (BALANCEADO)
           const skillB = getSkillBonus(me,'fishing');
-          const bonus = Math.floor(base * ((fishBonus||0) + skillB) * 0.4); const total = base + bonus; // bônus reduzido 60%
-          me.wallet += total; me.cooldowns.fish = Date.now() + 15*60*1000; // 15 min (era 4 min)
+          const bonus = Math.floor(base * ((fishBonus||0) + skillB)); const total = base + bonus;
+          me.wallet += total; me.cooldowns.fish = Date.now() + 12*60*1000; // 12 min
           addSkillXP(me,'fishing',1); updateChallenge(me,'fish',1,true); updatePeriodChallenge(me,'fish',1,true);
           
           // Adiciona peixe como ingrediente
           me.ingredients = me.ingredients || {};
-          const fishQty = 1 + (Math.random() < 0.3 ? 1 : 0); // 1-2 peixes (30% chance de pegar 2)
+          const fishQty = 2 + Math.floor(Math.random()*3); // 2-4 peixes
           me.ingredients.peixe = (me.ingredients.peixe || 0) + fishQty;
+          
+          // Rastrear stats
+          if (!me.stats) me.stats = {};
+          me.stats.totalFish = (me.stats.totalFish || 0) + 1;
+          me.stats.fishCount = (me.stats.fishCount || 0) + 1;
           
           saveEconomy(econ);
           
@@ -5602,15 +5607,19 @@ Entre em contato com o dono do bot:
         if (sub === 'explorar' || sub === 'explore') {
           const cd = me.cooldowns?.explore || 0; 
           if (Date.now()<cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para explorar novamente.`);
-          const base = 18 + Math.floor(Math.random()*28); // 18-45 (era 35-90)
+          const base = 100 + Math.floor(Math.random()*151); // 100-250 (BALANCEADO)
           const skillB = getSkillBonus(me,'exploring');
-          const bonus = Math.floor(base * ((exploreBonus||0) + skillB) * 0.4); // bônus reduzido 60%
+          const bonus = Math.floor(base * ((exploreBonus||0) + skillB));
           const total = base + bonus;
           me.wallet += total; 
-          me.cooldowns.explore = Date.now() + 18*60*1000; // 18 min (era 5 min)
+          me.cooldowns.explore = Date.now() + 15*60*1000; // 15 min
           addSkillXP(me,'exploring',1); 
           updateChallenge(me,'explore',1,true); 
-          updatePeriodChallenge(me,'explore',1,true); 
+          updatePeriodChallenge(me,'explore',1,true);
+          // Rastrear stats
+          if (!me.stats) me.stats = {};
+          me.stats.totalExplore = (me.stats.totalExplore || 0) + 1;
+          me.stats.exploreCount = (me.stats.exploreCount || 0) + 1;
           saveEconomy(econ);
           
           let exploreText = `╭━━━⊱ 🧭 *EXPLOROU!* 🧭 ⊱━━━╮\n`;
@@ -5707,10 +5716,13 @@ Entre em contato com o dono do bot:
             const skillB = getSkillBonus(me,'crime');
             const gain = Math.floor(base * (1 + skillB * 0.3)); // skill bônus reduzido
             me.wallet += gain; 
-            me.cooldowns.crime = Date.now()+30*60*1000; // 30 min (era 10 min) 
+            me.cooldowns.crime = Date.now()+30*60*1000; // 30 min
             addSkillXP(me,'crime',1); 
             updateChallenge(me,'crimeSuccess',1,true); 
-            updatePeriodChallenge(me,'crimeSuccess',1,true); 
+            updatePeriodChallenge(me,'crimeSuccess',1,true);
+            // Rastrear stats
+            if (!me.stats) me.stats = {};
+            me.stats.totalCrimes = (me.stats.totalCrimes || 0) + 1;
             saveEconomy(econ);
             return reply(`╭━━━⊱ 🕵️ *CRIME* 🕵️ ⊱━━━╮
 │
@@ -6126,30 +6138,34 @@ Entre em contato com o dono do bot:
           if (Date.now() < cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para minerar novamente.`);
           const pk = getActivePickaxe(me);
           if (!pk) return reply(`⛏️ Você precisa de uma picareta para minerar. Compre na ${prefix}loja (ex: ${prefix}comprar pickaxe_bronze) ou repare com ${prefix}reparar.`);
-          // Cálculo de ouro com base na picareta e bônus (NERFADO)
+          // Cálculo de ouro com base na picareta e bônus (BALANCEADO)
           const tierMult = PICKAXE_TIER_MULT[pk.tier] || 1.0;
-          const base = 15 + Math.floor(Math.random()*26); // 15-40 (era 30-70)
+          const base = 100 + Math.floor(Math.random()*101); // 100-200 (AUMENTADO)
           const skillB = getSkillBonus(me,'mining');
           const raw = Math.floor(base * tierMult);
-          const bonus = Math.floor(raw * ((mineBonus||0) + skillB) * 0.5); // bônus reduzido em 50%
+          const bonus = Math.floor(raw * ((mineBonus||0) + skillB));
           const total = raw + bonus;
           me.wallet += total;
-          // Quedas de materiais (chances reduzidas)
-          let drops = { pedra: 1 + Math.floor(Math.random()*2) }; // 1-2 (era 1-4)
+          // Quedas de materiais (chances balanceadas)
+          let drops = { pedra: 2 + Math.floor(Math.random()*3) }; // 2-4
           if (pk.tier==='ferro' || pk.tier==='diamante') {
-            drops.ferro = (drops.ferro||0) + (Math.random() < 0.4 ? 1 : 0); // 40% chance de 1 (era 0-2)
+            drops.ferro = (drops.ferro||0) + 1 + Math.floor(Math.random()*2); // 1-2
           }
           if (pk.tier==='diamante') {
-            drops.ferro = (drops.ferro||0) + (Math.random() < 0.5 ? 1 : 0); // 50% chance de +1
-            drops.ouro = (drops.ouro||0) + (Math.random() < 0.15 ? 1 : 0); // 15% chance (era 0-1)
-            if (Math.random()<0.05) drops.diamante = (drops.diamante||0) + 1; // 5% chance (era 20%)
+            drops.ferro = (drops.ferro||0) + (Math.random() < 0.7 ? 1 : 0); // 70% chance de +1
+            drops.ouro = (drops.ouro||0) + (Math.random() < 0.3 ? 1 : 0); // 30% chance
+            if (Math.random()<0.1) drops.diamante = (drops.diamante||0) + 1; // 10% chance
           }
           for (const [mk,mq] of Object.entries(drops)) if (mq>0) giveMaterial(me, mk, mq);
-          // Durabilidade (gasta mais rápido)
-          const before = pk.dur; pk.dur = Math.max(0, pk.dur - (1 + (Math.random() < 0.3 ? 1 : 0))); // 30% chance de gastar 2
-          me.tools.pickaxe = { ...pk, max: pk.max ?? (pk.tier==='bronze'?15:pk.tier==='ferro'?45:pk.tier==='diamante'?100:pk.dur) }; // durabilidade máxima reduzida
-          me.cooldowns.mine = Date.now() + 8*60*1000; // 8 min (era 2 min)
+          // Durabilidade
+          const before = pk.dur; pk.dur = Math.max(0, pk.dur - 1);
+          me.tools.pickaxe = { ...pk, max: pk.max ?? (pk.tier==='bronze'?20:pk.tier==='ferro'?60:pk.tier==='diamante'?150:pk.dur) };
+          me.cooldowns.mine = Date.now() + 10*60*1000; // 10 min
           addSkillXP(me,'mining',1); updateChallenge(me,'mine',1,true); updatePeriodChallenge(me,'mine',1,true);
+          // Rastrear stats
+          if (!me.stats) me.stats = {};
+          me.stats.totalMine = (me.stats.totalMine || 0) + 1;
+          me.stats.mineCount = (me.stats.mineCount || 0) + 1;
           saveEconomy(econ);
           let dropTxt = Object.entries(drops).filter(([,q])=>q>0).map(([k,q])=>`${k} x${q}`).join(', ');
           const broke = pk.dur===0 && before>0;
@@ -6159,13 +6175,17 @@ Entre em contato com o dono do bot:
         if (sub === 'trabalhar' || sub === 'work') {
           const cd = me.cooldowns?.work || 0;
           if (Date.now() < cd) return reply(`⏳ Aguarde ${timeLeft(cd)} para trabalhar novamente.`);
-          const base = 35 + Math.floor(Math.random()*46); // 35-80 (era 70-180)
+          const base = 150 + Math.floor(Math.random()*151); // 150-300 (AUMENTADO para economia balanceada)
           const skillB = getSkillBonus(me,'working');
-          const bonus = Math.floor(base * (workBonus + skillB) * 0.5); // bônus reduzido em 50%
+          const bonus = Math.floor(base * (workBonus + skillB));
           const total = base + bonus;
           me.wallet += total;
-          me.cooldowns.work = Date.now() + 20*60*1000; // 20 min (era 7 min)
+          me.cooldowns.work = Date.now() + 15*60*1000; // 15 min
           addSkillXP(me,'working',1); updateChallenge(me,'work',1,true); updatePeriodChallenge(me,'work',1,true);
+          // Rastrear stats
+          if (!me.stats) me.stats = {};
+          me.stats.totalWork = (me.stats.totalWork || 0) + 1;
+          me.stats.workCount = (me.stats.workCount || 0) + 1;
           saveEconomy(econ);
           return reply(`💼 Você trabalhou e recebeu ${fmt(total)} ${bonus>0?`(bônus ${fmt(bonus)})`:''}!`);
         }
@@ -6433,7 +6453,7 @@ Entre em contato com o dono do bot:
           { id: 'cacador', name: '🏹 Caçador', desc: 'Cace 50 vezes', req: me.stats.totalHunt >= 50, progress: `${me.stats.totalHunt || 0}/50` },
           { id: 'explorador', name: '🗺️ Explorador', desc: 'Explore 100 vezes', req: me.stats.totalExplore >= 100, progress: `${me.stats.totalExplore || 0}/100` },
           { id: 'gladiador', name: '⚔️ Gladiador', desc: 'Vença 25 batalhas', req: me.stats.totalWins >= 25, progress: `${me.stats.totalWins || 0}/25` },
-          { id: 'milionario', name: '💰 Milionário', desc: 'Tenha 1M no banco', req: (me.bank || 0) >= 1000000, progress: `${(me.bank || 0).toLocaleString()}/1.000.000` },
+          { id: 'milionario', name: '💰 Milionário', desc: 'Tenha 500K no banco', req: (me.bank || 0) >= 500000, progress: `${(me.bank || 0).toLocaleString()}/500.000` },
           { id: 'veterano', name: '🏆 Veterano', desc: 'Alcance nível 50', req: (me.level || 1) >= 50, progress: `${me.level || 1}/50` },
           { id: 'colecionador', name: '🐾 Colecionador', desc: 'Tenha 5 pets', req: (me.pets?.length || 0) >= 5, progress: `${me.pets?.length || 0}/5` },
           { id: 'criminoso', name: '🦹 Criminoso', desc: 'Cometa 30 crimes', req: me.stats.totalCrimes >= 30, progress: `${me.stats.totalCrimes || 0}/30` }
@@ -9798,15 +9818,21 @@ Entre em contato com o dono do bot:
           econ.lottery = {
             jackpot: 100000,
             tickets: {},
-            lastDraw: 0,
+            lastDraw: Date.now(),
             winners: []
           };
+        }
+        
+        // Garantir que lastDraw seja sempre válido
+        if (!econ.lottery.lastDraw || econ.lottery.lastDraw === 0) {
+          econ.lottery.lastDraw = Date.now();
         }
         
         if (!sub || sub === 'ver') {
           const myTickets = econ.lottery.tickets[sender] || 0;
           const totalTickets = Object.values(econ.lottery.tickets).reduce((a, b) => a + b, 0);
-          const nextDraw = new Date(econ.lottery.lastDraw + 86400000).toLocaleString('pt-BR');
+          const nextDrawTime = econ.lottery.lastDraw + 86400000; // +24 horas
+          const nextDraw = new Date(nextDrawTime).toLocaleString('pt-BR');
           
           let text = `╭━━━⊱ 🎫 *LOTERIA* ⊱━━━╮\n\n`;
           text += `💰 Jackpot: *${econ.lottery.jackpot.toLocaleString()}*\n`;
@@ -10349,13 +10375,13 @@ Entre em contato com o dono do bot:
         
         if (!me.prestige) me.prestige = { level: 0, totalResets: 0, bonusMultiplier: 1 };
         
-        // Requisitos muito mais difíceis
-        const requiredLevel = 100 + (me.prestige.level * 25); // Era 50 + 10
-        const requiredCoins = 500000 * Math.pow(2, me.prestige.level); // Exponencial!
-        const requiredAchievements = 5 + (me.prestige.level * 3); // Conquistas obrigatórias
-        const requiredTotalWealth = 1000000 * (me.prestige.level + 1); // Riqueza total necessária
-        const requiredBattlesWon = 50 * (me.prestige.level + 1); // Batalhas vencidas
-        const requiredWorkTimes = 100 * (me.prestige.level + 1); // Trabalhos feitos
+        // Requisitos balanceados e alcançáveis
+        const requiredLevel = 50 + (me.prestige.level * 15); // Level 50, 65, 80...
+        const requiredCoins = 100000 + (me.prestige.level * 50000); // 100k, 150k, 200k... (linear)
+        const requiredAchievements = 3 + (me.prestige.level * 2); // 3, 5, 7... conquistas
+        const requiredTotalWealth = 150000 + (me.prestige.level * 100000); // 150k, 250k, 350k...
+        const requiredBattlesWon = 20 + (me.prestige.level * 15); // 20, 35, 50... batalhas
+        const requiredWorkTimes = 50 + (me.prestige.level * 30); // 50, 80, 110... trabalhos
         
         const currentAchievements = Object.keys(me.achievements || {}).length;
         const currentBattlesWon = me.battlesWon || 0;
