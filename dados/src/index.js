@@ -106,6 +106,7 @@ import {
   updateChallenge,
   isChallengeCompleted,
   updateQuestProgress,
+  diagnosticDatabase,
   SKILL_LIST,
   ensureUserSkills,
   skillXpForNext,
