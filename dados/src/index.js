@@ -7004,8 +7004,7 @@ Entre em contato com o dono do bot:
         if (!oppPet.equipment) oppPet.equipment = {};
         
         // Calcula stats com equipamentos
-        const calcStats = (pet, items) => {
-          const shopData = require('./utils/database.js');
+        const calcStats = (pet) => {
           let totalAtk = pet.attack;
           let totalDef = pet.defense;
           let totalSpd = pet.speed || 0;
@@ -7013,7 +7012,7 @@ Entre em contato com o dono do bot:
           let advantage = null;
           
           Object.entries(pet.equipment || {}).forEach(([slot, itemId]) => {
-            const item = shopData.SHOP_ITEMS[itemId];
+            const item = SHOP_ITEMS[itemId];
             if (item) {
               totalAtk += item.stats?.attack || 0;
               totalDef += item.stats?.defense || 0;
@@ -7026,8 +7025,8 @@ Entre em contato com o dono do bot:
           return { totalAtk, totalDef, totalSpd, critBonus, advantage };
         };
         
-        const myStats = calcStats(myPet, me.items);
-        const oppStats = calcStats(oppPet, opponent.items);
+        const myStats = calcStats(myPet);
+        const oppStats = calcStats(oppPet);
         
         // Sistema de vantagem de tipo
         const hasAdvantage = myStats.advantage === oppPet.type;
