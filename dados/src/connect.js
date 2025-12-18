@@ -17,6 +17,7 @@ import PerformanceOptimizer from './utils/performanceOptimizer.js';
 import RentalExpirationManager from './utils/rentalExpirationManager.js';
 import { loadMsgBotOn } from './utils/database.js';
 import { buildUserId } from './utils/helpers.js';
+import { initCaptchaIndex } from './utils/captchaIndex.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -303,6 +304,9 @@ let messagesCache;
 async function initializeOptimizedCaches() {
     try {
         await performanceOptimizer.initialize();
+        
+        // Inicializa índice de captcha para busca rápida
+        await initCaptchaIndex();
         
         msgRetryCounterCache = {
             get: (key) => performanceOptimizer.cacheGet('msgRetry', key),

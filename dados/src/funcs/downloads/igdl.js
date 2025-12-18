@@ -1,9 +1,10 @@
 /**
  * Download Instagram usando API Cognima
  * Updated to use cog.api.br API
+ * Otimizado com HTTP connection pooling
  */
 
-import axios from 'axios';
+import { apiClient, mediaClient } from '../../utils/httpClient.js';
 import { notifyOwnerAboutApiKey, isApiKeyError } from '../utils/apiKeyNotifier.js';
 
 // Função para baixar post do Instagram
@@ -13,13 +14,10 @@ async function igdl(url, apiKey) {
       throw new Error('API key não fornecida');
     }
 
-    const response = await axios.post('https://cog.api.br/api/v1/instagram/download', {
+    const response = await apiClient.post('https://cog.api.br/api/v1/instagram/download', {
       url: url
     }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey
-      },
+      headers: { 'X-API-Key': apiKey },
       timeout: 30000
     });
 
@@ -36,8 +34,7 @@ async function igdl(url, apiKey) {
       for (const mediaItem of apiData.media) {
         try {
           // Baixar o conteúdo da mídia
-          const mediaResponse = await axios.get(mediaItem.url, { 
-            responseType: 'arraybuffer',
+          const mediaResponse = await mediaClient.get(mediaItem.url, { 
             timeout: 60000
           });
           

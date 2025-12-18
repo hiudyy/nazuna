@@ -27,6 +27,8 @@ import { PerformanceOptimizer, getPerformanceOptimizer } from './utils/performan
 import * as ia from './funcs/private/ia.js';
 import * as vipCommandsManager from './utils/vipCommandsManager.js';
 import { notifyOwnerAboutApiKey, isApiKeyError } from './funcs/utils/apiKeyNotifier.js';
+import captchaIndex, { initCaptchaIndex, addCaptcha, removeCaptcha, getCaptcha, hasPendingCaptcha } from './utils/captchaIndex.js';
+import fsPromises from 'fs/promises';
 import {
   formatUptime,
   normalizar,
@@ -276,6 +278,96 @@ const writeJsonFile = (filePath, data) => {
       const tempPath = filePath + '.tmp';
       if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
     } catch (e) {}
+    return false;
+  }
+};
+
+/**
+ * Versão assíncrona do writeJsonFile - não bloqueia o event loop
+ * @param {string} filePath - Caminho do arquivo
+ * @param {object} data - Dados a serem salvos
+ * @returns {Promise<boolean>}
+ */
+const writeJsonFileAsync = async (filePath, data) => {
+  try {
+    if (data === undefined || data === null) {
+      console.error(`❌ writeJsonFileAsync: Tentativa de salvar dados nulos em ${filePath}`);
+      return false;
+    }
+    
+    let jsonString;
+    try {
+      jsonString = JSON.stringify(data, null, 2);
+    } catch (stringifyError) {
+      console.error(`❌ writeJsonFileAsync: Dados não serializáveis para ${filePath}:`, stringifyError.message);
+      return false;
+    }
+    
+    // Valida JSON gerado
+    try {
+      JSON.parse(jsonString);
+    } catch (validateError) {
+      console.error(`❌ writeJsonFileAsync: JSON inválido gerado para ${filePath}`);
+      return false;
+    }
+    
+    await fsPromises.mkdir(pathz.dirname(filePath), { recursive: true });
+    
+    // Escreve em arquivo temporário primeiro (operação atômica)
+    const tempPath = filePath + '.tmp';
+    await fsPromises.writeFile(tempPath, jsonString, 'utf-8');
+    
+    // Verifica integridade
+    try {
+      const writtenContent = await fsPromises.readFile(tempPath, 'utf-8');
+      JSON.parse(writtenContent);
+    } catch (verifyError) {
+      console.error(`❌ writeJsonFileAsync: Verificação falhou para ${filePath}`);
+      try { await fsPromises.unlink(tempPath); } catch (e) {}
+      return false;
+    }
+    
+    // Move arquivo temporário para destino (atômico)
+    await fsPromises.rename(tempPath, filePath);
+    return true;
+  } catch (error) {
+    console.error(`❌ Erro ao escrever JSON async em ${filePath}:`, error.message);
+    try {
+      const tempPath = filePath + '.tmp';
+      await fsPromises.unlink(tempPath).catch(() => {});
+    } catch (e) {}
+    return false;
+  }
+};
+
+/**
+ * Leitura assíncrona de arquivo JSON
+ * @param {string} filePath - Caminho do arquivo
+ * @param {object} defaultValue - Valor padrão se arquivo não existir
+ * @returns {Promise<object>}
+ */
+const readJsonFileAsync = async (filePath, defaultValue = {}) => {
+  try {
+    const content = await fsPromises.readFile(filePath, 'utf-8');
+    return JSON.parse(content);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.error(`❌ Erro ao ler JSON async de ${filePath}:`, error.message);
+    }
+    return defaultValue;
+  }
+};
+
+/**
+ * Verifica se arquivo existe (assíncrono)
+ * @param {string} filePath - Caminho do arquivo
+ * @returns {Promise<boolean>}
+ */
+const fileExistsAsync = async (filePath) => {
+  try {
+    await fsPromises.access(filePath);
+    return true;
+  } catch {
     return false;
   }
 };
@@ -888,14 +980,8 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         const groupFile = buildGroupFilePath(from);
         let groupSettings = {};
         
-        if (fs.existsSync(groupFile)) {
-          try {
-            groupSettings = JSON.parse(fs.readFileSync(groupFile, 'utf-8'));
-          } catch (e) {
-            console.error(`Erro ao ler configurações do grupo ${from}:`, e);
-            groupSettings = {};
-          }
-        }
+        // Carrega de forma assíncrona para não bloquear
+        groupSettings = await readJsonFileAsync(groupFile, {});
         
         // Extrai dados da solicitação dos parâmetros do stub
         const messageStubParameters = info.message.messageStubParameters || [];
@@ -954,7 +1040,14 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
                 expiresAt: Date.now() + (5 * 60 * 1000) // 5 minutos
               };
               
-              fs.writeFileSync(groupFile, JSON.stringify(groupSettings, null, 2));
+              // Adiciona ao índice de captcha para busca rápida
+              const groupFileName = `${from.replace('@g.us', '')}.json`;
+              addCaptcha(participantJid, from, correctAnswer, Date.now() + (5 * 60 * 1000), groupFileName);
+              
+              // Salva arquivo de forma assíncrona para não bloquear
+              writeJsonFileAsync(groupFile, groupSettings).catch(err => 
+                console.error('Erro ao salvar captcha no arquivo:', err)
+              );
               
               if (debug) {
                 console.log('[DEBUG CAPTCHA] Captcha salvo:', {
@@ -1006,7 +1099,12 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
           // Solicitação cancelada ou recusada - limpa captcha se existir
           if (groupSettings.pendingCaptchas && groupSettings.pendingCaptchas[participantJid]) {
             delete groupSettings.pendingCaptchas[participantJid];
-            fs.writeFileSync(groupFile, JSON.stringify(groupSettings, null, 2));
+            // Remove do índice de captcha
+            removeCaptcha(participantJid);
+            // Salva de forma assíncrona
+            writeJsonFileAsync(groupFile, groupSettings).catch(err => 
+              console.error('Erro ao salvar após remover captcha:', err)
+            );
           }
           
           // Notifica X9 se ativo
@@ -1096,12 +1194,10 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       try {
         groupData = await optimizer.getGroupDataCached(
           from,
-          () => {
+          async () => {
             try {
-              if (fs.existsSync(groupFile)) {
-                return JSON.parse(fs.readFileSync(groupFile, 'utf-8'));
-              }
-              return {};
+              // Usa leitura assíncrona para não bloquear event loop
+              return await readJsonFileAsync(groupFile, {});
             } catch (e) {
               console.error(`Erro ao ler groupFile ${groupFile}:`, e);
               return {};
@@ -1112,9 +1208,8 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       } catch (e) {
         console.error('Erro ao carregar groupData com cache:', e);
         try {
-          if (fs.existsSync(groupFile)) {
-            groupData = JSON.parse(fs.readFileSync(groupFile, 'utf-8'));
-          }
+          // Fallback assíncrono
+          groupData = await readJsonFileAsync(groupFile, {});
         } catch (e2) {
           console.error('Erro ao carregar groupData sem cache:', e2);
           groupData = {};
@@ -1234,12 +1329,14 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         optimizer.invalidateJson(groupFile);
       }
       try {
-        // Carregamento seguro de dados do grupo
+        // Carregamento seguro e assíncrono de dados do grupo
         let rawContent = '';
         try {
-          rawContent = fs.readFileSync(groupFile, 'utf-8');
+          rawContent = await fsPromises.readFile(groupFile, 'utf-8');
         } catch (readError) {
-          console.error(`❌ Erro ao ler arquivo do grupo ${from}:`, readError.message);
+          if (readError.code !== 'ENOENT') {
+            console.error(`❌ Erro ao ler arquivo do grupo ${from}:`, readError.message);
+          }
           rawContent = '';
         }
         
@@ -1312,11 +1409,13 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       }
       if (groupName && groupData.groupName !== groupName) {
         groupData.groupName = groupName;
-  writeJsonFile(groupFile, groupData);
-  // Otimização: Invalida cache quando groupData é salvo
-  if (isGroup) {
-    optimizer.invalidateGroup(from);
-  }
+  // Salva de forma assíncrona para não bloquear
+  writeJsonFileAsync(groupFile, groupData).then(() => {
+    // Otimização: Invalida cache quando groupData é salvo
+    if (isGroup) {
+      optimizer.invalidateGroup(from);
+    }
+  }).catch(err => console.error('Erro ao salvar groupData:', err));
       };
     };
     // Otimização: Cache de parcerias
@@ -1328,11 +1427,17 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         10000 // 10 segundos
       );
     }
+    /**
+     * Persiste dados do grupo de forma assíncrona
+     * Não bloqueia o event loop durante a escrita
+     */
     const persistGroupData = () => {
       if (isGroup) {
-        writeJsonFile(groupFile, groupData);
-        // Otimização: Invalida cache quando groupData é salvo
-        optimizer.invalidateGroup(from);
+        // Usa escrita assíncrona em background
+        writeJsonFileAsync(groupFile, groupData).then(() => {
+          // Otimização: Invalida cache quando groupData é salvo
+          optimizer.invalidateGroup(from);
+        }).catch(err => console.error('Erro ao persistir groupData:', err));
       }
     };
     
@@ -1367,84 +1472,91 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const isPremium = premiumListaZinha[sender] || premiumListaZinha[from] || isOwner;
     
     // Verificação de captcha para solicitações de entrada em grupos (DEVE vir ANTES de antipv)
+    // Otimizado: usa índice de captcha em vez de varrer todos os arquivos
     if (!isGroup && !info.key.fromMe) { // Ignora mensagens do próprio bot
-      // Procurar se há captcha pendente para este usuário
-      const groupFiles = fs.existsSync(GRUPOS_DIR) ? fs.readdirSync(GRUPOS_DIR) : [];
-      for (const file of groupFiles) {
-        if (!file.endsWith('.json')) continue;
-        try {
-          const groupPath = pathz.join(GRUPOS_DIR, file);
-          const groupDataCaptcha = JSON.parse(fs.readFileSync(groupPath, 'utf-8'));
-          
-          if (groupDataCaptcha.pendingCaptchas && groupDataCaptcha.pendingCaptchas[sender]) {
-            const captchaData = groupDataCaptcha.pendingCaptchas[sender];
-            
-            if (debug) {
-              console.log('[DEBUG CAPTCHA] Captcha pendente encontrado:', {
-                sender,
-                body: body.trim(),
-                expectedAnswer: captchaData.answer,
-                groupId: captchaData.groupId
-              });
-            }
-            
-            const userAnswer = parseInt(body.trim());
-            
-            if (debug) {
-              console.log('[DEBUG CAPTCHA] Resposta do usuário:', userAnswer, 'É número?', !isNaN(userAnswer));
-            }
-            
-            if (isNaN(userAnswer)) {
-              await reply('❌ Resposta inválida! Por favor, envie apenas o número da resposta.');
-              return;
-            }
-            
-            if (userAnswer === captchaData.answer) {
-              // Resposta correta - aprovar no grupo
-              try {
-                if (debug) {
-                  console.log('[DEBUG CAPTCHA] ✅ Resposta correta! Aprovando no grupo:', captchaData.groupId);
-                }
-                await nazu.groupRequestParticipantsUpdate(captchaData.groupId, [sender], 'approve');
-                await reply('✅ *Correto!* Você foi aprovado no grupo. Bem-vindo! 🎉');
-                
-                // Limpar captcha pendente
-                delete groupDataCaptcha.pendingCaptchas[sender];
-                fs.writeFileSync(groupPath, JSON.stringify(groupDataCaptcha, null, 2));
-                
-                // Notificação X9
-                if (groupDataCaptcha.x9) {
-                  await nazu.sendMessage(captchaData.groupId, {
-                    text: `✅ *X9 Report:* @${sender.split('@')[0]} passou na verificação de captcha e foi aprovado automaticamente.`,
-                    mentions: [sender],
-                  }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
-                }
-              } catch (err) {
-                await reply('❌ Erro ao aprovar sua solicitação. Tente novamente mais tarde.');
-                console.error('Erro ao aprovar após captcha:', err);
-              }
-            } else {
-              // Resposta incorreta - recusar
-              try {
-                if (debug) {
-                  console.log('[DEBUG CAPTCHA] ❌ Resposta incorreta! Recusando no grupo:', captchaData.groupId);
-                }
-                await nazu.groupRequestParticipantsUpdate(captchaData.groupId, [sender], 'reject');
-                await reply('❌ *Resposta incorreta!* Sua solicitação foi recusada. Você pode tentar solicitar novamente.');
-                
-                // Limpar captcha pendente
-                delete groupDataCaptcha.pendingCaptchas[sender];
-                fs.writeFileSync(groupPath, JSON.stringify(groupDataCaptcha, null, 2));
-              } catch (err) {
-                await reply('❌ Resposta incorreta!');
-                console.error('Erro ao recusar após captcha:', err);
-              }
-            }
-            return;
-          }
-        } catch (err) {
-          console.error('Erro ao verificar captcha:', err);
+      const captchaData = getCaptcha(sender);
+      
+      if (captchaData) {
+        if (debug) {
+          console.log('[DEBUG CAPTCHA] Captcha pendente encontrado via índice:', {
+            sender,
+            body: body.trim(),
+            expectedAnswer: captchaData.answer,
+            groupId: captchaData.groupId
+          });
         }
+        
+        const userAnswer = parseInt(body.trim());
+        
+        if (debug) {
+          console.log('[DEBUG CAPTCHA] Resposta do usuário:', userAnswer, 'É número?', !isNaN(userAnswer));
+        }
+        
+        if (isNaN(userAnswer)) {
+          await reply('❌ Resposta inválida! Por favor, envie apenas o número da resposta.');
+          return;
+        }
+        
+        const groupPath = pathz.join(GRUPOS_DIR, captchaData.groupFile || `${captchaData.groupId.replace('@g.us', '')}.json`);
+        
+        if (userAnswer === captchaData.answer) {
+          // Resposta correta - aprovar no grupo
+          try {
+            if (debug) {
+              console.log('[DEBUG CAPTCHA] ✅ Resposta correta! Aprovando no grupo:', captchaData.groupId);
+            }
+            await nazu.groupRequestParticipantsUpdate(captchaData.groupId, [sender], 'approve');
+            await reply('✅ *Correto!* Você foi aprovado no grupo. Bem-vindo! 🎉');
+            
+            // Limpar captcha pendente do índice
+            removeCaptcha(sender);
+            
+            // Também limpa do arquivo do grupo (async para não bloquear)
+            readJsonFileAsync(groupPath, {}).then(async groupDataCaptcha => {
+              if (groupDataCaptcha.pendingCaptchas?.[sender]) {
+                delete groupDataCaptcha.pendingCaptchas[sender];
+                await writeJsonFileAsync(groupPath, groupDataCaptcha);
+              }
+              
+              // Notificação X9
+              if (groupDataCaptcha.x9) {
+                await nazu.sendMessage(captchaData.groupId, {
+                  text: `✅ *X9 Report:* @${sender.split('@')[0]} passou na verificação de captcha e foi aprovado automaticamente.`,
+                  mentions: [sender],
+                }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+              }
+            }).catch(err => console.error('Erro ao limpar captcha do arquivo:', err));
+            
+          } catch (err) {
+            await reply('❌ Erro ao aprovar sua solicitação. Tente novamente mais tarde.');
+            console.error('Erro ao aprovar após captcha:', err);
+          }
+        } else {
+          // Resposta incorreta - recusar
+          try {
+            if (debug) {
+              console.log('[DEBUG CAPTCHA] ❌ Resposta incorreta! Recusando no grupo:', captchaData.groupId);
+            }
+            await nazu.groupRequestParticipantsUpdate(captchaData.groupId, [sender], 'reject');
+            await reply('❌ *Resposta incorreta!* Sua solicitação foi recusada. Você pode tentar solicitar novamente.');
+            
+            // Limpar captcha pendente do índice
+            removeCaptcha(sender);
+            
+            // Também limpa do arquivo do grupo (async)
+            readJsonFileAsync(groupPath, {}).then(async groupDataCaptcha => {
+              if (groupDataCaptcha.pendingCaptchas?.[sender]) {
+                delete groupDataCaptcha.pendingCaptchas[sender];
+                await writeJsonFileAsync(groupPath, groupDataCaptcha);
+              }
+            }).catch(err => console.error('Erro ao limpar captcha do arquivo:', err));
+            
+          } catch (err) {
+            await reply('❌ Resposta incorreta!');
+            console.error('Erro ao recusar após captcha:', err);
+          }
+        }
+        return;
       }
     }
     

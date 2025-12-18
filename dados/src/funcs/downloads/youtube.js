@@ -1,9 +1,10 @@
 /**
  * Download e Pesquisa YouTube usando API Cognima
  * Updated to use cog.api.br API
+ * Otimizado com HTTP connection pooling
  */
 
-import axios from 'axios';
+import { apiClient } from '../../utils/httpClient.js';
 import { spawn } from 'child_process';
 import { Readable } from 'stream';
 import { notifyOwnerAboutApiKey, isApiKeyError } from '../utils/apiKeyNotifier.js';
@@ -13,16 +14,11 @@ async function search(query, apiKey) {
   try {
     if (!apiKey) throw new Error('API key não fornecida');
 
-    const response = await axios.post('https://cog.api.br/api/v1/youtube/search', {
+    const response = await apiClient.post('https://cog.api.br/api/v1/youtube/search', {
       query: query
     }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey
-      },
-      timeout: 120000,
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity
+      headers: { 'X-API-Key': apiKey },
+      timeout: 120000
     });
 
     if (!response.data.success || !response.data.data) {
@@ -54,17 +50,12 @@ async function mp3(url, quality = 128, apiKey) {
   try {
     if (!apiKey) throw new Error('API key não fornecida');
 
-    const response = await axios.post('https://cog.api.br/api/v1/youtube/mp3', {
+    const response = await apiClient.post('https://cog.api.br/api/v1/youtube/mp3', {
       url: url,
       quality: 'mp3'
     }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey
-      },
-      timeout: 120000,
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity
+      headers: { 'X-API-Key': apiKey },
+      timeout: 120000
     });
 
     return {
@@ -93,17 +84,12 @@ async function mp4(url, quality = 360, apiKey) {
   try {
     if (!apiKey) throw new Error('API key não fornecida');
 
-    const response = await axios.post('https://cog.api.br/api/v1/youtube/mp4', {
+    const response = await apiClient.post('https://cog.api.br/api/v1/youtube/mp4', {
       url: url,
       quality: '360p'
     }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey
-      },
-      timeout: 120000,
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity
+      headers: { 'X-API-Key': apiKey },
+      timeout: 120000
     });
 
     return {

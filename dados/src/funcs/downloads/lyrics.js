@@ -1,10 +1,15 @@
-import axios from 'axios';
+/**
+ * Busca de letras de música
+ * Otimizado com HTTP connection pooling
+ */
+
+import { scrapingClient } from '../../utils/httpClient.js';
 import { parseHTML } from 'linkedom';
 
 async function getLyrics(topic) {
   try {
     // Search request
-    const response = await axios.get(`https://solr.sscdn.co/letras/m1/?q=${encodeURIComponent(topic)}&wt=json&callback=LetrasSug`);
+    const response = await scrapingClient.get(`https://solr.sscdn.co/letras/m1/?q=${encodeURIComponent(topic)}&wt=json&callback=LetrasSug`);
     
     if (response.status !== 200) {
       throw new Error('Erro ao buscar letra da música');
@@ -25,7 +30,7 @@ async function getLyrics(topic) {
 
     // Fetch lyrics page
     const lyricUrl = `https://www.letras.mus.br/${lyric.dns}/${lyric.url}`;
-    const lyricResponse = await axios.get(lyricUrl);
+    const lyricResponse = await scrapingClient.get(lyricUrl);
 
     if (lyricResponse.status !== 200) {
       throw new Error('Sem resposta do servidor');

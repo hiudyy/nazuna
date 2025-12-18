@@ -2,9 +2,10 @@
  * Sistema de Download de APK Mod Otimizado
  * Desenvolvido por Hiudy
  * Versão: 2.0.0
+ * Otimizado com HTTP connection pooling
  */
 
-import axios from 'axios';
+import { scrapingClient } from '../../utils/httpClient.js';
 import { DOMParser } from 'linkedom';
 
 // Configurações
@@ -142,7 +143,7 @@ class APKClient {
 
   async request(url, attempt = 1) {
     try {
-      const response = (await axios.get(url, {
+      const response = (await scrapingClient.get(url, {
         timeout: CONFIG.API.TIMEOUT,
         headers: CONFIG.API.HEADERS
       })).data;

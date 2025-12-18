@@ -2,13 +2,14 @@
  * Pinterest API-only helper for Cognima (cog.api.br)
  * Author: Hiudy (adapted)
  * Version: 3.0.0
+ * Otimizado com HTTP connection pooling
  *
  * This module now exclusively uses Cognima endpoints for Pinterest search and download.
  * If no API key is provided to the functions, they return an error consistent with the rest
  * of the project's helper modules.
  */
 
-import axios from 'axios';
+import { apiClient } from '../../utils/httpClient.js';
 import { isApiKeyError } from '../utils/apiKeyNotifier.js';
 
 const API_BASE = 'https://cog.api.br/api/v1';
@@ -60,13 +61,10 @@ async function pinterestSearch(query, apiKey) {
       return { ok: false, msg: 'API key não configurada' };
     }
 
-    const response = await axios.post(`${API_BASE}/pinterest/search`, {
+    const response = await apiClient.post(`${API_BASE}/pinterest/search`, {
       query: query
     }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey
-      },
+      headers: { 'X-API-Key': apiKey },
       timeout: 30000
     });
 
@@ -120,13 +118,10 @@ async function pinterestDL(url, apiKey) {
     // If apiKey provided, use API endpoint
     if (apiKey) {
       try {
-        const response = await axios.post(`${API_BASE}/pinterest/download`, {
+        const response = await apiClient.post(`${API_BASE}/pinterest/download`, {
           url: url
         }, {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': apiKey
-          },
+          headers: { 'X-API-Key': apiKey },
           timeout: 30000
         });
 
