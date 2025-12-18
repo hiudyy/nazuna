@@ -841,6 +841,12 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     // Debug: log do sender identificado
     debugLog('Sender identificado:', { sender, isGroup, from: from?.substring(0, 20) });
     
+    // Se sender ainda for undefined, ignora a mensagem (ex: mensagens de sistema, stubs, etc)
+    if (!sender) {
+      debugLog('Sender não identificado, ignorando mensagem');
+      return;
+    }
+    
     const pushname = info.pushName || '';
     const isStatus = from?.endsWith('@broadcast') || false;
     const nmrdn = buildUserId(numerodono, config);
