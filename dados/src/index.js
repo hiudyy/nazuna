@@ -876,7 +876,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const type = getContentType(info.message);
     
     // ==================== PROCESSAMENTO DE SOLICITAÇÕES DE ENTRADA NO GRUPO ====================
-    // Solicitações de entrada são processadas via messageStubType, não eventos separados
+    // Fallback: Solicitações também podem vir via messageStubType (backup do evento 'group.join-request')
     if (isGroup && info.message?.messageStubType && info.message.messageStubType === 172) { // GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD
       try {
         const groupFile = buildGroupFilePath(from);
@@ -893,8 +893,15 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         
         // Extrai dados da solicitação dos parâmetros do stub
         const messageStubParameters = info.message.messageStubParameters || [];
-        const participantJid = messageStubParameters[0]; // JID de quem solicitou
-        const action = messageStubParameters[1]; // 'created', 'revoked', 'rejected'
+        
+        if (debug) {
+          console.log('[DEBUG STUB 172] messageStubParameters:', messageStubParameters);
+        }
+        
+        // O primeiro parâmetro é o JID do participante
+        const participantJid = messageStubParameters[0];
+        // Para novas solicitações, assumimos 'created' se não houver segundo parâmetro
+        const action = messageStubParameters[1] || 'created';
         
         if (!participantJid) {
           console.warn('[JOIN REQUEST] Parâmetros de solicitação inválidos:', messageStubParameters);

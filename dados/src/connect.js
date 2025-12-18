@@ -596,10 +596,9 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
     }
 }
 
-// DEPRECATED: Este handler não é mais usado pois o whaileys não emite evento 'group.join-request'
-// As solicitações são processadas via messageStubType no index.js
-// Mantido aqui apenas para referência e pode ser removido futuramente
-async function handleGroupJoinRequest_DEPRECATED(NazunaSock, inf) {
+// Handler para solicitações de entrada em grupos
+// Evento 'group.join-request' emitido pelo Baileys
+async function handleGroupJoinRequest(NazunaSock, inf) {
     try {
         const from = inf.id;
         
@@ -1070,6 +1069,13 @@ async function performMigration(NazunaSock) {
 
 }
 
+// Variáveis de controle de reconexão (declaradas aqui para evitar temporal dead zone)
+let reconnectAttempts = 0;
+let isReconnecting = false; // Flag para evitar múltiplas reconexões simultâneas
+let reconnectTimer = null; // Timer de reconexão para poder cancelar
+const MAX_RECONNECT_ATTEMPTS = 10;
+const RECONNECT_DELAY_BASE = 5000; // 5 segundos base
+
 async function createBotSocket(authDir) {
     try {
         await fs.mkdir(path.join(DATABASE_DIR, 'grupos'), { recursive: true });
@@ -1166,8 +1172,22 @@ async function createBotSocket(authDir) {
             await handleGroupParticipantsUpdate(NazunaSock, inf);
         });
         
-        // NOTA: Solicitações de entrada no grupo (join requests) são processadas via messageStubType
-        // GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD no index.js, não via evento separado
+        // Listener para solicitações de entrada em grupos (join requests)
+        NazunaSock.ev.on('group.join-request', async (inf) => {
+            if (DEBUG_MODE) {
+                console.log('\n🐛 ========== GROUP JOIN REQUEST ==========');
+                console.log('📅 Timestamp:', new Date().toISOString());
+                console.log('🆔 Group ID:', inf.id);
+                console.log('⚡ Action:', inf.action);
+                console.log('👤 Participant:', inf.participant);
+                console.log('📱 Participant Phone:', inf.participantPn);
+                console.log('👮 Author:', inf.author);
+                console.log('📝 Method:', inf.method);
+                console.log('📦 Full event data:', JSON.stringify(inf, null, 2));
+                console.log('🐛 ===========================================\n');
+            }
+            await handleGroupJoinRequest(NazunaSock, inf);
+        });
 
         let messagesListenerAttached = false;
 
@@ -1362,6 +1382,12 @@ async function createBotSocket(authDir) {
                     console.log('🔄 Nova autenticação será necessária na próxima inicialização.');
                 }
                 
+                // Não reconecta se conexão foi substituída (outra instância assumiu)
+                if (reason === DisconnectReason.connectionReplaced) {
+                    console.log('⚠️ Conexão substituída por outra instância. Não reconectando para evitar conflito.');
+                    return;
+                }
+                
                 // Delay antes de reconectar baseado no motivo
                 let reconnectDelay = 5000;
                 if (reason === DisconnectReason.timedOut) {
@@ -1373,7 +1399,13 @@ async function createBotSocket(authDir) {
                 }
                 
                 console.log(`🔄 Aguardando ${reconnectDelay / 1000} segundos antes de reconectar...`);
-                setTimeout(() => {
+                
+                // Cancela timer anterior se existir
+                if (reconnectTimer) {
+                    clearTimeout(reconnectTimer);
+                }
+                
+                reconnectTimer = setTimeout(() => {
                     reconnectAttempts = 0; // Reset ao reconectar por desconexão normal
                     startNazu();
                 }, reconnectDelay);
@@ -1386,15 +1418,20 @@ async function createBotSocket(authDir) {
     }
 }
 
-let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 10;
-const RECONNECT_DELAY_BASE = 5000; // 5 segundos base
-
 async function startNazu() {
+    // Evita múltiplas instâncias sendo criadas ao mesmo tempo
+    if (isReconnecting) {
+        console.log('⚠️ Reconexão já em andamento, ignorando chamada duplicada...');
+        return;
+    }
+    
+    isReconnecting = true;
+    
     try {
         reconnectAttempts = 0; // Reset contador ao conectar com sucesso
         console.log('🚀 Iniciando Nazuna...');
         await createBotSocket(AUTH_DIR);
+        isReconnecting = false; // Conexão estabelecida com sucesso
     } catch (err) {
         reconnectAttempts++;
         console.error(`❌ Erro ao iniciar o bot (tentativa ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}): ${err.message}`);
@@ -1402,6 +1439,7 @@ async function startNazu() {
         // Se excedeu tentativas, para de tentar
         if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
             console.error(`❌ Máximo de tentativas de reconexão alcançado (${MAX_RECONNECT_ATTEMPTS}). Parando...`);
+            isReconnecting = false;
             process.exit(1);
         }
         
@@ -1419,7 +1457,14 @@ async function startNazu() {
         const delay = Math.min(RECONNECT_DELAY_BASE * Math.pow(1.5, reconnectAttempts - 1), 60000);
         console.log(`🔄 Aguardando ${Math.round(delay / 1000)} segundos antes de tentar novamente...`);
         
-        setTimeout(() => {
+        // Cancela timer anterior se existir
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+        }
+        
+        // Permite nova tentativa de reconexão após o delay
+        isReconnecting = false;
+        reconnectTimer = setTimeout(() => {
             startNazu();
         }, delay);
     }
@@ -1431,6 +1476,13 @@ async function startNazu() {
 async function gracefulShutdown(signal) {
     const signalName = signal === 'SIGTERM' ? 'SIGTERM' : 'SIGINT';
     console.log(`📡 ${signalName} recebido, parando bot graciosamente...`);
+    
+    // Cancela qualquer timer de reconexão pendente
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+    isReconnecting = false;
     
     let shutdownTimeout;
     
