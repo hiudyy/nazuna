@@ -815,6 +815,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     igdl,
     sendSticker,
     FilmesDL,
+    SeriesDL,
     styleText,
     emojiMix,
     upload,
@@ -18394,41 +18395,150 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
         break;
         
       //DOWNLOADS
-      case 'assistir':
+
+      case 'filme':
+      case 'filmes':
+      case 'movie':
         try {
-          if (!q) return reply('Cadê o nome do filme ou episódio de série? 🤔');
+          if (!q) return reply('📽️ Digite o nome do filme que deseja buscar!\n\n*Exemplo:*\n> ' + prefix + command + ' Matrix');
           
-          // Verificar se tem API key
           if (!KeyCog) {
             ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           
-          reply('Um momento, estou buscando as informações para você 🕵️‍♂️').then(async () => {
+          reply('🔍 Buscando informações do filme... 🎬').then(async () => {
             try {
-              const datyz = await FilmesDL(q, KeyCog);
-              if (!datyz || !datyz.url) {
-                reply('Desculpe, não consegui encontrar nada. Tente com outro nome de filme ou série. 😔');
-                return;
+              const resultado = await FilmesDL(q, KeyCog, 5);
+              
+              if (!resultado || !resultado.success) {
+                return reply('❌ Nenhum filme encontrado com esse nome. Tente novamente com outro título.');
               }
-              const shortLink = await axios.post("https://spoo.me/api/v1/shorten", { 
-                long_url: datyz.url, 
-                alias: `nazuna_${Math.floor(10000 + Math.random() * 90000)}` 
-              });
-              nazu.sendMessage(from, {
-                image: { url: datyz.img },
-                caption: `Aqui está o que encontrei! 🎬\n\n*Nome*: ${datyz.name}\n🔗 *Assista:* ${shortLink.data.short_url}`
+              
+              const filme = resultado;
+              let mensagem = `╭─┈┈◈ 🎬 *FILME ENCONTRADO* 🎬 ◈┈┈─╮\n\n`;
+              mensagem += `📌 *Nome:* ${filme.nome}\n`;
+              mensagem += `⭐ *Avaliação:* ${filme.rating || 'N/A'}/10\n`;
+              mensagem += `🎭 *Gênero:* ${filme.details?.genre || 'N/A'}\n`;
+              mensagem += `👤 *Diretor:* ${filme.details?.director || 'N/A'}\n`;
+              mensagem += `🎬 *Elenco:* ${filme.details?.cast || 'N/A'}\n`;
+              mensagem += `📅 *Lançamento:* ${filme.details?.releaseDate || 'N/A'}\n`;
+              mensagem += `⏱️ *Duração:* ${filme.details?.duration || 'N/A'}\n\n`;
+              mensagem += `📖 *Sinopse:*\n${filme.details?.plot || 'Não disponível'}\n\n`;
+              mensagem += `🔗 *Assistir:* ${filme.playerUrl}\n`;
+              
+              if (filme.details?.youtubeTrailer) {
+                mensagem += `🎥 *Trailer:* ${filme.details.youtubeTrailer}\n`;
+              }
+              
+              mensagem += `\n╰─┈┈◈ 🎬 ◈┈┈─╯`;
+              
+              await nazu.sendMessage(from, {
+                image: { url: filme.img || filme.details?.cover },
+                caption: mensagem
               }, { quoted: info });
+              
+              if (filme.allResults && filme.allResults.length > 1) {
+                let outros = `\n📋 *Outros resultados encontrados:*\n\n`;
+                filme.allResults.slice(1, 4).forEach((f, i) => {
+                  outros += `${i + 2}. ${f.name} (${f.rating || 'N/A'}⭐)\n`;
+                  outros += `   🔗 ${f.playerUrl}\n\n`;
+                });
+                if (outros.length > 50) await nazu.sendMessage(from, { text: outros }, { quoted: info });
+              }
             } catch (e) {
-              console.error(e);
-              reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
+              console.error('Erro ao buscar filme:', e);
+              reply("❌ Ocorreu um erro ao buscar o filme. Tente novamente.");
             }
           });
         } catch (e) {
           console.error(e);
-          reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
+          reply("❌ Ocorreu um erro interno.");
         }
         break;
+
+      case 'serie':
+      case 'series':
+      case 'temporada':
+      case 'episodio':
+        try {
+          if (!q) return reply('📺 Digite o nome da série que deseja buscar!\n\n*Exemplo:*\n> ' + prefix + command + ' Breaking Bad');
+          
+          if (!KeyCog) {
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            return reply(API_KEY_REQUIRED_MESSAGE);
+          }
+          
+          reply('🔍 Buscando informações da série... 📺').then(async () => {
+            try {
+              const resultado = await SeriesDL(q, KeyCog, 3);
+              
+              if (!resultado || !resultado.success) {
+                return reply('❌ Nenhuma série encontrada com esse nome. Tente novamente com outro título.');
+              }
+              
+              const serie = resultado;
+              let mensagem = `╭─┈┈◈ 📺 *SÉRIE ENCONTRADA* 📺 ◈┈┈─╮\n\n`;
+              mensagem += `📌 *Nome:* ${serie.nome}\n`;
+              mensagem += `⭐ *Avaliação:* ${serie.rating || 'N/A'}/10\n`;
+              mensagem += `🎭 *Gênero:* ${serie.details?.genre || 'N/A'}\n`;
+              mensagem += `👤 *Diretor:* ${serie.details?.director || 'N/A'}\n`;
+              mensagem += `🎬 *Elenco:* ${serie.details?.cast || 'N/A'}\n`;
+              mensagem += `📅 *Lançamento:* ${serie.details?.releaseDate || 'N/A'}\n`;
+              mensagem += `📊 *Temporadas:* ${serie.totalSeasons || 'N/A'}\n\n`;
+              mensagem += `📖 *Sinopse:*\n${serie.details?.plot || 'Não disponível'}\n\n`;
+              
+              if (serie.details?.seasons && serie.details.seasons.length > 0) {
+                mensagem += `🗂️ *Temporadas disponíveis:*\n`;
+                serie.details.seasons.slice(0, 5).forEach(temp => {
+                  mensagem += `   • T${temp.season_number}: ${temp.name} (${temp.episode_count} eps)\n`;
+                });
+                if (serie.details.seasons.length > 5) {
+                  mensagem += `   ... e mais ${serie.details.seasons.length - 5} temporadas\n`;
+                }
+                mensagem += `\n`;
+              }
+              
+              mensagem += `🔗 *Assistir:* ${serie.playerUrl}\n`;
+              
+              if (serie.details?.youtubeTrailer) {
+                mensagem += `🎥 *Trailer:* ${serie.details.youtubeTrailer}\n`;
+              }
+              
+              mensagem += `\n╰─┈┈◈ 📺 ◈┈┈─╯`;
+              
+              await nazu.sendMessage(from, {
+                image: { url: serie.img || serie.details?.cover },
+                caption: mensagem
+              }, { quoted: info });
+              
+              // Mostra alguns episódios da primeira temporada como exemplo
+              if (serie.details?.episodes && serie.details.episodes['1']) {
+                const primeiraTemp = serie.details.episodes['1'];
+                if (primeiraTemp.length > 0) {
+                  let episodios = `\n📺 *Episódios da Temporada 1:*\n\n`;
+                  primeiraTemp.slice(0, 3).forEach(ep => {
+                    episodios += `${ep.episode_num}. ${ep.title}\n`;
+                    episodios += `   📅 ${ep.info?.releasedate || 'N/A'} | ⏱️ ${ep.info?.duration || 'N/A'}\n`;
+                    episodios += `   🔗 ${ep.streamUrl}\n\n`;
+                  });
+                  if (primeiraTemp.length > 3) {
+                    episodios += `... e mais ${primeiraTemp.length - 3} episódios\n`;
+                  }
+                  await nazu.sendMessage(from, { text: episodios }, { quoted: info });
+                }
+              }
+            } catch (e) {
+              console.error('Erro ao buscar série:', e);
+              reply("❌ Ocorreu um erro ao buscar a série. Tente novamente.");
+            }
+          });
+        } catch (e) {
+          console.error(e);
+          reply("❌ Ocorreu um erro interno.");
+        }
+        break;
+
       case 'iptv':
         try {
           await reply('📺 *Gerando teste de IPTV...*\n⏳ Aguarde um momento...');

@@ -48,6 +48,7 @@ async function loadModules() {
             lyricsMod,
             mcpluginsMod,
             filmesMod,
+            seriesMod,
         ] = await Promise.all([
             import('./downloads/youtube.js'),
             import('./downloads/tiktok.js'),
@@ -56,6 +57,7 @@ async function loadModules() {
             import('./downloads/lyrics.js'),
             import('./downloads/mcplugins.js'),
             import('./downloads/filmes.js'),
+            import('./downloads/series.js'),
         ]);
 
         // Download modules with null checking
@@ -79,6 +81,7 @@ async function loadModules() {
         modules.Lyrics = lyricsMod.default ?? lyricsMod;
         modules.mcPlugin = mcpluginsMod.default ?? mcpluginsMod;
         modules.FilmesDL = filmesMod.default ?? filmesMod;
+        modules.SeriesDL = seriesMod.default ?? seriesMod;
         
         // Enhanced null checking and error handling for all modules
         if (modules.youtube) {
