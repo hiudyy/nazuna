@@ -1,6 +1,6 @@
-### 🚀 Oferta Especial (Plano Premium nazuna Bot)
+### 🚀 Oferta Especial (Plano Premium Boruto Bot)
 
-Ative **todas as funções avançadas** do nazuna Bot + **Hospedagem 24/7** (seu bot sempre online, sem depender do seu PC ou celular) por apenas **R$ 25 / mês**.
+Ative **todas as funções avançadas** do Boruuto Bot + **Hospedagem 24/7** (seu bot sempre online, sem depender do seu PC ou celular) por apenas **R$ 25 / mês**.
 
 Benefícios incluídos no combo:
 - ✅ Combo API Key exclusiva (desbloqueia todas as features premium compatíveis)
@@ -10,29 +10,29 @@ Benefícios incluídos no combo:
 - ✅ Ajuda na configuração inicial e otimização
 - ✅ Menos risco de queda ou ban por má configuração
 
-👉 Garante agora: [Falar no WhatsApp](https://wa.me/5533999285117)  
-Ou copie e abra: `https://wa.me/5533999285117`
+👉 Garante agora: [Falar no WhatsApp](https://wa.me/555189666526)  
+Ou copie e abra: `https://wa.me/555189666526`
 
 > Vagas promocionais limitadas. Ideal para quem quer profissionalizar o uso do bot sem dor de cabeça!
 
 ---
 
-# 🤖 nazuna Bot: Seu Assistente Completo para WhatsApp
+# 🤖 Boruto Bot: Seu Assistente Completo para WhatsApp
 
-![nazuna Bot Banner](https://raw.githubusercontent.com/hiudyy/nazuna/main/dados/midias/menu.jpg)
+![Boruto Bot Bot)
 
-Bem-vindo ao repositório oficial do **nazuna Bot**! Este projeto é um bot avançado e multifuncional para WhatsApp, desenvolvido com a robustez do **Node.js** e a flexibilidade da biblioteca **WaLib**. Criado para otimizar sua comunicação e gestão de grupos, o nazuna Bot oferece uma vasta gama de comandos, desde funcionalidades administrativas essenciais até opções de entretenimento interativas. É a solução perfeita tanto para desenvolvedores iniciantes que buscam uma ferramenta fácil de usar quanto para usuários avançados que desejam uma plataforma altamente personalizável.
+Bem-vindo ao repositório oficial do **Boruto Bot**! Este projeto é um bot avançado e multifuncional para WhatsApp, desenvolvido com a robustez do **Node.js** e a flexibilidade da biblioteca **WaLib**. Criado para otimizar sua comunicação e gestão de grupos, o nazuna Bot oferece uma vasta gama de comandos, desde funcionalidades administrativas essenciais até opções de entretenimento interativas. É a solução perfeita tanto para desenvolvedores iniciantes que buscam uma ferramenta fácil de usar quanto para usuários avançados que desejam uma plataforma altamente personalizável.
 
 > ⚠️ **Aviso Importante**: O nazuna Bot é um projeto de código aberto, desenvolvido com paixão e dedicação. No entanto, ele é **protegido por direitos autorais**. Isso significa que, embora você tenha total liberdade para editar e distribuir o bot para uso pessoal ou em sua comunidade, a **venda** do nazuna Bot ou de suas versões modificadas é estritamente proibida, pois o projeto é oferecido gratuitamente. Além disso, a remoção total dos créditos do autor é vedada. Violações destas condições podem resultar em ações legais.
 
 ---
 
-## ✨ Por que o nazuna Bot se Destaca?
+## ✨ Por que o Boruto Bot se Destaca?
 
 <details>
 <summary><strong>🔍 Clique para ver as principais características</strong></summary>
 
-O nazuna Bot foi projetado para ser mais do que um simples assistente; ele é um parceiro digital que simplifica suas interações no WhatsApp. Veja o que o torna tão especial:
+O Boruto Bot foi projetado para ser mais do que um simples assistente; ele é um parceiro digital que simplifica suas interações no WhatsApp. Veja o que o torna tão especial:
 
 - **Configuração Simplificada e Intuitiva**: Conecte-se ao WhatsApp em questão de minutos, utilizando um prático QR code ou um código de pareamento, eliminando complexidades iniciais.
 - **Funcionalidade Abrangente e Versátil**: Gerencie grupos com eficiência, utilize ferramentas utilitárias para diversas tarefas e divirta-se com uma biblioteca crescente de comandos de entretenimento, tudo em um só lugar.
@@ -97,10 +97,10 @@ Navegue facilmente por todas as seções deste README para encontrar as informa�
 
 1. [🚀 Primeiros Passos: Guia Rápido](#-primeiros-passos-guia-rápido)
 2. [📋 Pré-requisitos Essenciais](#-pré-requisitos-essenciais)
-3. [📥 Instalação do nazuna Bot](#-instalação-do-nazuna-bot)
+3. [📥 Instalação do Boruto Bot](#-instalação-do-boruto-bot)
 4. [🚀 Rodando o Bot pela Primeira Vez](#-rodando-o-bot-pela-primeira-vez)
 5. [🔌 Conectando o Bot ao WhatsApp](#-conectando-o-bot-ao-whatsapp)
-6. [🔄 Atualizando o nazuna Bot](#-atualizando-o-nazuna-bot)
+6. [🔄 Atualizando o nazuna Bot](#-atualizando-o-boruto-bot)
 7. [💻 Tutoriais de Instalação por Plataforma](#-tutoriais-de-instalação-por-plataforma)
    - [🖥️ Windows: Guia Completo](#-windows-guia-completo)
    - [🐧 Linux: Instalação e Configuração](#-linux-instalação-e-configuração)
@@ -109,7 +109,7 @@ Navegue facilmente por todas as seções deste README para encontrar as informa�
 8. [❓ Resolvendo Problemas Comuns (FAQ)](#-resolvendo-problemas-comuns-faq)
 9. [💖 Apoie o Projeto: Faça a Diferença](#-apoie-o-projeto-faça-a-diferença)
 10. [📜 Licença de Uso e Direitos Autorais](#-licença-de-uso-e-direitos-autorais)
-11. [👤 Sobre o Criador: Hiudy](#-sobre-o-criador-hiudy)
+11. [👤 Sobre o Criador: Th]
 12. [❔ FAQ Avançado e Dúvidas Frequentes](#-faq-avançado-e-dúvidas-frequentes)
 </details>
 
@@ -155,7 +155,7 @@ Para garantir que o nazuna Bot funcione perfeitamente em seu sistema, você prec
 
 ---
 
-## 📥 Instalação do nazuna Bot
+## 📥 Instalação do Boruto Bot
 
 <details>
 <summary><strong>📦 Passo a passo da instalação</strong></summary>
@@ -170,10 +170,10 @@ Siga este guia passo a passo para instalar o nazuna Bot em seu sistema. Certifiq
    ```
    - **Explicação**:  
      - `git clone https://github.com/hiudyy/nazuna.git`: Este comando baixa uma cópia completa do repositório do nazuna Bot do GitHub para o seu diretório atual. Uma nova pasta chamada `nazuna` será criada.
-     - `cd nazuna`: Este comando muda o diretório de trabalho atual para a pasta `nazuna`, onde o bot está localizado. Todas as operações subsequentes devem ser executadas dentro desta pasta.
+     - `cd boruto`: Este comando muda o diretório de trabalho atual para a pasta `boruto`, onde o bot está localizado. Todas as operações subsequentes devem ser executadas dentro desta pasta.
 
 2. **Instalar Dependências do Projeto**  
-   O nazuna Bot utiliza diversas bibliotecas e pacotes Node.js para funcionar. Para instalá-los, execute os comandos abaixo, um por vez. O processo pode levar alguns minutos, dependendo da sua conexão com a internet:
+   O Boruto Bot utiliza diversas bibliotecas e pacotes Node.js para funcionar. Para instalá-los, execute os comandos abaixo, um por vez. O processo pode levar alguns minutos, dependendo da sua conexão com a internet:
    ```bash
    npm run config
    npm run config:install
@@ -194,7 +194,7 @@ Siga este guia passo a passo para instalar o nazuna Bot em seu sistema. Certifiq
 <details>
 <summary><strong>▶️ Como executar o bot</strong></summary>
 
-Após a instalação bem-sucedida de todas as dependências, você está pronto para iniciar o nazuna Bot. Execute o seguinte comando no terminal, dentro do diretório do projeto `nazuna`:
+Após a instalação bem-sucedida de todas as dependências, você está pronto para iniciar o nazuna Bot. Execute o seguinte comando no terminal, dentro do diretório do projeto `Boruto`:
 
 ```bash
 npm start
@@ -230,7 +230,7 @@ Este é o método mais comum e direto para conectar seu bot:
 
 Este método é útil se você não consegue escanear o QR code diretamente (por exemplo, se estiver rodando o bot em um servidor remoto sem interface gráfica):
 
-- **Passo 1: Iniciar o Processo**: Ao executar `npm start`, o bot solicitará que você digite o número de telefone do bot (incluindo o código do país, ex: `+5511999999999`).
+- **Passo 1: Iniciar o Processo**: Ao executar `npm start`, o bot solicitará que você digite o número de telefone do bot (incluindo o código do país, ex: `+5551999999999`).
 - **Passo 2: Obter o Código**: Após digitar o número, o terminal fornecerá um código de pareamento alfanumérico (ex: `1234-5678`).
 - **Passo 3: Inserir o Código no WhatsApp**: No seu smartphone, abra o aplicativo WhatsApp e siga estes passos:
   1. Vá em **Configurações** (ou **Ajustes** no iOS).
@@ -247,14 +247,14 @@ Este método é útil se você não consegue escanear o QR code diretamente (por
 
 ---
 
-## 🔄 Atualizando o nazuna Bot
+## 🔄 Atualizando o Boruto Bot
 
 <details>
 <summary><strong>🔃 Como manter seu bot atualizado</strong></summary>
 
-Manter seu nazuna Bot atualizado é essencial para garantir acesso às últimas funcionalidades, melhorias de desempenho e correções de segurança. O processo de atualização é simples e seguro:
+Manter seu Boruto Bot atualizado é essencial para garantir acesso às últimas funcionalidades, melhorias de desempenho e correções de segurança. O processo de atualização é simples e seguro:
 
-Para atualizar o bot para a versão mais recente disponível no repositório oficial, navegue até o diretório do projeto `nazuna` no seu terminal e execute o seguinte comando:
+Para atualizar o bot para a versão mais recente disponível no repositório oficial, navegue até o diretório do projeto `Boruto` no seu terminal e execute o seguinte comando:
 
 ```bash
 npm run update
@@ -423,7 +423,7 @@ Este tutorial abrangente detalha a instalação do nazuna Bot no Termux, desde o
      - `cd nazuna`: Entra na pasta recém-criada do bot, onde todos os comandos subsequentes devem ser executados.
 
 5. **Instalar as Dependências do Bot**  
-   O nazuna Bot depende de várias bibliotecas Node.js para funcionar. O comando `npm run config:install` irá instalá-las de forma otimizada.
+   O Boruto Bot depende de várias bibliotecas Node.js para funcionar. O comando `npm run config:install` irá instalá-las de forma otimizada.
    ```bash
    npm run config
    npm run config:install
@@ -473,7 +473,7 @@ Esta é a maneira mais fácil e rápida de colocar o nazuna Bot para rodar em um
      - **Nome do Dono**: Seu nome ou apelido (ex: `João`).
      - **Número do Bot**: O número de telefone do bot, com o código do país (ex: `+5511999999999`).
      - **Prefixo do Bot**: O símbolo que será usado para acionar os comandos (ex: `/`).
-     - **Nome do Bot**: O nome que o bot terá no WhatsApp (ex: `nazuna`).
+     - **NomeDoBot**: O nome que o bot terá no WhatsApp (ex: `Boruto`).
      - **Atualização Automática**: Selecione `Sim` para que o bot se atualize automaticamente a cada reinicialização, ou `Não` para atualizações manuais.
    - **Recursos**: Aloque no mínimo 256MB de RAM e 256MB de disco. Para um desempenho ideal, recomendamos 512MB de RAM e 512MB de disco.
 
@@ -558,7 +558,7 @@ O desenvolvimento e a manutenção do **nazuna Bot** são um trabalho de amor, m
 Se você aprecia o nazuna Bot e deseja contribuir para seu futuro, considere fazer uma doação. Cada contribuição, por menor que seja, faz uma grande diferença e é imensamente apreciada.
 
 - **🇧🇷 Doações no Brasil (via Pix)**  
-  **Chave Pix (CNPJ):** `60.374.533/0001-65`  
+  **Chave Pix (CNPJ):** `025,614,990,90`
   *Qualquer valor é bem-vindo e nos ajuda a manter o projeto vivo e próspero!* 
 
 > ❤️ **Nossa Gratidão!** Agradecemos imensamente a todos que apoiam o nazuna Bot. Sua generosidade é o que nos motiva a continuar inovando e aprimorando esta ferramenta para toda a comunidade!
@@ -571,12 +571,12 @@ Se você aprecia o nazuna Bot e deseja contribuir para seu futuro, considere faz
 <details>
 <summary><strong>🏢 Parceiros de hospedagem recomendados</strong></summary>
 
-Para aqueles que desejam rodar o nazuna Bot 24/7 em um ambiente estável e com bom custo-benefício, recomendamos a **Latam Data Center**.
+Para aqueles que desejam rodar o Boruto Bot 24/7 em um ambiente estável e com bom custo-benefício, recomendamos a **Latam Data Center**.
 
 [![Latam Data Center](https://latamdatacenter.com.br/assets/img/logo.png)](https://latamdatacenter.com.br)
 
 - **Site**: [latamdatacenter.com.br](https://latamdatacenter.com.br)
-- **Por que recomendamos?**: Oferecem planos de hospedagem acessíveis, com boa estabilidade e suporte em português, ideais para projetos como o nazuna Bot.
+- **Por que recomendamos?**: Oferecem planos de hospedagem acessíveis, com boa estabilidade e suporte em português, ideais para projetos como o Boruto Bot.
 </details>
 
 ---
@@ -593,7 +593,7 @@ O **nazuna Bot** é um projeto de código aberto, mas é **protegido por copyrig
 
 ---
 
-## 👤 Sobre o Criador: Hiudy
+## 👤 Sobre o Criador: Th
 
 <details>
 <summary><strong>👨‍💻 Conheça o desenvolvedor</strong></summary>
@@ -604,18 +604,16 @@ Feito com ❤️ e muitas xícaras de café por [**Hiudy**](https://github.com/h
 
 | Ícone | Badge | Descrição |
 |-------|-------|-----------|
-| 👥 | ![Seguidores](https://img.shields.io/github/followers/hiudyy?color=blue&style=flat-square) | **Seguidores**: O número de pessoas que acompanham o trabalho do Hiudy no GitHub. |
-| 📝 | ![Contribuições](https://img.shields.io/github/commit-activity/y/hiudyy/nazuna) | **Contribuições**: A atividade anual de commits do Hiudy em todos os seus projetos. |
-| 💬 | ![Discord](https://img.shields.io/badge/Discord-hiudyyy-7289DA?style=flat-square&logo=discord) | **Discord**: Conecte-se diretamente com o Hiudy no Discord para trocar ideias e obter suporte. |
-| 📷 | ![Instagram](https://img.shields.io/badge/Instagram-hiudyyy_-E4405F?style=flat-square&logo=instagram) | **Instagram**: Siga o Hiudy no Instagram para ficar por dentro das últimas novidades e bastidores dos projetos. |
+| 👥 | ![Seguidores) | **Seguidores**: O número de pessoas que acompanham o trabalho do Boruto no GitHub. |
+
+**Contribuições**: 
+| 📷 | ![Instagram](https://www.instagram.com/kaua.ybz?igsh=cGF6ejFsZzRla2Zw) | **Instagram**: Siga o Kaua no Instagram para ficar por dentro das últimas novidades e bastidores dos projetos. |
 
 **Bio**:  
-Hiudy é um entusiasta de tecnologia que se dedica a criar soluções práticas, inovadoras e com um toque de diversão. Além do nazuna Bot, ele contribui ativamente para diversos projetos open-source e valoriza a interação e o feedback da comunidade. Conecte-se com ele nas redes sociais para acompanhar seus próximos projetos e aventuras no mundo da programação!
+Th é um entusiasta de tecnologia que se dedica a criar soluções práticas, inovadoras e com um toque de diversão. Além do nazuna Bot, ele contribui ativamente para diversos projetos open-source e valoriza a interação e o feedback da comunidade. Conecte-se com ele nas redes sociais para acompanhar seus próximos projetos e aventuras no mundo da programação!
 
-- 📍 **GitHub**: [hiudyy](https://github.com/hiudyy)
-- 💬 **Discord**: [hiudyyy](https://discord.com/users/hiudyyy)
-- 📷 **Instagram**: [hiudyyy_](https://instagram.com/hiudyyy_)
-- 📱 **WhatsApp**: [wa.me/hiudy](https://wa.me/hiudy)
+- 📷 **Instagram**:Kaua.ybz)
+- 📱 **WhatsApp**: +5198666526
 
 > 🌟 **Gostou do Projeto?** Demonstre seu apoio dando uma estrela no GitHub e compartilhando o nazuna Bot com seus amigos e comunidades!
 </details>
@@ -631,7 +629,7 @@ Hiudy é um entusiasta de tecnologia que se dedica a criar soluções práticas,
 |------------------------------------------|-----------------------------------------------------------------------------------------|
 | **Posso usar meu número de telefone principal com o bot?** | **Não é recomendado**. O uso de automação no WhatsApp pode violar os termos de serviço da plataforma, e há um risco real de banimento da sua conta. Para sua segurança, utilize sempre um número de telefone secundário e dedicado exclusivamente ao bot. |
 | **O bot funciona se meu celular estiver offline?** | **Sim!** Graças ao modo multi-dispositivos do WhatsApp, após a configuração inicial, o bot funciona de forma independente e não requer que seu celular esteja conectado à internet. |
-| **Como posso personalizar os comandos e as respostas do bot?** | A personalização é um dos pontos fortes do nazuna Bot! Você pode editar o arquivo `config.json` após a instalação para alterar o prefixo, as mensagens de boas-vindas e outras configurações. Para personalizações mais avançadas, você pode editar diretamente os arquivos de comando na pasta do projeto. |
+| **Como posso personalizar os comandos e as respostas do bot?** | A personalização é um dos pontos fortes do Boruto Bot! Você pode editar o arquivo `config.json` após a instalação para alterar o prefixo, as mensagens de boas-vindas e outras configurações. Para personalizações mais avançadas, você pode editar diretamente os arquivos de comando na pasta do projeto. |
 
 ### 📌 Comandos personalizados (Dono)
 
@@ -667,8 +665,8 @@ Use `listcmd` para ver os comandos criados, seus flags e o uso (quando definido)
 Nota: Os `name` dos parâmetros são normalizados para minúsculas e underscores; ex: `First Name` vira `{first_name}`.
 
 | **O que fazer se meu servidor Pterodactyl travar ou o bot parar de responder?** | Primeiro, verifique os logs do bot no console do Pterodactyl para identificar possíveis erros. Em seguida, tente reiniciar o servidor. Se o problema persistir, verifique se há recursos suficientes (RAM/CPU) alocados para o bot e considere atualizar o bot para a versão mais recente. |
-| **O bot é compatível com outros sistemas além do WhatsApp?** | Atualmente, o nazuna Bot é desenvolvido exclusivamente para WhatsApp. No entanto, nossa arquitetura modular permite que futuras integrações com outras plataformas sejam consideradas. Fique atento às atualizações para possíveis novos recursos! |
-| **Como posso contribuir para o desenvolvimento do nazuna Bot?** | Adoramos contribuições da comunidade! Você pode contribuir de várias formas: reportando bugs, sugerindo novas funcionalidades, traduzindo o bot para outros idiomas, melhorando a documentação, ou mesmo enviando pull requests com melhorias de código. Visite nosso repositório no GitHub para mais detalhes. |
+| **O bot é compatível com outros sistemas além do WhatsApp?** | Atualmente, o boruto Bot é desenvolvido exclusivamente para WhatsApp. No entanto, nossa arquitetura modular permite que futuras integrações com outras plataformas sejam consideradas. Fique atento às atualizações para possíveis novos recursos! |
+| **Como posso contribuir para o desenvolvimento do boruto Bot?** | Adoramos contribuições da comunidade! Você pode contribuir de várias formas: reportando bugs, sugerindo novas funcionalidades, traduzindo o bot para outros idiomas, melhorando a documentação, ou mesmo enviando pull requests com melhorias de código. Visite nosso repositório no GitHub para mais detalhes. |
 | **O bot funciona em grupos grandes?** | Sim! O nazuna Bot foi projetado para funcionar eficientemente em grupos de todos os tamanhos. No entanto, para grupos muito grandes (mais de 1000 membros), recomendamos usar um servidor dedicado para garantir o melhor desempenho. |
 
 > 💡 **Tem Mais Dúvidas?** Nossa comunidade e o criador estão sempre dispostos a ajudar! Pergunte no [Grupo do WhatsApp](https://chat.whatsapp.com/EvgIsHK0NJmGbErpy4G3aB?mode=ac_t) e teremos prazer em auxiliá-lo! 
