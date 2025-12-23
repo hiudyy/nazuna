@@ -1,4 +1,4 @@
-### 🚀 Oferta Especial (Plano Premium nazuna Bot)
+### 🚀 Oferta Especial (Plano Premium Boruto Bot)
 
 Ative **todas as funções avançadas** do nazuna Bot + **Hospedagem 24/7** (seu bot sempre online, sem depender do seu PC ou celular) por apenas **R$ 25 / mês**.
 
@@ -10,18 +10,18 @@ Benefícios incluídos no combo:
 - ✅ Ajuda na configuração inicial e otimização
 - ✅ Menos risco de queda ou ban por má configuração
 
-👉 Garante agora: [Falar no WhatsApp](https://wa.me/5533999285117)  
-Ou copie e abra: `https://wa.me/5533999285117`
+👉 Garante agora: [Falar no WhatsApp](https://wa.me/555189666526)  
+Ou copie e abra: `https://wa.me/555189666526`
 
 > Vagas promocionais limitadas. Ideal para quem quer profissionalizar o uso do bot sem dor de cabeça!
 
 ---
 
-# 🤖 nazuna Bot: Seu Assistente Completo para WhatsApp
+# 🤖 Boruto Bot: Seu Assistente Completo para WhatsApp
 
-![nazuna Bot Banner](https://raw.githubusercontent.com/hiudyy/nazuna/main/dados/midias/menu.jpg)
+![Boruto Bot Banner]()
 
-Bem-vindo ao repositório oficial do **nazuna Bot**! Este projeto é um bot avançado e multifuncional para WhatsApp, desenvolvido com a robustez do **Node.js** e a flexibilidade da biblioteca **WaLib**. Criado para otimizar sua comunicação e gestão de grupos, o nazuna Bot oferece uma vasta gama de comandos, desde funcionalidades administrativas essenciais até opções de entretenimento interativas. É a solução perfeita tanto para desenvolvedores iniciantes que buscam uma ferramenta fácil de usar quanto para usuários avançados que desejam uma plataforma altamente personalizável.
+Bem-vindo ao repositório oficial do **Boruto Bot**! Este projeto é um bot avançado e multifuncional para WhatsApp, desenvolvido com a robustez do **Node.js** e a flexibilidade da biblioteca **WaLib**. Criado para otimizar sua comunicação e gestão de grupos, o nazuna Bot oferece uma vasta gama de comandos, desde funcionalidades administrativas essenciais até opções de entretenimento interativas. É a solução perfeita tanto para desenvolvedores iniciantes que buscam uma ferramenta fácil de usar quanto para usuários avançados que desejam uma plataforma altamente personalizável.
 
 > ⚠️ **Aviso Importante**: O nazuna Bot é um projeto de código aberto, desenvolvido com paixão e dedicação. No entanto, ele é **protegido por direitos autorais**. Isso significa que, embora você tenha total liberdade para editar e distribuir o bot para uso pessoal ou em sua comunidade, a **venda** do nazuna Bot ou de suas versões modificadas é estritamente proibida, pois o projeto é oferecido gratuitamente. Além disso, a remoção total dos créditos do autor é vedada. Violações destas condições podem resultar em ações legais.
 
