@@ -814,8 +814,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     pinterest,
     igdl,
     sendSticker,
-    FilmesDL,
-    SeriesDL,
     styleText,
     emojiMix,
     upload,
@@ -12250,16 +12248,11 @@ Seja criativo e original. Não use clichês. A história deve ser envolvente do 
         }
         
         if (!q) {
-          return reply(`🎬 *Recomendador de Mídia*\n\n💡 *Como usar:*\n• ${prefix}recomendar <tipo> <gênero/preferência>\n\n📺 *Tipos disponíveis:*\n• anime, filme, serie, jogo, musica, livro\n\n✨ *Exemplos:*\n• ${prefix}recomendar anime ação\n• ${prefix}recomendar filme terror\n• ${prefix}recomendar serie comédia\n• ${prefix}recomendar jogo rpg\n• ${prefix}recomendar musica rock\n• ${prefix}recomendar livro fantasia`);
+          return reply(`🎬 *Recomendador de Mídia*\n\n💡 *Como usar:*\n• ${prefix}recomendar <tipo> <gênero/preferência>\n\n📺 *Tipos disponíveis:*\n• anime, jogo, musica, livro\n\n✨ *Exemplos:*\n• ${prefix}recomendar anime ação\n• ${prefix}recomendar jogo rpg\n• ${prefix}recomendar musica rock\n• ${prefix}recomendar livro fantasia`);
         }
 
         const tipos = {
           'anime': { emoji: '🎌', nome: 'animes' },
-          'filme': { emoji: '🎬', nome: 'filmes' },
-          'filmes': { emoji: '🎬', nome: 'filmes' },
-          'serie': { emoji: '📺', nome: 'séries' },
-          'séries': { emoji: '📺', nome: 'séries' },
-          'series': { emoji: '📺', nome: 'séries' },
           'jogo': { emoji: '🎮', nome: 'jogos' },
           'jogos': { emoji: '🎮', nome: 'jogos' },
           'game': { emoji: '🎮', nome: 'jogos' },
@@ -18395,149 +18388,6 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
         break;
         
       //DOWNLOADS
-
-      case 'filme':
-      case 'filmes':
-      case 'movie':
-        try {
-          if (!q) return reply('📽️ Digite o nome do filme que deseja buscar!\n\n*Exemplo:*\n> ' + prefix + command + ' Matrix');
-          
-          if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-          
-          reply('🔍 Buscando informações do filme... 🎬').then(async () => {
-            try {
-              const resultado = await FilmesDL(q, KeyCog, 5);
-              
-              if (!resultado || !resultado.success) {
-                return reply('❌ Nenhum filme encontrado com esse nome. Tente novamente com outro título.');
-              }
-              
-              const filme = resultado;
-              let mensagem = `╭─┈┈◈ 🎬 *FILME ENCONTRADO* 🎬 ◈┈┈─╮\n\n`;
-              mensagem += `📌 *Nome:* ${filme.nome}\n`;
-              mensagem += `⭐ *Avaliação:* ${filme.rating || 'N/A'}/10\n`;
-              mensagem += `🎭 *Gênero:* ${filme.details?.genre || 'N/A'}\n`;
-              mensagem += `👤 *Diretor:* ${filme.details?.director || 'N/A'}\n`;
-              mensagem += `🎬 *Elenco:* ${filme.details?.cast || 'N/A'}\n`;
-              mensagem += `📅 *Lançamento:* ${filme.details?.releaseDate || 'N/A'}\n`;
-              mensagem += `⏱️ *Duração:* ${filme.details?.duration || 'N/A'}\n\n`;
-              mensagem += `📖 *Sinopse:*\n${filme.details?.plot || 'Não disponível'}\n\n`;
-              mensagem += `🔗 *Assistir:* ${filme.playerUrl}\n`;
-              
-              if (filme.details?.youtubeTrailer) {
-                mensagem += `🎥 *Trailer:* ${filme.details.youtubeTrailer}\n`;
-              }
-              
-              mensagem += `\n╰─┈┈◈ 🎬 ◈┈┈─╯`;
-              
-              await nazu.sendMessage(from, {
-                image: { url: filme.img || filme.details?.cover },
-                caption: mensagem
-              }, { quoted: info });
-              
-              if (filme.allResults && filme.allResults.length > 1) {
-                let outros = `\n📋 *Outros resultados encontrados:*\n\n`;
-                filme.allResults.slice(1, 4).forEach((f, i) => {
-                  outros += `${i + 2}. ${f.name} (${f.rating || 'N/A'}⭐)\n`;
-                  outros += `   🔗 ${f.playerUrl}\n\n`;
-                });
-                if (outros.length > 50) await nazu.sendMessage(from, { text: outros }, { quoted: info });
-              }
-            } catch (e) {
-              console.error('Erro ao buscar filme:', e);
-              reply("❌ Ocorreu um erro ao buscar o filme. Tente novamente.");
-            }
-          });
-        } catch (e) {
-          console.error(e);
-          reply("❌ Ocorreu um erro interno.");
-        }
-        break;
-
-      case 'serie':
-      case 'series':
-      case 'temporada':
-      case 'episodio':
-        try {
-          if (!q) return reply('📺 Digite o nome da série que deseja buscar!\n\n*Exemplo:*\n> ' + prefix + command + ' Breaking Bad');
-          
-          if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-          
-          reply('🔍 Buscando informações da série... 📺').then(async () => {
-            try {
-              const resultado = await SeriesDL(q, KeyCog, 3);
-              
-              if (!resultado || !resultado.success) {
-                return reply('❌ Nenhuma série encontrada com esse nome. Tente novamente com outro título.');
-              }
-              
-              const serie = resultado;
-              let mensagem = `╭─┈┈◈ 📺 *SÉRIE ENCONTRADA* 📺 ◈┈┈─╮\n\n`;
-              mensagem += `📌 *Nome:* ${serie.nome}\n`;
-              mensagem += `⭐ *Avaliação:* ${serie.rating || 'N/A'}/10\n`;
-              mensagem += `🎭 *Gênero:* ${serie.details?.genre || 'N/A'}\n`;
-              mensagem += `👤 *Diretor:* ${serie.details?.director || 'N/A'}\n`;
-              mensagem += `🎬 *Elenco:* ${serie.details?.cast || 'N/A'}\n`;
-              mensagem += `📅 *Lançamento:* ${serie.details?.releaseDate || 'N/A'}\n`;
-              mensagem += `📊 *Temporadas:* ${serie.totalSeasons || 'N/A'}\n\n`;
-              mensagem += `📖 *Sinopse:*\n${serie.details?.plot || 'Não disponível'}\n\n`;
-              
-              if (serie.details?.seasons && serie.details.seasons.length > 0) {
-                mensagem += `🗂️ *Temporadas disponíveis:*\n`;
-                serie.details.seasons.slice(0, 5).forEach(temp => {
-                  mensagem += `   • T${temp.season_number}: ${temp.name} (${temp.episode_count} eps)\n`;
-                });
-                if (serie.details.seasons.length > 5) {
-                  mensagem += `   ... e mais ${serie.details.seasons.length - 5} temporadas\n`;
-                }
-                mensagem += `\n`;
-              }
-              
-              mensagem += `🔗 *Assistir:* ${serie.playerUrl}\n`;
-              
-              if (serie.details?.youtubeTrailer) {
-                mensagem += `🎥 *Trailer:* ${serie.details.youtubeTrailer}\n`;
-              }
-              
-              mensagem += `\n╰─┈┈◈ 📺 ◈┈┈─╯`;
-              
-              await nazu.sendMessage(from, {
-                image: { url: serie.img || serie.details?.cover },
-                caption: mensagem
-              }, { quoted: info });
-              
-              // Mostra alguns episódios da primeira temporada como exemplo
-              if (serie.details?.episodes && serie.details.episodes['1']) {
-                const primeiraTemp = serie.details.episodes['1'];
-                if (primeiraTemp.length > 0) {
-                  let episodios = `\n📺 *Episódios da Temporada 1:*\n\n`;
-                  primeiraTemp.slice(0, 3).forEach(ep => {
-                    episodios += `${ep.episode_num}. ${ep.title}\n`;
-                    episodios += `   📅 ${ep.info?.releasedate || 'N/A'} | ⏱️ ${ep.info?.duration || 'N/A'}\n`;
-                    episodios += `   🔗 ${ep.streamUrl}\n\n`;
-                  });
-                  if (primeiraTemp.length > 3) {
-                    episodios += `... e mais ${primeiraTemp.length - 3} episódios\n`;
-                  }
-                  await nazu.sendMessage(from, { text: episodios }, { quoted: info });
-                }
-              }
-            } catch (e) {
-              console.error('Erro ao buscar série:', e);
-              reply("❌ Ocorreu um erro ao buscar a série. Tente novamente.");
-            }
-          });
-        } catch (e) {
-          console.error(e);
-          reply("❌ Ocorreu um erro interno.");
-        }
-        break;
 
       case 'iptv':
         try {

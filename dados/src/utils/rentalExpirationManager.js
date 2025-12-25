@@ -9,6 +9,8 @@ const __dirname = path.dirname(__filename);
 class RentalExpirationManager {
   constructor(nazu, config = {}) {
     this.nazu = nazu;
+    this.ownerNumber = config.ownerNumber || null;
+    this.ownerName = config.ownerName || 'Dono do Bot';
     this.config = {
       checkInterval: config.checkInterval || '0 */6 * * *', // Every 6 hours
       warningDays: config.warningDays || 3,
@@ -320,20 +322,21 @@ O aluguel deste grupo expirou e o bot está saindo agora. Para voltar a usar o b
 
   async getOwnerInfo() {
     try {
-      // Try to resolve owner info to LID when possible
-      const name = process.env.OWNER_NAME || 'Dono do Bot';
-      const number = process.env.OWNER_NUMBER || '5511999999999';
-      let contact = process.env.OWNER_CONTACT || `${number}@s.whatsapp.net`;
+      // Use owner number from config or fallback to environment variable
+      const name = this.ownerName || process.env.OWNER_NAME || 'Dono do Bot';
+      const number = this.ownerNumber || process.env.OWNER_NUMBER || '5511999999999';
+      let contact = `${number}@s.whatsapp.net`;
 
       // If nazu and helpers available, try to normalize contact to LID
       if (this.nazu && typeof this.nazu.onWhatsApp === 'function') {
         try {
-          const [res] = await this.nazu.onWhatsApp(number.replace(/\D/g, ''));
-          if (res && res.lid) {
-            contact = res.lid;
+          const cleanNumber = number.toString().replace(/\D/g, '');
+          const [res] = await this.nazu.onWhatsApp(cleanNumber);
+          if (res && res.jid) {
+            contact = res.jid;
           }
         } catch (e) {
-          console.warn('Não foi possível obter LID do dono:', e.message);
+          console.warn('Não foi possível obter JID do dono:', e.message);
         }
       }
 
@@ -345,9 +348,9 @@ O aluguel deste grupo expirou e o bot está saindo agora. Para voltar a usar o b
     } catch (error) {
       console.error('❌ Error getting owner info:', error);
       return {
-        name: 'Dono do Bot',
-        number: '5511999999999',
-        contact: '5511999999999@s.whatsapp.net'
+        name: this.ownerName || 'Dono do Bot',
+        number: this.ownerNumber || '5511999999999',
+        contact: `${this.ownerNumber || '5511999999999'}@s.whatsapp.net`
       };
     }
   }

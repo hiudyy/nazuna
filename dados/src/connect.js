@@ -281,6 +281,8 @@ const indexModule = (await import('./index.js')).default ?? (await import('./ind
 const performanceOptimizer = new PerformanceOptimizer();
 
 const rentalExpirationManager = new RentalExpirationManager(null, {
+    ownerNumber: numerodono,
+    ownerName: nomedono,
     checkInterval: '0 */6 * * *',
     warningDays: 3,
     finalWarningDays: 1,

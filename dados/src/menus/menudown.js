@@ -36,8 +36,6 @@ ${bottomBorder}
 ${menuTopBorder}${separatorIcon} *${videoMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}playvid
-${middleBorder}${menuItemIcon}${prefix}filme
-${middleBorder}${menuItemIcon}${prefix}serie
 ${middleBorder}${menuItemIcon}${prefix}iptv
 ${bottomBorder}
 
