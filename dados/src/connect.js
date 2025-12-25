@@ -280,6 +280,13 @@ const indexModule = (await import('./index.js')).default ?? (await import('./ind
 
 const performanceOptimizer = new PerformanceOptimizer();
 
+const {
+    prefixo,
+    nomebot,
+    nomedono,
+    numerodono
+} = config;
+
 const rentalExpirationManager = new RentalExpirationManager(null, {
     ownerNumber: numerodono,
     ownerName: nomedono,
@@ -329,13 +336,6 @@ async function initializeOptimizedCaches() {
         
     }
 }
-
-const {
-    prefixo,
-    nomebot,
-    nomedono,
-    numerodono
-} = config;
 const codeMode = process.argv.includes('--code') || process.env.NAZUNA_CODE_MODE === '1';
 
 // Cleanup otimizado do cache de mensagens
