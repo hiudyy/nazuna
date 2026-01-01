@@ -18,7 +18,7 @@ async function tiktokSearch(query, apiKey) {
       query: query
     }, {
       headers: { 'X-API-Key': apiKey },
-      timeout: 30000
+      timeout: 120000
     });
 
     if (!response.data.success || !response.data.data) {
@@ -60,7 +60,7 @@ async function tiktokDownload(url, apiKey) {
       url: url
     }, {
       headers: { 'X-API-Key': apiKey },
-      timeout: 30000
+      timeout: 120000
     });
 
     if (!response.data.success || !response.data.data) {

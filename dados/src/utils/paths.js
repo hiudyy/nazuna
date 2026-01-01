@@ -48,6 +48,9 @@ const CODIGOS_ALUGUEL_FILE = path.join(DONO_DIR, 'codigos_aluguel.json');
 const RELATIONSHIPS_FILE = path.join(DATABASE_DIR, 'relationships.json');
 const MASS_MENTION_LIMIT_FILE = path.join(DATABASE_DIR, 'massMentionLimit.json');
 const MASS_MENTION_CONFIG_FILE = path.join(DONO_DIR, 'massMentionConfig.json');
+const GROUP_CUSTOMIZATION_FILE = path.join(DONO_DIR, 'groupCustomization.json');
+const MENU_AUDIO_FILE = path.join(DONO_DIR, 'menuAudio.json');
+const MENU_LERMAIS_FILE = path.join(DONO_DIR, 'menuLerMais.json');
 
 // Detecta se é sub-bot e ajusta o caminho do config
 const CONFIG_FILE = process.env.CONFIG_PATH || path.join(SRC_DIR, 'config.json');
@@ -94,6 +97,9 @@ export {
   RELATIONSHIPS_FILE,
   MASS_MENTION_LIMIT_FILE,
   MASS_MENTION_CONFIG_FILE,
+  GROUP_CUSTOMIZATION_FILE,
+  MENU_AUDIO_FILE,
+  MENU_LERMAIS_FILE,
   CONFIG_FILE,
   PACKAGE_JSON_PATH
 };

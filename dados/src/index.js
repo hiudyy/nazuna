@@ -169,7 +169,26 @@ import {
   compareParams,
   findKeyIgnoringAccents,
   matchParam,
-  resolveParamAlias
+  resolveParamAlias,
+  // Sistema de Personalização de Grupo
+  loadGroupCustomization,
+  isGroupCustomizationEnabled,
+  setGroupCustomizationEnabled,
+  getGroupCustomization,
+  setGroupCustomName,
+  setGroupCustomPhoto,
+  removeGroupCustomName,
+  removeGroupCustomPhoto,
+  // Sistema de Áudio do Menu
+  loadMenuAudio,
+  isMenuAudioEnabled,
+  getMenuAudioPath,
+  setMenuAudio,
+  removeMenuAudio,
+  // Sistema de Ler Mais do Menu
+  isMenuLerMaisEnabled,
+  setMenuLerMais,
+  getMenuLerMaisText
 } from './utils/database.js';
 import { parseCustomCommandMeta, buildUsageFromParams, parseArgsFromString, escapeRegExp, validateParamValue } from './utils/helpers.js';
 import {
@@ -596,6 +615,22 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
   let config = loadJsonFile(CONFIG_FILE, {});
   ensureDatabaseIntegrity({ log: Boolean(config?.debug) });
   
+  // Verificação e correção do prefixo reservado $ ao inicializar
+  if (config.prefixo === '$') {
+    config.prefixo = '/';
+    writeJsonFile(CONFIG_FILE, config);
+    
+    // Notifica o dono sobre a mudança automática
+    const ownerJid = `${config.numerodono}@s.whatsapp.net`;
+    try {
+      await nazu.sendMessage(ownerJid, {
+        text: `⚠️ *PREFIXO AUTOMÁTICO CORRIGIDO*\n\n❌ O símbolo "$" é reservado e não pode ser usado como prefixo.\n\n✅ O prefixo foi alterado automaticamente para "/" ao iniciar o bot.\n\n💡 Use ${config.prefixo}prefix para alterar para outro símbolo válido.`
+      });
+    } catch (notifyError) {
+      console.log('Aviso: Não foi possível notificar o dono sobre a mudança de prefixo:', notifyError.message);
+    }
+  }
+  
   // Log de debug aprimorado para rastreamento de IDs
   const debugLog = (msg, data = null) => {
     if (config?.debug) {
@@ -700,88 +735,227 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     return { changed };
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // FUNÇÕES AUXILIARES DO SISTEMA RPG
+  // ═══════════════════════════════════════════════════════════════════
+
+  // Multiplicadores de picareta por tier
+  const PICKAXE_TIER_MULT = {
+    'bronze': 1.0,
+    'ferro': 1.5,
+    'diamante': 2.5
+  };
+
+  // Formata valores monetários
+  function fmt(num) {
+    if (!isFinite(num) || num == null) return '0';
+    const n = Math.floor(num);
+    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+
+  // Calcula tempo restante de cooldown
+  function timeLeft(timestamp) {
+    const diff = Math.max(0, timestamp - Date.now());
+    const mins = Math.floor(diff / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    if (mins > 0) return `${mins}min ${secs}s`;
+    return `${secs}s`;
+  }
+
+  // Parse de quantidade (suporta "all", "max", "tudo", etc)
+  function parseAmount(str, max) {
+    if (!str) return 0;
+    const s = str.toString().toLowerCase().trim();
+    if (['all', 'tudo', 'max', 'todo', 'todos'].includes(s)) {
+      return Math.floor(max);
+    }
+    const num = parseFloat(s.replace(/[^\d.-]/g, ''));
+    return isFinite(num) ? Math.max(0, Math.floor(num)) : 0;
+  }
+
+  // Obtém picareta ativa do usuário
+  function getActivePickaxe(user) {
+    if (!user || !user.tools || !user.tools.pickaxe) return null;
+    const pk = user.tools.pickaxe;
+    // Verifica se não está quebrada
+    if (pk.dur <= 0) return null;
+    return pk;
+  }
+
+  // Aplica bônus de itens da loja
+  function applyShopBonuses(user, econ) {
+    let mineBonus = 0;
+    let workBonus = 0;
+    let bankCapacity = 10000; // Capacidade padrão
+    let fishBonus = 0;
+    let exploreBonus = 0;
+    let huntBonus = 0;
+    let forgeBonus = 0;
+
+    // Verifica itens no inventário
+    for (const [itemKey, qty] of Object.entries(user.inventory || {})) {
+      if (qty <= 0) continue;
+      const item = econ.shop?.[itemKey];
+      if (!item || !item.effect) continue;
+
+      // Aplica efeitos dos itens
+      if (item.effect.mineBonus) mineBonus += item.effect.mineBonus;
+      if (item.effect.workBonus) workBonus += item.effect.workBonus;
+      if (item.effect.bankCapacity) bankCapacity += item.effect.bankCapacity;
+      if (item.effect.fishBonus) fishBonus += item.effect.fishBonus;
+      if (item.effect.exploreBonus) exploreBonus += item.effect.exploreBonus;
+      if (item.effect.huntBonus) huntBonus += item.effect.huntBonus;
+      if (item.effect.forgeBonus) forgeBonus += item.effect.forgeBonus;
+    }
+
+    // Verifica ferramenta equipada (picareta)
+    if (user.tools?.pickaxe) {
+      const pk = user.tools.pickaxe;
+      const pkItem = econ.shop?.[pk.key];
+      if (pkItem?.effect) {
+        if (pkItem.effect.mineBonus) mineBonus += pkItem.effect.mineBonus;
+      }
+    }
+
+    return {
+      mineBonus,
+      workBonus,
+      bankCapacity,
+      fishBonus,
+      exploreBonus,
+      huntBonus,
+      forgeBonus
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // FIM DAS FUNÇÕES AUXILIARES DO RPG
+  // ═══════════════════════════════════════════════════════════════════
+
+
   async function handleAutoDownload(nazu, from, url, info) {
     try {
-      if (url.includes('tiktok.com')) {
-        if (!KeyCog) {
-          console.warn('⚠️ TikTok autodl ignorado: API Key não configurada');
-          return false;
-        }
-        
-        return tiktok.dl(url, KeyCog)
-          .then(async (datinha) => {
-            if (datinha.ok) {
-              await nazu.sendMessage(from, {
-                [datinha.type]: {
-                  url: datinha.urls[0]
-                },
-                caption: '🎵 Download automático do TikTok!'
-              }, {
-                quoted: info
-              });
-              return true;
-            } else {
-              console.warn(`⚠️ TikTok autodl falhou: ${datinha.msg}`);
-              return false;
-            }
-          })
-          .catch((err) => {
-            console.error('Erro no autodl TikTok (promise):', err);
-            return false;
-          });
-      } else if (url.includes('instagram.com')) {
-        if (!KeyCog) {
-          console.warn('⚠️ Instagram autodl ignorado: API Key não configurada');
-          return false;
-        }
-        
-        return igdl.dl(url, KeyCog)
-          .then(async (datinha) => {
-            if (datinha.ok) {
-              await nazu.sendMessage(from, {
-                [datinha.data[0].type]: datinha.data[0].buff,
-                caption: '📸 Download automático do Instagram!'
-              }, {
-                quoted: info
-              });
-              return true;
-            } else {
-              console.warn(`⚠️ Instagram autodl falhou: ${datinha.msg}`);
-              return false;
-            }
-          })
-          .catch((err) => {
-            console.error('Erro no autodl Instagram (promise):', err);
-            return false;
-          });
-      } else if (url.includes('pinterest.com') || url.includes('pin.it')) {
-        if (!KeyCog) {
-          console.warn('⚠️ Pinterest autodl ignorado: API Key não configurada');
-          return false;
-        }
-        return pinterest.dl(url, KeyCog)
-          .then(async (datinha) => {
-            if (datinha.ok) {
-              await nazu.sendMessage(from, {
-                [datinha.type]: {
-                  url: datinha.urls[0]
-                },
-                caption: '📌 Download automático do Pinterest!'
-              }, {
-                quoted: info
-              });
-              return true;
-            } else {
-              console.warn(`⚠️ Pinterest autodl falhou: ${datinha.msg}`);
-              return false;
-            }
-          })
-          .catch((err) => {
-            console.error('Erro no autodl Pinterest (promise):', err);
-            return false;
-          });
+      // Usa AllDL para detectar mídias de qualquer link
+      if (!KeyCog) {
+        return false; // Ignora silenciosamente se não tiver API key
       }
-      return false;
+      
+      return alldl.getAllMedia(url, KeyCog)
+          .then(async (result) => {
+            if (result.ok && result.totalItems > 0) {
+              const { metadata, media, videoCount, audioCount, imageCount } = result;
+              
+              // Preparar dados para encurtamento (mesmo do comando alldl)
+              const videos = media.filter(m => m.type === 'video').slice(0, 8);
+              const audios = media.filter(m => m.type === 'audio').slice(0, 5);
+              const images = media.filter(m => m.type === 'image').slice(0, 3);
+              
+              const allMediaItems = [...videos, ...audios, ...images];
+              
+              // Função para encurtar com retry
+              const shortenWithRetry = (item, maxRetries = 5) => {
+                return new Promise((resolve) => {
+                  const attempt = (retryCount = 0) => {
+                    axios.post('https://spoo.me/api/v1/shorten', { 
+                      long_url: item.url,
+                      custom_alias: `nazu_${Math.random().toString(36).substring(2, 8)}`
+                    })
+                      .then(res => resolve({ ...item, shortUrl: res.data.short_url }))
+                      .catch(err => {
+                        if (retryCount < maxRetries) {
+                          setTimeout(() => attempt(retryCount + 1), 500);
+                        } else {
+                          resolve({ ...item, shortUrl: null });
+                        }
+                      });
+                  };
+                  attempt();
+                });
+              };
+              
+              // Encurtar todos os links
+              const mediaWithLinks = await Promise.all(allMediaItems.map(item => shortenWithRetry(item)));
+              
+              let message = `💕 Oioi amor! Desculpa a intromissão, mas encontrei algumas mídias no link que você enviou~ ✨\n\n`;
+              message += 'Caso queira baixar, é só clicar em "ler mais" e escolher o formato que preferir! 🎁\‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎\n';
+              message += `━━━━━━━━━━━━━━━\n\n`;
+              message += `📝 *Título:* ${metadata.title || 'Desconhecido'}\n`;
+              if (metadata.uploader) {
+                message += `👤 *Autor:* ${metadata.uploader}\n`;
+              }
+              message += `\n📊 *Formatos Encontrados:*\n`;
+              message += `🎥 Vídeos: ${videoCount}\n`;
+              message += `🎵 Áudios: ${audioCount}\n`;
+              if (imageCount > 0) message += `🖼️ Imagens: ${imageCount}\n`;
+              message += `📦 Total: ${result.totalItems} formatos\n`;
+              
+              // Listar vídeos com links
+              const videosWithLinks = mediaWithLinks.filter(m => m.type === 'video');
+              if (videosWithLinks.length > 0) {
+                message += `\n🎥 *VÍDEOS:*\n`;
+                videosWithLinks.forEach((video, index) => {
+                  message += `\n${index + 1}. ${video.quality || video.resolution || 'N/A'}`;
+                  if (video.filesize) {
+                    const sizeMB = (video.filesize / (1024 * 1024)).toFixed(1);
+                    message += ` (${sizeMB}MB)`;
+                  }
+                  if (video.fps) message += ` ${video.fps}fps`;
+                  if (video.isBest) message += ` ⭐`;
+                  if (video.shortUrl) {
+                    message += `\n   🔗 ${video.shortUrl}`;
+                  } else {
+                    message += `\n   🔗 ${video.url}`;
+                  }
+                });
+              }
+              
+              // Listar áudios com links
+              const audiosWithLinks = mediaWithLinks.filter(m => m.type === 'audio');
+              if (audiosWithLinks.length > 0) {
+                message += `\n\n🎵 *ÁUDIOS:*\n`;
+                audiosWithLinks.forEach((audio, index) => {
+                  message += `\n${index + 1}. ${audio.quality || audio.abr + 'kbps' || 'N/A'}`;
+                  if (audio.filesize) {
+                    const sizeMB = (audio.filesize / (1024 * 1024)).toFixed(1);
+                    message += ` (${sizeMB}MB)`;
+                  }
+                  if (audio.shortUrl) {
+                    message += `\n   🔗 ${audio.shortUrl}`;
+                  } else {
+                    message += `\n   🔗 ${audio.url}`;
+                  }
+                });
+              }
+              
+              // Listar imagens com links
+              const imagesWithLinks = mediaWithLinks.filter(m => m.type === 'image');
+              if (imagesWithLinks.length > 0) {
+                message += `\n\n🖼️ *THUMBNAILS:*\n`;
+                imagesWithLinks.forEach((image, index) => {
+                  message += `\n${index + 1}. ${image.quality || image.width + 'x' + image.height || 'N/A'}`;
+                  if (image.shortUrl) {
+                    message += `\n   🔗 ${image.shortUrl}`;
+                  } else {
+                    message += `\n   🔗 ${image.url}`;
+                  }
+                });
+              }
+              
+              await nazu.sendMessage(from, {
+                text: message
+              }, {
+                quoted: info
+              });
+              return true;
+            } else {
+              // Ignora silenciosamente se não encontrar nada
+              return false;
+            }
+          })
+          .catch((err) => {
+            console.error('Erro no autodl AllDL (promise):', err);
+            return false;
+          });
     } catch (e) {
       console.error('Erro no autodl:', e);
       return false;
@@ -803,7 +977,8 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     menuTopCmd,
     menuRPG,
     menuVIP,
-    menuBuscas
+    menuBuscas,
+    menuBrawlStars
   } = menus;
   const prefix = prefixo;
   const numerodonoStr = String(numerodono);
@@ -826,7 +1001,32 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     ia,
     VerifyUpdate,
     temuScammer,
-    relationshipManager
+    relationshipManager,
+    spotify,
+    soundcloud,
+    facebook,
+    vimeo,
+    twitch,
+    reddit,
+    dailymotion,
+    streamable,
+    bandcamp,
+    alldl,
+    // Novos módulos
+    connect4,
+    uno,
+    memoria,
+    achievements,
+    gifts,
+    reputation,
+    qrcode,
+    notes,
+    calculator,
+    audioEdit,
+    antitoxic,
+    iaExpanded,
+    antipalavra,
+    transmissao
   } = modules.default;
   // Otimização: Cache de dados estáticos com TTL
   const optimizer = getPerformanceOptimizer();
@@ -1179,8 +1379,8 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     };
     const body = getMessageText(info.message) || info?.text || '';
 
-    const args = body.trim().split(/ +/).slice(1);
-    var q = args.join(' ');
+    let args = body.trim().split(/ +/).slice(1);
+    let q = args.join(' ');
     const budy2 = normalizar(body);
     const menc_prt = info.message?.extendedTextMessage?.contextInfo?.participant;
     const menc_jid2 = info.message?.extendedTextMessage?.contextInfo?.mentionedJid;
@@ -1387,25 +1587,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         groupData.roleMessages = {};
       }
 
-      if (!groupData.resenha || typeof groupData.resenha !== 'object') {
-        groupData.resenha = {
-          active: false,
-          createdAt: null,
-          createdBy: null,
-          link: '',
-          items: [],
-          payments: {},
-          lastItemId: 0
-        };
-      } else {
-        groupData.resenha.active = Boolean(groupData.resenha.active);
-        groupData.resenha.createdAt = groupData.resenha.createdAt || null;
-        groupData.resenha.createdBy = groupData.resenha.createdBy || null;
-        groupData.resenha.link = groupData.resenha.link || '';
-        groupData.resenha.items = Array.isArray(groupData.resenha.items) ? groupData.resenha.items : [];
-        groupData.resenha.payments = groupData.resenha.payments && typeof groupData.resenha.payments === 'object' ? groupData.resenha.payments : {};
-        groupData.resenha.lastItemId = typeof groupData.resenha.lastItemId === 'number' ? groupData.resenha.lastItemId : 0;
-      }
       if (groupName && groupData.groupName !== groupName) {
         groupData.groupName = groupName;
   // Salva de forma assíncrona para não bloquear
@@ -1560,19 +1741,23 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     }
     
     if (!isGroup) {
-      if (antipvData.mode === 'antipv' && !isOwner && !isPremium) {
+      // Exceção para comandos de transmissão que devem funcionar no PV
+      const tm2Commands = ['inscrevertm', 'inscrevertm2', 'desinscrever', 'desinscrevertm', 'cancelartm'];
+      const isTm2Command = tm2Commands.some(cmd => command === cmd);
+      
+      if (antipvData.mode === 'antipv' && !isOwner && !isPremium && !isTm2Command) {
         return;
       };
-      if (antipvData.mode === 'antipv2' && isCmd && !isOwner && !isPremium) {
+      if (antipvData.mode === 'antipv2' && isCmd && !isOwner && !isPremium && !isTm2Command) {
         await reply(antipvData.message || '🚫 Este comando só funciona em grupos!');
         return;
       };
-      if (antipvData.mode === 'antipv3' && isCmd && !isOwner && !isPremium) {
+      if (antipvData.mode === 'antipv3' && isCmd && !isOwner && !isPremium && !isTm2Command) {
         await nazu.updateBlockStatus(sender, 'block');
         await reply('🚫 Você foi bloqueado por usar comandos no privado!');
         return;
       };
-      if (antipvData.mode === 'antipv4' && !isOwner && !isPremium) {
+      if (antipvData.mode === 'antipv4' && !isOwner && !isPremium && !isTm2Command) {
         await reply(antipvData.message || '🚫 Este comando só funciona em grupos!');
         return;
       };
@@ -1694,6 +1879,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     const isMuted = groupData.mutedUsers?.[sender];
     const isMuted2 = groupData.mutedUsers2?.[sender];
     const isAntiLinkGp = groupData.antilinkgp;
+    const isAntiLinkCanal = groupData.antilinkcanal;
     const isAntiLinkSoft = groupData.antilinksoft;
     const isAntiDel = groupData.antidel;
     const isAntiBtn = groupData.antibtn;
@@ -2233,26 +2419,6 @@ Código: *${roleCode}*`,
       lines.push(`🤷 *Desistências:* ${notGoingCount}`);
       return lines.join('\n');
     };
-    const ensureResenhaData = () => {
-      if (!groupData.resenha || typeof groupData.resenha !== 'object') {
-        groupData.resenha = {
-          active: false,
-          createdAt: null,
-          createdBy: null,
-          link: '',
-          items: [],
-          payments: {},
-          lastItemId: 0
-        };
-      }
-      const data = groupData.resenha;
-      data.items = Array.isArray(data.items) ? data.items : [];
-      data.payments = data.payments && typeof data.payments === 'object' ? data.payments : {};
-      data.link = data.link || '';
-      data.lastItemId = typeof data.lastItemId === 'number' ? data.lastItemId : 0;
-      return data;
-    };
-    const buildResenhaDir = () => pathz.join(__dirname, '..', 'midias', 'resenha', from);
     const formatMentionList = (ids) => ids.map(id => `@${getUserName(id)}`).join(' ');
     const parseTimeToMinutes = (timeStr) => {
       if (typeof timeStr !== 'string') return null;
@@ -2725,7 +2891,8 @@ Código: *${roleCode}*`,
 
     // Auto Mensagens Worker usando cron jobs (executa conforme horários programados)
     let autoMensagensWorkerStarted = global.autoMensagensWorkerStarted || false;
-    const autoMsgCronJobs = {}; // key: `${groupId}:${msgId}`
+    const autoMsgCronJobs = global.autoMsgCronJobs || {}; // key: `${groupId}:${msgId}`
+    global.autoMsgCronJobs = autoMsgCronJobs; // Garantir persistência global
 
     const unscheduleAutoMessage = (groupId, msgId) => {
       const key = `${groupId}:${msgId}`;
@@ -2809,11 +2976,17 @@ Código: *${roleCode}*`,
             console.log(`[AutoMsg] ✅ Mensagem enviada automaticamente: Grupo ${groupId.substring(0, 15)}... ID ${msgConfig.id} às ${normalized}`);
             
           } catch (e) {
-            console.error(`[AutoMsg Error] ${groupId}:`, e);
+            console.error(`[AutoMsg Error] ${groupId}:${msgConfig.id}:`, e);
           }
-        }, { timezone: 'America/Sao_Paulo' });
+        }, { 
+          scheduled: true,
+          timezone: 'America/Sao_Paulo' 
+        });
 
+        // Iniciar a task imediatamente
+        task.start();
         autoMsgCronJobs[key] = task;
+        console.log(`[AutoMsg] 🔔 Agendamento criado para ${key} em ${cronExpr} (timezone: America/Sao_Paulo)`);
       } catch (e) {
         console.error('[AutoMsg] Failed to schedule message', cronExpr, e);
       }
@@ -3093,7 +3266,8 @@ Código: *${roleCode}*`,
       antifloodData[from].users[sender] = {
         lastCmd: now
       };
-      writeJsonFile(pathz.join(DATABASE_DIR, 'antiflood.json'), antifloodData);
+      // Nota: Não salvamos em disco aqui para evitar race conditions.
+      // O cache será salvo periodicamente pelo optimizer.
     }
     if (isGroup && groupData.antidoc && !isGroupAdmin && (type === 'documentMessage' || type === 'documentWithCaptionMessage')) {
       if (!isUserWhitelisted(sender, 'antidoc')) {
@@ -3114,13 +3288,12 @@ Código: *${roleCode}*`,
     
     if (isGroup && groupData.autodl && budy2.includes('http') && !isCmd) {
       const urlMatch = body.match(/(https?:\/\/[^\s]+)/g);
-      if (urlMatch) {
-        for (const url of urlMatch) {
-          try {
-            await handleAutoDownload(nazu, from, url, info);
-          } catch (e) {
-            console.error('Erro no autodl:', e);
-          }
+      if (urlMatch && urlMatch.length > 0) {
+        // Processa apenas o primeiro link encontrado
+        try {
+          await handleAutoDownload(nazu, from, urlMatch[0], info);
+        } catch (e) {
+          console.error('Erro no autodl:', e);
         }
       }
     }
@@ -3314,6 +3487,55 @@ Código: *${roleCode}*`,
         }
       }
     }
+    if (isGroup && isAntiLinkCanal && !isGroupAdmin) {
+      if (!isUserWhitelisted(sender, 'antilinkcanal')) {
+        let foundChannelLink = false;
+        try {
+          if (budy2.includes('whatsapp.com/channel/')) {
+            foundChannelLink = true;
+          }
+          if (!foundChannelLink && info.message?.requestPaymentMessage) {
+            const paymentText = info.message.requestPaymentMessage?.noteMessage?.extendedTextMessage?.text || '';
+            if (paymentText.includes('whatsapp.com/channel/')) {
+              foundChannelLink = true;
+            }
+          }
+          if (foundChannelLink) {
+            if (isOwner) return;
+            if (!AllgroupMembers.includes(sender)) return;
+            if (isBotAdmin) {
+              await nazu.groupParticipantsUpdate(from, [sender], 'remove');
+              await nazu.sendMessage(from, {
+                delete: {
+                  remoteJid: from,
+                  fromMe: false,
+                  id: info.key.id,
+                  participant: sender
+                }
+              });
+              await reply(`📢 @${getUserName(sender)}, links de canais não são permitidos. Você foi removido do grupo.`, {
+                mentions: [sender]
+              });
+            } else {
+              await nazu.sendMessage(from, {
+                delete: {
+                  remoteJid: from,
+                  fromMe: false,
+                  id: info.key.id,
+                  participant: sender
+                }
+              });
+              await reply(`📢 Atenção, @${getUserName(sender)}! Links de canais não são permitidos. Não consigo remover você, mas evite compartilhar esses links.`, {
+                mentions: [sender]
+              });
+            }
+            return;
+          }
+        } catch (error) {
+          console.error("Erro no sistema antilink de canais:", error);
+        }
+      }
+    }
     if (isGroup && isAntiLinkSoft && !isGroupAdmin && budy2.includes('http') && !isOwner) {
       if (!isUserWhitelisted(sender, 'antilinksoft')) {
         try {
@@ -3432,6 +3654,130 @@ Código: *${roleCode}*`,
           }
           return;
         }
+
+        // Processamento de respostas para Connect4
+        if (connect4 && connect4.hasPendingInvitation && connect4.hasPendingInvitation(from) && budy2) {
+          const normalizedResponse = budy2.toLowerCase().trim();
+          const result = connect4.processInvitationResponse(from, sender, normalizedResponse);
+          if (result.success) {
+            await nazu.sendMessage(from, {
+              text: result.message,
+              mentions: result.mentions || []
+            });
+          }
+        }
+        if (connect4 && connect4.hasActiveGame && connect4.hasActiveGame(from) && budy2) {
+          if (['c4end', 'fimc4'].includes(budy2.toLowerCase())) {
+            if (!isGroupAdmin) {
+              await reply("⚠️ Apenas administradores podem encerrar um Connect4 em andamento.");
+              return;
+            }
+            const result = connect4.endGame(from);
+            await reply(result.message);
+            return;
+          }
+          const column = parseInt(budy2.trim());
+          if (!isNaN(column) && column >= 1 && column <= 7) {
+            const result = connect4.makeMove(from, sender, column);
+            if (result.success) {
+              await nazu.sendMessage(from, {
+                text: result.message,
+                mentions: result.mentions || [sender]
+              });
+            } else if (result.message) {
+              await reply(result.message);
+            }
+            return;
+          }
+        }
+
+        // Processamento do antitoxic
+        if (antitoxic && antitoxic.isEnabled && antitoxic.isEnabled(from) && body && ia && KeyCog) {
+          // Função wrapper para a IA do antitoxic
+          const aiFunction = (prompt) => {
+            return ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog)
+              .then(response => response?.data?.choices?.[0]?.message?.content || '');
+          };
+          
+          antitoxic.analyzeMessage(body, aiFunction).then(toxicResult => {
+            if (toxicResult.isToxic) {
+              const action = antitoxic.getGroupAction ? antitoxic.getGroupAction(from) : 'avisar';
+              if (action === 'apagar') {
+                nazu.sendMessage(from, { delete: info.key }).then(() => {
+                  nazu.sendMessage(from, {
+                    text: `⚠️ @${sender.split('@')[0]}, sua mensagem foi removida por conteúdo tóxico.\n\n_Este sistema usa IA e pode cometer erros._`,
+                    mentions: [sender]
+                  });
+                });
+              } else if (action === 'avisar') {
+                nazu.sendMessage(from, {
+                  text: `⚠️ @${sender.split('@')[0]}, evite mensagens tóxicas!\n\n_Este sistema usa IA e pode cometer erros._`,
+                  mentions: [sender]
+                });
+              }
+              // Para 'mute', precisaria implementar sistema de mute
+            }
+          }).catch(toxicErr => {
+            console.warn('[ANTITOXIC] Error:', toxicErr.message);
+          });
+        }
+
+        // Processamento do antipalavra (verifica blacklist de palavras)
+        if (isGroup && antipalavra && body && !isCmd) {
+          try {
+            // Verifica se o sistema está ativo no grupo
+            if (!antipalavra.isActive(from)) {
+              // Sistema desativado, não processa
+            } else if (!isGroupAdmin) {
+              // Apenas verifica mensagens de não-admins
+              const detectionResult = antipalavra.checkMessage(from, body);
+              
+              if (detectionResult && detectionResult.detected) {
+                console.log(`[ANTIPALAVRA] Palavra detectada: "${detectionResult.palavra}" de @${sender.split('@')[0]}`);
+                
+                // Verifica se o bot é admin antes de tentar remover
+                if (!isBotAdmin) {
+                  await nazu.sendMessage(from, {
+                    text: `⚠️ *ANTIPALAVRA - DETECÇÃO*\n\n` +
+                          `👤 @${sender.split('@')[0]} usou uma palavra proibida!\n` +
+                          `⚠️ Palavra: "${detectionResult.palavra}"\n\n` +
+                          `❌ Não posso banir pois não sou administrador!`,
+                    mentions: [sender]
+                  }).catch(err => console.error('[ANTIPALAVRA] Erro ao enviar notificação:', err.message));
+                  return;
+                }
+                
+                // Deleta a mensagem
+                await nazu.sendMessage(from, { delete: info.key }).catch(err => 
+                  console.error('[ANTIPALAVRA] Erro ao deletar mensagem:', err.message)
+                );
+                
+                // Remove o usuário do grupo
+                await nazu.groupParticipantsUpdate(from, [sender], 'remove').catch(err => 
+                  console.error('[ANTIPALAVRA] Erro ao remover usuário:', err.message)
+                );
+                
+                // Registra o banimento
+                antipalavra.registerBan(from, sender, detectionResult.palavra);
+                
+                // Envia notificação
+                await nazu.sendMessage(from, {
+                  text: `🚫 *ANTIPALAVRA - BANIMENTO AUTOMÁTICO*\n\n` +
+                        `👤 Usuário: @${sender.split('@')[0]}\n` +
+                        `⚠️ Palavra detectada: "${detectionResult.palavra}"\n` +
+                        `🔨 Ação: Banimento automático\n\n` +
+                        `_O sistema antipalavra protege este grupo._`,
+                  mentions: [sender]
+                }).catch(err => console.error('[ANTIPALAVRA] Erro ao enviar notificação:', err.message));
+                
+                // Para o processamento da mensagem
+                return;
+              }
+            }
+          } catch (antipalavraErr) {
+            console.error('[ANTIPALAVRA] Erro ao processar:', antipalavraErr.message);
+          }
+        }
       } catch (error) {
 
       }
@@ -3501,7 +3847,7 @@ Código: *${roleCode}*`,
         }
         if (!KeyCog) {
           nazu.sendMessage(nmrdn, {
-            text: '🤖 *Sistema de IA desativado*\n\n😅 O sistema de IA está desativado porque a API key não foi configurada.\n\n⚙️ Para configurar, use o comando: `!apikey SUA_API_KEY`\n📞 Suporte: wa.me/553399285117'
+            text: `🤖 *Sistema de IA desativado*\n\n😅 O sistema de IA está desativado porque a API key não foi configurada.\n\n⚙️ Para configurar, use o comando: ${prefix}apikey SUA_API_KEY\n📞 Suporte: wa.me/553399285117`
           });
           return;
         }
@@ -3515,9 +3861,12 @@ Código: *${roleCode}*`,
           return;
         }
         
+        // Obter a personalidade atual do grupo
+        const personality = groupData.assistentePersonality || 'nazuna';
+        
         ia.makeAssistentRequest({
           mensagens: [jSoNzIn]
-        }, KeyCog, nazu, nmrdn).then((respAssist) => {
+        }, KeyCog, nazu, nmrdn, personality).then((respAssist) => {
           if (respAssist.erro === 'Sistema de IA temporariamente desativado') {
             return;
           }
@@ -4076,785 +4425,485 @@ Entre em contato com o dono do bot:
       case 'roles':
       case 'role.lista':
       case 'listaroles': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
-        }
-
-        const roleEntries = Object.entries(groupData.roles || {});
-        if (!roleEntries.length) {
-          await reply('🪩 Nenhum rolê ativo no momento.');
-          break;
-        }
-
-        const wantsPv = normalizar(args[0] || '') === 'pv';
-        const sendInPv = !isGroupAdmin || wantsPv;
-        const sendTarget = sendInPv ? sender : from;
-        const listLines = roleEntries.map(([roleCode, roleData], index) => formatRoleSummary(roleCode, roleData, roleEntries.length > 1 ? index : null));
-        const listText = `🪩 *Rolês ativos*\n\n${listLines.join('\n\n')}\n\n🙋 Reaja com ${ROLE_GOING_BASE} ou use ${groupPrefix}role.vou CODIGO\n🤷 Reaja com ${ROLE_NOT_GOING_BASE} ou use ${groupPrefix}role.nvou CODIGO`;
-
         try {
-          await nazu.sendMessage(sendTarget, { text: listText });
-          if (sendInPv && sendTarget !== from) {
-            await reply('📬 Enviei a lista de rolês no seu privado!', { mentions: [sender] });
+          if (!isGroup) {
+            await reply('⚠️ Este comando só pode ser usado em grupos.');
+            break;
           }
-        } catch (listError) {
-          console.error('Erro ao enviar lista de rolês:', listError);
-          await reply('❌ Não consegui enviar a lista de rolês agora. Tente novamente mais tarde.');
+
+          const roleEntries = Object.entries(groupData.roles || {});
+          if (!roleEntries.length) {
+            await reply('🪩 Nenhum rolê ativo no momento.');
+            break;
+          }
+
+          const wantsPv = normalizar(args[0] || '') === 'pv';
+          const sendInPv = !isGroupAdmin || wantsPv;
+          const sendTarget = sendInPv ? sender : from;
+          const listLines = roleEntries.map(([roleCode, roleData], index) => formatRoleSummary(roleCode, roleData, roleEntries.length > 1 ? index : null));
+          const listText = `🪩 *Rolês ativos*\n\n${listLines.join('\n\n')}\n\n🙋 Reaja com ${ROLE_GOING_BASE} ou use ${groupPrefix}role.vou CODIGO\n🤷 Reaja com ${ROLE_NOT_GOING_BASE} ou use ${groupPrefix}role.nvou CODIGO`;
+
+          try {
+            await nazu.sendMessage(sendTarget, { text: listText });
+            if (sendInPv && sendTarget !== from) {
+              await reply('📬 Enviei a lista de rolês no seu privado!', { mentions: [sender] });
+            }
+          } catch (listError) {
+            console.error('Erro ao enviar lista de rolês:', listError);
+            await reply('❌ Não consegui enviar a lista de rolês agora. Tente novamente mais tarde.');
+          }
+        } catch (e) {
+          console.error('Erro em listaroles:', e);
+          await reply('❌ Ocorreu um erro ao listar os rolês.');
         }
         break;
       }
 
       case 'role.criar': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
-        }
-        if (!isGroupAdmin) {
-          await reply('🚫 Apenas administradores podem criar rolês.');
-          break;
-        }
-
-        const parts = parsePipeArgs(q);
-        if (parts.length < 2) {
-          await reply(`📋 Formato esperado:\n${groupPrefix}role.criar CODIGO | Título | Data/Horário | Local | Observações (opcional)`);
-          break;
-        }
-
-        const code = sanitizeRoleCode(parts.shift());
-        if (!code) {
-          await reply('❌ Informe um código alfanumérico para o rolê.');
-          break;
-        }
-        if (groupData.roles[code]) {
-          await reply('❌ Já existe um rolê cadastrado com esse código.');
-          break;
-        }
-
-        const title = parts[0] || '';
-        const when = parts[1] || '';
-        const where = parts[2] || '';
-        const description = parts.slice(3).join(' | ') || '';
-
-        const roleData = {
-          code,
-          title,
-          when,
-          where,
-          description,
-          createdAt: new Date().toISOString(),
-          createdBy: sender,
-          participants: {
-            going: [],
-            notGoing: []
-          }
-        };
-        ensureRoleParticipants(roleData);
-
-        const lines = [
-          '🪩 *Novo rolê confirmado!*',
-          `🎫 Código: *${code}*`
-        ];
-        if (title) lines.push(`📛 Título: ${title}`);
-        if (when) lines.push(`🗓️ Quando: ${when}`);
-        if (where) lines.push(`📍 Onde: ${where}`);
-        if (description) lines.push(`📝 Descrição: ${description}`);
-        lines.push('');
-        lines.push(`🙋 Reaja com ${ROLE_GOING_BASE} ou use ${groupPrefix}role.vou ${code}`);
-        lines.push(`🤷 Reaja com ${ROLE_NOT_GOING_BASE} ou use ${groupPrefix}role.nvou ${code}`);
-        const announcementText = lines.join('\n');
-
-        let sentMessage = null;
         try {
-          const mediaInfo = getMediaInfo(info.message);
-          if (mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video')) {
-            const buffer = await getFileBuffer(mediaInfo.media, mediaInfo.type);
-            const payload = {
-              caption: announcementText
-            };
-            if (mediaInfo.type === 'image') {
-              payload.image = buffer;
-              payload.mimetype = mediaInfo.media.mimetype || 'image/jpeg';
-            } else {
-              payload.video = buffer;
-              payload.mimetype = mediaInfo.media.mimetype || 'video/mp4';
-              if (mediaInfo.media.gifPlayback) {
-                payload.gifPlayback = true;
-              }
-            }
-            sentMessage = await nazu.sendMessage(from, payload);
-          } else {
-            sentMessage = await nazu.sendMessage(from, { text: announcementText });
+          if (!isGroup) {
+            await reply('⚠️ Este comando só pode ser usado em grupos.');
+            break;
           }
-        } catch (sendError) {
-          console.error('Erro ao divulgar rolê:', sendError);
-        }
+          if (!isGroupAdmin) {
+            await reply('🚫 Apenas administradores podem criar rolês.');
+            break;
+          }
 
-        if (sentMessage?.key?.id) {
-          roleData.announcementKey = {
-            id: sentMessage.key.id,
-            fromMe: sentMessage.key.fromMe ?? true,
-            participant: sentMessage.key.participant || null
+          const parts = parsePipeArgs(q);
+          if (parts.length < 1) {
+            await reply(`📋 Formato esperado:\n${groupPrefix}role.criar CODIGO | Título/Descrição\n\n*Opcional:* CODIGO | Título | Data/Horário | Local | Observações`);
+            break;
+          }
+
+          const code = sanitizeRoleCode(parts.shift());
+          if (!code) {
+            await reply('❌ Informe um código alfanumérico para o rolê.');
+            break;
+          }
+          if (groupData.roles[code]) {
+            await reply('❌ Já existe um rolê cadastrado com esse código.');
+            break;
+          }
+
+          const title = parts[0] || '';
+          const when = parts[1] || '';
+          const where = parts[2] || '';
+          const description = parts.slice(3).join(' | ') || '';
+
+          const roleData = {
+            code,
+            title,
+            when,
+            where,
+            description,
+            createdAt: new Date().toISOString(),
+            createdBy: sender,
+            participants: {
+              going: [],
+              notGoing: []
+            }
           };
-          groupData.roleMessages[sentMessage.key.id] = code;
-        } else {
-          roleData.announcementKey = null;
+          ensureRoleParticipants(roleData);
+
+          const lines = [
+            '🪩 *Novo rolê confirmado!*',
+            `🎫 Código: *${code}*`
+          ];
+          if (title) lines.push(`📛 Título: ${title}`);
+          if (when) lines.push(`🗓️ Quando: ${when}`);
+          if (where) lines.push(`📍 Onde: ${where}`);
+          if (description) lines.push(`📝 Descrição: ${description}`);
+          lines.push('');
+          lines.push(`🙋 Reaja com ${ROLE_GOING_BASE} ou use ${groupPrefix}role.vou ${code}`);
+          lines.push(`🤷 Reaja com ${ROLE_NOT_GOING_BASE} ou use ${groupPrefix}role.nvou ${code}`);
+          const announcementText = lines.join('\n');
+
+          let sentMessage = null;
+          let mediaData = null;
+          try {
+            const mediaInfo = getMediaInfo(info.message);
+            if (mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video')) {
+              const buffer = await getFileBuffer(mediaInfo.media, mediaInfo.type);
+              const payload = {
+                caption: announcementText
+              };
+              
+              // Salva informações da mídia para uso posterior
+              mediaData = {
+                type: mediaInfo.type,
+                buffer: buffer.toString('base64'),
+                mimetype: mediaInfo.media.mimetype || (mediaInfo.type === 'image' ? 'image/jpeg' : 'video/mp4'),
+                gifPlayback: mediaInfo.type === 'video' && mediaInfo.media.gifPlayback
+              };
+              
+              if (mediaInfo.type === 'image') {
+                payload.image = buffer;
+                payload.mimetype = mediaData.mimetype;
+              } else {
+                payload.video = buffer;
+                payload.mimetype = mediaData.mimetype;
+                if (mediaData.gifPlayback) {
+                  payload.gifPlayback = true;
+                }
+              }
+              sentMessage = await nazu.sendMessage(from, payload);
+            } else {
+              sentMessage = await nazu.sendMessage(from, { text: announcementText });
+            }
+          } catch (sendError) {
+            console.error('Erro ao divulgar rolê:', sendError);
+          }
+
+          if (sentMessage?.key?.id) {
+            roleData.announcementKey = {
+              id: sentMessage.key.id,
+              fromMe: sentMessage.key.fromMe ?? true,
+              participant: sentMessage.key.participant || null
+            };
+            groupData.roleMessages[sentMessage.key.id] = code;
+          } else {
+            roleData.announcementKey = null;
+          }
+          
+          // Salva a mídia no roleData
+          if (mediaData) {
+            roleData.media = mediaData;
+          }
+
+          groupData.roles[code] = roleData;
+          persistGroupData();
+
+          await reply(sentMessage ? `✅ Rolê *${code}* cadastrado e divulgado!` : `⚠️ Rolê *${code}* salvo, mas não consegui enviar a divulgação automaticamente. Use ${groupPrefix}roles para compartilhar.`);
+        } catch (e) {
+          console.error('Erro em role.criar:', e);
+          await reply('❌ Ocorreu um erro ao criar o rolê.');
         }
-
-        groupData.roles[code] = roleData;
-        persistGroupData();
-
-        await reply(sentMessage ? `✅ Rolê *${code}* cadastrado e divulgado!` : `⚠️ Rolê *${code}* salvo, mas não consegui enviar a divulgação automaticamente. Use ${groupPrefix}roles para compartilhar.`);
         break;
       }
 
       case 'role.alterar': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
-        }
-        if (!isGroupAdmin) {
-          await reply('🚫 Apenas administradores podem alterar rolês.');
-          break;
-        }
-
-        const parts = parsePipeArgs(q);
-        if (!parts.length) {
-          await reply(`📋 Formato esperado:\n${groupPrefix}role.alterar CODIGO | Novo título | Novo horário | Novo local | Nova descrição`);
-          break;
-        }
-
-        const code = sanitizeRoleCode(parts.shift());
-        if (!code) {
-          await reply('❌ Informe um código válido para o rolê.');
-          break;
-        }
-
-        const roleData = groupData.roles[code];
-        if (!roleData) {
-          await reply('❌ Não encontrei nenhum rolê com esse código.');
-          break;
-        }
-
-        const mediaInfo = getMediaInfo(info.message);
-        if (!parts.length && !mediaInfo) {
-          await reply('ℹ️ Informe pelo menos um campo para atualização ou envie uma nova mídia.');
-          break;
-        }
-
-        if (parts[0]) roleData.title = parts[0];
-        if (parts[1]) roleData.when = parts[1];
-        if (parts[2]) roleData.where = parts[2];
-        if (parts.length > 3) {
-          roleData.description = parts.slice(3).join(' | ');
-        }
-
-        roleData.updatedAt = new Date().toISOString();
-        roleData.updatedBy = sender;
-        ensureRoleParticipants(roleData);
-
-        if (roleData.announcementKey?.id) {
-          delete groupData.roleMessages[roleData.announcementKey.id];
-          try {
-            await nazu.sendMessage(from, {
-              delete: {
-                remoteJid: from,
-                fromMe: roleData.announcementKey.fromMe !== undefined ? roleData.announcementKey.fromMe : true,
-                id: roleData.announcementKey.id,
-                participant: roleData.announcementKey.participant || undefined
-              }
-            });
-          } catch (deleteErr) {
-            console.warn('Não consegui remover a divulgação antiga do rolê:', deleteErr.message || deleteErr);
-          }
-        }
-
-        const lines = [
-          '🛠️ *Rolê atualizado!*',
-          `🎫 Código: *${code}*`
-        ];
-        if (roleData.title) lines.push(`📛 Título: ${roleData.title}`);
-        if (roleData.when) lines.push(`🗓️ Quando: ${roleData.when}`);
-        if (roleData.where) lines.push(`📍 Onde: ${roleData.where}`);
-        if (roleData.description) lines.push(`📝 Descrição: ${roleData.description}`);
-        lines.push('');
-        lines.push(`🙋 Reaja com ${ROLE_GOING_BASE} ou use ${groupPrefix}role.vou ${code}`);
-        lines.push(`🤷 Reaja com ${ROLE_NOT_GOING_BASE} ou use ${groupPrefix}role.nvou ${code}`);
-        const announcementText = lines.join('\n');
-
-        let sentMessage = null;
         try {
-          if (mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video')) {
-            const buffer = await getFileBuffer(mediaInfo.media, mediaInfo.type);
-            const payload = {
-              caption: announcementText
-            };
-            if (mediaInfo.type === 'image') {
-              payload.image = buffer;
-              payload.mimetype = mediaInfo.media.mimetype || 'image/jpeg';
-            } else {
-              payload.video = buffer;
-              payload.mimetype = mediaInfo.media.mimetype || 'video/mp4';
-              if (mediaInfo.media.gifPlayback) {
-                payload.gifPlayback = true;
-              }
-            }
-            sentMessage = await nazu.sendMessage(from, payload);
-          } else {
-            sentMessage = await nazu.sendMessage(from, { text: announcementText });
+          if (!isGroup) {
+            await reply('⚠️ Este comando só pode ser usado em grupos.');
+            break;
           }
-        } catch (updateErr) {
-          console.error('Erro ao reenviar divulgação do rolê:', updateErr);
-        }
+          if (!isGroupAdmin) {
+            await reply('🚫 Apenas administradores podem alterar rolês.');
+            break;
+          }
 
-        if (sentMessage?.key?.id) {
-          roleData.announcementKey = {
-            id: sentMessage.key.id,
-            fromMe: sentMessage.key.fromMe ?? true,
-            participant: sentMessage.key.participant || null
-          };
-          groupData.roleMessages[sentMessage.key.id] = code;
-        } else {
-          roleData.announcementKey = null;
-        }
+          const parts = parsePipeArgs(q);
+          if (!parts.length) {
+            await reply(`📋 Formato esperado:\n${groupPrefix}role.alterar CODIGO | Novo título | Novo horário | Novo local | Nova descrição`);
+            break;
+          }
 
-        groupData.roles[code] = roleData;
-        persistGroupData();
-        await reply(`✅ Rolê *${code}* atualizado.`);
+          const code = sanitizeRoleCode(parts.shift());
+          if (!code) {
+            await reply('❌ Informe um código válido para o rolê.');
+            break;
+          }
+
+          const roleData = groupData.roles[code];
+          if (!roleData) {
+            await reply('❌ Não encontrei nenhum rolê com esse código.');
+            break;
+          }
+
+          const mediaInfo = getMediaInfo(info.message);
+          if (!parts.length && !mediaInfo) {
+            await reply('ℹ️ Informe pelo menos um campo para atualização ou envie uma nova mídia.');
+            break;
+          }
+
+          if (parts[0]) roleData.title = parts[0];
+          if (parts[1]) roleData.when = parts[1];
+          if (parts[2]) roleData.where = parts[2];
+          if (parts.length > 3) {
+            roleData.description = parts.slice(3).join(' | ');
+          }
+
+          roleData.updatedAt = new Date().toISOString();
+          roleData.updatedBy = sender;
+          ensureRoleParticipants(roleData);
+
+          if (roleData.announcementKey?.id) {
+            delete groupData.roleMessages[roleData.announcementKey.id];
+            try {
+              await nazu.sendMessage(from, {
+                delete: {
+                  remoteJid: from,
+                  fromMe: roleData.announcementKey.fromMe !== undefined ? roleData.announcementKey.fromMe : true,
+                  id: roleData.announcementKey.id,
+                  participant: roleData.announcementKey.participant || undefined
+                }
+              });
+            } catch (deleteErr) {
+              console.warn('Não consegui remover a divulgação antiga do rolê:', deleteErr.message || deleteErr);
+            }
+          }
+
+          const lines = [
+            '🛠️ *Rolê atualizado!*',
+            `🎫 Código: *${code}*`
+          ];
+          if (roleData.title) lines.push(`📛 Título: ${roleData.title}`);
+          if (roleData.when) lines.push(`🗓️ Quando: ${roleData.when}`);
+          if (roleData.where) lines.push(`📍 Onde: ${roleData.where}`);
+          if (roleData.description) lines.push(`📝 Descrição: ${roleData.description}`);
+          lines.push('');
+          lines.push(`🙋 Reaja com ${ROLE_GOING_BASE} ou use ${groupPrefix}role.vou ${code}`);
+          lines.push(`🤷 Reaja com ${ROLE_NOT_GOING_BASE} ou use ${groupPrefix}role.nvou ${code}`);
+          const announcementText = lines.join('\n');
+
+          let sentMessage = null;
+          try {
+            if (mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video')) {
+              const buffer = await getFileBuffer(mediaInfo.media, mediaInfo.type);
+              const payload = {
+                caption: announcementText
+              };
+              if (mediaInfo.type === 'image') {
+                payload.image = buffer;
+                payload.mimetype = mediaInfo.media.mimetype || 'image/jpeg';
+              } else {
+                payload.video = buffer;
+                payload.mimetype = mediaInfo.media.mimetype || 'video/mp4';
+                if (mediaInfo.media.gifPlayback) {
+                  payload.gifPlayback = true;
+                }
+              }
+              sentMessage = await nazu.sendMessage(from, payload);
+            } else {
+              sentMessage = await nazu.sendMessage(from, { text: announcementText });
+            }
+          } catch (updateErr) {
+            console.error('Erro ao reenviar divulgação do rolê:', updateErr);
+          }
+
+          if (sentMessage?.key?.id) {
+            roleData.announcementKey = {
+              id: sentMessage.key.id,
+              fromMe: sentMessage.key.fromMe ?? true,
+              participant: sentMessage.key.participant || null
+            };
+            groupData.roleMessages[sentMessage.key.id] = code;
+          } else {
+            roleData.announcementKey = null;
+          }
+
+          groupData.roles[code] = roleData;
+          persistGroupData();
+          await reply(`✅ Rolê *${code}* atualizado.`);
+        } catch (e) {
+          console.error('Erro em role.alterar:', e);
+          await reply('❌ Ocorreu um erro ao alterar o rolê.');
+        }
         break;
       }
 
       case 'role.excluir': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
-        }
-        if (!isGroupAdmin) {
-          await reply('🚫 Apenas administradores podem excluir rolês.');
-          break;
-        }
-
-        const code = sanitizeRoleCode(q || args[0] || '');
-        if (!code) {
-          await reply(`📋 Informe o código do rolê. Exemplo: ${groupPrefix}role.excluir CODIGO`);
-          break;
-        }
-
-        const roleData = groupData.roles[code];
-        if (!roleData) {
-          await reply('❌ Não encontrei nenhum rolê com esse código.');
-          break;
-        }
-
-        if (roleData.announcementKey?.id) {
-          delete groupData.roleMessages[roleData.announcementKey.id];
-          try {
-            await nazu.sendMessage(from, {
-              delete: {
-                remoteJid: from,
-                fromMe: roleData.announcementKey.fromMe !== undefined ? roleData.announcementKey.fromMe : true,
-                id: roleData.announcementKey.id,
-                participant: roleData.announcementKey.participant || undefined
-              }
-            });
-          } catch (deleteErr) {
-            console.warn('Não consegui remover a divulgação do rolê:', deleteErr.message || deleteErr);
+        try {
+          if (!isGroup) {
+            await reply('⚠️ Este comando só pode ser usado em grupos.');
+            break;
           }
-        }
+          if (!isGroupAdmin) {
+            await reply('🚫 Apenas administradores podem excluir rolês.');
+            break;
+          }
 
-        delete groupData.roles[code];
-        persistGroupData();
-        await reply(`🗑️ Rolê *${code}* removido.`);
+          const code = sanitizeRoleCode(q || args[0] || '');
+          if (!code) {
+            await reply(`📋 Informe o código do rolê. Exemplo: ${groupPrefix}role.excluir CODIGO`);
+            break;
+          }
+
+          const roleData = groupData.roles[code];
+          if (!roleData) {
+            await reply('❌ Não encontrei nenhum rolê com esse código.');
+            break;
+          }
+
+          if (roleData.announcementKey?.id) {
+            delete groupData.roleMessages[roleData.announcementKey.id];
+            try {
+              await nazu.sendMessage(from, {
+                delete: {
+                  remoteJid: from,
+                  fromMe: roleData.announcementKey.fromMe !== undefined ? roleData.announcementKey.fromMe : true,
+                  id: roleData.announcementKey.id,
+                  participant: roleData.announcementKey.participant || undefined
+                }
+              });
+            } catch (deleteErr) {
+              console.warn('Não consegui remover a divulgação do rolê:', deleteErr.message || deleteErr);
+            }
+          }
+
+          delete groupData.roles[code];
+          persistGroupData();
+          await reply(`🗑️ Rolê *${code}* removido.`);
+        } catch (e) {
+          console.error('Erro em role.excluir:', e);
+          await reply('❌ Ocorreu um erro ao excluir o rolê.');
+        }
         break;
       }
 
       case 'role.vou': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
+        try {
+          if (!isGroup) {
+            await reply('⚠️ Este comando só pode ser usado em grupos.');
+            break;
+          }
+
+          const code = sanitizeRoleCode(args[0] || '');
+          if (!code) {
+            await reply(`📋 Informe o código do rolê. Exemplo: ${groupPrefix}role.vou CODIGO`);
+            break;
+          }
+
+          const roleData = groupData.roles[code];
+          if (!roleData) {
+            await reply('❌ Não encontrei nenhum rolê com esse código.');
+            break;
+          }
+
+          const participants = ensureRoleParticipants(roleData);
+          if (participants.going.includes(sender)) {
+            await reply(`🙋 Você já confirmou presença no rolê *${roleData.title || code}*.`);
+            break;
+          }
+
+          participants.going.push(sender);
+          participants.notGoing = participants.notGoing.filter(id => id !== sender);
+          participants.updatedAt = new Date().toISOString();
+
+          groupData.roles[code] = roleData;
+          persistGroupData();
+
+          await reply(`✅ Presença confirmada no rolê *${roleData.title || code}*.`);
+          // Atualiza anúncio principal
+          await refreshRoleAnnouncement(code, roleData);
+        } catch (e) {
+          console.error('Erro em role.vou:', e);
+          await reply('❌ Ocorreu um erro ao confirmar sua presença.');
         }
-
-        const code = sanitizeRoleCode(args[0] || '');
-        if (!code) {
-          await reply(`📋 Informe o código do rolê. Exemplo: ${groupPrefix}role.vou CODIGO`);
-          break;
-        }
-
-        const roleData = groupData.roles[code];
-        if (!roleData) {
-          await reply('❌ Não encontrei nenhum rolê com esse código.');
-          break;
-        }
-
-        const participants = ensureRoleParticipants(roleData);
-        if (participants.going.includes(sender)) {
-          await reply(`🙋 Você já confirmou presença no rolê *${roleData.title || code}*.`);
-          break;
-        }
-
-        participants.going.push(sender);
-        participants.notGoing = participants.notGoing.filter(id => id !== sender);
-        participants.updatedAt = new Date().toISOString();
-
-        groupData.roles[code] = roleData;
-        persistGroupData();
-
-        await reply(`✅ Presença confirmada no rolê *${roleData.title || code}*.`);
-        // Atualiza anúncio principal
-        await refreshRoleAnnouncement(code, roleData);
         break;
       }
 
       case 'role.nvou': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
+        try {
+          if (!isGroup) {
+            await reply('⚠️ Este comando só pode ser usado em grupos.');
+            break;
+          }
+
+          const code = sanitizeRoleCode(args[0] || '');
+          if (!code) {
+            await reply(`📋 Informe o código do rolê. Exemplo: ${groupPrefix}role.nvou CODIGO`);
+            break;
+          }
+
+          const roleData = groupData.roles[code];
+          if (!roleData) {
+            await reply('❌ Não encontrei nenhum rolê com esse código.');
+            break;
+          }
+
+          const participants = ensureRoleParticipants(roleData);
+          const wasGoing = participants.going.includes(sender);
+
+          participants.going = participants.going.filter(id => id !== sender);
+          if (!participants.notGoing.includes(sender)) {
+            participants.notGoing.push(sender);
+          }
+          participants.updatedAt = new Date().toISOString();
+
+          groupData.roles[code] = roleData;
+          persistGroupData();
+
+          await reply(wasGoing ? `🤷 Presença removida do rolê *${roleData.title || code}*.` : `🤷 Você já estava marcado como ausente para o rolê *${roleData.title || code}*.`);
+          // Atualiza anúncio principal
+          await refreshRoleAnnouncement(code, roleData);
+        } catch (e) {
+          console.error('Erro em role.nvou:', e);
+          await reply('❌ Ocorreu um erro ao atualizar sua presença.');
         }
-
-        const code = sanitizeRoleCode(args[0] || '');
-        if (!code) {
-          await reply(`📋 Informe o código do rolê. Exemplo: ${groupPrefix}role.nvou CODIGO`);
-          break;
-        }
-
-        const roleData = groupData.roles[code];
-        if (!roleData) {
-          await reply('❌ Não encontrei nenhum rolê com esse código.');
-          break;
-        }
-
-        const participants = ensureRoleParticipants(roleData);
-        const wasGoing = participants.going.includes(sender);
-
-        participants.going = participants.going.filter(id => id !== sender);
-        if (!participants.notGoing.includes(sender)) {
-          participants.notGoing.push(sender);
-        }
-        participants.updatedAt = new Date().toISOString();
-
-        groupData.roles[code] = roleData;
-        persistGroupData();
-
-        await reply(wasGoing ? `🤷 Presença removida do rolê *${roleData.title || code}*.` : `🤷 Você já estava marcado como ausente para o rolê *${roleData.title || code}*.`);
-        // Atualiza anúncio principal
-        await refreshRoleAnnouncement(code, roleData);
         break;
       }
 
+      case 'role':
       case 'role.confirmados':
       case 'role.participantes':
       case 'role.info': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
-        }
-        const code = sanitizeRoleCode(args[0] || '');
-        if (!code) {
-          await reply(`📋 Informe o código do rolê. Exemplo: ${groupPrefix}role.confirmados CODIGO`);
-          break;
-        }
-        const roleData = groupData.roles[code];
-        if (!roleData) {
-          await reply('❌ Não encontrei nenhum rolê com esse código.');
-          break;
-        }
-        const parts = ensureRoleParticipants(roleData);
-        const going = parts.going || [];
-        const notGoing = parts.notGoing || [];
-        const lines = [];
-        lines.push(`🪩 Participantes do rolê *${roleData.title || code}*`);
-        lines.push(`🎫 Código: ${code}`);
-        lines.push('');
-        lines.push(`🙋 Confirmados (${going.length}):`);
-        lines.push(going.length ? going.map(id => `• @${getUserName(id)}`).join('\n') : '• —');
-        lines.push('');
-        lines.push(`🤷 Desistiram (${notGoing.length}):`);
-        lines.push(notGoing.length ? notGoing.map(id => `• @${getUserName(id)}`).join('\n') : '• —');
-        await nazu.sendMessage(from, { text: lines.join('\n'), mentions: [...going, ...notGoing] }, { quoted: info });
-        break;
-      }
-
-      case 'resenha.nova': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
-        }
-        if (!isGroupAdmin) {
-          await reply('🚫 Apenas administradores podem iniciar uma nova resenha.');
-          break;
-        }
-
-        groupData.resenha = {
-          active: true,
-          createdAt: new Date().toISOString(),
-          createdBy: sender,
-          link: '',
-          items: [],
-          payments: {},
-          lastItemId: 0
-        };
-        persistGroupData();
-
-        await reply('🎊 Nova resenha iniciada! Use os comandos de resenha para adicionar conteúdo e controlar pagamentos.');
-        break;
-      }
-
-      case 'resenha.adicionar': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
-        }
-        if (!isGroupAdmin) {
-          await reply('🚫 Apenas administradores podem adicionar conteúdo à resenha.');
-          break;
-        }
-
-        const resenhaData = ensureResenhaData();
-        if (!resenhaData.active) {
-          await reply('ℹ️ Nenhuma resenha ativa. Use resenha.nova para começar.');
-          break;
-        }
-
-        const mediaInfo = getMediaInfo(info.message);
-        if (!q && !(mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video'))) {
-          await reply('❌ Envie um texto ou uma mídia junto com o comando.');
-          break;
-        }
-
-        resenhaData.lastItemId += 1;
-        const itemId = resenhaData.lastItemId;
-        const item = {
-          id: itemId,
-          type: 'text',
-          addedAt: new Date().toISOString(),
-          addedBy: sender
-        };
-
         try {
-          if (mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video')) {
-            const buffer = await getFileBuffer(mediaInfo.media, mediaInfo.type);
-            const dirPath = buildResenhaDir();
-            ensureDirectoryExists(dirPath);
-            const extension = mediaInfo.type === 'image' ? '.jpg' : '.mp4';
-            const fileName = `${itemId}_${Date.now()}${extension}`;
-            fs.writeFileSync(pathz.join(dirPath, fileName), buffer);
-            item.type = mediaInfo.type;
-            item.mediaFile = fileName;
-            item.caption = q || '';
-          } else {
-            item.text = q;
-          }
-        } catch (mediaError) {
-          console.error('Erro ao salvar mídia da resenha:', mediaError);
-          await reply('❌ Não foi possível salvar a mídia. Tente novamente.');
-          resenhaData.lastItemId -= 1;
-          break;
-        }
-
-        resenhaData.items.push(item);
-        resenhaData.active = true;
-        persistGroupData();
-
-        await reply(`✅ Item ${itemId} adicionado à resenha.`);
-        break;
-      }
-
-      case 'resenha.alterar': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
-        }
-        if (!isGroupAdmin) {
-          await reply('🚫 Apenas administradores podem alterar itens da resenha.');
-          break;
-        }
-
-        const resenhaData = ensureResenhaData();
-        if (!resenhaData.active) {
-          await reply('ℹ️ Nenhuma resenha ativa. Use resenha.nova para começar.');
-          break;
-        }
-
-        const parts = parsePipeArgs(q);
-        if (parts.length < 2 && !getMediaInfo(info.message)) {
-          await reply(`📋 Formato esperado:\n${groupPrefix}resenha.alterar ID | Novo texto (ou envie nova mídia junto do comando)`);
-          break;
-        }
-
-        const itemId = parseInt(parts.shift(), 10);
-        if (Number.isNaN(itemId)) {
-          await reply('❌ ID inválido. Informe um número.');
-          break;
-        }
-
-        const item = resenhaData.items.find(entry => entry.id === itemId);
-        if (!item) {
-          await reply('❌ Não encontrei um item com esse ID.');
-          break;
-        }
-
-        const mediaInfo = getMediaInfo(info.message);
-        const newText = parts.join(' | ');
-
-        if (!newText && !(mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video'))) {
-          await reply('ℹ️ Informe um novo texto ou envie uma nova mídia para atualizar o item.');
-          break;
-        }
-
-        if (mediaInfo && (mediaInfo.type === 'image' || mediaInfo.type === 'video')) {
-          try {
-            if (item.mediaFile) {
-              try {
-                fs.unlinkSync(pathz.join(buildResenhaDir(), item.mediaFile));
-              } catch (unlinkErr) {
-                console.warn('Não consegui remover a mídia anterior da resenha:', unlinkErr.message || unlinkErr);
-              }
-            }
-            const buffer = await getFileBuffer(mediaInfo.media, mediaInfo.type);
-            const dirPath = buildResenhaDir();
-            ensureDirectoryExists(dirPath);
-            const extension = mediaInfo.type === 'image' ? '.jpg' : '.mp4';
-            const fileName = `${itemId}_${Date.now()}${extension}`;
-            fs.writeFileSync(pathz.join(dirPath, fileName), buffer);
-            item.type = mediaInfo.type;
-            item.mediaFile = fileName;
-            item.caption = newText || item.caption || '';
-          } catch (updateMediaError) {
-            console.error('Erro ao atualizar mídia da resenha:', updateMediaError);
-            await reply('❌ Não consegui atualizar a mídia. Tente novamente.');
+          if (!isGroup) {
+            await reply('⚠️ Este comando só pode ser usado em grupos.');
             break;
           }
-        } else if (item.type === 'text') {
-          item.text = newText;
-        } else {
-          item.caption = newText;
-        }
-
-        item.editedAt = new Date().toISOString();
-        item.editedBy = sender;
-
-        persistGroupData();
-        await reply(`✏️ Item ${itemId} atualizado.`);
-        break;
-      }
-
-      case 'resenha.pagar': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
-        }
-        if (!isGroupAdmin) {
-          await reply('🚫 Apenas administradores podem gerenciar pagamentos da resenha.');
-          break;
-        }
-
-        const resenhaData = ensureResenhaData();
-        if (!resenhaData.active) {
-          await reply('ℹ️ Nenhuma resenha ativa. Use resenha.nova para começar.');
-          break;
-        }
-
-        const mentioned = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-        const numericTargets = args
-          .map(token => token.replace(/[^0-9]/g, ''))
-          .filter(token => token.length >= 5)
-          .map(token => `${token}@s.whatsapp.net`);
-        const targets = [...new Set([...mentioned, ...numericTargets].filter(Boolean))];
-
-        if (!targets.length) {
-          await reply('ℹ️ Marque quem você deseja confirmar ou remover do pagamento, ou informe o número com DDD.');
-          break;
-        }
-
-        const added = [];
-        const removed = [];
-        for (const target of targets) {
-          if (resenhaData.payments[target]) {
-            delete resenhaData.payments[target];
-            removed.push(target);
-          } else {
-            resenhaData.payments[target] = {
-              confirmedBy: sender,
-              confirmedAt: new Date().toISOString()
-            };
-            added.push(target);
-            if (resenhaData.link) {
-              try {
-                await nazu.sendMessage(target, {
-                  text: `🍻 Pagamento confirmado!\n🔗 Link da resenha: ${resenhaData.link}`
-                });
-              } catch (dmError) {
-                console.warn('Não consegui enviar o link da resenha para o participante:', dmError.message || dmError);
-              }
-            }
+          const code = sanitizeRoleCode(args[0] || '');
+          if (!code) {
+            await reply(`📋 Informe o código do rolê. Exemplo: ${groupPrefix}role CODIGO`);
+            break;
           }
-        }
-
-        persistGroupData();
-
-        if (!added.length && !removed.length) {
-          await reply('ℹ️ Nenhuma alteração realizada.');
-          break;
-        }
-
-        const responseLines = [];
-        const mentions = [];
-        if (added.length) {
-          responseLines.push(`✅ Pagamento confirmado para: ${formatMentionList(added)}`);
-          mentions.push(...added);
-        }
-        if (removed.length) {
-          responseLines.push(`♻️ Pagamento removido de: ${formatMentionList(removed)}`);
-          mentions.push(...removed);
-        }
-
-        await reply(responseLines.join('\n'), { mentions });
-        break;
-      }
-
-      case 'resenha.pagos': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
-        }
-
-        const resenhaData = ensureResenhaData();
-        const paidIds = Object.keys(resenhaData.payments || {});
-        if (!paidIds.length) {
-          await reply('💸 Nenhum pagamento confirmado ainda.');
-          break;
-        }
-
-        const lines = paidIds.map((id, index) => {
-          const infoPago = resenhaData.payments[id] || {};
-          const dateStr = infoPago.confirmedAt ? new Date(infoPago.confirmedAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '';
-          return `${index + 1}. @${getUserName(id)}${dateStr ? ` • ${dateStr}` : ''}`;
-        });
-
-        await reply(`💸 *Pagamentos confirmados (${paidIds.length})*\n\n${lines.join('\n')}`, { mentions: paidIds });
-        break;
-      }
-
-      case 'resenha.todos': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
-        }
-        if (!isGroupAdmin) {
-          await reply('🚫 Apenas administradores podem usar este comando.');
-          break;
-        }
-
-        // Proteção Anti-Ban: Verifica rate limit para grupos grandes
-        const massMentionCheckResenha = checkMassMentionLimit(from, AllgroupMembers.length);
-        if (!massMentionCheckResenha.allowed) {
-          await reply(massMentionCheckResenha.message);
-          break;
-        }
-
-        const resenhaData = ensureResenhaData();
-        const paidSet = new Set(Object.keys(resenhaData.payments || {}));
-        const toMention = AllgroupMembers.filter(memberId => memberId && memberId !== botNumber && !paidSet.has(memberId));
-
-        if (!toMention.length) {
-          await reply('🙌 Todos os participantes já estão com o pagamento confirmado ou não há membros a marcar.');
-          break;
-        }
-
-        // Registra uso para grupos grandes (proteção anti-ban) se estiver ativa
-        const config = loadMassMentionConfig();
-        if (config[from]?.enabled && AllgroupMembers.length >= MASS_MENTION_THRESHOLD) {
-          registerMassMentionUse(from);
-        }
-
-        const mentionText = `🔔 ${formatMentionList(toMention)}`;
-        await nazu.sendMessage(from, { text: mentionText, mentions: toMention });
-        break;
-      }
-
-      case 'resenha.link': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
-        }
-        if (!isGroupAdmin) {
-          await reply('🚫 Apenas administradores podem configurar o link da resenha.');
-          break;
-        }
-
-        const resenhaData = ensureResenhaData();
-        if (!q) {
-          if (resenhaData.link) {
-            await reply(`🔗 Link atual da resenha: ${resenhaData.link}`);
-          } else {
-            await reply('ℹ️ Nenhum link configurado no momento.');
+          const roleData = groupData.roles[code];
+          if (!roleData) {
+            await reply('❌ Não encontrei nenhum rolê com esse código.');
+            break;
           }
-          break;
-        }
-
-        const link = q.trim();
-        if (!/^https?:\/\//i.test(link)) {
-          await reply('❌ Informe um link válido começando com http ou https.');
-          break;
-        }
-
-        resenhaData.link = link;
-        persistGroupData();
-        await reply('🔗 Link da resenha atualizado com sucesso!');
-        break;
-      }
-
-      case 'resenha.excluir':
-      case 'resenha.deletar':
-      case 'resenha.apagar': {
-        if (!isGroup) {
-          await reply('⚠️ Este comando só pode ser usado em grupos.');
-          break;
-        }
-        if (!isGroupAdmin) {
-          await reply('🚫 Apenas administradores podem excluir a resenha.');
-          break;
-        }
-
-        const resenhaData = ensureResenhaData();
-        if (!resenhaData.active && resenhaData.items.length === 0) {
-          await reply('ℹ️ Não há nenhuma resenha para excluir.');
-          break;
-        }
-
-        try {
-          const dirPath = buildResenhaDir();
-          if (fs.existsSync(dirPath)) {
-            const files = fs.readdirSync(dirPath);
-            for (const file of files) {
-              try {
-                fs.unlinkSync(pathz.join(dirPath, file));
-              } catch (unlinkErr) {
-                console.warn(`Não consegui remover arquivo ${file}:`, unlinkErr.message);
-              }
-            }
+          const parts = ensureRoleParticipants(roleData);
+          const going = parts.going || [];
+          const notGoing = parts.notGoing || [];
+          const lines = [];
+          lines.push(`🪩 *${roleData.title || code}*`);
+          lines.push(`🎫 Código: ${code}`);
+          if (roleData.when) lines.push(`🗓️ Quando: ${roleData.when}`);
+          if (roleData.where) lines.push(`📍 Onde: ${roleData.where}`);
+          if (roleData.description) lines.push(`📝 Descrição: ${roleData.description}`);
+          lines.push('');
+          lines.push(`🙋 Confirmados (${going.length}):`);
+          lines.push(going.length ? going.map(id => `• @${getUserName(id)}`).join('\n') : '• —');
+          lines.push('');
+          lines.push(`🤷 Desistiram (${notGoing.length}):`);
+          lines.push(notGoing.length ? notGoing.map(id => `• @${getUserName(id)}`).join('\n') : '• —');
+          
+          // Envia com a mídia salva se disponível
+          if (roleData.media) {
             try {
-              fs.rmdirSync(dirPath);
-            } catch (rmdirErr) {
-              console.warn('Não consegui remover diretório da resenha:', rmdirErr.message);
+              const buffer = Buffer.from(roleData.media.buffer, 'base64');
+              const payload = {
+                caption: lines.join('\n'),
+                mentions: [...going, ...notGoing]
+              };
+              
+              if (roleData.media.type === 'image') {
+                payload.image = buffer;
+                payload.mimetype = roleData.media.mimetype;
+              } else if (roleData.media.type === 'video') {
+                payload.video = buffer;
+                payload.mimetype = roleData.media.mimetype;
+                if (roleData.media.gifPlayback) {
+                  payload.gifPlayback = true;
+                }
+              }
+              
+              await nazu.sendMessage(from, payload, { quoted: info });
+            } catch (mediaError) {
+              console.log('Erro ao enviar mídia do rolê:', mediaError.message);
+              // Se falhar, envia apenas texto
+              await nazu.sendMessage(from, { text: lines.join('\n'), mentions: [...going, ...notGoing] }, { quoted: info });
             }
+          } else {
+            // Se não tiver mídia, envia apenas texto
+            await nazu.sendMessage(from, { text: lines.join('\n'), mentions: [...going, ...notGoing] }, { quoted: info });
           }
-        } catch (cleanupError) {
-          console.error('Erro ao limpar mídias da resenha:', cleanupError);
+        } catch (e) {
+          console.error('Erro em role.info:', e);
+          await reply('❌ Ocorreu um erro ao buscar informações do rolê.');
         }
-
-        groupData.resenha = {
-          active: false,
-          createdAt: null,
-          createdBy: null,
-          link: '',
-          items: [],
-          payments: {},
-          lastItemId: 0
-        };
-        persistGroupData();
-
-        await reply('🗑️ Resenha excluída com sucesso! Todos os dados, pagamentos e mídias foram removidos.');
         break;
       }
 
@@ -5069,6 +5118,7 @@ Entre em contato com o dono do bot:
   if (changedEconomy) saveEconomy(econ);
 
         const sub = command;
+        const args = q ? q.trim().toLowerCase().split(/\s+/) : [];
         // Tratamento especial para ranklevel/ranklvl/levels etc.
         if (['ranklevel','ranklvl','rankinglevel','levels','toplevels'].includes(sub)) {
           // Se estiver em grupo, usamos o ranking do grupo (RPG)
@@ -5190,10 +5240,33 @@ Entre em contato com o dono do bot:
           };
           const houseInfo = me.house?.type ? `${casas[me.house.type]?.emoji || ''} ${casas[me.house.type]?.name || me.house.type}` : 'Nenhuma';
           
-          // Família
+          // Família e Relacionamento
           if (!me.family) me.family = { spouse: null, children: [], parents: [], siblings: [] };
-          const familySpouse = me.family.spouse ? `@${me.family.spouse.split('@')[0]}` : 'Solteiro(a)';
           const familyChildren = (me.family.children || []).length;
+          
+          // Buscar relacionamento ativo do sistema de relacionamentos
+          let familySpouse = 'Solteiro(a)';
+          let relationshipType = '';
+          let relationshipEmoji = '';
+          const mentions = [];
+          
+          const activePair = relationshipManager.getActivePairForUser(sender);
+          if (activePair && activePair.partnerId) {
+            familySpouse = `@${activePair.partnerId.split('@')[0]}`;
+            mentions.push(activePair.partnerId);
+            
+            // Determinar tipo de relacionamento
+            if (activePair.pair?.status === 'casamento') {
+              relationshipType = 'Casado(a)';
+              relationshipEmoji = '💍';
+            } else if (activePair.pair?.status === 'namoro') {
+              relationshipType = 'Namorando';
+              relationshipEmoji = '💞';
+            } else if (activePair.pair?.status === 'brincadeira') {
+              relationshipType = 'Brincadeira';
+              relationshipEmoji = '🎈';
+            }
+          }
           
           let text = `╭━━━⊱ ⚔️ *PERFIL RPG* ⚔️ ⊱━━━╮\n`;
           text += `│ ${pushname}\n`;
@@ -5230,8 +5303,13 @@ Entre em contato com o dono do bot:
           });
           text += `\n`;
           
-          text += `👨‍👩‍👧‍👦 *FAMÍLIA*\n`;
-          text += `├ Cônjuge: ${familySpouse}\n`;
+          text += `👨‍👩‍👧‍👦 *FAMÍLIA & RELACIONAMENTO*\n`;
+          if (relationshipEmoji) {
+            text += `├ ${relationshipEmoji} Status: ${relationshipType}\n`;
+            text += `├ Parceiro(a): ${familySpouse}\n`;
+          } else {
+            text += `├ 💔 Status: Solteiro(a)\n`;
+          }
           text += `└ Filhos: ${familyChildren}\n\n`;
           
           text += `🏆 *COLECIONÁVEIS*\n`;
@@ -5245,7 +5323,6 @@ Entre em contato com o dono do bot:
           
           text += `💎 Use ${prefix}meustats para ver estatísticas detalhadas`;
           
-          const mentions = me.family?.spouse ? [me.family.spouse] : [];
           return reply(text, mentions.length > 0 ? { mentions } : undefined);
         }
         
@@ -6497,11 +6574,104 @@ Entre em contato com o dono do bot:
 
         if (sub === 'diario' || sub === 'daily') {
           const cd = me.cooldowns?.daily || 0;
-          if (Date.now() < cd) return reply(`⏳ Você já coletou hoje. Volte em ${timeLeft(cd)}.`);
-          const reward = 150; // reduzido de 500 para 150
-          me.wallet += reward; me.cooldowns.daily = Date.now() + 24*60*60*1000;
+          const now = Date.now();
+          
+          if (now < cd) {
+            return reply(`⏳ Você já coletou hoje!\n\n🕐 Volte em: ${timeLeft(cd)}`);
+          }
+          
+          // Sistema de Streak (sequência diária)
+          if (!me.streak) {
+            me.streak = { count: 0, lastClaim: 0, record: 0 };
+          }
+          
+          const oneDayMs = 24 * 60 * 60 * 1000;
+          const twoDaysMs = 48 * 60 * 60 * 1000;
+          const timeSinceLastClaim = now - me.streak.lastClaim;
+          
+          // Verifica se manteve a sequência (coletou no dia seguinte)
+          if (timeSinceLastClaim <= twoDaysMs && timeSinceLastClaim >= oneDayMs) {
+            me.streak.count += 1;
+          } else if (timeSinceLastClaim > twoDaysMs) {
+            // Quebrou a sequência
+            me.streak.count = 1;
+          } else {
+            me.streak.count = 1;
+          }
+          
+          // Atualiza recorde
+          if (me.streak.count > me.streak.record) {
+            me.streak.record = me.streak.count;
+          }
+          
+          // Calcula recompensa baseada no streak
+          const baseReward = 150;
+          const streakBonus = Math.min(me.streak.count * 10, 300); // Máx +300
+          const totalReward = baseReward + streakBonus;
+          
+          // Bônus especial a cada 7 dias
+          let extraBonus = 0;
+          let bonusMessage = '';
+          if (me.streak.count % 7 === 0) {
+            extraBonus = 500;
+            bonusMessage = '\n🎉 *BÔNUS DE 7 DIAS:* +500!';
+          }
+          
+          // Bônus especial a cada 30 dias
+          if (me.streak.count % 30 === 0) {
+            extraBonus += 2000;
+            bonusMessage += '\n🏆 *BÔNUS DE 30 DIAS:* +2000!';
+          }
+          
+          const finalReward = totalReward + extraBonus;
+          
+          me.wallet += finalReward;
+          me.streak.lastClaim = now;
+          me.cooldowns.daily = now + oneDayMs;
+          
+          // Adiciona XP
+          const xpGain = 50 + (me.streak.count * 5);
+          me.exp = (me.exp || 0) + xpGain;
+          
+          // Verifica level up
+          const level = me.level || 1;
+          const nextLevelXp = 100 * Math.pow(1.5, level - 1);
+          let leveledUp = false;
+          while (me.exp >= nextLevelXp) {
+            me.exp -= nextLevelXp;
+            me.level += 1;
+            leveledUp = true;
+          }
+          
           saveEconomy(econ);
-          return reply(`🎁 Recompensa diária coletada: ${fmt(reward)}!`);
+          
+          let text = `╭━━━⊱ 🎁 *RECOMPENSA DIÁRIA* ⊱━━━╮\n`;
+          text += `│\n`;
+          text += `│ 💰 Base: +${fmt(baseReward)}\n`;
+          text += `│ 🔥 Streak (${me.streak.count}x): +${fmt(streakBonus)}\n`;
+          if (extraBonus > 0) {
+            text += `│ ✨ Bônus: +${fmt(extraBonus)}\n`;
+          }
+          text += `│ ━━━━━━━━━━━━━━\n`;
+          text += `│ 💵 Total: *${fmt(finalReward)}*\n`;
+          text += `│ ⚡ XP: +${xpGain}\n`;
+          text += `│\n`;
+          text += `│ 🔥 Sequência: *${me.streak.count} dia${me.streak.count !== 1 ? 's' : ''}*\n`;
+          text += `│ 🏆 Recorde: ${me.streak.record} dia${me.streak.record !== 1 ? 's' : ''}\n`;
+          text += `│\n`;
+          text += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯`;
+          
+          if (bonusMessage) {
+            text += bonusMessage;
+          }
+          
+          if (leveledUp) {
+            text += `\n\n⚡ *LEVEL UP!* Agora você é level ${me.level}!`;
+          }
+          
+          text += `\n\n💡 Volte amanhã para manter a sequência!`;
+          
+          return reply(text);
         }
 
         if (sub === 'toprpg') {
@@ -6923,7 +7093,7 @@ Entre em contato com o dono do bot:
         break;
       }
 
-      case 'evoluir':
+      case 'evoluirpet':
       case 'evolve': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
@@ -7086,7 +7256,7 @@ Entre em contato com o dono do bot:
         break;
       }
 
-      case 'batalha':
+      case 'batalhapet':
       case 'petbattle': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
@@ -7474,9 +7644,9 @@ Entre em contato com o dono do bot:
         return reply(`✅ *${item}* foi removido de ${pet.emoji} *${pet.name}* e devolvido ao inventário!`);
       }
 
-      // Sistema de Dungeons/Masmorras
-      case 'masmorra':
-      case 'dungeon':
+      // Sistema de Dungeons/Masmorras Solo
+      case 'masmorrasolo':
+      case 'dungeonsolo':
       case 'dg': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
@@ -7605,9 +7775,9 @@ Entre em contato com o dono do bot:
         break;
       }
 
-      // Sistema de Chefe/Boss
-      case 'chefe':
-      case 'boss':
+      // Sistema de Chefe/Boss RPG
+      case 'cheferpg':
+      case 'bossrpg':
       case 'bossfight': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
@@ -7751,10 +7921,10 @@ Entre em contato com o dono do bot:
         return reply(text);
       }
 
-      // Sistema de Duelos/PvP
-      case 'duelar':
-      case 'duelo':
-      case 'duel': {
+      // Sistema de Duelos/PvP RPG
+      case 'duelarrpg':
+      case 'duelorpg':
+      case 'duelrpg': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
         
@@ -7762,7 +7932,7 @@ Entre em contato com o dono do bot:
         const me = getEcoUser(econ, sender);
         
         const target = (menc_jid2 && menc_jid2[0]) || null;
-        if (!target) return reply(`❌ Marque alguém para duelar!\n\n💡 Exemplo: ${prefix}duelar @user`);
+        if (!target) return reply(`❌ Marque alguém para duelar!\n\n💡 Exemplo: ${prefix}duelarrpg @user`);
         if (target === sender) return reply('❌ Você não pode duelar consigo mesmo!');
         
         const opponent = getEcoUser(econ, target);
@@ -8332,6 +8502,7 @@ Entre em contato com o dono do bot:
 
         const econ = loadEconomy();
         const me = getEcoUser(econ, sender);
+        const args = q ? q.trim().toLowerCase().split(/\s+/) : [];
 
         // Sistema de dungeons em grupo
         if (!econ.dungeonParties) econ.dungeonParties = {};
@@ -8984,7 +9155,7 @@ Entre em contato com o dono do bot:
       }
       // Aceitar convite de clã
       case 'aceitarconvite':
-      case 'aceitar': {
+      case 'aceitarrpg': {
         if (!isGroup) return reply('⚔️ Comandos de clã só funcionam em grupos com Modo RPG.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
 
@@ -9038,7 +9209,7 @@ Entre em contato com o dono do bot:
 
       // Expulsar membro do clã (apenas líder)
       case 'expulsar':
-      case 'kick': {
+      case 'kickcla': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
         const econ = loadEconomy();
@@ -9191,6 +9362,59 @@ Entre em contato com o dono do bot:
         text += `${pushname} adotou @${target.split('@')[0]}!\n\n`;
         text += `💰 Custo: ${adoptCost.toLocaleString()}\n`;
         text += `👨‍👩‍👧‍👦 Agora você tem ${me.family.children.length} filho(s)!`;
+        
+        saveEconomy(econ);
+        return reply(text, { mentions: [target] });
+        break;
+      }
+
+      case 'deserdar':
+      case 'desherdar':
+      case 'removerfilho': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        const target = (menc_jid2 && menc_jid2[0]) || null;
+        if (!target) return reply(`❌ Marque alguém para deserdar!\n\n💡 Exemplo: ${prefix}deserdar @user`);
+        if (target === sender) return reply('❌ Você não pode se deserdar!');
+        
+        const targetUser = getEcoUser(econ, target);
+        
+        if (!me.family) me.family = { spouse: null, children: [], parents: [], siblings: [] };
+        if (!targetUser.family) targetUser.family = { spouse: null, children: [], parents: [], siblings: [] };
+        
+        // Verificar se é filho
+        if (!me.family.children || !me.family.children.includes(target)) {
+          return reply('❌ Esta pessoa não é seu filho(a)!');
+        }
+        
+        // Remover dos filhos
+        me.family.children = me.family.children.filter(child => child !== target);
+        
+        // Remover dos pais
+        if (targetUser.family.parents) {
+          targetUser.family.parents = targetUser.family.parents.filter(parent => parent !== sender);
+        }
+        
+        // Se tiver cônjuge, remover como pai/mãe também
+        if (me.family.spouse) {
+          const spouseData = getEcoUser(econ, me.family.spouse);
+          if (spouseData.family && spouseData.family.children) {
+            spouseData.family.children = spouseData.family.children.filter(child => child !== target);
+          }
+          if (targetUser.family.parents) {
+            targetUser.family.parents = targetUser.family.parents.filter(parent => parent !== me.family.spouse);
+          }
+        }
+        
+        let text = `╭━━━⊱ 💔 *DESERDADO* ⊱━━━╮\n`;
+        text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+        text += `😢 ${pushname} deserdou @${target.split('@')[0]}!\n\n`;
+        text += `👨‍👩‍👧‍👦 Agora você tem ${me.family.children.length} filho(s)!\n\n`;
+        text += `💡 Use ${prefix}familia para ver sua família atualizada.`;
         
         saveEconomy(econ);
         return reply(text, { mentions: [target] });
@@ -9406,9 +9630,9 @@ Entre em contato com o dono do bot:
         break;
       }
 
-      // Interações Sociais
-      case 'abracar':
-      case 'hug': {
+      // Interações Sociais RPG
+      case 'abracarrpg':
+      case 'hugrpg': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
         
@@ -9427,13 +9651,13 @@ Entre em contato com o dono do bot:
         break;
       }
 
-      case 'beijar':
-      case 'kiss': {
+      case 'beijarrpg':
+      case 'kissrpg': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
         
         const target = (menc_jid2 && menc_jid2[0]) || null;
-        if (!target) return reply(`❌ Marque alguém para beijar!\n\n💡 Exemplo: ${prefix}beijar @user`);
+        if (!target) return reply(`❌ Marque alguém para beijar!\n\n💡 Exemplo: ${prefix}beijarrpg @user`);
         if (target === sender) return reply('❌ Você não pode se beijar!');
         
         const actions = [
@@ -9447,14 +9671,14 @@ Entre em contato com o dono do bot:
         break;
       }
 
-      case 'bater':
-      case 'tapa':
-      case 'slap': {
+      case 'baterrpg':
+      case 'taparpg':
+      case 'slaprpg': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
         
         const target = (menc_jid2 && menc_jid2[0]) || null;
-        if (!target) return reply(`❌ Marque alguém para dar um tapa!\n\n💡 Exemplo: ${prefix}bater @user`);
+        if (!target) return reply(`❌ Marque alguém para dar um tapa!\n\n💡 Exemplo: ${prefix}baterrpg @user`);
         if (target === sender) return reply('❌ Você não pode bater em si mesmo!');
         
         const actions = [
@@ -10308,7 +10532,7 @@ Entre em contato com o dono do bot:
       
       // Leilão
       case 'leilao':
-      case 'auction':
+      case 'leilaorpg':
       case 'leiloar': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
@@ -10680,7 +10904,7 @@ Entre em contato com o dono do bot:
       // Estatísticas pessoais detalhadas
       case 'meustats':
       case 'mystats':
-      case 'estatisticas': {
+      case 'statsrpg': {
         if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
         if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
         
@@ -11413,7 +11637,7 @@ Entre em contato com o dono do bot:
       case 'volumeboost':
       case 'aumentarvolume':
       case 'reverb':
-      case 'drive':
+      case 'overdrive':
       case 'equalizer':
       case 'equalizar':
       case 'reverse':
@@ -11972,7 +12196,7 @@ Entre em contato com o dono do bot:
         }
         reply('⏳ Aguarde enquanto busco e resumo a página para você... ✨').then(() => {
           axios.get(q, {
-            timeout: 10000,
+            timeout: 120000,
             headers: {
               'User-Agent': 'Mozilla/5.0 (compatible; Bot/1.0)'
             }
@@ -13950,7 +14174,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
         try {
           // Verificar domínio na API FishFish
           const response = await axios.get(`https://api.fishfish.gg/v1/domains/${encodeURIComponent(domain)}`, {
-            timeout: 10000,
+            timeout: 120000,
             validateStatus: (status) => status < 500
           });
 
@@ -14005,7 +14229,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           // Usar wttr.in que é gratuito e não precisa de API key
           const cidade = encodeURIComponent(q);
           const response = await axios.get(`https://wttr.in/${cidade}?format=j1&lang=pt`, {
-            timeout: 10000,
+            timeout: 120000,
             headers: { 'User-Agent': 'curl/7.68.0' }
           });
 
@@ -14337,21 +14561,16 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         break;
       case 'qrcode':
         if (!q) return reply(`📲 *Gerador de QR Code*\n\n💡 *Como usar:*\n• Envie o texto ou link após o comando\n• Ex: ${prefix}qrcode https://exemplo.com\n• Ex: ${prefix}qrcode Seu texto aqui\n\n✨ O QR Code será gerado instantaneamente!`);
-        try {
-          await reply('Aguarde um momentinho... ☀️');
+        reply('Aguarde um momentinho... ☀️').then(() => {
           const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(q)}`;
-          await nazu.sendMessage(from, {
-            image: {
-              url: qrUrl
-            },
+          return nazu.sendMessage(from, {
+            image: { url: qrUrl },
             caption: `📱✨ *Seu QR Code super fofo está pronto!*\n\nConteúdo: ${q.substring(0, 100)}${q.length > 100 ? '...' : ''}`
-          }, {
-            quoted: info
-          });
-        } catch (e) {
+          }, { quoted: info });
+        }).catch((e) => {
           console.error("Erro ao gerar QR Code:", e);
-          await reply("❌ Erro ao gerar QR Code. Tente novamente mais tarde.");
-        }
+          reply("❌ Erro ao gerar QR Code. Tente novamente mais tarde.");
+        });
         break;
       case 'wikipedia':
         if (!q) return reply(`📚 O que você quer pesquisar na Wikipédia? Me diga o termo após o comando ${prefix}wikipedia! 😊`);
@@ -14783,7 +15002,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           }
           
           if (result.subbots.length === 0) {
-            return reply('📋 *Nenhum sub-bot cadastrado.*\n\n💡 Use `!addsubbot <número>` para adicionar um sub-bot.');
+            return reply(`📋 *Nenhum sub-bot cadastrado.*\n\n💡 Use ${prefix}addsubbot <número> para adicionar um sub-bot.`);
           }
           
           let msg = `🤖 *Sub-Bots Ativos* 🤖\n`;
@@ -15153,14 +15372,13 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'reboot':
         if (!isOwner) return reply("🚫 Apenas o Dono principal pode reiniciar o bot!");
         
-        try {
-          await reply(`🔄 *REINICIANDO O BOT...*
+        reply(`🔄 *REINICIANDO O BOT...*
 
 ⏸️ Pausando processamento de mensagens...
-🔄 O bot voltará online em alguns segundos!`);
-
+🔄 O bot voltará online em alguns segundos!`).then(() => {
           // Pausa o processamento de mensagens
-          const messageQueueModule = await import('./connect.js');
+          return import('./connect.js');
+        }).then((messageQueueModule) => {
           if (messageQueueModule.messageQueue && typeof messageQueueModule.messageQueue.pause === 'function') {
             messageQueueModule.messageQueue.pause();
           }
@@ -15170,11 +15388,10 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             console.log('[RESTART] Reiniciando bot via comando...');
             process.exit(0); // Exit code 0 indica reinício intencional
           }, 2000);
-
-        } catch (e) {
+        }).catch((e) => {
           console.error("Erro no comando reiniciar:", e);
-          await reply(`❌ Erro ao tentar reiniciar: ${e.message}`);
-        }
+          reply(`❌ Erro ao tentar reiniciar: ${e.message}`);
+        });
         break;
 
       case 'listaralugueis':
@@ -15373,7 +15590,341 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           await reply("❌ Ocorreu um erro inesperado ao adicionar o aluguel.");
         }
         break;
-      case 'gerarcodigo':
+      
+      case 'listaraluguel':
+      case 'veralugueis':
+      case 'listrentals':
+        if (!isOwner) return reply("🚫 Apenas o Dono principal pode ver a lista de aluguéis!");
+        try {
+          const rentalData = loadRentalData();
+          const groupIds = Object.keys(rentalData.groups || {});
+          
+          if (groupIds.length === 0) {
+            return reply("📭 Nenhum grupo com aluguel ativo no momento.");
+          }
+          
+          let message = `╭━━━⊱ 📋 *LISTA DE ALUGUÉIS* ⊱━━━╮\n`;
+          message += `│\n`;
+          message += `│ 📊 Total de grupos: ${groupIds.length}\n`;
+          message += `│\n`;
+          message += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          
+          const now = Date.now();
+          let activeCount = 0;
+          let expiredCount = 0;
+          let permanentCount = 0;
+          
+          for (const groupId of groupIds) {
+            const rental = rentalData.groups[groupId];
+            
+            try {
+              const groupMeta = await getCachedGroupMetadata(groupId);
+              const groupName = groupMeta?.subject || groupId;
+              const isPermanent = rental.duration === 'permanent';
+              const isExpired = !isPermanent && rental.expiresAt < now;
+              
+              if (isPermanent) permanentCount++;
+              else if (isExpired) expiredCount++;
+              else activeCount++;
+              
+              let statusIcon = '✅';
+              let statusText = 'Ativo';
+              
+              if (isPermanent) {
+                statusIcon = '♾️';
+                statusText = 'PERMANENTE';
+              } else if (isExpired) {
+                statusIcon = '❌';
+                statusText = 'EXPIRADO';
+              }
+              
+              message += `${statusIcon} *${groupName}*\n`;
+              message += `┌─────────────────\n`;
+              message += `│ 📱 ID: ${groupId}\n`;
+              message += `│ 📅 Status: ${statusText}\n`;
+              
+              if (!isPermanent) {
+                const daysLeft = Math.ceil((rental.expiresAt - now) / (1000 * 60 * 60 * 24));
+                const expirationDate = new Date(rental.expiresAt).toLocaleDateString('pt-BR');
+                message += `│ ⏰ Expira em: ${expirationDate}\n`;
+                message += `│ ⏳ Dias restantes: ${daysLeft > 0 ? daysLeft : 0}\n`;
+              }
+              
+              if (rental.addedAt) {
+                const addedDate = new Date(rental.addedAt).toLocaleDateString('pt-BR');
+                message += `│ 📆 Adicionado em: ${addedDate}\n`;
+              }
+              
+              message += `└─────────────────\n\n`;
+            } catch (e) {
+              message += `⚠️ Grupo não encontrado\n`;
+              message += `┌─────────────────\n`;
+              message += `│ 📱 ID: ${groupId}\n`;
+              message += `│ ❌ Erro ao buscar dados\n`;
+              message += `└─────────────────\n\n`;
+            }
+          }
+          
+          message += `╭━━━⊱ 📊 *ESTATÍSTICAS* ⊱━━━╮\n`;
+          message += `│\n`;
+          message += `│ ✅ Ativos: ${activeCount}\n`;
+          message += `│ ♾️ Permanentes: ${permanentCount}\n`;
+          message += `│ ❌ Expirados: ${expiredCount}\n`;
+          message += `│ 📦 Total: ${groupIds.length}\n`;
+          message += `│\n`;
+          message += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          message += `💡 *Comandos disponíveis:*\n`;
+          message += `• ${prefix}removeraluguel <id>\n`;
+          message += `• ${prefix}estenderaluguel <id> <dias>\n`;
+          message += `• ${prefix}infoaluguel <id>`;
+          
+          await reply(message);
+        } catch (e) {
+          console.error("Erro no comando listaraluguel:", e);
+          await reply("❌ Ocorreu um erro ao listar os aluguéis.");
+        }
+        break;
+      
+      case 'removeraluguel':
+      case 'deletaraluguel':
+      case 'cancelaraluguel':
+        if (!isOwner) return reply("🚫 Apenas o Dono principal pode remover aluguéis!");
+        try {
+          let targetGroupId = q?.trim() || '';
+          
+          // Se não passou ID e está no grupo, usa o grupo atual
+          if (!targetGroupId && isGroup) {
+            targetGroupId = from;
+          } else if (!targetGroupId) {
+            return reply(`💡 *Uso:* ${prefix}removeraluguel [id_do_grupo]\n\n📝 Use dentro de um grupo ou informe o ID.\n💡 Use ${prefix}listaraluguel para ver os IDs.`);
+          }
+          
+          if (!targetGroupId.trim()) {
+            return reply(`💡 *Uso:* ${prefix}removeraluguel [id_do_grupo]\n\n📝 Use dentro de um grupo ou informe o ID.`);
+          }
+          
+          // Normaliza o ID do grupo
+          if (!targetGroupId.includes('@g.us')) {
+            targetGroupId += '@g.us';
+          }
+          
+          const rentalData = loadRentalData();
+          
+          if (!rentalData.groups || !rentalData.groups[targetGroupId]) {
+            return reply(`❌ Este grupo não possui aluguel ativo.\n\n💡 Use ${prefix}listaraluguel para ver os grupos com aluguel.`);
+          }
+          
+          // Busca informações do grupo antes de remover
+          let groupName = targetGroupId;
+          try {
+            const groupMeta = await getCachedGroupMetadata(targetGroupId);
+            groupName = groupMeta?.subject || targetGroupId;
+          } catch (e) {
+            console.log("Erro ao buscar metadata do grupo:", e.message);
+          }
+          
+          // Remove o aluguel
+          delete rentalData.groups[targetGroupId];
+          saveRentalData(rentalData);
+          
+          let message = `╭━━━⊱ ✅ *ALUGUEL REMOVIDO* ⊱━━━╮\n`;
+          message += `│\n`;
+          message += `│ 🗑️ O aluguel do grupo foi\n`;
+          message += `│    removido com sucesso!\n`;
+          message += `│\n`;
+          message += `│ 📱 Grupo: ${groupName}\n`;
+          message += `│ 🆔 ID: ${targetGroupId}\n`;
+          message += `│\n`;
+          message += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          message += `⚠️ O bot não funcionará mais neste grupo até que um novo aluguel seja adicionado.`;
+          
+          await reply(message);
+          
+          // Tenta notificar o grupo
+          try {
+            await nazu.sendMessage(targetGroupId, {
+              text: `⚠️ *AVISO IMPORTANTE*\n\nO aluguel deste grupo foi removido pelo proprietário do bot.\n\n❌ O bot não funcionará mais neste grupo.\n\nPara mais informações, entre em contato com o dono.`
+            });
+          } catch (e) {
+            console.log("Não foi possível notificar o grupo:", e.message);
+          }
+        } catch (e) {
+          console.error("Erro no comando removeraluguel:", e);
+          await reply("❌ Ocorreu um erro ao remover o aluguel.");
+        }
+        break;
+      
+      case 'estenderaluguel':
+      case 'adddiasaluguel':
+      case 'extenderrental':
+        if (!isOwner) return reply("🚫 Apenas o Dono principal pode estender aluguéis!");
+        try {
+          const parts = q?.trim().split(' ') || [];
+          let targetGroupId;
+          let daysToAdd;
+          
+          // Se está no grupo e passou apenas 1 argumento (dias)
+          if (isGroup && parts.length === 1) {
+            targetGroupId = from;
+            daysToAdd = parseInt(parts[0]);
+          }
+          // Se passou 2 argumentos (id e dias)
+          else if (parts.length >= 2) {
+            targetGroupId = parts[0];
+            daysToAdd = parseInt(parts[1]);
+          }
+          // Nenhum argumento válido
+          else {
+            return reply(`💡 *Uso:* ${prefix}estenderaluguel <dias> (no grupo)\nou\n${prefix}estenderaluguel <id_do_grupo> <dias>\n\n📝 *Exemplo:*\n${prefix}estenderaluguel 7 (no grupo)\n${prefix}estenderaluguel 5511999999999 7\n\n💡 Use ${prefix}listaraluguel para ver os IDs.`);
+          }
+          
+          if (isNaN(daysToAdd) || daysToAdd <= 0) {
+            return reply("❌ O número de dias deve ser um valor positivo!");
+          }
+          
+          // Normaliza o ID do grupo
+          if (!targetGroupId.includes('@g.us')) {
+            targetGroupId += '@g.us';
+          }
+          
+          const result = extendGroupRental(targetGroupId, daysToAdd);
+          
+          if (!result.success) {
+            return reply(`❌ ${result.message}`);
+          }
+          
+          // Busca informações do grupo
+          let groupName = targetGroupId;
+          try {
+            const groupMeta = await getCachedGroupMetadata(targetGroupId);
+            groupName = groupMeta?.subject || targetGroupId;
+          } catch (e) {
+            console.log("Erro ao buscar metadata:", e.message);
+          }
+          
+          const rentalData = loadRentalData();
+          const rental = rentalData.groups[targetGroupId];
+          const newExpirationDate = new Date(rental.expiresAt).toLocaleDateString('pt-BR');
+          const daysLeft = Math.ceil((rental.expiresAt - Date.now()) / (1000 * 60 * 60 * 24));
+          
+          let message = `╭━━━⊱ ✅ *ALUGUEL ESTENDIDO* ⊱━━━╮\n`;
+          message += `│\n`;
+          message += `│ 📱 Grupo: ${groupName}\n`;
+          message += `│ ➕ Dias adicionados: ${daysToAdd}\n`;
+          message += `│ 📅 Nova expiração: ${newExpirationDate}\n`;
+          message += `│ ⏳ Dias restantes: ${daysLeft}\n`;
+          message += `│\n`;
+          message += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯`;
+          
+          await reply(message);
+          
+          // Notifica o grupo
+          try {
+            await nazu.sendMessage(targetGroupId, {
+              text: `🎉 *BOA NOTÍCIA!*\n\nSeu aluguel foi estendido!\n\n➕ Dias adicionados: *${daysToAdd}*\n📅 Nova data de expiração: *${newExpirationDate}*\n⏳ Dias restantes: *${daysLeft}*\n\n✨ Continue aproveitando o bot!`
+            });
+          } catch (e) {
+            console.log("Não foi possível notificar o grupo:", e.message);
+          }
+        } catch (e) {
+          console.error("Erro no comando estenderaluguel:", e);
+          await reply("❌ Ocorreu um erro ao estender o aluguel.");
+        }
+        break;
+      
+      case 'infoaluguel':
+      case 'statusaluguel':
+      case 'detalhesaluguel':
+        if (!isOwner) return reply("🚫 Apenas o Dono principal pode ver informações de aluguel!");
+        try {
+          let targetGroupId = q.trim();
+          
+          // Se não passou ID, usa o grupo atual
+          if (!targetGroupId || targetGroupId === '') {
+            if (!isGroup) {
+              return reply(`💡 *Uso:* ${prefix}infoaluguel <id_do_grupo>\n\n📝 Ou use este comando dentro do grupo para ver o status dele.`);
+            }
+            targetGroupId = from;
+          } else {
+            // Normaliza o ID
+            if (!targetGroupId.includes('@g.us')) {
+              targetGroupId += '@g.us';
+            }
+          }
+          
+          const rentalData = loadRentalData();
+          const rental = rentalData.groups?.[targetGroupId];
+          
+          if (!rental) {
+            return reply(`❌ Este grupo não possui aluguel ativo.\n\n💡 Use ${prefix}addaluguel para adicionar.`);
+          }
+          
+          // Busca informações do grupo
+          let groupName = targetGroupId;
+          let memberCount = 0;
+          try {
+            const groupMeta = await getCachedGroupMetadata(targetGroupId);
+            groupName = groupMeta?.subject || targetGroupId;
+            memberCount = groupMeta?.participants?.length || 0;
+          } catch (e) {
+            console.log("Erro ao buscar metadata:", e.message);
+          }
+          
+          const isPermanent = rental.duration === 'permanent';
+          const now = Date.now();
+          
+          let message = `╭━━━⊱ 📋 *DETALHES DO ALUGUEL* ⊱━━━╮\n`;
+          message += `│\n`;
+          message += `│ 📱 *GRUPO:* ${groupName}\n`;
+          message += `│ 🆔 *ID:* ${targetGroupId}\n`;
+          message += `│ 👥 *Membros:* ${memberCount}\n`;
+          message += `│\n`;
+          message += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+          
+          if (isPermanent) {
+            message += `♾️ *STATUS:* PERMANENTE\n\n`;
+            message += `✨ Este grupo tem aluguel permanente!\n`;
+            message += `⏰ Não há data de expiração.`;
+          } else {
+            const isExpired = rental.expiresAt < now;
+            const daysLeft = Math.ceil((rental.expiresAt - now) / (1000 * 60 * 60 * 24));
+            const expirationDate = new Date(rental.expiresAt).toLocaleDateString('pt-BR');
+            const expirationTime = new Date(rental.expiresAt).toLocaleTimeString('pt-BR');
+            
+            message += `📅 *STATUS:* ${isExpired ? '❌ EXPIRADO' : '✅ ATIVO'}\n\n`;
+            message += `⏰ *Data de expiração:*\n`;
+            message += `   ${expirationDate} às ${expirationTime}\n\n`;
+            
+            if (!isExpired) {
+              message += `⏳ *Tempo restante:* ${daysLeft} dia${daysLeft !== 1 ? 's' : ''}\n\n`;
+              
+              // Alerta se está perto de expirar
+              if (daysLeft <= 3) {
+                message += `⚠️ *ATENÇÃO:* O aluguel está próximo de expirar!\n\n`;
+              }
+            } else {
+              const daysExpired = Math.abs(daysLeft);
+              message += `⏳ *Expirado há:* ${daysExpired} dia${daysExpired !== 1 ? 's' : ''}\n\n`;
+            }
+          }
+          
+          if (rental.addedAt) {
+            const addedDate = new Date(rental.addedAt).toLocaleDateString('pt-BR');
+            message += `\n📆 *Aluguel adicionado em:* ${addedDate}`;
+          }
+          
+          message += `\n\n💡 *Comandos disponíveis:*\n`;
+          message += `• ${prefix}estenderaluguel ${targetGroupId} <dias>\n`;
+          message += `• ${prefix}removeraluguel ${targetGroupId}`;
+          
+          await reply(message);
+        } catch (e) {
+          console.error("Erro no comando infoaluguel:", e);
+          await reply("❌ Ocorreu um erro ao buscar informações do aluguel.");
+        }
+        break;
+      
+      case 'gerarcodigobr':
       case 'gerarcod':
         if (!isOwner) return reply("🚫 Apenas o Dono principal pode gerar códigos!");
         try {
@@ -15383,7 +15934,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           let durationDays = null;
           let targetGroupId = null;
           if (!durationArg) {
-            return reply(`🤔 Uso: ${prefix}gerarcodigo <dias|permanente> [id_do_grupo_opcional]`);
+            return reply(`🤔 Uso: ${prefix}gerarcodigobr <dias|permanente> [id_do_grupo_opcional]`);
           }
           if (durationArg === 'permanente') {
             durationDays = 'permanent';
@@ -16924,7 +17475,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'score':
       case 'compras':
       case 'cnh':
-        try {
+        {
           // Mapeamento de comandos para tipos de consulta
           const consultaTypes = {
             'cpf': { type: 'cpf', name: 'CPF', exemplo: `${prefix}cpf 12345678900` },
@@ -16950,7 +17501,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           
           // Verificar API key
           if (!KeyCog) {
-            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+            notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
 
@@ -16963,20 +17514,18 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             return reply(`❌ *CPF inválido!*\n\n📝 O CPF deve conter exatamente 11 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
           }
 
-          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+          reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
 
-          try {
-            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
-              params: {
-                type: consultaInfo.type,
-                dados: cpf
-              },
-              headers: {
-                'Authorization': `Bearer ${KeyCog}`
-              },
-              timeout: 30000
-            });
-
+          axios.get('https://cog.api.br/api/v1/consulta/', {
+            params: {
+              type: consultaInfo.type,
+              dados: cpf
+            },
+            headers: {
+              'Authorization': `Bearer ${KeyCog}`
+            },
+            timeout: 120000
+          }).then(response => {
             // Verificar se a resposta indica erro de limite
             if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
               const errorData = response.data;
@@ -17001,27 +17550,25 @@ As consultas de dados (CPF, Vizinhos, Proprietário, Empregos, Vacinas, Benefíc
 • Use o comando: !apikey suachave
 • Reinicie o bot após configurar`;
 
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
+                nazu.sendMessage(nmrdn, { text: ownerMessage }).catch(notifyErr => {
                   console.error('Erro ao notificar dono:', notifyErr.message);
-                }
+                });
 
                 return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
               }
             }
 
             if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-              await reply(`✅ *Consulta realizada com sucesso!*\n\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-          } else {
-            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CPF consultado.\n\n💡 *Possíveis motivos:*\n• CPF não cadastrado na base de dados\n• Dados não disponíveis no momento\n\n🔄 Tente novamente mais tarde.`);
-          }
-          } catch (apiError) {
+              reply(`✅ *Consulta realizada com sucesso!*\n\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+            } else {
+              reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CPF consultado.\n\n💡 *Possíveis motivos:*\n• CPF não cadastrado na base de dados\n• Dados não disponíveis no momento\n\n🔄 Tente novamente mais tarde.`);
+            }
+          }).catch(apiError => {
             console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
 
             // Verificar se é erro de API key
             if (isApiKeyError(apiError)) {
-              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+              notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
               return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
             }
 
@@ -17044,11 +17591,9 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
 • Entre em contato para fazer upgrade do seu plano
 • Configure a nova API key após o upgrade`;
 
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
+                nazu.sendMessage(nmrdn, { text: ownerMessage }).catch(notifyErr => {
                   console.error('Erro ao notificar dono:', notifyErr.message);
-                }
+                });
 
                 return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
               }
@@ -17056,20 +17601,17 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
 
             // Erro genérico
             if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CPF consultado.\n\n💡 *Possíveis motivos:*\n• CPF não cadastrado na base de dados\n• Dados não disponíveis no momento\n\n🔄 Tente novamente mais tarde.`);
-          } else {
-              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
-          }
-          }
-        } catch (e) {
-          console.error(`Erro geral no comando ${command}:`, e);
-          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+              reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CPF consultado.\n\n💡 *Possíveis motivos:*\n• CPF não cadastrado na base de dados\n• Dados não disponíveis no momento\n\n🔄 Tente novamente mais tarde.`);
+            } else {
+              reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+            }
+          });
         }
         break;
       case 'nome':
       case 'pai':
       case 'mae':
-        try {
+        {
           // Mapeamento de comandos para tipos de consulta
           const consultaTypes = {
             'nome': { type: 'nome', name: 'Nome', exemplo: `${prefix}nome João Silva Santos` },
@@ -17085,7 +17627,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
           
           // Verificar API key
           if (!KeyCog) {
-            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+            notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
 
@@ -17098,20 +17640,18 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
             return reply(`❌ *Nome muito curto!*\n\n📝 O nome deve conter pelo menos 3 caracteres.\n💡 Exemplo: ${consultaInfo.exemplo}`);
           }
 
-          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+          reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
 
-          try {
-            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
-              params: {
-                type: consultaInfo.type,
-                dados: nome
-              },
-              headers: {
-                'Authorization': `Bearer ${KeyCog}`
-              },
-              timeout: 30000
-            });
-
+          axios.get('https://cog.api.br/api/v1/consulta/', {
+            params: {
+              type: consultaInfo.type,
+              dados: nome
+            },
+            headers: {
+              'Authorization': `Bearer ${KeyCog}`
+            },
+            timeout: 120000
+          }).then(response => {
             // Verificar se a resposta indica erro de limite
             if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
               const errorData = response.data;
@@ -17136,27 +17676,25 @@ As consultas de dados (Nome, Pai, Mãe) estão disponíveis apenas no *plano ili
 • Use o comando: !apikey suachave
 • Reinicie o bot após configurar`;
 
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
+                nazu.sendMessage(nmrdn, { text: ownerMessage }).catch(notifyErr => {
                   console.error('Erro ao notificar dono:', notifyErr.message);
-                }
+                });
 
                 return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
               }
             }
 
             if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-              await reply(`✅ *Consulta realizada com sucesso!*\n\n👤 *${consultaInfo.name} consultado(a):* ${nome}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-          } else {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o ${consultaInfo.name.toLowerCase()} consultado.\n\n💡 *Possíveis motivos:*\n• ${consultaInfo.name} não cadastrado na base de dados\n• Dados não disponíveis no momento\n• ${consultaInfo.name} digitado incorretamente\n\n🔄 Tente verificar a grafia e tentar novamente.`);
+              reply(`✅ *Consulta realizada com sucesso!*\n\n👤 *${consultaInfo.name} consultado(a):* ${nome}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+            } else {
+              reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o ${consultaInfo.name.toLowerCase()} consultado.\n\n💡 *Possíveis motivos:*\n• ${consultaInfo.name} não cadastrado na base de dados\n• Dados não disponíveis no momento\n• ${consultaInfo.name} digitado incorretamente\n\n🔄 Tente verificar a grafia e tentar novamente.`);
             }
-          } catch (apiError) {
+          }).catch(apiError => {
             console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
 
             // Verificar se é erro de API key
             if (isApiKeyError(apiError)) {
-              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+              notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
               return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
             }
 
@@ -17179,11 +17717,9 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
 • Entre em contato para fazer upgrade do seu plano
 • Configure a nova API key após o upgrade`;
 
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
+                nazu.sendMessage(nmrdn, { text: ownerMessage }).catch(notifyErr => {
                   console.error('Erro ao notificar dono:', notifyErr.message);
-                }
+                });
 
                 return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
               }
@@ -17191,19 +17727,16 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
 
             // Erro genérico
             if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o ${consultaInfo.name.toLowerCase()} consultado.\n\n💡 *Possíveis motivos:*\n• ${consultaInfo.name} não cadastrado na base de dados\n• Dados não disponíveis no momento\n• ${consultaInfo.name} digitado incorretamente\n\n🔄 Tente verificar a grafia e tentar novamente.`);
-          } else {
-              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
-          }
-          }
-        } catch (e) {
-          console.error(`Erro geral no comando ${command}:`, e);
-          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+              reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o ${consultaInfo.name.toLowerCase()} consultado.\n\n💡 *Possíveis motivos:*\n• ${consultaInfo.name} não cadastrado na base de dados\n• Dados não disponíveis no momento\n• ${consultaInfo.name} digitado incorretamente\n\n🔄 Tente verificar a grafia e tentar novamente.`);
+            } else {
+              reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+            }
+          });
         }
         break;
       case 'telefone':
       case 'tel':
-        try {
+        {
           // Mapeamento de comandos para tipos de consulta
           const consultaTypes = {
             'telefone': { type: 'telefone', name: 'Telefone', exemplo: `${prefix}telefone 11987654321` },
@@ -17218,7 +17751,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
           
           // Verificar API key
           if (!KeyCog) {
-            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+            notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
 
@@ -17231,859 +17764,488 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
             return reply(`❌ *Telefone inválido!*\n\n📝 O telefone deve conter 10 ou 11 dígitos (com DDD e o 9 da operadora).\n💡 Exemplo: ${consultaInfo.exemplo}\n\n📋 *Formato esperado:*\n• DDD (2 dígitos)\n• 9 (operadora)\n• Número (8 dígitos)`);
           }
 
-          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+          reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
 
-          try {
-            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
-              params: {
-                type: consultaInfo.type,
-                dados: telefone
-              },
-              headers: {
-                'Authorization': `Bearer ${KeyCog}`
-              },
-              timeout: 30000
-            });
-
+          axios.get('https://cog.api.br/api/v1/consulta/', {
+            params: {
+              type: consultaInfo.type,
+              dados: telefone
+            },
+            headers: {
+              'Authorization': `Bearer ${KeyCog}`
+            },
+            timeout: 120000
+          }).then(response => {
             // Verificar se a resposta indica erro de limite
             if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
               const errorData = response.data;
               if (errorData.required_limit && errorData.required_limit > 500) {
-                // Notificar dono sobre necessidade de plano ilimitado
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados (Telefone) estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade
-
-⚙️ *Como atualizar API key:*
-• Use o comando: !apikey suachave
-• Reinicie o bot após configurar`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
+                nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE* 🚨\n\nConsulta: ${consultaInfo.name}\nLimite necessário: ${errorData.required_limit}` }).catch(() => {});
+                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado.`);
               }
             }
 
             if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-              await reply(`✅ *Consulta realizada com sucesso!*\n\n📱 *Telefone consultado:* ${telefone}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-          } else {
-            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o telefone consultado.\n\n💡 *Possíveis motivos:*\n• Telefone não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Número digitado incorretamente\n\n🔄 Verifique o número e tente novamente.`);
-          }
-          } catch (apiError) {
+              reply(`✅ *Consulta realizada com sucesso!*\n\n📱 *Telefone consultado:* ${telefone}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+            } else {
+              reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o telefone consultado.`);
+            }
+          }).catch(apiError => {
             console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-            // Verificar se é erro de API key
             if (isApiKeyError(apiError)) {
-              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
+              notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+              return reply(`❌ *Erro na API Key*\n\n⚠️ O dono do bot foi notificado.`);
             }
-
-            // Verificar se é erro de limite
-            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-              const errorData = apiError.response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            // Erro genérico
-            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-            await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o telefone consultado.\n\n💡 *Possíveis motivos:*\n• Telefone não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Número digitado incorretamente\n\n🔄 Verifique o número e tente novamente.`);
-          } else {
-              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
-            }
-          }
-        } catch (e) {
-          console.error(`Erro geral no comando ${command}:`, e);
-          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno.`);
+          });
         }
         break;
-      case 'placa':
-        try {
-          // Mapeamento de comandos para tipos de consulta
-          const consultaTypes = {
-            'placa': { type: 'placa', name: 'Placa', exemplo: `${prefix}placa ABC1234` }
-          };
+      case 'placa': {
+        const consultaTypes = {
+          'placa': { type: 'placa', name: 'Placa', exemplo: `${prefix}placa ABC1234` }
+        };
 
-          const consultaInfo = consultaTypes[command.toLowerCase()];
-          
-          if (!consultaInfo) {
-            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-          }
-          
-          // Verificar API key
-          if (!KeyCog) {
-            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-
-          if (!q) {
-            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite a placa após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* 3 letras e 4 números (ex: ABC1234)`);
-          }
-
-          const placa = q.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-          // Aceita formato antigo (ABC1234) ou Mercosul (ABC1D23)
-          if (placa.length !== 7 || (!/^[A-Z]{3}[0-9]{4}$/.test(placa) && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(placa))) {
-            return reply(`❌ *Placa inválida!*\n\n📝 A placa deve ter 7 caracteres.\n💡 Formato antigo: ABC1234\n💡 Formato Mercosul: ABC1D23\n💡 Exemplo: ${consultaInfo.exemplo}`);
-          }
-
-          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-          try {
-            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
-              params: {
-                type: consultaInfo.type,
-                dados: placa
-              },
-              headers: {
-                'Authorization': `Bearer ${KeyCog}`
-              },
-              timeout: 30000
-            });
-
-            // Verificar se a resposta indica erro de limite
-            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-              const errorData = response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados (Placa) estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade
-
-⚙️ *Como atualizar API key:*
-• Use o comando: !apikey suachave
-• Reinicie o bot após configurar`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-              await reply(`✅ *Consulta realizada com sucesso!*\n\n🚗 *Placa consultada:* ${placa}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-            } else {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para a placa consultada.\n\n💡 *Possíveis motivos:*\n• Placa não cadastrada na base de dados\n• Dados não disponíveis no momento\n• Placa digitada incorretamente\n\n🔄 Verifique a placa e tente novamente.`);
-            }
-          } catch (apiError) {
-            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-            if (isApiKeyError(apiError)) {
-              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
-            }
-
-            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-              const errorData = apiError.response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para a placa consultada.\n\n💡 *Possíveis motivos:*\n• Placa não cadastrada na base de dados\n• Dados não disponíveis no momento\n• Placa digitada incorretamente\n\n🔄 Verifique a placa e tente novamente.`);
-            } else {
-              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
-            }
-          }
-        } catch (e) {
-          console.error(`Erro geral no comando ${command}:`, e);
-          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+        const consultaInfo = consultaTypes[command.toLowerCase()];
+        
+        if (!consultaInfo) {
+          return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
         }
+        
+        if (!KeyCog) {
+          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+          return reply(API_KEY_REQUIRED_MESSAGE);
+        }
+
+        if (!q) {
+          return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite a placa após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* 3 letras e 4 números (ex: ABC1234)`);
+        }
+
+        const placa = q.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (placa.length !== 7 || (!/^[A-Z]{3}[0-9]{4}$/.test(placa) && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(placa))) {
+          return reply(`❌ *Placa inválida!*\n\n📝 A placa deve ter 7 caracteres.\n💡 Formato antigo: ABC1234\n💡 Formato Mercosul: ABC1D23\n💡 Exemplo: ${consultaInfo.exemplo}`);
+        }
+
+        reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+        axios.get('https://cog.api.br/api/v1/consulta/', {
+          params: {
+            type: consultaInfo.type,
+            dados: placa
+          },
+          headers: {
+            'Authorization': `Bearer ${KeyCog}`
+          },
+          timeout: 120000
+        }).then(response => {
+          if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+            const errorData = response.data;
+            if (errorData.required_limit && errorData.required_limit > 500) {
+              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
+              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
+            }
+          }
+
+          if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+            reply(`✅ *Consulta realizada com sucesso!*\n\n🚗 *Placa consultada:* ${placa}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+          } else {
+            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para a placa consultada.\n\n🔄 Verifique a placa e tente novamente.`);
+          }
+        }).catch(apiError => {
+          console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+          if (isApiKeyError(apiError)) {
+            notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+            return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key. O dono foi notificado.`);
+          }
+
+          if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+            const errorData = apiError.response.data;
+            if (errorData.required_limit && errorData.required_limit > 500) {
+              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
+              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
+            }
+          }
+
+          if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para a placa consultada.\n\n🔄 Verifique a placa e tente novamente.`);
+          } else {
+            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente.`);
+          }
+        });
+      }
         break;
-      case 'chassi':
-        try {
-          const consultaTypes = {
-            'chassi': { type: 'chassi', name: 'Chassi', exemplo: `${prefix}chassi 9BW11111111111111` }
-          };
+      case 'chassi': {
+        const consultaTypes = {
+          'chassi': { type: 'chassi', name: 'Chassi', exemplo: `${prefix}chassi 9BW11111111111111` }
+        };
 
-          const consultaInfo = consultaTypes[command.toLowerCase()];
-          
-          if (!consultaInfo) {
-            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-          }
-          
-          if (!KeyCog) {
-            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-
-          if (!q) {
-            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o chassi após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* 17 caracteres alfanuméricos`);
-          }
-
-          const chassi = q.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-          if (chassi.length !== 17) {
-            return reply(`❌ *Chassi inválido!*\n\n📝 O chassi deve conter exatamente 17 caracteres alfanuméricos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
-          }
-
-          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-          try {
-            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
-              params: {
-                type: consultaInfo.type,
-                dados: chassi
-              },
-              headers: {
-                'Authorization': `Bearer ${KeyCog}`
-              },
-              timeout: 30000
-            });
-
-            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-              const errorData = response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados (Chassi) estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade
-
-⚙️ *Como atualizar API key:*
-• Use o comando: !apikey suachave
-• Reinicie o bot após configurar`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-              await reply(`✅ *Consulta realizada com sucesso!*\n\n🔧 *Chassi consultado:* ${chassi}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-            } else {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o chassi consultado.\n\n💡 *Possíveis motivos:*\n• Chassi não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Chassi digitado incorretamente\n\n🔄 Verifique o chassi e tente novamente.`);
-            }
-          } catch (apiError) {
-            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-            if (isApiKeyError(apiError)) {
-              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
-            }
-
-            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-              const errorData = apiError.response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o chassi consultado.\n\n💡 *Possíveis motivos:*\n• Chassi não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Chassi digitado incorretamente\n\n🔄 Verifique o chassi e tente novamente.`);
-            } else {
-              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
-            }
-          }
-        } catch (e) {
-          console.error(`Erro geral no comando ${command}:`, e);
-          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+        const consultaInfo = consultaTypes[command.toLowerCase()];
+        
+        if (!consultaInfo) {
+          return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
         }
+        
+        if (!KeyCog) {
+          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+          return reply(API_KEY_REQUIRED_MESSAGE);
+        }
+
+        if (!q) {
+          return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o chassi após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* 17 caracteres alfanuméricos`);
+        }
+
+        const chassi = q.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (chassi.length !== 17) {
+          return reply(`❌ *Chassi inválido!*\n\n📝 O chassi deve conter exatamente 17 caracteres alfanuméricos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
+        }
+
+        reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+        axios.get('https://cog.api.br/api/v1/consulta/', {
+          params: {
+            type: consultaInfo.type,
+            dados: chassi
+          },
+          headers: {
+            'Authorization': `Bearer ${KeyCog}`
+          },
+          timeout: 120000
+        }).then(response => {
+          if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+            const errorData = response.data;
+            if (errorData.required_limit && errorData.required_limit > 500) {
+              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
+              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
+            }
+          }
+
+          if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+            reply(`✅ *Consulta realizada com sucesso!*\n\n🔧 *Chassi consultado:* ${chassi}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+          } else {
+            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o chassi consultado.\n\n🔄 Verifique o chassi e tente novamente.`);
+          }
+        }).catch(apiError => {
+          console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+          if (isApiKeyError(apiError)) {
+            notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+            return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key. O dono foi notificado.`);
+          }
+
+          if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+            const errorData = apiError.response.data;
+            if (errorData.required_limit && errorData.required_limit > 500) {
+              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
+              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
+            }
+          }
+
+          if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o chassi consultado.\n\n🔄 Verifique o chassi e tente novamente.`);
+          } else {
+            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente.`);
+          }
+        });
+      }
         break;
       case 'cnpj':
-      case 'funcionarios':
-        try {
-          const consultaTypes = {
-            'cnpj': { type: 'cnpj', name: 'CNPJ', exemplo: `${prefix}cnpj 12345678000190` },
-            'funcionarios': { type: 'funcionarios', name: 'Funcionários', exemplo: `${prefix}funcionarios 12345678000190` }
-          };
+      case 'funcionarios': {
+        const consultaTypes = {
+          'cnpj': { type: 'cnpj', name: 'CNPJ', exemplo: `${prefix}cnpj 12345678000190` },
+          'funcionarios': { type: 'funcionarios', name: 'Funcionários', exemplo: `${prefix}funcionarios 12345678000190` }
+        };
 
-          const consultaInfo = consultaTypes[command.toLowerCase()];
-          
-          if (!consultaInfo) {
-            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-          }
-          
-          if (!KeyCog) {
-            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-
-          if (!q) {
-            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o CNPJ após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços (14 dígitos)`);
-          }
-
-          const cnpj = q.replace(/\D/g, '');
-          if (cnpj.length !== 14) {
-            return reply(`❌ *CNPJ inválido!*\n\n📝 O CNPJ deve conter exatamente 14 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
-          }
-
-          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-          try {
-            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
-              params: {
-                type: consultaInfo.type,
-                dados: cnpj
-              },
-              headers: {
-                'Authorization': `Bearer ${KeyCog}`
-              },
-              timeout: 30000
-            });
-
-            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-              const errorData = response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados (CNPJ, Funcionários) estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade
-
-⚙️ *Como atualizar API key:*
-• Use o comando: !apikey suachave
-• Reinicie o bot após configurar`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-              await reply(`✅ *Consulta realizada com sucesso!*\n\n🏢 *CNPJ consultado:* ${cnpj}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-            } else {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CNPJ consultado.\n\n💡 *Possíveis motivos:*\n• CNPJ não cadastrado na base de dados\n• Dados não disponíveis no momento\n• CNPJ digitado incorretamente\n\n🔄 Verifique o CNPJ e tente novamente.`);
-            }
-          } catch (apiError) {
-            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-            if (isApiKeyError(apiError)) {
-              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
-            }
-
-            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-              const errorData = apiError.response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CNPJ consultado.\n\n💡 *Possíveis motivos:*\n• CNPJ não cadastrado na base de dados\n• Dados não disponíveis no momento\n• CNPJ digitado incorretamente\n\n🔄 Verifique o CNPJ e tente novamente.`);
-            } else {
-              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
-            }
-          }
-        } catch (e) {
-          console.error(`Erro geral no comando ${command}:`, e);
-          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+        const consultaInfo = consultaTypes[command.toLowerCase()];
+        
+        if (!consultaInfo) {
+          return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
         }
+        
+        if (!KeyCog) {
+          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+          return reply(API_KEY_REQUIRED_MESSAGE);
+        }
+
+        if (!q) {
+          return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o CNPJ após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços (14 dígitos)`);
+        }
+
+        const cnpj = q.replace(/\D/g, '');
+        if (cnpj.length !== 14) {
+          return reply(`❌ *CNPJ inválido!*\n\n📝 O CNPJ deve conter exatamente 14 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
+        }
+
+        reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+        axios.get('https://cog.api.br/api/v1/consulta/', {
+          params: {
+            type: consultaInfo.type,
+            dados: cnpj
+          },
+          headers: {
+            'Authorization': `Bearer ${KeyCog}`
+          },
+          timeout: 120000
+        }).then(response => {
+          if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+            const errorData = response.data;
+            if (errorData.required_limit && errorData.required_limit > 500) {
+              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
+              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
+            }
+          }
+
+          if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+            reply(`✅ *Consulta realizada com sucesso!*\n\n🏢 *CNPJ consultado:* ${cnpj}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+          } else {
+            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CNPJ consultado.\n\n🔄 Verifique o CNPJ e tente novamente.`);
+          }
+        }).catch(apiError => {
+          console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+          if (isApiKeyError(apiError)) {
+            notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+            return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key. O dono foi notificado.`);
+          }
+
+          if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+            const errorData = apiError.response.data;
+            if (errorData.required_limit && errorData.required_limit > 500) {
+              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
+              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
+            }
+          }
+
+          if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CNPJ consultado.\n\n🔄 Verifique o CNPJ e tente novamente.`);
+          } else {
+            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente.`);
+          }
+        });
+      }
         break;
-      case 'cep':
-        try {
-          const consultaTypes = {
-            'cep': { type: 'cep', name: 'CEP', exemplo: `${prefix}cep 12345678` }
-          };
+      case 'cep': {
+        const consultaTypes = {
+          'cep': { type: 'cep', name: 'CEP', exemplo: `${prefix}cep 12345678` }
+        };
 
-          const consultaInfo = consultaTypes[command.toLowerCase()];
-          
-          if (!consultaInfo) {
-            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-          }
-          
-          if (!KeyCog) {
-            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-
-          if (!q) {
-            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o CEP após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços (8 dígitos)`);
-          }
-
-          const cep = q.replace(/\D/g, '');
-          if (cep.length !== 8) {
-            return reply(`❌ *CEP inválido!*\n\n📝 O CEP deve conter exatamente 8 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
-          }
-
-          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-          try {
-            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
-              params: {
-                type: consultaInfo.type,
-                dados: cep
-              },
-              headers: {
-                'Authorization': `Bearer ${KeyCog}`
-              },
-              timeout: 30000
-            });
-
-            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-              const errorData = response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados (CEP) estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade
-
-⚙️ *Como atualizar API key:*
-• Use o comando: !apikey suachave
-• Reinicie o bot após configurar`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-              await reply(`✅ *Consulta realizada com sucesso!*\n\n📍 *CEP consultado:* ${cep}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-            } else {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CEP consultado.\n\n💡 *Possíveis motivos:*\n• CEP não cadastrado na base de dados\n• Dados não disponíveis no momento\n• CEP digitado incorretamente\n\n🔄 Verifique o CEP e tente novamente.`);
-            }
-          } catch (apiError) {
-            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-            if (isApiKeyError(apiError)) {
-              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
-            }
-
-            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-              const errorData = apiError.response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CEP consultado.\n\n💡 *Possíveis motivos:*\n• CEP não cadastrado na base de dados\n• Dados não disponíveis no momento\n• CEP digitado incorretamente\n\n🔄 Verifique o CEP e tente novamente.`);
-            } else {
-              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
-            }
-          }
-        } catch (e) {
-          console.error(`Erro geral no comando ${command}:`, e);
-          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+        const consultaInfo = consultaTypes[command.toLowerCase()];
+        
+        if (!consultaInfo) {
+          return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
         }
+        
+        if (!KeyCog) {
+          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+          return reply(API_KEY_REQUIRED_MESSAGE);
+        }
+
+        if (!q) {
+          return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o CEP após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços (8 dígitos)`);
+        }
+
+        const cep = q.replace(/\D/g, '');
+        if (cep.length !== 8) {
+          return reply(`❌ *CEP inválido!*\n\n📝 O CEP deve conter exatamente 8 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
+        }
+
+        reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+        axios.get('https://cog.api.br/api/v1/consulta/', {
+          params: {
+            type: consultaInfo.type,
+            dados: cep
+          },
+          headers: {
+            'Authorization': `Bearer ${KeyCog}`
+          },
+          timeout: 120000
+        }).then(response => {
+          if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+            const errorData = response.data;
+            if (errorData.required_limit && errorData.required_limit > 500) {
+              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
+              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
+            }
+          }
+
+          if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+            reply(`✅ *Consulta realizada com sucesso!*\n\n📍 *CEP consultado:* ${cep}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+          } else {
+            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CEP consultado.\n\n🔄 Verifique o CEP e tente novamente.`);
+          }
+        }).catch(apiError => {
+          console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+          if (isApiKeyError(apiError)) {
+            notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+            return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key. O dono foi notificado.`);
+          }
+
+          if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+            const errorData = apiError.response.data;
+            if (errorData.required_limit && errorData.required_limit > 500) {
+              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
+              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
+            }
+          }
+
+          if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CEP consultado.\n\n🔄 Verifique o CEP e tente novamente.`);
+          } else {
+            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente.`);
+          }
+        });
+      }
         break;
-      case 'email':
-        try {
-          const consultaTypes = {
-            'email': { type: 'email', name: 'Email', exemplo: `${prefix}email exemplo@email.com` }
-          };
+      case 'email': {
+        const consultaTypes = {
+          'email': { type: 'email', name: 'Email', exemplo: `${prefix}email exemplo@email.com` }
+        };
 
-          const consultaInfo = consultaTypes[command.toLowerCase()];
-          
-          if (!consultaInfo) {
-            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-          }
-          
-          if (!KeyCog) {
-            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-
-          if (!q) {
-            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o email após o comando\n• Exemplo: ${consultaInfo.exemplo}`);
-          }
-
-          const email = q.trim().toLowerCase();
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (!emailRegex.test(email)) {
-            return reply(`❌ *Email inválido!*\n\n📝 O email deve ter um formato válido.\n💡 Exemplo: ${consultaInfo.exemplo}`);
-          }
-
-          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-          try {
-            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
-              params: {
-                type: consultaInfo.type,
-                dados: email
-              },
-              headers: {
-                'Authorization': `Bearer ${KeyCog}`
-              },
-              timeout: 30000
-            });
-
-            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-              const errorData = response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados (Email) estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade
-
-⚙️ *Como atualizar API key:*
-• Use o comando: !apikey suachave
-• Reinicie o bot após configurar`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-              await reply(`✅ *Consulta realizada com sucesso!*\n\n📧 *Email consultado:* ${email}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-            } else {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o email consultado.\n\n💡 *Possíveis motivos:*\n• Email não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Email digitado incorretamente\n\n🔄 Verifique o email e tente novamente.`);
-            }
-          } catch (apiError) {
-            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-            if (isApiKeyError(apiError)) {
-              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
-            }
-
-            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-              const errorData = apiError.response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o email consultado.\n\n💡 *Possíveis motivos:*\n• Email não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Email digitado incorretamente\n\n🔄 Verifique o email e tente novamente.`);
-            } else {
-              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
-            }
-          }
-        } catch (e) {
-          console.error(`Erro geral no comando ${command}:`, e);
-          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+        const consultaInfo = consultaTypes[command.toLowerCase()];
+        
+        if (!consultaInfo) {
+          return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
         }
+        
+        if (!KeyCog) {
+          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+          return reply(API_KEY_REQUIRED_MESSAGE);
+        }
+
+        if (!q) {
+          return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o email após o comando\n• Exemplo: ${consultaInfo.exemplo}`);
+        }
+
+        const email = q.trim().toLowerCase();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          return reply(`❌ *Email inválido!*\n\n📝 O email deve ter um formato válido.\n💡 Exemplo: ${consultaInfo.exemplo}`);
+        }
+
+        reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+        axios.get('https://cog.api.br/api/v1/consulta/', {
+          params: {
+            type: consultaInfo.type,
+            dados: email
+          },
+          headers: {
+            'Authorization': `Bearer ${KeyCog}`
+          },
+          timeout: 120000
+        }).then(response => {
+          if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+            const errorData = response.data;
+            if (errorData.required_limit && errorData.required_limit > 500) {
+              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
+              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
+            }
+          }
+
+          if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+            reply(`✅ *Consulta realizada com sucesso!*\n\n📧 *Email consultado:* ${email}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+          } else {
+            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o email consultado.\n\n🔄 Verifique o email e tente novamente.`);
+          }
+        }).catch(apiError => {
+          console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+          if (isApiKeyError(apiError)) {
+            notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+            return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key. O dono foi notificado.`);
+          }
+
+          if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+            const errorData = apiError.response.data;
+            if (errorData.required_limit && errorData.required_limit > 500) {
+              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
+              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
+            }
+          }
+
+          if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o email consultado.\n\n🔄 Verifique o email e tente novamente.`);
+          } else {
+            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente.`);
+          }
+        });
+      }
         break;
-      case 'titulo':
-        try {
-          const consultaTypes = {
-            'titulo': { type: 'titulo', name: 'Título de Eleitor', exemplo: `${prefix}titulo 123456789012` }
-          };
+      case 'titulo': {
+        const consultaTypes = {
+          'titulo': { type: 'titulo', name: 'Título de Eleitor', exemplo: `${prefix}titulo 123456789012` }
+        };
 
-          const consultaInfo = consultaTypes[command.toLowerCase()];
-          
-          if (!consultaInfo) {
-            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-          }
-          
-          if (!KeyCog) {
-            await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-
-          if (!q) {
-            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o título de eleitor após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços (12 dígitos)`);
-          }
-
-          const titulo = q.replace(/\D/g, '');
-          if (titulo.length !== 12) {
-            return reply(`❌ *Título de eleitor inválido!*\n\n📝 O título de eleitor deve conter exatamente 12 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
-          }
-
-          await reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-          try {
-            const response = await axios.get('https://cog.api.br/api/v1/consulta/', {
-              params: {
-                type: consultaInfo.type,
-                dados: titulo
-              },
-              headers: {
-                'Authorization': `Bearer ${KeyCog}`
-              },
-              timeout: 30000
-            });
-
-            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-              const errorData = response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados (Título de Eleitor) estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade
-
-⚙️ *Como atualizar API key:*
-• Use o comando: !apikey suachave
-• Reinicie o bot após configurar`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-              await reply(`✅ *Consulta realizada com sucesso!*\n\n🗳️ *Título de eleitor consultado:* ${titulo}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-            } else {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o título de eleitor consultado.\n\n💡 *Possíveis motivos:*\n• Título de eleitor não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Título digitado incorretamente\n\n🔄 Verifique o título e tente novamente.`);
-            }
-          } catch (apiError) {
-            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-            if (isApiKeyError(apiError)) {
-              await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
-            }
-
-            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-              const errorData = apiError.response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade`;
-
-                try {
-                  await nazu.sendMessage(nmrdn, { text: ownerMessage });
-                } catch (notifyErr) {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                }
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-              await reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o título de eleitor consultado.\n\n💡 *Possíveis motivos:*\n• Título de eleitor não cadastrado na base de dados\n• Dados não disponíveis no momento\n• Título digitado incorretamente\n\n🔄 Verifique o título e tente novamente.`);
-            } else {
-              await reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
-            }
-          }
-        } catch (e) {
-          console.error(`Erro geral no comando ${command}:`, e);
-          await reply(`❌ *Erro ao processar consulta*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
+        const consultaInfo = consultaTypes[command.toLowerCase()];
+        
+        if (!consultaInfo) {
+          return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
         }
+        
+        if (!KeyCog) {
+          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
+          return reply(API_KEY_REQUIRED_MESSAGE);
+        }
+
+        if (!q) {
+          return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o título de eleitor após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços (12 dígitos)`);
+        }
+
+        const titulo = q.replace(/\D/g, '');
+        if (titulo.length !== 12) {
+          return reply(`❌ *Título de eleitor inválido!*\n\n📝 O título de eleitor deve conter exatamente 12 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
+        }
+
+        reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
+
+        axios.get('https://cog.api.br/api/v1/consulta/', {
+          params: {
+            type: consultaInfo.type,
+            dados: titulo
+          },
+          headers: {
+            'Authorization': `Bearer ${KeyCog}`
+          },
+          timeout: 120000
+        }).then(response => {
+          if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
+            const errorData = response.data;
+            if (errorData.required_limit && errorData.required_limit > 500) {
+              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
+              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
+            }
+          }
+
+          if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
+            reply(`✅ *Consulta realizada com sucesso!*\n\n🗳️ *Título de eleitor consultado:* ${titulo}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
+          } else {
+            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o título de eleitor consultado.\n\n🔄 Verifique o título e tente novamente.`);
+          }
+        }).catch(apiError => {
+          console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
+
+          if (isApiKeyError(apiError)) {
+            notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
+            return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key. O dono foi notificado.`);
+          }
+
+          if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
+            const errorData = apiError.response.data;
+            if (errorData.required_limit && errorData.required_limit > 500) {
+              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
+              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
+            }
+          }
+
+          if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
+            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o título de eleitor consultado.\n\n🔄 Verifique o título e tente novamente.`);
+          } else {
+            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente.`);
+          }
+        });
+      }
         break;
       case 'nick':
       case 'gerarnick':
@@ -18171,7 +18333,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
           
           // Verificar domínio na API FishFish
           const fishResponse = await axios.get(`https://api.fishfish.gg/v1/domains/${encodeURIComponent(domain)}`, {
-            timeout: 15000,
+            timeout: 120000,
             validateStatus: (status) => status < 500
           });
           
@@ -18221,11 +18383,11 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
         }
         break;
       
-      // FUSO HORÁRIO
-      case 'hora':
-      case 'horario':
-      case 'fuso':
-      case 'timezone':
+      // FUSO HORÁRIO MUNDIAL (versão alternativa)
+      case 'horamundial':
+      case 'worldtime':
+      case 'fusohorario':
+      case 'horariomundial':
         try {
           if (!q) return reply(`🕐 *Consulta de Horário Mundial*\n\n📝 *Uso:* ${prefix}${command} <cidade/país>\n\n📌 *Exemplos:*\n${prefix}${command} tokyo\n${prefix}${command} new york\n${prefix}${command} london\n${prefix}${command} são paulo\n\n💡 *Dica:* Use nomes em inglês para melhores resultados!`);
           
@@ -18318,21 +18480,19 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
         }
         break;
       
-      // CLIMA / PREVISÃO DO TEMPO
-      case 'clima':
-      case 'tempo':
-      case 'weather':
-      case 'previsao':
-        try {
-          if (!q) return reply(`🌤️ *Previsão do Tempo*\n\n📝 *Uso:* ${prefix}${command} <cidade>\n\n📌 *Exemplos:*\n${prefix}${command} São Paulo\n${prefix}${command} Tokyo\n${prefix}${command} New York`);
-          
-          const city = q.trim();
-          
-          // Usando a API wttr.in (gratuita, não precisa de API key)
-          const weatherResponse = await axios.get(`https://wttr.in/${encodeURIComponent(city)}?format=j1&lang=pt`, {
-            timeout: 15000
-          });
-          
+      // CLIMA / PREVISÃO DO TEMPO (versão alternativa)
+      case 'clima2':
+      case 'tempo2':
+      case 'weather2':
+      case 'previsao2':
+        if (!q) return reply(`🌤️ *Previsão do Tempo*\n\n📝 *Uso:* ${prefix}${command} <cidade>\n\n📌 *Exemplos:*\n${prefix}${command} São Paulo\n${prefix}${command} Tokyo\n${prefix}${command} New York`);
+        
+        const city = q.trim();
+        
+        // Usando a API wttr.in (gratuita, não precisa de API key)
+        axios.get(`https://wttr.in/${encodeURIComponent(city)}?format=j1&lang=pt`, {
+          timeout: 120000
+        }).then((weatherResponse) => {
           if (!weatherResponse.data || !weatherResponse.data.current_condition) {
             return reply('❌ Cidade não encontrada. Verifique o nome e tente novamente.');
           }
@@ -18375,8 +18535,8 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
             }
           }
           
-          await reply(`${emoji} *Clima em ${cityName}, ${country}*\n\n🌡️ *Temperatura:* ${current.temp_C}°C (sensação ${current.FeelsLikeC}°C)\n💧 *Umidade:* ${current.humidity}%\n💨 *Vento:* ${current.windspeedKmph} km/h\n👁️ *Visibilidade:* ${current.visibility} km\n☁️ *Condição:* ${current.lang_pt?.[0]?.value || current.weatherDesc[0].value}${forecastText}`);
-        } catch (e) {
+          return reply(`${emoji} *Clima em ${cityName}, ${country}*\n\n🌡️ *Temperatura:* ${current.temp_C}°C (sensação ${current.FeelsLikeC}°C)\n💧 *Umidade:* ${current.humidity}%\n💨 *Vento:* ${current.windspeedKmph} km/h\n👁️ *Visibilidade:* ${current.visibility} km\n☁️ *Condição:* ${current.lang_pt?.[0]?.value || current.weatherDesc[0].value}${forecastText}`);
+        }).catch((e) => {
           console.error('Erro no comando clima:', e);
           
           if (e.response?.status === 404 || e.message?.includes('404')) {
@@ -18384,23 +18544,21 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
           }
           
           reply('❌ Ocorreu um erro ao consultar o clima. Tente novamente.');
-        }
+        });
         break;
         
       //DOWNLOADS
 
       case 'iptv':
-        try {
-          await reply('📺 *Gerando teste de IPTV...*\n⏳ Aguarde um momento...');
-
-          const response = await axios.post('https://cogtv.com.br/api/public/reseller/generate-test', {}, {
+        reply('📺 *Gerando teste de IPTV...*\n⏳ Aguarde um momento...').then(() => {
+          return axios.post('https://cogtv.com.br/api/public/reseller/generate-test', {}, {
             headers: {
               'Authorization': 'Bearer 4f2aeb07ac0c428bcbeecfc0f52624a7839c19d7cdc204c12db4bd2c223e8f34',
               'Content-Type': 'application/json'
             },
-            timeout: 30000
+            timeout: 120000
           });
-
+        }).then((response) => {
           if (response.data && response.data.success && response.data.data) {
             const data = response.data.data;
             const expiresAt = data.expires_at ? new Date(data.expires_at).toLocaleString('pt-BR') : 'N/A';
@@ -18435,44 +18593,39 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
             message += `💰 Custa apenas *R$ 7/mês* e nos ajuda bastante a manter o projeto funcionando.\n\n`;
             message += `✨ *Apoie o projeto e tenha acesso ilimitado!* ✨`;
 
-            await reply(message);
+            return reply(message);
           } else {
-            await reply('❌ *Erro ao gerar teste*\n\n⚠️ Não foi possível gerar o teste de IPTV no momento.\n\n🔄 Tente novamente mais tarde.');
+            return reply('❌ *Erro ao gerar teste*\n\n⚠️ Não foi possível gerar o teste de IPTV no momento.\n\n🔄 Tente novamente mais tarde.');
           }
-        } catch (e) {
+        }).catch((e) => {
           console.error('Erro no comando iptv:', e);
           if (e.response?.status === 401 || e.response?.status === 403) {
-            await reply('❌ *Erro de autenticação*\n\n⚠️ Problema com a autenticação da API.\n\n🔄 Tente novamente mais tarde.');
+            reply('❌ *Erro de autenticação*\n\n⚠️ Problema com a autenticação da API.\n\n🔄 Tente novamente mais tarde.');
           } else if (e.response?.status === 429) {
-            await reply('❌ *Limite de requisições atingido*\n\n⚠️ Muitas requisições foram feitas.\n\n🔄 Aguarde alguns minutos e tente novamente.');
+            reply('❌ *Limite de requisições atingido*\n\n⚠️ Muitas requisições foram feitas.\n\n🔄 Aguarde alguns minutos e tente novamente.');
           } else {
-            await reply('❌ *Erro ao gerar teste*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.');
+            reply('❌ *Erro ao gerar teste*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.');
           }
-        }
+        });
         break;
       case 'mcplugin':
       case 'mcplugins':
-        try {
-          if (!q) return reply('Cadê o nome do plugin para eu pesquisar? 🤔');
-          var datz;
-          datz = await mcPlugin(q);
+        if (!q) return reply('Cadê o nome do plugin para eu pesquisar? 🤔');
+        mcPlugin(q).then((datz) => {
           if (!datz.ok) return reply(datz.msg);
-          const shortLinkPlugin = await axios.post("https://spoo.me/api/v1/shorten", { 
+          return axios.post("https://spoo.me/api/v1/shorten", { 
             long_url: datz.url, 
             alias: `nazuna_${Math.floor(10000 + Math.random() * 90000)}` 
+          }).then((shortLinkPlugin) => {
+            return nazu.sendMessage(from, {
+              image: { url: datz.image },
+              caption: `🔍 Encontrei esse plugin aqui:\n\n*Nome*: _${datz.name}_\n*Publicado por*: _${datz.creator}_\n*Descrição*: _${datz.desc}_\n*Link para download*: _${shortLinkPlugin.data.short_url}_\n\n> 💖 `
+            }, { quoted: info });
           });
-          await nazu.sendMessage(from, {
-            image: {
-              url: datz.image
-            },
-            caption: `🔍 Encontrei esse plugin aqui:\n\n*Nome*: _${datz.name}_\n*Publicado por*: _${datz.creator}_\n*Descrição*: _${datz.desc}_\n*Link para download*: _${shortLinkPlugin.data.short_url}_\n\n> 💖 `
-          }, {
-            quoted: info
-          });
-        } catch (e) {
+        }).catch((e) => {
           console.error(e);
-          await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
-        }
+          reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
+        });
         break;
       case 'shazam':
         if (!KeyCog) {
@@ -18610,6 +18763,9 @@ case 'ytmp3':
       return reply(`❌ Sistema de busca do YouTube não está disponível no momento.`);
     }
 
+    // Mensagem de pesquisa
+    await reply(`🔍 *Pesquisando no YouTube...*\n\n🎵 Música: *${q}*\n\n⏳ Aguarde um momento...`);
+
     // Usando .then em vez de await para a pesquisa do YouTube
     youtube.search(q, KeyCog)
         .then((result) => {
@@ -18692,6 +18848,365 @@ case 'ytmp3':
     reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
   }
   break;
+
+case 'spotifydl':
+case 'spotify':
+  try {
+    if (!q) {
+      return reply(`╭━━━⊱ 🎵 *SPOTIFY DOWNLOAD* 🎵 ⊱━━━╮
+│
+│ 📝 Digite o link da música do Spotify
+│
+│  *Exemplo:*
+│  ${prefix + command} https://open.spotify.com/track/...
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
+    }
+
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    if (!q.includes('open.spotify.com/track/')) {
+      return reply('❌ Por favor, envie um link válido do Spotify.\n\n💡 Dica: Use o comando play2 para buscar por nome!');
+    }
+
+    await reply('🎵 Baixando do Spotify... Aguarde um momento!');
+
+    spotify.download(q, KeyCog)
+      .then(async (result) => {
+        if (!result.ok) {
+          if (result.msg.includes('API key inválida')) {
+            spotify.notifyOwnerAboutApiKey(nazu, numerodono, result.msg, command);
+            return reply('🤖 *Sistema de Spotify temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
+          }
+          return reply(`❌ Erro: ${result.msg}`);
+        }
+
+        const caption = `🎵 *Música Baixada com Sucesso!* 🎵\n\n` +
+          `📌 *Título:* ${result.title}\n` +
+          `👤 *Artista(s):* ${result.artists.join(', ')}\n` +
+          `📅 *Ano:* ${result.year}\n` +
+          `⏱️ *Duração:* ${result.duration}\n\n` +
+          `🎧 *Enviando áudio...*`;
+
+        try {
+          await nazu.sendMessage(from, {
+            image: { url: result.albumImage },
+            caption
+          }, { quoted: info });
+        } catch (imgErr) {
+          console.error('Erro ao enviar imagem do álbum:', imgErr);
+        }
+
+        try {
+          await nazu.sendMessage(from, {
+            audio: result.buffer,
+            mimetype: 'audio/mpeg',
+            fileName: result.filename
+          }, { quoted: info });
+        } catch (audioError) {
+          if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
+            await reply('📦 Arquivo muito grande, enviando como documento...');
+            await nazu.sendMessage(from, {
+              document: result.buffer,
+              fileName: result.filename,
+              mimetype: 'audio/mpeg'
+            }, { quoted: info });
+          } else {
+            console.error('Erro ao enviar áudio do Spotify:', audioError);
+            reply('❌ Ocorreu um erro ao enviar o áudio.');
+          }
+        }
+      })
+      .catch((error) => {
+        console.error('Erro no download do Spotify:', error);
+        if (error.message?.includes('API key inválida')) {
+          spotify.notifyOwnerAboutApiKey(nazu, numerodono, error.message, command);
+          reply('🤖 *Sistema de Spotify temporariamente indisponível*');
+        } else {
+          reply(`❌ Erro ao baixar do Spotify: ${error.message}`);
+        }
+      });
+
+  } catch (error) {
+    console.error('Erro no comando spotifydl:', error);
+    reply("❌ Ocorreu um erro ao processar sua solicitação.");
+  }
+  break;
+
+case 'play2':
+case 'playspotify':
+  try {
+    if (!q) {
+      return reply(`╭━━━⊱ 🎵 *SPOTIFY PLAY* 🎵 ⊱━━━╮
+│
+│ 📝 Digite o nome da música ou artista
+│
+│  *Exemplos:*
+│  ${prefix + command} Te vi de canto
+│  ${prefix + command} Rô Rosa
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
+    }
+
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    await reply('🔎 Buscando no Spotify... Aguarde!');
+
+    spotify.searchDownload(q, KeyCog)
+      .then(async (result) => {
+        if (!result.ok) {
+          if (result.msg.includes('API key inválida')) {
+            spotify.notifyOwnerAboutApiKey(nazu, numerodono, result.msg, command);
+            return reply('🤖 *Sistema de Spotify temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
+          }
+          return reply(`❌ Erro: ${result.msg}`);
+        }
+
+        const caption = `🎵 *Música Encontrada!* 🎵\n\n` +
+          `🔍 *Busca:* ${result.query}\n\n` +
+          `📌 *Título:* ${result.track.name}\n` +
+          `👤 *Artista(s):* ${result.track.artists}\n` +
+          `📅 *Ano:* ${result.year}\n` +
+          `⏱️ *Duração:* ${result.duration}\n` +
+          `🔗 *Link:* ${result.track.link}\n\n` +
+          `🎧 *Baixando e processando...*`;
+
+        try {
+          await nazu.sendMessage(from, {
+            image: { url: result.albumImage },
+            caption
+          }, { quoted: info });
+        } catch (imgErr) {
+          console.error('Erro ao enviar imagem do álbum:', imgErr);
+        }
+
+        try {
+          await nazu.sendMessage(from, {
+            audio: result.buffer,
+            mimetype: 'audio/mpeg',
+            fileName: result.filename
+          }, { quoted: info });
+        } catch (audioError) {
+          if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
+            await reply('📦 Arquivo muito grande, enviando como documento...');
+            await nazu.sendMessage(from, {
+              document: result.buffer,
+              fileName: result.filename,
+              mimetype: 'audio/mpeg'
+            }, { quoted: info });
+          } else {
+            console.error('Erro ao enviar áudio do Spotify:', audioError);
+            reply('❌ Ocorreu um erro ao enviar o áudio.');
+          }
+        }
+      })
+      .catch((error) => {
+        console.error('Erro na busca/download do Spotify:', error);
+        if (error.message?.includes('API key inválida')) {
+          spotify.notifyOwnerAboutApiKey(nazu, numerodono, error.message, command);
+          reply('🤖 *Sistema de Spotify temporariamente indisponível*');
+        } else {
+          reply(`❌ Erro ao buscar no Spotify: ${error.message}`);
+        }
+      });
+
+  } catch (error) {
+    console.error('Erro no comando play2:', error);
+    reply("❌ Ocorreu um erro ao processar sua solicitação.");
+  }
+  break;
+
+case 'soundclouddl':
+case 'soundcloud':
+  try {
+    if (!q) {
+      return reply(`╭━━━⊱ 🎵 *SOUNDCLOUD DOWNLOAD* 🎵 ⊱━━━╮
+│
+│ 📝 Digite o link da música do SoundCloud
+│
+│  *Exemplo:*
+│  ${prefix + command} https://soundcloud.com/...
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
+    }
+
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    if (!q.includes('soundcloud.com/')) {
+      return reply('❌ Por favor, envie um link válido do SoundCloud.\n\n💡 Dica: Use o comando play3 para buscar por nome!');
+    }
+
+    await reply('🎵 Baixando do SoundCloud... Aguarde um momento!');
+
+    soundcloud.download(q, KeyCog)
+      .then(async (result) => {
+        if (!result.ok) {
+          if (result.msg.includes('API key inválida')) {
+            soundcloud.notifyOwnerAboutApiKey(nazu, numerodono, result.msg, command);
+            return reply('🤖 *Sistema de SoundCloud temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
+          }
+          return reply(`❌ Erro: ${result.msg}`);
+        }
+
+        const caption = `🎵 *Música Baixada com Sucesso!* 🎵\n\n` +
+          `📌 *Título:* ${result.title}\n` +
+          `👤 *Artista:* ${result.artist}\n\n` +
+          `🎧 *Enviando áudio...*`;
+
+        try {
+          await nazu.sendMessage(from, {
+            image: { url: result.thumbnail },
+            caption
+          }, { quoted: info });
+        } catch (imgErr) {
+          console.error('Erro ao enviar thumbnail do SoundCloud:', imgErr);
+        }
+
+        try {
+          await nazu.sendMessage(from, {
+            audio: result.buffer,
+            mimetype: 'audio/mpeg',
+            fileName: result.filename
+          }, { quoted: info });
+        } catch (audioError) {
+          if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
+            await reply('📦 Arquivo muito grande, enviando como documento...');
+            await nazu.sendMessage(from, {
+              document: result.buffer,
+              fileName: result.filename,
+              mimetype: 'audio/mpeg'
+            }, { quoted: info });
+          } else {
+            console.error('Erro ao enviar áudio do SoundCloud:', audioError);
+            reply('❌ Ocorreu um erro ao enviar o áudio.');
+          }
+        }
+      })
+      .catch((error) => {
+        console.error('Erro no download do SoundCloud:', error);
+        if (error.message?.includes('API key inválida')) {
+          soundcloud.notifyOwnerAboutApiKey(nazu, numerodono, error.message, command);
+          reply('🤖 *Sistema de SoundCloud temporariamente indisponível*');
+        } else {
+          reply(`❌ Erro ao baixar do SoundCloud: ${error.message}`);
+        }
+      });
+
+  } catch (error) {
+    console.error('Erro no comando soundclouddl:', error);
+    reply("❌ Ocorreu um erro ao processar sua solicitação.");
+  }
+  break;
+
+case 'play3':
+case 'playsoundcloud':
+  try {
+    if (!q) {
+      return reply(`╭━━━⊱ 🎵 *SOUNDCLOUD PLAY* 🎵 ⊱━━━╮
+│
+│ 📝 Digite o nome da música ou artista
+│
+│  *Exemplos:*
+│  ${prefix + command} Te vi de canto
+│  ${prefix + command} Rô Rosa
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
+    }
+
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    await reply('🔎 Buscando no SoundCloud... Aguarde!');
+
+    soundcloud.searchDownload(q, KeyCog)
+      .then(async (result) => {
+        if (!result.ok) {
+          if (result.msg.includes('API key inválida')) {
+            soundcloud.notifyOwnerAboutApiKey(nazu, numerodono, result.msg, command);
+            return reply('🤖 *Sistema de SoundCloud temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
+          }
+          return reply(`❌ Erro: ${result.msg}`);
+        }
+
+        const formatDuration = (seconds) => {
+          const mins = Math.floor(seconds / 60);
+          const secs = seconds % 60;
+          return `${mins}:${secs.toString().padStart(2, '0')}`;
+        };
+
+        const formatNumber = (num) => {
+          if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+          if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+          return num.toString();
+        };
+
+        const caption = `🎵 *Música Encontrada!* 🎵\n\n` +
+          `🔍 *Busca:* ${result.query}\n\n` +
+          `📌 *Título:* ${result.track.title}\n` +
+          `👤 *Artista:* ${result.artist}\n` +
+          `⏱️ *Duração:* ${formatDuration(result.track.duration)}\n` +
+          `▶️ *Reproduções:* ${formatNumber(result.track.playback_count)}\n` +
+          `❤️ *Curtidas:* ${formatNumber(result.track.likes_count)}\n` +
+          `🎼 *Gênero:* ${result.track.genre || 'Desconhecido'}\n` +
+          `🔗 *Link:* ${result.track.permalink_url}\n\n` +
+          `🎧 *Baixando e processando...*`;
+
+        try {
+          await nazu.sendMessage(from, {
+            image: { url: result.thumbnail },
+            caption
+          }, { quoted: info });
+        } catch (imgErr) {
+          console.error('Erro ao enviar thumbnail do SoundCloud:', imgErr);
+        }
+
+        try {
+          await nazu.sendMessage(from, {
+            audio: result.buffer,
+            mimetype: 'audio/mpeg',
+            fileName: result.filename
+          }, { quoted: info });
+        } catch (audioError) {
+          if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
+            await reply('📦 Arquivo muito grande, enviando como documento...');
+            await nazu.sendMessage(from, {
+              document: result.buffer,
+              fileName: result.filename,
+              mimetype: 'audio/mpeg'
+            }, { quoted: info });
+          } else {
+            console.error('Erro ao enviar áudio do SoundCloud:', audioError);
+            reply('❌ Ocorreu um erro ao enviar o áudio.');
+          }
+        }
+      })
+      .catch((error) => {
+        console.error('Erro na busca/download do SoundCloud:', error);
+        if (error.message?.includes('API key inválida')) {
+          soundcloud.notifyOwnerAboutApiKey(nazu, numerodono, error.message, command);
+          reply('🤖 *Sistema de SoundCloud temporariamente indisponível*');
+        } else {
+          reply(`❌ Erro ao buscar no SoundCloud: ${error.message}`);
+        }
+      });
+
+  } catch (error) {
+    console.error('Erro no comando play3:', error);
+    reply("❌ Ocorreu um erro ao processar sua solicitação.");
+  }
+  break;
+
       case 'playvid':
       case 'ytmp4':
         try {
@@ -18819,6 +19334,328 @@ case 'ytmp3':
           reply("ocorreu um erro 💔");
         }
         break;
+
+case 'bandcamp':
+case 'bandcampdl':
+  try {
+    if (!q) return reply(`Digite um link do Bandcamp.\n> Ex: ${prefix}${command} https://artist.bandcamp.com/track/song-name`);
+    
+    // Verificar se tem API key
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    // Verificar se é um link válido do Bandcamp
+    if (!q.includes('bandcamp.com')) {
+      return reply('❌ Por favor, forneça um link válido do Bandcamp.');
+    }
+
+    reply('Aguarde um momentinho... ☀️');
+
+    // Helper para formatação de duração
+    const formatDuration = (seconds) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    bandcamp.download(q, KeyCog).then(result => {
+      if (!result.ok) {
+        return reply(result.message || '❌ Erro ao baixar do Bandcamp.');
+      }
+
+      const {
+        title,
+        artist,
+        album,
+        thumbnail,
+        duration,
+        genre,
+        releaseDate,
+        trackNumber,
+        buffer,
+        filename
+      } = result;
+
+      // Preparar a mensagem com informações da música
+      let caption = `╭━━━⊱🎵 BANDCAMP ⊱━━━╮\n\n`;
+      caption += `📝 *Título:* ${title}\n`;
+      caption += `👤 *Artista:* ${artist}\n`;
+      
+      if (album) {
+        caption += `💿 *Álbum:* ${album}\n`;
+      }
+      
+      if (trackNumber) {
+        caption += `🔢 *Faixa:* ${trackNumber}\n`;
+      }
+      
+      if (duration) {
+        caption += `⏱️ *Duração:* ${formatDuration(duration)}\n`;
+      }
+      
+      if (genre) {
+        caption += `🎼 *Gênero:* ${genre}\n`;
+      }
+      
+      if (releaseDate) {
+        caption += `📅 *Lançamento:* ${releaseDate}\n`;
+      }
+      
+      caption += `\n╰━━━━━━━━━━━━━━━━━━━╯`;
+
+      // Enviar thumbnail primeiro
+      if (thumbnail) {
+        nazu.sendMessage(from, {
+          image: { url: thumbnail },
+          caption: caption
+        }).catch(err => {
+          console.error('Erro ao enviar thumbnail do Bandcamp:', err);
+        });
+      }
+
+      // Enviar o áudio
+      const fileSize = buffer.length;
+      const fileSizeMB = (fileSize / (1024 * 1024)).toFixed(2);
+
+      nazu.sendMessage(from, {
+        audio: buffer,
+        mimetype: 'audio/mpeg',
+        fileName: filename,
+        ptt: false
+      }, { quoted: info }).then(() => {
+        reply(`✅ Música do Bandcamp baixada com sucesso! (${fileSizeMB}MB)`);
+      }).catch(err => {
+        console.error('Erro ao enviar áudio do Bandcamp:', err);
+        // Tentar enviar como documento se falhar
+        nazu.sendMessage(from, {
+          document: buffer,
+          mimetype: 'audio/mpeg',
+          fileName: filename
+        }, { quoted: info }).then(() => {
+          reply(`✅ Música enviada como documento (${fileSizeMB}MB).`);
+        }).catch(docErr => {
+          console.error('Erro ao enviar documento do Bandcamp:', docErr);
+          reply('❌ Erro ao enviar o áudio. Tente novamente.');
+        });
+      });
+    }).catch(error => {
+      console.error('Erro ao baixar do Bandcamp:', error);
+      
+      if (error.message?.includes('401') || error.message?.includes('403')) {
+        ia.notifyOwnerAboutApiKey(nazu, nmrdn, `Erro de autenticação na API: ${error.message}`);
+        return reply('❌ Erro de autenticação da API. O dono foi notificado.');
+      }
+      
+      if (error.message?.includes('404')) {
+        return reply('❌ Música não encontrada. Verifique se o link está correto e se a música ainda está disponível.');
+      }
+      
+      if (error.message?.includes('timeout')) {
+        return reply('❌ O download demorou muito tempo. Tente novamente.');
+      }
+      
+      reply('❌ Erro ao baixar do Bandcamp. Tente novamente mais tarde.');
+    });
+  } catch (error) {
+    console.error('Erro no comando bandcamp:', error);
+    reply("❌ Ocorreu um erro ao processar sua solicitação.");
+  }
+  break;
+
+case 'alldl':
+case 'alldownload':
+case 'getallmedia':
+  try {
+    if (!q) return reply(`Digite uma URL para extrair todos os formatos disponíveis.\n> Ex: ${prefix}${command} https://www.youtube.com/watch?v=dQw4w9WgXcQ\n\n✨ Suporta 1000+ sites!`);
+    
+    // Verificar se tem API key
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    reply('🔍 Analisando URL e extraindo todos os formatos disponíveis...\n⏳ Isso pode levar alguns segundos...');
+
+    alldl.getAllMedia(q, KeyCog).then(result => {
+      if (!result.ok) {
+        return reply(result.message || '❌ Erro ao extrair informações da mídia.');
+      }
+
+      const {
+        metadata,
+        media,
+        totalItems,
+        videoCount,
+        audioCount,
+        imageCount
+      } = result;
+
+      // Preparar mensagem com informações
+      let message = `╭━━━⊱🎬 ALL DOWNLOAD ⊱━━━╮\n\n`;
+      message += `📝 *Título:* ${metadata.title || 'Desconhecido'}\n`;
+      
+      if (metadata.uploader) {
+        message += `👤 *Autor:* ${metadata.uploader}\n`;
+      }
+      
+      if (metadata.platform) {
+        message += `🌐 *Plataforma:* ${metadata.platform.toUpperCase()}\n`;
+      }
+      
+      if (metadata.duration) {
+        const mins = Math.floor(metadata.duration / 60);
+        const secs = metadata.duration % 60;
+        message += `⏱️ *Duração:* ${mins}:${secs.toString().padStart(2, '0')}\n`;
+      }
+      
+      if (metadata.views) {
+        const formatNumber = (num) => {
+          if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+          if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+          return num.toString();
+        };
+        message += `👁️ *Visualizações:* ${formatNumber(metadata.views)}\n`;
+      }
+      
+      message += `\n📊 *Formatos Encontrados:*\n`;
+      message += `🎥 Vídeos: ${videoCount}\n`;
+      message += `🎵 Áudios: ${audioCount}\n`;
+      message += `🖼️ Imagens: ${imageCount}\n`;
+      message += `📦 Total: ${totalItems} formatos\n`;
+      message += `\n╰━━━━━━━━━━━━━━━━━━━╯\n\n`;
+
+      // Preparar dados para encurtamento
+      const videos = media.filter(m => m.type === 'video').slice(0, 8);
+      const audios = media.filter(m => m.type === 'audio').slice(0, 5);
+      const images = media.filter(m => m.type === 'image').slice(0, 3);
+      
+      const allMediaItems = [...videos, ...audios, ...images];
+      
+      // Função para encurtar com retry (máximo 5 tentativas)
+      const shortenWithRetry = (item, maxRetries = 5) => {
+        return new Promise((resolve) => {
+          const attempt = (retryCount = 0) => {
+            axios.post('https://spoo.me/api/v1/shorten', { 
+              long_url: item.url,
+              custom_alias: `nazu_${Math.random().toString(36).substring(2, 8)}`
+            })
+              .then(res => {
+                resolve({ ...item, shortUrl: res.data.short_url });
+              })
+              .catch(err => {
+                if (retryCount < maxRetries) {
+                  console.warn(`⚠️ Tentativa ${retryCount + 1}/${maxRetries} de encurtar falhou, retentando...`);
+                  setTimeout(() => attempt(retryCount + 1), 500); // Aguarda 500ms antes de tentar novamente
+                } else {
+                  console.warn(`❌ Falha ao encurtar após ${maxRetries} tentativas`);
+                  resolve({ ...item, shortUrl: null });
+                }
+              });
+          };
+          attempt();
+        });
+      };
+      
+      // Encurtar todos os links com retry
+      Promise.all(allMediaItems.map(item => shortenWithRetry(item))).then(mediaWithLinks => {
+        let finalMessage = message;
+        
+        // Listar vídeos com links
+        const videosWithLinks = mediaWithLinks.filter(m => m.type === 'video');
+        if (videosWithLinks.length > 0) {
+          finalMessage += `\n🎥 *VÍDEOS DISPONÍVEIS:*\n`;
+          videosWithLinks.forEach((video, index) => {
+            finalMessage += `\n${index + 1}. ${video.quality || video.resolution || 'N/A'}`;
+            if (video.filesize) {
+              const sizeMB = (video.filesize / (1024 * 1024)).toFixed(1);
+              finalMessage += ` (${sizeMB}MB)`;
+            }
+            if (video.fps) finalMessage += ` ${video.fps}fps`;
+            if (video.isBest) finalMessage += ` ⭐`;
+            if (video.shortUrl) {
+              finalMessage += `\n   🔗 ${video.shortUrl}`;
+            } else {
+              finalMessage += `\n   � ${video.url}`;
+            }
+          });
+          if (videos.length > videosWithLinks.length) {
+            finalMessage += `\n... e mais ${videos.length - videosWithLinks.length} formatos de vídeo`;
+          }
+        }
+        
+        // Listar áudios com links
+        const audiosWithLinks = mediaWithLinks.filter(m => m.type === 'audio');
+        if (audiosWithLinks.length > 0) {
+          finalMessage += `\n\n🎵 *ÁUDIOS DISPONÍVEIS:*\n`;
+          audiosWithLinks.forEach((audio, index) => {
+            finalMessage += `\n${index + 1}. ${audio.quality || audio.abr + 'kbps' || 'N/A'}`;
+            if (audio.filesize) {
+              const sizeMB = (audio.filesize / (1024 * 1024)).toFixed(1);
+              finalMessage += ` (${sizeMB}MB)`;
+            }
+            if (audio.shortUrl) {
+              finalMessage += `\n   🔗 ${audio.shortUrl}`;
+            } else {
+              finalMessage += `\n   🔗 ${audio.url}`;
+            }
+          });
+          if (audios.length > audiosWithLinks.length) {
+            finalMessage += `\n... e mais ${audios.length - audiosWithLinks.length} formatos de áudio`;
+          }
+        }
+        
+        // Listar imagens com links
+        const imagesWithLinks = mediaWithLinks.filter(m => m.type === 'image');
+        if (imagesWithLinks.length > 0) {
+          finalMessage += `\n\n🖼️ *THUMBNAILS DISPONÍVEIS:*\n`;
+          imagesWithLinks.forEach((image, index) => {
+            finalMessage += `\n${index + 1}. ${image.quality || image.width + 'x' + image.height || 'N/A'}`;
+            if (image.shortUrl) {
+              finalMessage += `\n   🔗 ${image.shortUrl}`;
+            } else {
+              finalMessage += `\n   🔗 ${image.url}`;
+            }
+          });
+          if (images.length > imagesWithLinks.length) {
+            finalMessage += `\n... e mais ${images.length - imagesWithLinks.length} thumbnails`;
+          }
+        }
+        
+        finalMessage += `\n\n💡 *Dica:* Copie o link desejado e cole no navegador ou no seu dispositivo!`;
+        reply(finalMessage);
+      }).catch(() => {
+        // Se falhar em encurtar, mostra sem os links
+        reply(message);
+
+      });
+
+
+    }).catch(error => {
+      console.error('Erro ao extrair formatos:', error);
+      
+      if (error.message?.includes('401') || error.message?.includes('403')) {
+        ia.notifyOwnerAboutApiKey(nazu, nmrdn, `Erro de autenticação na API: ${error.message}`);
+        return reply('❌ Erro de autenticação da API. O dono foi notificado.');
+      }
+      
+      if (error.message?.includes('404')) {
+        return reply('❌ Conteúdo não encontrado. Verifique se o link está correto.');
+      }
+      
+      if (error.message?.includes('timeout')) {
+        return reply('❌ A solicitação demorou muito tempo. Tente novamente.');
+      }
+      
+      reply('❌ Erro ao extrair formatos da mídia. Tente novamente mais tarde.');
+    });
+  } catch (error) {
+    console.error('Erro no comando alldl:', error);
+    reply("❌ Ocorreu um erro ao processar sua solicitação.");
+  }
+  break;
+
       case 'tiktok':
       case 'tiktokaudio':
       case 'tiktokvideo':
@@ -18885,6 +19722,751 @@ case 'ytmp3':
           reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
         }
         break;
+
+case 'facebook':
+case 'fb':
+case 'fbdl':
+case 'facebookdl':
+  try {
+    if (!q) {
+      return reply(`╭━━━⊱ 📹 *FACEBOOK DOWNLOAD HD* 📹 ⊱━━━╮
+│
+│ 📝 Digite o link do vídeo do Facebook
+│
+│  *Exemplo:*
+│  ${prefix + command} https://www.facebook.com/...
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
+    }
+
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    if (!q.includes('facebook.com/')) {
+      return reply('❌ Por favor, envie um link válido do Facebook.');
+    }
+
+    await reply('📹 Baixando vídeo do Facebook em HD... Aguarde!');
+
+    facebook.downloadHD(q, KeyCog)
+      .then(async (result) => {
+        if (!result.ok) {
+          if (result.msg.includes('API key inválida')) {
+            facebook.notifyOwnerAboutApiKey(nazu, numerodono, result.msg, command);
+            return reply('🤖 *Sistema de Facebook temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
+          }
+          return reply(`❌ Erro: ${result.msg}`);
+        }
+
+        const qualityList = result.allQualities.map((q, i) => 
+          `${i + 1}. ${q.resolution}`
+        ).join('\n');
+
+        const caption = `📹 *Vídeo Baixado com Sucesso!* 📹\n\n` +
+          `📊 *Qualidade:* ${result.resolution}\n` +
+          (result.allQualities.length > 0 ? `\n🎬 *Qualidades disponíveis:*\n${qualityList}\n` : '') +
+          `\n📥 *Enviando vídeo...*`;
+
+        try {
+          await nazu.sendMessage(from, {
+            image: { url: result.thumbnail },
+            caption
+          }, { quoted: info });
+        } catch (imgErr) {
+          console.error('Erro ao enviar thumbnail do Facebook:', imgErr);
+        }
+
+        try {
+          await nazu.sendMessage(from, {
+            video: result.buffer,
+            mimetype: 'video/mp4',
+            fileName: result.filename
+          }, { quoted: info });
+        } catch (videoError) {
+          if (String(videoError).includes("ENOSPC") || String(videoError).includes("size")) {
+            await reply('📦 Vídeo muito grande, enviando como documento...');
+            await nazu.sendMessage(from, {
+              document: result.buffer,
+              fileName: result.filename,
+              mimetype: 'video/mp4'
+            }, { quoted: info });
+          } else {
+            console.error('Erro ao enviar vídeo do Facebook:', videoError);
+            reply('❌ Ocorreu um erro ao enviar o vídeo.');
+          }
+        }
+      })
+      .catch((error) => {
+        console.error('Erro no download do Facebook:', error);
+        if (error.message?.includes('API key inválida')) {
+          facebook.notifyOwnerAboutApiKey(nazu, numerodono, error.message, command);
+          reply('🤖 *Sistema de Facebook temporariamente indisponível*');
+        } else {
+          reply(`❌ Erro ao baixar do Facebook: ${error.message}`);
+        }
+      });
+
+  } catch (error) {
+    console.error('Erro no comando facebook:', error);
+    reply("❌ Ocorreu um erro ao processar sua solicitação.");
+  }
+  break;
+
+case 'vimeo':
+case 'vimeodl':
+  try {
+    if (!q) {
+      return reply(`╭━━━⊱ 🎬 *VIMEO DOWNLOAD* 🎬 ⊱━━━╮
+│
+│ 📝 Digite o link do vídeo do Vimeo
+│
+│  *Exemplo:*
+│  ${prefix + command} https://vimeo.com/...
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
+    }
+
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    if (!q.includes('vimeo.com/')) {
+      return reply('❌ Por favor, envie um link válido do Vimeo.');
+    }
+
+    await reply('🎬 Baixando vídeo do Vimeo... Aguarde!');
+
+    vimeo.download(q, KeyCog)
+      .then(async (result) => {
+        if (!result.ok) {
+          if (result.msg.includes('API key inválida')) {
+            vimeo.notifyOwnerAboutApiKey(nazu, numerodono, result.msg, command);
+            return reply('🤖 *Sistema de Vimeo temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
+          }
+          return reply(`❌ Erro: ${result.msg}`);
+        }
+
+        const formatDuration = (seconds) => {
+          const mins = Math.floor(seconds / 60);
+          const secs = seconds % 60;
+          return `${mins}:${secs.toString().padStart(2, '0')}`;
+        };
+
+        const formatNumber = (num) => {
+          if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+          if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+          return num.toString();
+        };
+
+        const caption = `🎬 *Vídeo Baixado com Sucesso!* 🎬\n\n` +
+          `📌 *Título:* ${result.title}\n` +
+          `👤 *Autor:* ${result.author}\n` +
+          `⏱️ *Duração:* ${formatDuration(result.duration)}\n` +
+          `📊 *Qualidade:* ${result.quality} (${result.width}x${result.height})\n` +
+          `👀 *Visualizações:* ${formatNumber(result.views)}\n` +
+          `❤️ *Curtidas:* ${formatNumber(result.likes)}\n` +
+          (result.description ? `\n📝 *Descrição:* ${result.description.slice(0, 100)}${result.description.length > 100 ? '...' : ''}\n` : '') +
+          `\n📥 *Enviando vídeo...*`;
+
+        try {
+          await nazu.sendMessage(from, {
+            image: { url: result.thumbnail },
+            caption
+          }, { quoted: info });
+        } catch (imgErr) {
+          console.error('Erro ao enviar thumbnail do Vimeo:', imgErr);
+        }
+
+        try {
+          await nazu.sendMessage(from, {
+            video: result.buffer,
+            mimetype: 'video/mp4',
+            fileName: result.filename
+          }, { quoted: info });
+        } catch (videoError) {
+          if (String(videoError).includes("ENOSPC") || String(videoError).includes("size")) {
+            await reply('📦 Vídeo muito grande, enviando como documento...');
+            await nazu.sendMessage(from, {
+              document: result.buffer,
+              fileName: result.filename,
+              mimetype: 'video/mp4'
+            }, { quoted: info });
+          } else {
+            console.error('Erro ao enviar vídeo do Vimeo:', videoError);
+            reply('❌ Ocorreu um erro ao enviar o vídeo.');
+          }
+        }
+      })
+      .catch((error) => {
+        console.error('Erro no download do Vimeo:', error);
+        if (error.message?.includes('API key inválida')) {
+          vimeo.notifyOwnerAboutApiKey(nazu, numerodono, error.message, command);
+          reply('🤖 *Sistema de Vimeo temporariamente indisponível*');
+        } else {
+          reply(`❌ Erro ao baixar do Vimeo: ${error.message}`);
+        }
+      });
+
+  } catch (error) {
+    console.error('Erro no comando vimeo:', error);
+    reply("❌ Ocorreu um erro ao processar sua solicitação.");
+  }
+  break;
+
+case 'twitch':
+case 'twitchdl':
+  try {
+    if (!q) return reply(`Digite um link do Twitch (clip ou VOD).\n> Ex: ${prefix}${command} https://www.twitch.tv/videos/12345678\n> Ex: ${prefix}${command} https://clips.twitch.tv/AbcdEfgh`);
+    
+    // Verificar se tem API key
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    // Verificar se é um link válido do Twitch
+    if (!q.includes('twitch.tv')) {
+      return reply('❌ Por favor, forneça um link válido do Twitch (clips ou VODs).');
+    }
+
+    reply('Aguarde um momentinho... ☀️');
+
+    // Helpers para formatação
+    const formatDuration = (seconds) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const formatNumber = (num) => {
+      if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+      if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+      return num.toString();
+    };
+
+    twitch.download(q, KeyCog).then(result => {
+      if (!result.ok) {
+        return reply(result.message || '❌ Erro ao baixar o vídeo do Twitch.');
+      }
+
+      const {
+        title,
+        streamer,
+        thumbnail,
+        duration,
+        views,
+        game,
+        type,
+        timestamp,
+        buffer,
+        filename
+      } = result;
+
+      // Preparar a mensagem com informações do vídeo
+      let caption = `╭━━━⊱🎮 TWITCH ${type === 'clip' ? 'CLIP' : 'VOD'} ⊱━━━╮\n\n`;
+      caption += `📺 *Título:* ${title}\n`;
+      caption += `👤 *Streamer:* ${streamer}\n`;
+      
+      if (duration) {
+        caption += `⏱️ *Duração:* ${formatDuration(duration)}\n`;
+      }
+      
+      if (views) {
+        caption += `👁️ *Visualizações:* ${formatNumber(views)}\n`;
+      }
+      
+      if (game) {
+        caption += `🎮 *Jogo:* ${game}\n`;
+      }
+      
+      if (timestamp) {
+        const date = new Date(timestamp);
+        caption += `📅 *Data:* ${date.toLocaleDateString('pt-BR')}\n`;
+      }
+      
+      caption += `\n╰━━━━━━━━━━━━━━━━━━━╯`;
+
+      // Enviar thumbnail primeiro
+      if (thumbnail) {
+        nazu.sendMessage(from, {
+          image: { url: thumbnail },
+          caption: caption
+        }).catch(err => {
+          console.error('Erro ao enviar thumbnail do Twitch:', err);
+        });
+      }
+
+      // Enviar o vídeo
+      const fileSize = buffer.length;
+      const fileSizeMB = (fileSize / (1024 * 1024)).toFixed(2);
+
+      if (fileSize > 100 * 1024 * 1024) { // > 100MB
+        nazu.sendMessage(from, {
+          document: buffer,
+          mimetype: 'video/mp4',
+          fileName: filename
+        }, { quoted: info }).then(() => {
+          reply(`✅ Vídeo enviado como documento (${fileSizeMB}MB).`);
+        }).catch(err => {
+          console.error('Erro ao enviar documento do Twitch:', err);
+          reply('❌ Erro ao enviar o vídeo. O arquivo pode ser muito grande.');
+        });
+      } else {
+        nazu.sendMessage(from, {
+          video: buffer,
+          mimetype: 'video/mp4',
+          fileName: filename
+        }, { quoted: info }).then(() => {
+          reply(`✅ Vídeo do Twitch baixado com sucesso! (${fileSizeMB}MB)`);
+        }).catch(err => {
+          console.error('Erro ao enviar vídeo do Twitch:', err);
+          reply('❌ Erro ao enviar o vídeo. Tente novamente.');
+        });
+      }
+    }).catch(error => {
+      console.error('Erro ao baixar do Twitch:', error);
+      
+      if (error.message?.includes('401') || error.message?.includes('403')) {
+        ia.notifyOwnerAboutApiKey(nazu, nmrdn, `Erro de autenticação na API: ${error.message}`);
+        return reply('❌ Erro de autenticação da API. O dono foi notificado.');
+      }
+      
+      if (error.message?.includes('404')) {
+        return reply('❌ Vídeo não encontrado. Verifique se o link está correto e se o vídeo ainda está disponível.');
+      }
+      
+      if (error.message?.includes('timeout')) {
+        return reply('❌ O download demorou muito tempo. Tente novamente com um vídeo mais curto.');
+      }
+      
+      reply('❌ Erro ao baixar o vídeo do Twitch. Tente novamente mais tarde.');
+    });
+  } catch (error) {
+    console.error('Erro no comando twitch:', error);
+    reply("❌ Ocorreu um erro ao processar sua solicitação.");
+  }
+  break;
+
+case 'reddit':
+case 'redditdl':
+  try {
+    if (!q) return reply(`Digite um link de um post do Reddit.\n> Ex: ${prefix}${command} https://www.reddit.com/r/videos/comments/abc123/...`);
+    
+    // Verificar se tem API key
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    // Verificar se é um link válido do Reddit
+    if (!q.includes('reddit.com')) {
+      return reply('❌ Por favor, forneça um link válido do Reddit.');
+    }
+
+    reply('Aguarde um momentinho... ☀️');
+
+    // Helpers para formatação
+    const formatDuration = (seconds) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const formatNumber = (num) => {
+      if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+      if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+      return num.toString();
+    };
+
+    reddit.download(q, KeyCog).then(result => {
+      if (!result.ok) {
+        return reply(result.message || '❌ Erro ao baixar o post do Reddit.');
+      }
+
+      const {
+        title,
+        author,
+        subreddit,
+        thumbnail,
+        duration,
+        isVideo,
+        upvotes,
+        comments,
+        buffer,
+        filename
+      } = result;
+
+      // Preparar a mensagem com informações do post
+      let caption = `╭━━━⊱🔴 REDDIT POST ⊱━━━╮\n\n`;
+      caption += `📝 *Título:* ${title}\n`;
+      caption += `👤 *Autor:* u/${author}\n`;
+      caption += `📁 *Subreddit:* r/${subreddit}\n`;
+      
+      if (duration) {
+        caption += `⏱️ *Duração:* ${formatDuration(duration)}\n`;
+      }
+      
+      caption += `⬆️ *Upvotes:* ${formatNumber(upvotes)}\n`;
+      caption += `💬 *Comentários:* ${formatNumber(comments)}\n`;
+      caption += `${isVideo ? '🎥' : '🖼️'} *Tipo:* ${isVideo ? 'Vídeo' : 'Imagem'}\n`;
+      
+      caption += `\n╰━━━━━━━━━━━━━━━━━━━╯`;
+
+      // Enviar thumbnail primeiro (se tiver e for vídeo)
+      if (thumbnail && isVideo) {
+        nazu.sendMessage(from, {
+          image: { url: thumbnail },
+          caption: caption
+        }).catch(err => {
+          console.error('Erro ao enviar thumbnail do Reddit:', err);
+        });
+      }
+
+      // Enviar o arquivo (vídeo ou imagem)
+      const fileSize = buffer.length;
+      const fileSizeMB = (fileSize / (1024 * 1024)).toFixed(2);
+
+      if (isVideo) {
+        // É vídeo
+        if (fileSize > 100 * 1024 * 1024) { // > 100MB
+          nazu.sendMessage(from, {
+            document: buffer,
+            mimetype: 'video/mp4',
+            fileName: filename
+          }, { quoted: info }).then(() => {
+            reply(`✅ Vídeo enviado como documento (${fileSizeMB}MB).`);
+          }).catch(err => {
+            console.error('Erro ao enviar documento do Reddit:', err);
+            reply('❌ Erro ao enviar o vídeo. O arquivo pode ser muito grande.');
+          });
+        } else {
+          nazu.sendMessage(from, {
+            video: buffer,
+            mimetype: 'video/mp4',
+            fileName: filename,
+            caption: !thumbnail ? caption : undefined
+          }, { quoted: info }).then(() => {
+            reply(`✅ Vídeo do Reddit baixado com sucesso! (${fileSizeMB}MB)`);
+          }).catch(err => {
+            console.error('Erro ao enviar vídeo do Reddit:', err);
+            reply('❌ Erro ao enviar o vídeo. Tente novamente.');
+          });
+        }
+      } else {
+        // É imagem
+        nazu.sendMessage(from, {
+          image: buffer,
+          caption: caption
+        }, { quoted: info }).then(() => {
+          reply(`✅ Imagem do Reddit baixada com sucesso! (${fileSizeMB}MB)`);
+        }).catch(err => {
+          console.error('Erro ao enviar imagem do Reddit:', err);
+          reply('❌ Erro ao enviar a imagem. Tente novamente.');
+        });
+      }
+    }).catch(error => {
+      console.error('Erro ao baixar do Reddit:', error);
+      
+      if (error.message?.includes('401') || error.message?.includes('403')) {
+        ia.notifyOwnerAboutApiKey(nazu, nmrdn, `Erro de autenticação na API: ${error.message}`);
+        return reply('❌ Erro de autenticação da API. O dono foi notificado.');
+      }
+      
+      if (error.message?.includes('404')) {
+        return reply('❌ Post não encontrado. Verifique se o link está correto e se o post ainda está disponível.');
+      }
+      
+      if (error.message?.includes('timeout')) {
+        return reply('❌ O download demorou muito tempo. Tente novamente.');
+      }
+      
+      reply('❌ Erro ao baixar o post do Reddit. Tente novamente mais tarde.');
+    });
+  } catch (error) {
+    console.error('Erro no comando reddit:', error);
+    reply("❌ Ocorreu um erro ao processar sua solicitação.");
+  }
+  break;
+
+case 'dailymotion':
+case 'dailymotiondl':
+  try {
+    if (!q) return reply(`Digite um link do Dailymotion.\n> Ex: ${prefix}${command} https://www.dailymotion.com/video/x8abc123`);
+    
+    // Verificar se tem API key
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    // Verificar se é um link válido do Dailymotion
+    if (!q.includes('dailymotion.com')) {
+      return reply('❌ Por favor, forneça um link válido do Dailymotion.');
+    }
+
+    reply('Aguarde um momentinho... ☀️');
+
+    // Helpers para formatação
+    const formatDuration = (seconds) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const formatNumber = (num) => {
+      if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+      if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+      return num.toString();
+    };
+
+    dailymotion.download(q, KeyCog).then(result => {
+      if (!result.ok) {
+        return reply(result.message || '❌ Erro ao baixar o vídeo do Dailymotion.');
+      }
+
+      const {
+        title,
+        author,
+        thumbnail,
+        duration,
+        views,
+        quality,
+        width,
+        height,
+        timestamp,
+        buffer,
+        filename
+      } = result;
+
+      // Preparar a mensagem com informações do vídeo
+      let caption = `╭━━━⊱📺 DAILYMOTION ⊱━━━╮\n\n`;
+      caption += `📝 *Título:* ${title}\n`;
+      caption += `👤 *Autor:* ${author}\n`;
+      
+      if (duration) {
+        caption += `⏱️ *Duração:* ${formatDuration(duration)}\n`;
+      }
+      
+      if (views) {
+        caption += `👁️ *Visualizações:* ${formatNumber(views)}\n`;
+      }
+      
+      if (quality) {
+        caption += `🎬 *Qualidade:* ${quality}\n`;
+      }
+      
+      if (width && height) {
+        caption += `📐 *Resolução:* ${width}x${height}\n`;
+      }
+      
+      if (timestamp) {
+        const date = new Date(timestamp * 1000);
+        caption += `📅 *Data:* ${date.toLocaleDateString('pt-BR')}\n`;
+      }
+      
+      caption += `\n╰━━━━━━━━━━━━━━━━━━━╯`;
+
+      // Enviar thumbnail primeiro
+      if (thumbnail) {
+        nazu.sendMessage(from, {
+          image: { url: thumbnail },
+          caption: caption
+        }).catch(err => {
+          console.error('Erro ao enviar thumbnail do Dailymotion:', err);
+        });
+      }
+
+      // Enviar o vídeo
+      const fileSize = buffer.length;
+      const fileSizeMB = (fileSize / (1024 * 1024)).toFixed(2);
+
+      if (fileSize > 100 * 1024 * 1024) { // > 100MB
+        nazu.sendMessage(from, {
+          document: buffer,
+          mimetype: 'video/mp4',
+          fileName: filename
+        }, { quoted: info }).then(() => {
+          reply(`✅ Vídeo enviado como documento (${fileSizeMB}MB).`);
+        }).catch(err => {
+          console.error('Erro ao enviar documento do Dailymotion:', err);
+          reply('❌ Erro ao enviar o vídeo. O arquivo pode ser muito grande.');
+        });
+      } else {
+        nazu.sendMessage(from, {
+          video: buffer,
+          mimetype: 'video/mp4',
+          fileName: filename
+        }, { quoted: info }).then(() => {
+          reply(`✅ Vídeo do Dailymotion baixado com sucesso! (${fileSizeMB}MB)`);
+        }).catch(err => {
+          console.error('Erro ao enviar vídeo do Dailymotion:', err);
+          reply('❌ Erro ao enviar o vídeo. Tente novamente.');
+        });
+      }
+    }).catch(error => {
+      console.error('Erro ao baixar do Dailymotion:', error);
+      
+      if (error.message?.includes('401') || error.message?.includes('403')) {
+        ia.notifyOwnerAboutApiKey(nazu, nmrdn, `Erro de autenticação na API: ${error.message}`);
+        return reply('❌ Erro de autenticação da API. O dono foi notificado.');
+      }
+      
+      if (error.message?.includes('404')) {
+        return reply('❌ Vídeo não encontrado. Verifique se o link está correto e se o vídeo ainda está disponível.');
+      }
+      
+      if (error.message?.includes('timeout')) {
+        return reply('❌ O download demorou muito tempo. Tente novamente com um vídeo mais curto.');
+      }
+      
+      reply('❌ Erro ao baixar o vídeo do Dailymotion. Tente novamente mais tarde.');
+    });
+  } catch (error) {
+    console.error('Erro no comando dailymotion:', error);
+    reply("❌ Ocorreu um erro ao processar sua solicitação.");
+  }
+  break;
+
+case 'streamable':
+case 'streamabledl':
+  try {
+    if (!q) return reply(`Digite um link do Streamable.\n> Ex: ${prefix}${command} https://streamable.com/abc123`);
+    
+    // Verificar se tem API key
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    // Verificar se é um link válido do Streamable
+    if (!q.includes('streamable.com')) {
+      return reply('❌ Por favor, forneça um link válido do Streamable.');
+    }
+
+    reply('Aguarde um momentinho... ☀️');
+
+    // Helpers para formatação
+    const formatDuration = (seconds) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const formatFileSize = (bytes) => {
+      if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + 'MB';
+      if (bytes >= 1024) return (bytes / 1024).toFixed(2) + 'KB';
+      return bytes + 'B';
+    };
+
+    streamable.download(q, KeyCog).then(result => {
+      if (!result.ok) {
+        return reply(result.message || '❌ Erro ao baixar o vídeo do Streamable.');
+      }
+
+      const {
+        title,
+        thumbnail,
+        duration,
+        quality,
+        width,
+        height,
+        filesize,
+        timestamp,
+        buffer,
+        filename
+      } = result;
+
+      // Preparar a mensagem com informações do vídeo
+      let caption = `╭━━━⊱🎬 STREAMABLE ⊱━━━╮\n\n`;
+      caption += `📝 *Título:* ${title}\n`;
+      
+      if (duration) {
+        caption += `⏱️ *Duração:* ${formatDuration(duration)}\n`;
+      }
+      
+      if (quality) {
+        caption += `🎬 *Qualidade:* ${quality}\n`;
+      }
+      
+      if (width && height) {
+        caption += `📐 *Resolução:* ${width}x${height}\n`;
+      }
+      
+      if (filesize) {
+        caption += `💾 *Tamanho:* ${formatFileSize(filesize)}\n`;
+      }
+      
+      if (timestamp) {
+        const date = new Date(timestamp * 1000);
+        caption += `📅 *Data:* ${date.toLocaleDateString('pt-BR')}\n`;
+      }
+      
+      caption += `\n╰━━━━━━━━━━━━━━━━━━━╯`;
+
+      // Enviar thumbnail primeiro
+      if (thumbnail) {
+        nazu.sendMessage(from, {
+          image: { url: thumbnail },
+          caption: caption
+        }).catch(err => {
+          console.error('Erro ao enviar thumbnail do Streamable:', err);
+        });
+      }
+
+      // Enviar o vídeo
+      const bufferSize = buffer.length;
+      const bufferSizeMB = (bufferSize / (1024 * 1024)).toFixed(2);
+
+      if (bufferSize > 100 * 1024 * 1024) { // > 100MB
+        nazu.sendMessage(from, {
+          document: buffer,
+          mimetype: 'video/mp4',
+          fileName: filename
+        }, { quoted: info }).then(() => {
+          reply(`✅ Vídeo enviado como documento (${bufferSizeMB}MB).`);
+        }).catch(err => {
+          console.error('Erro ao enviar documento do Streamable:', err);
+          reply('❌ Erro ao enviar o vídeo. O arquivo pode ser muito grande.');
+        });
+      } else {
+        nazu.sendMessage(from, {
+          video: buffer,
+          mimetype: 'video/mp4',
+          fileName: filename
+        }, { quoted: info }).then(() => {
+          reply(`✅ Vídeo do Streamable baixado com sucesso! (${bufferSizeMB}MB)`);
+        }).catch(err => {
+          console.error('Erro ao enviar vídeo do Streamable:', err);
+          reply('❌ Erro ao enviar o vídeo. Tente novamente.');
+        });
+      }
+    }).catch(error => {
+      console.error('Erro ao baixar do Streamable:', error);
+      
+      if (error.message?.includes('401') || error.message?.includes('403')) {
+        ia.notifyOwnerAboutApiKey(nazu, nmrdn, `Erro de autenticação na API: ${error.message}`);
+        return reply('❌ Erro de autenticação da API. O dono foi notificado.');
+      }
+      
+      if (error.message?.includes('404')) {
+        return reply('❌ Vídeo não encontrado. Verifique se o link está correto e se o vídeo ainda está disponível.');
+      }
+      
+      if (error.message?.includes('timeout')) {
+        return reply('❌ O download demorou muito tempo. Tente novamente com um vídeo mais curto.');
+      }
+      
+      reply('❌ Erro ao baixar o vídeo do Streamable. Tente novamente mais tarde.');
+    });
+  } catch (error) {
+    console.error('Erro no comando streamable:', error);
+    reply("❌ Ocorreu um erro ao processar sua solicitação.");
+  }
+  break;
+
       case 'instagram':
       case 'igdl':
       case 'ig':
@@ -18957,7 +20539,7 @@ case 'ytmp3':
           const gdriveResponse = await axios.get('https://cog.api.br/api/v1/gdrive/info', {
             params: { url: q },
             headers: { 'X-API-Key': KeyCog },
-            timeout: 30000
+            timeout: 120000
           });
           
           if (!gdriveResponse.data.success || !gdriveResponse.data.data) {
@@ -19062,7 +20644,7 @@ case 'ytmp3':
           const mfResponse = await axios.get('https://cog.api.br/api/v1/mediafire/info', {
             params: { url: q },
             headers: { 'X-API-Key': KeyCog },
-            timeout: 30000
+            timeout: 120000
           });
           
           if (!mfResponse.data.success || !mfResponse.data.data) {
@@ -19182,7 +20764,7 @@ case 'ytmp3':
           const twtResponse = await axios.get('https://cog.api.br/api/v1/twitter/info', {
             params: { url: q },
             headers: { 'X-API-Key': KeyCog },
-            timeout: 30000
+            timeout: 120000
           });
           
           if (!twtResponse.data.success || !twtResponse.data.data) {
@@ -19267,7 +20849,7 @@ case 'ytmp3':
           const searchResponse = await axios.get('https://cog.api.br/api/v1/search', {
             params: { q: q, max: 10 },
             headers: { 'X-API-Key': KeyCog },
-            timeout: 30000
+            timeout: 120000
           });
           
           if (!searchResponse.data.success || !searchResponse.data.data?.results) {
@@ -19312,7 +20894,7 @@ case 'ytmp3':
           const newsResponse = await axios.get('https://cog.api.br/api/v1/search/news', {
             params: { q: q, max: 10 },
             headers: { 'X-API-Key': KeyCog },
-            timeout: 30000
+            timeout: 120000
           });
           
           if (!newsResponse.data.success || !newsResponse.data.data?.results) {
@@ -19359,7 +20941,7 @@ case 'ytmp3':
           const appResponse = await axios.get('https://cog.api.br/api/v1/apps/search', {
             params: { q: q, num: 5, country: 'br', lang: 'pt' },
             headers: { 'X-API-Key': KeyCog },
-            timeout: 30000
+            timeout: 120000
           });
           
           if (!appResponse.data.success || !appResponse.data.data) {
@@ -19594,23 +21176,87 @@ case 'ytmp3':
       case 'comandos':
       case 'commands':
         try {
-          const menuVideoPath = __dirname + '/../midias/menu.mp4';
-          const menuImagePath = __dirname + '/../midias/menu.jpg';
-          const useVideo = fs.existsSync(menuVideoPath);
-          const mediaPath = useVideo ? menuVideoPath : menuImagePath;
-          const mediaBuffer = fs.readFileSync(mediaPath);
+          // Verifica se o grupo tem personalização
+          let customBotName = nomebot;
+          let customMediaPath = null;
           
-          const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
-          const menuText = await menu(prefix, nomebot, pushname, customDesign);
+          if (isGroup && isGroupCustomizationEnabled()) {
+            const groupCustom = getGroupCustomization(from);
+            if (groupCustom) {
+              if (groupCustom.customName) {
+                customBotName = groupCustom.customName;
+              }
+              if (groupCustom.customPhoto && fs.existsSync(groupCustom.customPhoto)) {
+                customMediaPath = groupCustom.customPhoto;
+              }
+            }
+          }
           
-          await nazu.sendMessage(from, {
-            [useVideo ? 'video' : 'image']: mediaBuffer,
-            caption: menuText,
-            gifPlayback: useVideo,
-            mimetype: useVideo ? 'video/mp4' : 'image/jpeg'
-          }, {
-            quoted: info
-          });
+          // Define a mídia a ser usada
+          let mediaPath, useVideo, mediaBuffer;
+          
+          if (customMediaPath) {
+            // Usa a foto personalizada do grupo
+            mediaPath = customMediaPath;
+            useVideo = false;
+            mediaBuffer = fs.readFileSync(mediaPath);
+          } else {
+            // Usa a mídia padrão
+            const menuVideoPath = __dirname + '/../midias/menu.mp4';
+            const menuImagePath = __dirname + '/../midias/menu.jpg';
+            useVideo = fs.existsSync(menuVideoPath);
+            mediaPath = useVideo ? menuVideoPath : menuImagePath;
+            mediaBuffer = fs.readFileSync(mediaPath);
+          }
+          
+          const customDesign = getMenuDesignWithDefaults(customBotName, pushname);
+          const menuText = await menu(prefix, customBotName, pushname, customDesign);
+          const lerMaisPrefix = getMenuLerMaisText();
+          
+          // Envia o áudio primeiro se configurado
+          if (isMenuAudioEnabled()) {
+            const audioPath = getMenuAudioPath();
+            if (audioPath && fs.existsSync(audioPath)) {
+              const audioBuffer = fs.readFileSync(audioPath);
+              await nazu.sendMessage(from, {
+                audio: audioBuffer,
+                mimetype: 'audio/mpeg',
+                ptt: false
+              }, {
+                quoted: info
+              }).then(async () => {
+                // Depois envia o menu
+                await nazu.sendMessage(from, {
+                  [useVideo ? 'video' : 'image']: mediaBuffer,
+                  caption: lerMaisPrefix + menuText,
+                  gifPlayback: useVideo,
+                  mimetype: useVideo ? 'video/mp4' : 'image/jpeg'
+                }, {
+                  quoted: info
+                });
+              });
+            } else {
+              // Se não tem áudio válido, envia só o menu
+              await nazu.sendMessage(from, {
+                [useVideo ? 'video' : 'image']: mediaBuffer,
+                caption: lerMaisPrefix + menuText,
+                gifPlayback: useVideo,
+                mimetype: useVideo ? 'video/mp4' : 'image/jpeg'
+              }, {
+                quoted: info
+              });
+            }
+          } else {
+            // Se áudio não está ativo, envia só o menu
+            await nazu.sendMessage(from, {
+              [useVideo ? 'video' : 'image']: mediaBuffer,
+              caption: lerMaisPrefix + menuText,
+              gifPlayback: useVideo,
+              mimetype: useVideo ? 'video/mp4' : 'image/jpeg'
+            }, {
+              quoted: info
+            });
+          }
         } catch (error) {
           console.error('Erro ao enviar menu:', error);
           const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
@@ -19688,6 +21334,18 @@ case 'ytmp3':
         } catch (error) {
           console.error('Erro ao enviar menu de buscas:', error);
           await reply("❌ Ocorreu um erro ao carregar o menu de buscas");
+        }
+        break;
+      case 'menubs':
+      case 'menubrawl':
+      case 'menubrawlstars':
+      case 'bsmenu':
+      case 'brawlmenu':
+        try {
+          await sendMenuWithMedia('brawl', menuBrawlStars);
+        } catch (error) {
+          console.error('Erro ao enviar menu de Brawl Stars:', error);
+          await reply("❌ Ocorreu um erro ao carregar o menu de Brawl Stars");
         }
         break;
       case 'menuadm':
@@ -19823,6 +21481,429 @@ case 'ytmp3':
             reply('❌ Subcomando inválido! Use ' + prefix + 'configcmdnotfound para ver a lista de comandos disponíveis.');
         }
         break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // TUTORIAL - Guia completo para configuração do bot
+      // ═══════════════════════════════════════════════════════════════
+      case 'tutorial':
+      case 'guia':
+      case 'ajuda':
+        try {
+          if (!isOwner) {
+            await reply("⚠️ Este comando é exclusivo para o dono do bot.");
+            return;
+          }
+
+          const tutorialText = `📚 *TUTORIAL COMPLETO - ${nomebot}*
+
+Bem-vindo ao guia completo de configuração e personalização! Vamos aprender passo a passo como aproveitar ao máximo seu bot.
+
+━━━━━━━━━━━━━━━━━━━━
+📋 *ÍNDICE*
+━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Configurações Básicas
+2️⃣ Personalização Visual
+3️⃣ Sistema de Comandos
+4️⃣ Automação e Respostas
+5️⃣ Gerenciamento de Grupos
+6️⃣ Sistema de Aluguel
+7️⃣ Sub-Bots
+8️⃣ Sistema VIP/Premium
+9️⃣ Recursos Avançados
+
+━━━━━━━━━━━━━━━━━━━━
+1️⃣ *CONFIGURAÇÕES BÁSICAS*
+━━━━━━━━━━━━━━━━━━━━
+
+🔹 *Alterando o Prefixo*
+Use: ${prefix}prefixo <novo_prefixo>
+Exemplo: ${prefix}prefixo .
+• Define qual símbolo inicia os comandos
+• Pode ser: ! . / # $ ou qualquer caractere
+
+🔹 *Nome do Bot*
+Use: ${prefix}nomebot <nome>
+Exemplo: ${prefix}nomebot Nazuna
+• Altera o nome exibido nos menus
+• Use nomes curtos e memoráveis
+
+🔹 *Nome do Dono*
+Use: ${prefix}nomedono <nome>
+Exemplo: ${prefix}nomedono João
+• Seu nome nos créditos do bot
+
+🔹 *Número do Dono*
+Use: ${prefix}numerodono <número>
+Exemplo: ${prefix}numerodono 5511999999999
+• Formato: DDI + DDD + número
+• Usado para permissões de dono
+
+🔹 *API Key (IA e Recursos)*
+Use: ${prefix}apikey <tipo> <chave>
+Tipos: gemini, openai, cognimax
+• Necessário para comandos de IA
+• Obtenha em: cog.api.br/plans
+
+━━━━━━━━━━━━━━━━━━━━
+2️⃣ *PERSONALIZAÇÃO VISUAL*
+━━━━━━━━━━━━━━━━━━━━
+
+🎨 *Design do Menu*
+Use: ${prefix}designmenu
+• Mostra design atual
+
+🔹 *Personalizando Elementos:*
+
+• Borda Superior:
+  ${prefix}setborda ╭━━━⊱ ⊰━━━╮
+
+• Borda Inferior:
+  ${prefix}setbordafim ╰━━━⊱ ⊰━━━╯
+
+• Borda do Meio:
+  ${prefix}setbordameio │
+
+• Ícone de Itens:
+  ${prefix}setitem ➤
+
+• Separador:
+  ${prefix}setseparador ❖
+
+• Ícone de Título:
+  ${prefix}settitulo ✦
+
+• Cabeçalho Personalizado:
+  ${prefix}setheader ╭━━━❖ Olá, #user# ❖━━━╮
+
+📸 *Mídia do Menu*
+• Foto: ${prefix}fotomenu (responda uma imagem)
+• Vídeo: ${prefix}videomenu (responda um vídeo)
+• Foto do Bot: ${prefix}fotobot (responda uma imagem)
+
+🔄 *Resetar Design*
+Use: ${prefix}resetdesign
+• Volta ao design padrão
+
+━━━━━━━━━━━━━━━━━━━━
+3️⃣ *SISTEMA DE COMANDOS*
+━━━━━━━━━━━━━━━━━━━━
+
+✨ *Criar Comandos Personalizados*
+
+🔹 *Comando de Texto:*
+${prefix}addcmd <nome> | <resposta>
+Exemplo: ${prefix}addcmd oi | Olá! Tudo bem?
+
+🔹 *Comando com Mídia:*
+${prefix}addcmdmidia <nome> | <legenda>
+• Responda uma imagem/vídeo/áudio
+Exemplo: ${prefix}addcmdmidia bemvindo | Seja bem-vindo!
+
+🔹 *Gerenciar Comandos:*
+• Listar: ${prefix}listcmd
+• Deletar: ${prefix}delcmd <nome>
+• Testar: ${prefix}testcmd <nome>
+
+🔀 *Sistema de Alias*
+• Adicionar: ${prefix}addalias <comando_existente> | <novo_nome>
+  Exemplo: ${prefix}addalias sticker | fig
+• Listar: ${prefix}listalias
+• Remover: ${prefix}delalias <alias>
+
+🚫 *Limitar Comandos*
+• Limitar: ${prefix}cmdlimitar <comando> <max_usos> <tempo_em_segundos>
+  Exemplo: ${prefix}cmdlimitar gpt 3 60
+  (3 usos a cada 60 segundos)
+• Deslimitar: ${prefix}cmddeslimitar <comando>
+• Ver limites: ${prefix}cmdlimites
+
+━━━━━━━━━━━━━━━━━━━━
+4️⃣ *AUTOMAÇÃO E RESPOSTAS*
+━━━━━━━━━━━━━━━━━━━━
+
+🤖 *Respostas Automáticas*
+
+🔹 *Resposta de Texto:*
+${prefix}addauto <palavra> | <resposta>
+Exemplo: ${prefix}addauto oi | Olá! Como posso ajudar?
+
+🔹 *Resposta com Mídia:*
+${prefix}addautomidia <palavra> | <legenda>
+• Responda uma imagem/vídeo
+• A mídia será enviada quando alguém digitar a palavra
+
+🔹 *Gerenciar:*
+• Listar: ${prefix}listauto
+• Deletar: ${prefix}delauto <palavra>
+
+😊 *Reações Automáticas*
+• Adicionar: ${prefix}addreact <palavra> | <emoji>
+  Exemplo: ${prefix}addreact obrigado | 🙏
+• Listar: ${prefix}listreact
+• Deletar: ${prefix}delreact <palavra>
+
+🔓 *Comandos Sem Prefixo*
+• Adicionar: ${prefix}addnopref <comando>
+  Exemplo: ${prefix}addnopref menu
+• Listar: ${prefix}listnopref
+• Deletar: ${prefix}delnopref <comando>
+
+⏰ *Mensagens Automáticas (por horário)*
+• Adicionar: ${prefix}automsg add HH:MM | descrição
+  Responda uma mensagem
+  Exemplo: ${prefix}automsg add 08:00 | Bom dia!
+• Listar: ${prefix}automsg list
+• Deletar: ${prefix}automsg del <id>
+• Ativar/Desativar: ${prefix}automsg on/off <id>
+
+━━━━━━━━━━━━━━━━━━━━
+5️⃣ *GERENCIAMENTO DE GRUPOS*
+━━━━━━━━━━━━━━━━━━━━
+
+👑 *Sub-Donos*
+• Adicionar: ${prefix}addsubdono @usuario
+• Remover: ${prefix}delsubdono @usuario
+• Listar: ${prefix}listasubdonos
+• Sub-donos têm acesso a comandos de dono
+
+💎 *Usuários Premium*
+• Adicionar: ${prefix}addpremium @usuario
+• Remover: ${prefix}delpremium @usuario
+• Listar: ${prefix}listprem
+
+🚫 *Blacklist Global*
+• Banir: ${prefix}addblackglobal @usuario | motivo
+• Desbanir: ${prefix}rmblackglobal @usuario
+• Listar: ${prefix}listblackglobal
+• Usuário banido é removido automaticamente dos grupos
+
+🚷 *Banimento de Grupos*
+• Banir grupo: ${prefix}bangp
+• Desbanir: ${prefix}unbangp <id_grupo>
+• Listar: ${prefix}listbangp
+
+🔒 *Bloqueios Específicos*
+• Bloquear comando: ${prefix}blockcmdg <comando> <grupo_id>
+• Bloquear usuário: ${prefix}blockuserg @usuario <grupo_id>
+• Desbloquear comando: ${prefix}unblockcmdg <comando> <grupo_id>
+• Desbloquear usuário: ${prefix}unblockuserg @usuario <grupo_id>
+• Listar bloqueios: ${prefix}listblocks
+
+━━━━━━━━━━━━━━━━━━━━
+6️⃣ *SISTEMA DE ALUGUEL*
+━━━━━━━━━━━━━━━━━━━━
+
+💰 *Configuração Inicial*
+1. Ativar sistema: ${prefix}modoaluguel on
+2. Configurar divulgação: ${prefix}setdiv (responda mensagem)
+
+📝 *Gerenciar Aluguéis*
+
+• Adicionar aluguel:
+  ${prefix}addaluguel <dias> <id_grupo>
+  Exemplo: ${prefix}addaluguel 30 120363...@g.us
+
+• Gerar código de ativação:
+  ${prefix}gerarcod <dias> <quantidade>
+  Exemplo: ${prefix}gerarcod 30 5
+
+• Estender aluguel:
+  ${prefix}estenderaluguel <dias> <id_grupo>
+
+• Ver informações:
+  ${prefix}infoaluguel <id_grupo>
+
+• Listar todos:
+  ${prefix}listaraluguel
+
+• Remover aluguel:
+  ${prefix}removeraluguel <id_grupo>
+
+• Limpar vencidos:
+  ${prefix}limparaluguel
+
+• Dia grátis:
+  ${prefix}dayfree <id_grupo>
+
+🎁 *Divulgação Automática*
+Use: ${prefix}divulgar
+• Envia mensagem de divulgação em todos os grupos
+
+━━━━━━━━━━━━━━━━━━━━
+7️⃣ *SUB-BOTS*
+━━━━━━━━━━━━━━━━━━━━
+
+🤖 *Sistema de Sub-Bots*
+
+📱 *Para o Dono Principal:*
+
+1. Adicionar sub-bot:
+   ${prefix}addsubbot <numero> | <nome>
+   Exemplo: ${prefix}addsubbot 5511988887777 | Bot Auxiliar
+
+2. Gerar código de conexão:
+   ${prefix}gerarcodigo <numero>
+
+3. Listar sub-bots:
+   ${prefix}listarsubbots
+
+4. Remover sub-bot:
+   ${prefix}removesubbot <numero>
+
+5. Conectar manualmente:
+   ${prefix}conectarsubbot <numero>
+
+📱 *Para o Sub-Bot:*
+
+1. Receba o código do dono
+2. Use: ${prefix}conectar <código>
+3. Pronto! Seu sub-bot está conectado
+
+ℹ️ *Informações Importantes:*
+• Sub-bots compartilham comandos e configurações
+• Podem responder em grupos diferentes
+• Útil para atender mais usuários
+
+━━━━━━━━━━━━━━━━━━━━
+8️⃣ *SISTEMA VIP/PREMIUM*
+━━━━━━━━━━━━━━━━━━━━
+
+💎 *Comandos Exclusivos VIP*
+
+• Tornar comando VIP:
+  ${prefix}addcmdvip <comando>
+  Exemplo: ${prefix}addcmdvip gpt4
+
+• Remover restrição:
+  ${prefix}removecmdvip <comando>
+
+• Listar comandos VIP:
+  ${prefix}listcmdvip
+
+• Ativar/Desativar sistema:
+  ${prefix}togglecmdvip
+
+• Estatísticas:
+  ${prefix}statsvip
+
+• Menu VIP personalizado:
+  ${prefix}menuvip
+
+• Informações VIP de usuário:
+  ${prefix}infovip @usuario
+
+━━━━━━━━━━━━━━━━━━━━
+9️⃣ *RECURSOS AVANÇADOS*
+━━━━━━━━━━━━━━━━━━━━
+
+🔧 *Manutenção*
+
+• Atualizar bot:
+  ${prefix}atualizar
+
+• Reiniciar:
+  ${prefix}reiniciar
+
+• Entrar em grupo:
+  ${prefix}entrar <link>
+
+• Sair de grupo:
+  ${prefix}sairgp
+
+• Virar ADM:
+  ${prefix}seradm
+
+• Virar membro:
+  ${prefix}sermembro
+
+📊 *Monitoramento*
+
+• Listar grupos:
+  ${prefix}listagp
+
+• Ver mensagens deletadas:
+  ${prefix}viewmsg
+
+• Estatísticas de IA:
+  ${prefix}iastatus
+
+• Limpar cache de IA:
+  ${prefix}iaclear
+
+• Recuperar IA:
+  ${prefix}iarecovery
+
+• Ver cases disponíveis:
+  ${prefix}cases
+
+• Ver código de comando:
+  ${prefix}getcase <comando>
+
+🔒 *Privacidade*
+
+• Anti-PV (níveis 1-4):
+  ${prefix}antipv, ${prefix}antipv2, ${prefix}antipv3, ${prefix}antipv4
+
+• Mensagem do Anti-PV:
+  ${prefix}antipvmsg <texto>
+
+• Anti-spam de comandos:
+  ${prefix}antispamcmd
+
+📡 *Transmissões*
+
+• Transmissão em grupos:
+  ${prefix}tm <texto>
+
+• Transmissão privada:
+  ${prefix}tm2 <texto>
+
+• Status da transmissão:
+  ${prefix}statustm
+
+💡 *Dicas Extras:*
+
+• Use sempre com moderação
+• Teste comandos antes de divulgar
+• Mantenha backups das configurações
+• Acompanhe os logs do bot
+
+🧹 *Limpeza e Manutenção*
+
+• Limpar banco de dados:
+  ${prefix}limpardb
+
+• Limpar ranking de grupos:
+  ${prefix}limparrankg
+
+• Reviver QR Code:
+  ${prefix}reviverqr
+
+• Nuke (limpar tudo - CUIDADO!):
+  ${prefix}nuke
+
+━━━━━━━━━━━━━━━━━━━━
+📞 *SUPORTE*
+━━━━━━━━━━━━━━━━━━━━
+
+Precisa de ajuda? Entre em contato:
+• Dono: ${nomedono}
+• Número: ${numerodono}
+
+━━━━━━━━━━━━━━━━━━━━
+
+✨ *Dica Final:*
+Comece pelas configurações básicas, depois personalize o visual e por fim explore os recursos avançados. Vá com calma e aproveite!
+
+📚 Use ${prefix}tutorial a qualquer momento para consultar este guia novamente.`;
+
+          await reply(tutorialText);
+        } catch (error) {
+          console.error('Erro no comando tutorial:', error);
+          await reply('❌ Ocorreu um erro ao exibir o tutorial.');
+        }
+        break;
         
       case 'menudono':
       case 'ownermenu':
@@ -19848,25 +21929,54 @@ case 'ytmp3':
         }
         break;
         async function sendMenuWithMedia(menuType, menuFunction) {
-          const menuVideoPath = __dirname + '/../midias/menu.mp4';
-          const menuImagePath = __dirname + '/../midias/menu.jpg';
-          const useVideo = fs.existsSync(menuVideoPath);
-          const mediaPath = useVideo ? menuVideoPath : menuImagePath;
-          const mediaBuffer = fs.readFileSync(mediaPath);
+          // Verifica se o grupo tem personalização
+          let customBotName = nomebot;
+          let customMediaPath = null;
+          
+          if (isGroup && isGroupCustomizationEnabled()) {
+            const groupCustom = getGroupCustomization(from);
+            if (groupCustom) {
+              if (groupCustom.customName) {
+                customBotName = groupCustom.customName;
+              }
+              if (groupCustom.customPhoto && fs.existsSync(groupCustom.customPhoto)) {
+                customMediaPath = groupCustom.customPhoto;
+              }
+            }
+          }
+          
+          // Define a mídia a ser usada
+          let mediaPath, useVideo, mediaBuffer;
+          
+          if (customMediaPath) {
+            // Usa a foto personalizada do grupo
+            mediaPath = customMediaPath;
+            useVideo = false;
+            mediaBuffer = fs.readFileSync(mediaPath);
+          } else {
+            // Usa a mídia padrão
+            const menuVideoPath = __dirname + '/../midias/menu.mp4';
+            const menuImagePath = __dirname + '/../midias/menu.jpg';
+            useVideo = fs.existsSync(menuVideoPath);
+            mediaPath = useVideo ? menuVideoPath : menuImagePath;
+            mediaBuffer = fs.readFileSync(mediaPath);
+          }
           
           // Obtém o design personalizado do menu
-          const customDesign = getMenuDesignWithDefaults(nomebot, pushname);
+          const customDesign = getMenuDesignWithDefaults(customBotName, pushname);
           
           // Aplica o design personalizado ao menu
           const menuText = typeof menuFunction === 'function' ? 
             (typeof menuFunction.then === 'function' ? 
               await menuFunction : 
-              await menuFunction(prefix, nomebot, pushname, customDesign)) : 
+              await menuFunction(prefix, customBotName, pushname, customDesign)) : 
             'Menu não disponível';
+          
+          const lerMaisPrefix = getMenuLerMaisText();
           
           await nazu.sendMessage(from, {
             [useVideo ? 'video' : 'image']: mediaBuffer,
-            caption: menuText,
+            caption: lerMaisPrefix + menuText,
             gifPlayback: useVideo,
             mimetype: useVideo ? 'video/mp4' : 'image/jpeg'
           }, {
@@ -20087,6 +22197,197 @@ case 'ytmp3':
           await reply("Ocorreu um erro 💔");
         }
         break;
+      
+      // Sistema de transmissão privada (tm2)
+      case 'inscrevertm':
+      case 'inscrevertm2':
+        try {
+          if (isGroup) return reply('⚠️ Este comando só funciona no privado! Me chama no PV para se inscrever.');
+          
+          // Verifica se o usuário já está inscrito
+          if (transmissao.isSubscribed(sender)) {
+            const stats = transmissao.getStats();
+            return reply(`✅ Você já está inscrito nas transmissões!\n\n📊 *Estatísticas:*\n• Total de inscritos: ${stats.totalSubscribers}\n• Mensagens enviadas: ${stats.totalMessages}\n• Última transmissão: ${stats.lastBroadcast || 'Nenhuma ainda'}`);
+          }
+          
+          // Inscreve o usuário
+          transmissao.subscribe(sender, pushname || 'Usuário');
+          
+          reply(`🎉 *Inscrição confirmada!*\n\nVocê agora receberá as transmissões da bot diretamente no seu privado.\n\n💡 *Como funciona:*\n• Você receberá mensagens importantes da equipe\n• Para cancelar, use: ${prefix}desinscrever\n\n✨ Obrigado por se inscrever!`);
+        } catch (e) {
+          console.error('[INSCREVERTM ERROR]', e);
+          await reply("❌ Ocorreu um erro ao processar sua inscrição. Tente novamente mais tarde.");
+        }
+        break;
+      
+      case 'desinscrever':
+      case 'desinscrevertm':
+      case 'cancelartm':
+        try {
+          if (isGroup) return reply('⚠️ Este comando só funciona no privado!');
+          
+          // Verifica se o usuário está inscrito
+          if (!transmissao.isSubscribed(sender)) {
+            return reply('⚠️ Você não está inscrito nas transmissões.');
+          }
+          
+          // Remove a inscrição
+          transmissao.unsubscribe(sender);
+          
+          reply(`✅ *Inscrição cancelada!*\n\nVocê não receberá mais as transmissões.\n\n💡 Para se inscrever novamente, use: ${prefix}inscrevertm`);
+        } catch (e) {
+          console.error('[DESINSCREVER ERROR]', e);
+          await reply("❌ Ocorreu um erro ao processar sua solicitação.");
+        }
+        break;
+      
+      case 'tm2':
+        try {
+          if (!isOwner) return reply("🚫 Este comando é apenas para o meu dono 💔");
+          if (!q && !isImage && !isVideo && !isQuotedImage && !isQuotedVideo) return reply('Digite uma mensagem ou marque uma imagem/vídeo! Exemplo: ' + prefix + 'tm2 Olá inscritos!');
+          
+          // Obtém lista de inscritos
+          const subscribers = transmissao.getSubscribers();
+          
+          if (subscribers.length === 0) {
+            return reply('⚠️ Ainda não há inscritos para enviar a transmissão.\n\n💡 Os usuários devem usar o comando /inscrevertm no privado para se inscrever.');
+          }
+          
+          const cabecalho = `╔══════════════════════\n║  📡 *TRANSMISSÃO PRIVADA* 📡\n╚══════════════════════\n\n`;
+          const genSuffix = () => Math.floor(100 + Math.random() * 900).toString();
+          
+          let baseMessage = {};
+          
+          // Verifica se a mensagem atual tem imagem
+          if (isImage) {
+            const image = await getFileBuffer(info.message.imageMessage, 'image');
+            const captionOriginal = info.message.imageMessage?.caption || '';
+            const textoFinal = q || captionOriginal;
+            
+            baseMessage = {
+              image,
+              caption: textoFinal ? `${cabecalho}${textoFinal}` : cabecalho.trim()
+            };
+          } 
+          // Verifica se a mensagem atual tem vídeo
+          else if (isVideo) {
+            const video = await getFileBuffer(info.message.videoMessage, 'video');
+            const captionOriginal = info.message.videoMessage?.caption || '';
+            const textoFinal = q || captionOriginal;
+            
+            baseMessage = {
+              video,
+              caption: textoFinal ? `${cabecalho}${textoFinal}` : cabecalho.trim()
+            };
+          }
+          // Verifica se cita uma imagem
+          else if (isQuotedImage) {
+            const image = await getFileBuffer(info.message.extendedTextMessage.contextInfo.quotedMessage.imageMessage, 'image');
+            
+            baseMessage = {
+              image,
+              caption: q ? `${cabecalho}${q}` : cabecalho.trim()
+            };
+          } 
+          // Verifica se cita um vídeo
+          else if (isQuotedVideo) {
+            const video = await getFileBuffer(info.message.extendedTextMessage.contextInfo.quotedMessage.videoMessage, 'video');
+            
+            baseMessage = {
+              video,
+              caption: q ? `${cabecalho}${q}` : cabecalho.trim()
+            };
+          } 
+          // Apenas texto
+          else {
+            baseMessage = {
+              text: `${cabecalho}${q}`
+            };
+          }
+          
+          const totalSubscribers = subscribers.length;
+          let enviados = 0;
+          let falhas = 0;
+          
+          // Envia para cada inscrito
+          for (const subscriber of subscribers) {
+            try {
+              const suffix = genSuffix();
+              const message = { ...baseMessage };
+              
+              if (message.caption) {
+                message.caption = `${message.caption}\n\n> ID: ${suffix}`;
+              }
+              if (message.text) {
+                message.text = `${message.text}\n\n> ID: ${suffix}`;
+              }
+              
+              await nazu.sendMessage(subscriber.id, message);
+              enviados++;
+              
+              // Incrementa contador de mensagens recebidas pelo usuário
+              transmissao.incrementMessageCount(subscriber.id);
+              
+              // Delay aleatório entre envios para evitar ban
+              if (enviados < totalSubscribers) {
+                const delay = Math.floor(Math.random() * 2000) + 1500; // 1.5s a 3.5s
+                await new Promise(resolve => setTimeout(resolve, delay));
+              }
+            } catch (error) {
+              console.error(`Erro ao enviar para ${subscriber.id}:`, error.message);
+              falhas++;
+              
+              // Se o erro for por conta bloqueada/número inválido, remove da lista
+              if (error.message.includes('not-authorized') || error.message.includes('invalid')) {
+                transmissao.removeSubscriber(subscriber.id);
+                console.log(`Inscrito ${subscriber.id} removido automaticamente (conta inválida)`);
+              }
+            }
+          }
+          
+          const stats = transmissao.getStats();
+          await reply(`✅ *Transmissão concluída!*\n\n📊 *Resultado:*\n• Enviados: ${enviados}\n• Falhas: ${falhas}\n• Total de inscritos: ${stats.totalSubscribers}\n\n🕐 ${new Date().toLocaleString('pt-BR')}`);
+        } catch (e) {
+          console.error('[TM2 ERROR]', e);
+          await reply("❌ Ocorreu um erro ao enviar a transmissão.");
+        }
+        break;
+      
+      case 'statustm':
+      case 'statustm2':
+        try {
+          if (!isOwner) return reply("🚫 Este comando é apenas para o meu dono 💔");
+          
+          const stats = transmissao.getStats();
+          const subscribers = transmissao.getSubscribers();
+          
+          let message = `📊 *STATUS DA TRANSMISSÃO TM2*\n\n`;
+          message += `👥 *Inscritos:* ${stats.totalSubscribers}\n`;
+          message += `📨 *Mensagens enviadas:* ${stats.totalMessages}\n`;
+          message += `🕐 *Última transmissão:* ${stats.lastBroadcast || 'Nenhuma ainda'}\n\n`;
+          
+          if (subscribers.length > 0) {
+            message += `📋 *Lista de inscritos:*\n`;
+            subscribers.slice(0, 20).forEach((sub, i) => {
+              const nome = sub.name || 'Sem nome';
+              const msgs = sub.messagesReceived || 0;
+              message += `${i + 1}. ${nome} (${msgs} msgs)\n`;
+            });
+            
+            if (subscribers.length > 20) {
+              message += `\n... e mais ${subscribers.length - 20} inscritos.`;
+            }
+          } else {
+            message += `⚠️ Ainda não há inscritos.`;
+          }
+          
+          reply(message);
+        } catch (e) {
+          console.error('[STATUSTM ERROR]', e);
+          await reply("❌ Ocorreu um erro ao consultar as estatísticas.");
+        }
+        break;
+      
       case 'reviverqr':
         if (!isOwner) return reply('🚫 Este comando é exclusivo para o proprietário!');
         const qrcodeDir = pathz.join(__dirname, '..', 'database', 'qr-code');
@@ -20312,10 +22613,23 @@ case 'ytmp3':
         try {
           if (!isOwner) return reply("Este comando é exclusivo para o meu dono!");
           if (!q) return reply(`⚙️ *Configuração de Prefixo*\n\n📝 *Como usar:*\n• Digite o novo prefixo após o comando\n• Ex: ${prefix}${command} /\n• Ex: ${prefix}${command} !\n\n✅ O prefixo do bot será atualizado para o valor especificado!`);
+          
+          let newPrefix = q.trim();
+          
+          // Bloqueia o uso de $ como prefixo e converte automaticamente para /
+          if (newPrefix === '$') {
+            newPrefix = '/';
+            await reply(`⚠️ O símbolo "$" é reservado e não pode ser usado como prefixo.\n✅ Prefixo alterado automaticamente para "/" globalmente!`);
+          }
+          
           let config = JSON.parse(fs.readFileSync(CONFIG_FILE));
-          config.prefixo = q;
+          config.prefixo = newPrefix;
           writeJsonFile(CONFIG_FILE, config);
-          await reply(`Prefixo alterado com sucesso para "${q}"!`);
+          
+          // Se não foi convertido, envia mensagem normal
+          if (newPrefix !== '/') {
+            await reply(`Prefixo alterado com sucesso para "${newPrefix}"!`);
+          }
         } catch (e) {
           console.error(e);
           await reply("🐝 Ops! Ocorreu um erro inesperado. Tente novamente em alguns instantes, por favor! 🥺");
@@ -20372,7 +22686,8 @@ case 'ytmp3':
           let config = JSON.parse(fs.readFileSync(CONFIG_FILE));
           config.apikey = q;
           writeJsonFile(CONFIG_FILE, config);
-          await reply(`API key alterada com sucesso para "${q}"!`);
+          KeyCog = q; // Atualiza a variável global imediatamente
+          await reply(`✅ API key alterada com sucesso!\n\n🔄 A chave foi atualizada e já está ativa.`);
         } catch (e) {
           console.error(e);
           await reply("🐝 Ops! Ocorreu um erro inesperado. Tente novamente em alguns instantes, por favor! 🥺");
@@ -20399,6 +22714,85 @@ case 'ytmp3':
           reply("ocorreu um erro 💔");
         }
         break;
+      
+      case 'audiomenu':
+      case 'menuaudio':
+      case 'setmenuaudio':
+        try {
+          if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
+          
+          // Verifica se é para remover
+          if (q && (q.toLowerCase() === 'off' || q.toLowerCase() === 'del' || q.toLowerCase() === 'delete' || q.toLowerCase() === 'remover')) {
+            if (!isMenuAudioEnabled()) {
+              return reply("ℹ️ Não há áudio configurado para o menu.");
+            }
+            
+            removeMenuAudio();
+            return reply("✅ Áudio do menu removido com sucesso!\n\n" +
+              "O menu voltará a ser enviado sem áudio.");
+          }
+          
+          const RSMAudio = info.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+          const audioMsg = RSMAudio?.audioMessage || info.message?.audioMessage;
+          
+          if (!audioMsg) {
+            const statusMsg = isMenuAudioEnabled() 
+              ? `ℹ️ *Áudio do menu está ATIVO*\n\n` +
+                `🎵 Um áudio está configurado para ser enviado com o menu.\n\n` +
+                `📝 *Comandos disponíveis:*\n` +
+                `• ${prefix}${command} - Enviar/marcar áudio para configurar\n` +
+                `• ${prefix}${command} off - Remover o áudio\n` +
+                `• ${prefix}${command} del - Remover o áudio`
+              : `❌ *Envie ou marque um áudio* com o comando: ${prefix}${command}\n\n` +
+                `🎵 Este áudio será enviado junto com o menu principal.\n\n` +
+                `💡 Para remover depois, use: ${prefix}${command} off`;
+            
+            return reply(statusMsg);
+          }
+          
+          // Baixa o áudio
+          const audioBuffer = await getFileBuffer(audioMsg, 'audio');
+          
+          // Salva o áudio
+          const audioPath = __dirname + '/../midias/menu_audio.mp3';
+          fs.writeFileSync(audioPath, audioBuffer);
+          
+          // Atualiza a configuração
+          setMenuAudio(audioPath);
+          
+          await reply('✅ *Áudio do menu configurado com sucesso!*\n\n' +
+            '🎵 O áudio será enviado junto com o menu principal.\n\n' +
+            `💡 Para remover, use: ${prefix}${command} off`);
+        } catch (e) {
+          console.error('Erro no comando audiomenu:', e);
+          await reply("❌ Ocorreu um erro ao configurar o áudio do menu 💔");
+        }
+        break;
+      
+      case 'lermais':
+      case 'lermaismenus':
+      case 'menulermais':
+        try {
+          if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
+          
+          const currentState = isMenuLerMaisEnabled();
+          const newState = setMenuLerMais(!currentState);
+          
+          const statusMsg = newState
+            ? `✅ *"Ler Mais" ATIVADO nos menus!*\n\n` +
+              `📱 Os menus agora exibem caracteres invisíveis no início, fazendo o WhatsApp mostrar "Ler mais".\n\n` +
+              `💡 Isso deixa os menus mais limpos na prévia da conversa.`
+            : `❌ *"Ler Mais" DESATIVADO nos menus!*\n\n` +
+              `📱 Os menus não terão mais os caracteres invisíveis.\n\n` +
+              `💡 O conteúdo completo aparecerá direto sem precisar expandir.`;
+          
+          await reply(statusMsg);
+        } catch (e) {
+          console.error('Erro no comando lermais:', e);
+          await reply("❌ Ocorreu um erro ao alterar a configuração 💔");
+        }
+        break;
+      
       case 'fotobot':
       case 'fotoperfil':
       case 'setppbot':
@@ -20426,6 +22820,186 @@ case 'ytmp3':
         } catch (e) {
           console.error('Erro no comando fotobot:', e);
           reply("❌ Ocorreu um erro ao alterar a foto de perfil 💔");
+        }
+        break;
+      
+      // ========== SISTEMA DE PERSONALIZAÇÃO DE GRUPO ==========
+      case 'personalizargrupo':
+      case 'ativarperso':
+        try {
+          if (!isOwner) return reply("Este comando é apenas para o meu dono 💔");
+          
+          const currentState = isGroupCustomizationEnabled();
+          const newState = setGroupCustomizationEnabled(!currentState);
+          
+          const statusMsg = newState 
+            ? `✅ *Sistema de Personalização Ativado!*\n\n` +
+              `Agora os donos dos grupos podem:\n` +
+              `📸 Mudar a foto do menu (${prefix}fotomenugrupo)\n` +
+              `✏️ Mudar o nome do bot (${prefix}nomegrupo)\n\n` +
+              `💡 As personalizações só afetam o grupo onde foram configuradas.`
+            : `❌ *Sistema de Personalização Desativado!*\n\n` +
+              `Os donos dos grupos não podem mais personalizar o bot.`;
+          
+          await reply(statusMsg);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro 💔");
+        }
+        break;
+      
+      case 'fotomenugrupo':
+      case 'setmenupic':
+        try {
+          if (!isGroup) return reply("Este comando só funciona em grupos 💔");
+          if (!isGroupAdmin) return reply("Você precisa ser admin do grupo 💔");
+          
+          if (!isGroupCustomizationEnabled()) {
+            return reply("⚠️ O sistema de personalização está desativado. Peça ao dono do bot para ativar com o comando: " + prefix + "personalizargrupo");
+          }
+          
+          if (!isQuotedImage && !isImage) {
+            return reply(`❌ Envie ou marque uma imagem para definir como foto do menu deste grupo.\n\n` +
+              `📝 *Uso:* Envie uma imagem com o comando ou responda uma imagem com ${prefix}fotomenugrupo\n\n` +
+              `💡 Para remover a personalização, use: ${prefix}removerfotomenu`);
+          }
+          
+          const messageToUse = isQuotedImage ? quotedMessageContent : info.message;
+          const mediaInfo = getMediaInfo(messageToUse);
+          if (!mediaInfo || mediaInfo.type !== 'image') return reply('❌ Mídia inválida. Envie uma imagem.');
+          
+          const imageBuffer = await getFileBuffer(mediaInfo.media, 'image');
+          
+          // Salva a imagem no diretório de grupos
+          const customPhotoPath = __dirname + `/../database/grupos/${from}_menu.jpg`;
+          fs.writeFileSync(customPhotoPath, imageBuffer);
+          
+          setGroupCustomPhoto(from, customPhotoPath);
+          
+          await reply(`✅ *Foto do menu personalizada com sucesso!*\n\n` +
+            `🎨 Esta foto será exibida apenas neste grupo quando alguém usar o comando ${prefix}menu`);
+        } catch (e) {
+          console.error('Erro no comando fotomenugrupo:', e);
+          await reply("❌ Ocorreu um erro ao personalizar a foto do menu 💔");
+        }
+        break;
+      
+      case 'removerfotomenu':
+      case 'resetfotomenu':
+        try {
+          if (!isGroup) return reply("Este comando só funciona em grupos 💔");
+          if (!isGroupAdmin) return reply("Você precisa ser admin do grupo 💔");
+          
+          if (!isGroupCustomizationEnabled()) {
+            return reply("⚠️ O sistema de personalização está desativado.");
+          }
+          
+          const customization = getGroupCustomization(from);
+          if (!customization || !customization.customPhoto) {
+            return reply("ℹ️ Este grupo não possui foto personalizada.");
+          }
+          
+          removeGroupCustomPhoto(from);
+          await reply("✅ Foto personalizada removida! O menu voltará a usar a foto padrão.");
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro 💔");
+        }
+        break;
+      
+      case 'nomegrupo':
+      case 'nomebotgrupo':
+      case 'setbotname':
+        try {
+          if (!isGroup) return reply("Este comando só funciona em grupos 💔");
+          if (!isGroupAdmin) return reply("Você precisa ser admin do grupo 💔");
+          
+          if (!isGroupCustomizationEnabled()) {
+            return reply("⚠️ O sistema de personalização está desativado. Peça ao dono do bot para ativar com o comando: " + prefix + "personalizargrupo");
+          }
+          
+          if (!q) {
+            return reply(`📝 *Definir nome personalizado do bot neste grupo*\n\n` +
+              `Uso: ${prefix}nomegrupo <nome>\n\n` +
+              `Exemplo: ${prefix}nomegrupo MeuBot\n\n` +
+              `💡 Para remover a personalização, use: ${prefix}removernome`);
+          }
+          
+          const customName = q.trim();
+          if (customName.length > 50) {
+            return reply("❌ O nome não pode ter mais de 50 caracteres.");
+          }
+          
+          setGroupCustomName(from, customName);
+          
+          await reply(`✅ *Nome do bot personalizado com sucesso!*\n\n` +
+            `🤖 Nome: *${customName}*\n\n` +
+            `💡 Este nome será exibido apenas neste grupo nos menus e comandos.`);
+        } catch (e) {
+          console.error('Erro no comando nomegrupo:', e);
+          await reply("❌ Ocorreu um erro ao personalizar o nome 💔");
+        }
+        break;
+      
+      case 'removernome':
+      case 'resetnome':
+        try {
+          if (!isGroup) return reply("Este comando só funciona em grupos 💔");
+          if (!isGroupAdmin) return reply("Você precisa ser admin do grupo 💔");
+          
+          if (!isGroupCustomizationEnabled()) {
+            return reply("⚠️ O sistema de personalização está desativado.");
+          }
+          
+          const customization = getGroupCustomization(from);
+          if (!customization || !customization.customName) {
+            return reply("ℹ️ Este grupo não possui nome personalizado.");
+          }
+          
+          removeGroupCustomName(from);
+          await reply("✅ Nome personalizado removido! O bot voltará a usar o nome padrão.");
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro 💔");
+        }
+        break;
+      
+      case 'infoperso':
+      case 'personalizacao':
+        try {
+          if (!isGroup) return reply("Este comando só funciona em grupos 💔");
+          
+          if (!isGroupCustomizationEnabled()) {
+            return reply("⚠️ O sistema de personalização está desativado.");
+          }
+          
+          const customization = getGroupCustomization(from);
+          
+          if (!customization || (!customization.customName && !customization.customPhoto)) {
+            return reply(`ℹ️ *Este grupo não possui personalizações.*\n\n` +
+              `📌 Comandos disponíveis para admins:\n` +
+              `• ${prefix}nomegrupo <nome> - Personalizar nome do bot\n` +
+              `• ${prefix}fotomenugrupo - Personalizar foto do menu\n` +
+              `• ${prefix}removernome - Remover nome personalizado\n` +
+              `• ${prefix}removerfotomenu - Remover foto personalizada`);
+          }
+          
+          let msg = `🎨 *Personalizações deste Grupo*\n\n`;
+          
+          if (customization.customName) {
+            msg += `🤖 *Nome personalizado:* ${customization.customName}\n`;
+          }
+          
+          if (customization.customPhoto) {
+            msg += `📸 *Foto de menu:* Personalizada\n`;
+          }
+          
+          msg += `\n💡 Admins podem usar ${prefix}removernome ou ${prefix}removerfotomenu para resetar.`;
+          
+          await reply(msg);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro 💔");
         }
         break;
       
@@ -22870,7 +25444,8 @@ ${prefix}togglecmdvip premium_ia off`);
         }
         break;
       case 'rename':
-case 'roubar':
+      case 'renomear':
+      case 'mudarpack':
   try {
     if (!isQuotedSticker) return reply('Você usou de forma errada... Marque uma figurinha.');
     let author = "";
@@ -22997,7 +25572,7 @@ case 'roubar':
               const stickerUrl = `https://raw.githubusercontent.com/badDevelopper/Testfigu/main/fig (${randomNum}).webp`;
               const stickerResponse = await axios.get(stickerUrl, {
                 responseType: 'arraybuffer',
-                timeout: 10000
+                timeout: 120000
               });
               
               const stickerBuffer = Buffer.from(stickerResponse.data);
@@ -23172,6 +25747,125 @@ case 'roubar':
           reply("ocorreu um erro 💔");
         }
         break;
+
+      case 'ban2':
+      case 'banir2':
+        try {
+          if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
+          if (!isGroupAdmin) return reply("Comando restrito a Administradores ou Moderadores com permissão. 💔");
+          if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
+          if (!menc_os2) return reply("Marque alguém 🙄");
+          if (menc_os2 === nmrdn) return reply("❌ Não posso banir o dono do bot.");
+          if (menc_os2 === botNumber) return reply("❌ Ops! Eu faço parte da bagunça, não dá pra me remover 💔");
+          
+          // Aviso com contagem regressiva
+          await nazu.sendMessage(from, {
+            text: `⚠️ *ÚLTIMAS PALAVRAS!*\n\n@${menc_os2.split('@')[0]}, você tem *10 segundos* para dizer suas últimas palavras antes de ser banido! ⏰`,
+            mentions: [menc_os2]
+          });
+          
+          // Aguarda 10 segundos
+          await new Promise(resolve => setTimeout(resolve, 10000));
+          
+          // Remove o usuário
+          await nazu.groupParticipantsUpdate(from, [menc_os2], 'remove');
+          
+          // Notificação X9 para banimento
+          if (groupData.x9) {
+            const reason = q && q.length > 0 ? `\n📝 Motivo: ${q}` : '';
+            await nazu.sendMessage(from, {
+              text: `🚪 *X9 Report:* @${menc_os2.split('@')[0]} foi removido(a) do grupo por @${sender.split('@')[0]}.${reason}`,
+              mentions: [menc_os2, sender],
+            }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
+          }
+          
+          await nazu.sendMessage(from, {
+            text: `👋 @${menc_os2.split('@')[0]} foi banido! Adeus! 🚪${q && q.length > 0 ? '\n\n📝 Motivo: ' + q : ''}`,
+            mentions: [menc_os2]
+          });
+        } catch (e) {
+          console.error(e);
+          reply("ocorreu um erro 💔");
+        }
+        break;
+
+      case 'bam':
+      case 'banfake':
+        if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
+        if (!isGroupAdmin) return reply("Comando restrito a Administradores ou Moderadores com permissão. 💔");
+        if (!menc_os2) return reply("Marque alguém 🙄");
+        if (menc_os2 === nmrdn) return reply("❌ Não posso banir o dono do bot.");
+        if (menc_os2 === botNumber) return reply("❌ Ops! Eu faço parte da bagunça, não dá pra me remover 💔");
+        
+        try {
+          await nazu.sendMessage(from, {
+            text: `⚠️ *ÚLTIMAS PALAVRAS!*\n\n@${menc_os2.split('@')[0]}, você tem *10 segundos* para dizer suas últimas palavras antes de ser banido! ⏰`,
+            mentions: [menc_os2]
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, 10000));
+          
+          const defaultMemeMsg = `😂 *ERA MEME!*\n\n@${menc_os2.split('@')[0]}, relaxa, era só uma brincadeira! 🤣\n\nVocê não vai ser banido... dessa vez! 😎`;
+          const customMemeMsg = groupData.bamMessage || defaultMemeMsg;
+          
+          await nazu.sendMessage(from, {
+            text: customMemeMsg.replace(/#user#/g, `@${menc_os2.split('@')[0]}`),
+            mentions: [menc_os2]
+          });
+        } catch (e) {
+          console.error('Erro no bam:', e);
+          reply("ocorreu um erro 💔");
+        }
+        break;
+
+      case 'setbammsg':
+      case 'editarbam':
+        if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
+        if (!isGroupAdmin) return reply("Comando restrito a Administradores 💔");
+        
+        if (!q) {
+          return reply(`📝 *Configurar Mensagem do Bam*\n\nUse: ${prefix}setbammsg <mensagem>\n\n*Variável disponível:*\n#user# - Será substituído pelo nome do usuário\n\n*Exemplo:*\n${prefix}setbammsg 😂 Era só uma pegadinha #user#!\n\nPara ver a mensagem atual: ${prefix}verbammsg\nPara resetar: ${prefix}resetbammsg`);
+        }
+        
+        try {
+          groupData.bamMessage = q;
+          persistGroupData();
+          await reply(`✅ *Mensagem do bam configurada!*\n\n📝 Nova mensagem:\n${q}\n\n💡 Use #user# para mencionar o usuário marcado.`);
+        } catch (e) {
+          console.error('Erro no setbammsg:', e);
+          reply("ocorreu um erro 💔");
+        }
+        break;
+
+      case 'verbammsg':
+      case 'verbam':
+        if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
+        
+        try {
+          const defaultMsg = `😂 *ERA MEME!*\n\n#user#, relaxa, era só uma brincadeira! 🤣\n\nVocê não vai ser banido... dessa vez! 😎`;
+          const currentMsg = groupData.bamMessage || defaultMsg;
+          await reply(`📝 *Mensagem Atual do Bam:*\n\n${currentMsg}\n\n${!groupData.bamMessage ? '⚠️ Usando mensagem padrão\n\n' : ''}Para editar: ${prefix}setbammsg <nova_mensagem>`);
+        } catch (e) {
+          console.error('Erro no verbammsg:', e);
+          reply("ocorreu um erro 💔");
+        }
+        break;
+
+      case 'resetbammsg':
+      case 'resetarbam':
+        if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
+        if (!isGroupAdmin) return reply("Comando restrito a Administradores 💔");
+        
+        try {
+          delete groupData.bamMessage;
+          persistGroupData();
+          await reply(`✅ Mensagem do bam resetada para o padrão!\n\nUse ${prefix}verbammsg para ver a mensagem padrão.`);
+        } catch (e) {
+          console.error('Erro no resetbammsg:', e);
+          reply("ocorreu um erro 💔");
+        }
+        break;
+
       case 'linkgp':
       case 'linkgroup':
         try {
@@ -23471,7 +26165,7 @@ case 'roubar':
       case 'nomegrupo':
       case 'mudarnome':
       case 'alterarnome':
-      case 'renomear':
+      case 'renomeargrupo':
         try {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Comando restrito a Administradores ou Moderadores com permissão. 💔");
@@ -24536,24 +27230,6 @@ case 'divulgar':
           await reply("Ocorreu um erro 💔");
         }
         break;
-      case 'x9':
-        try {
-          if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
-          if (!isGroupAdmin) return reply("Você precisa ser adm 💔");
-          
-          groupData.x9 = !groupData.x9;
-          fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
-          
-          const statusMsg = groupData.x9 
-            ? `✅ *Modo X9 ativado!* 🔍\n\nAgora eu vou reportar:\n• ⬆️ Promoções a ADM\n• ⬇️ Rebaixamentos de ADM\n• 🚪 Adições de membros\n• 🚶 Remoções e saídas\n• 🔒 Abertura/fechamento do grupo\n• 🔨 Banimentos\n• ✅ Aprovações de solicitações (manuais e automáticas)\n• ❌ Recusas de solicitações\n• 🤖 Aprovações automáticas do bot\n• ✏️ Mudanças de nome\n• 📝 Mudanças de descrição\n• 📸 Mudanças de foto\n\nTodas as ações administrativas serão notificadas com o responsável!`
-            : `❌ *Modo X9 desativado!*\n\nNotificações de ações administrativas foram desativadas.`;
-          
-          await reply(statusMsg);
-        } catch (e) {
-          console.error(e);
-          await reply("Ocorreu um erro 💔");
-        }
-        break;
       case 'limitmessage':
         try {
           if (!isGroup) return reply("Este comando só funciona em grupos 💔");
@@ -24624,7 +27300,14 @@ case 'divulgar':
           if (!isGroup) return reply("Este comando só funciona em grupos.");
           if (!isGroupAdmin) return reply("Apenas administradores podem alterar o prefixo.");
           if (!q) return reply(`Por favor, forneça o novo prefixo. Exemplo: ${groupPrefix}setprefix !`);
-          const newPrefix = q.trim();
+          let newPrefix = q.trim();
+          
+          // Bloqueia o uso de $ como prefixo e converte automaticamente para /
+          if (newPrefix === '$') {
+            newPrefix = '/';
+            await reply(`⚠️ O símbolo "$" é reservado e não pode ser usado como prefixo.\n✅ Prefixo alterado automaticamente para "/" neste grupo!`);
+          }
+          
           if (newPrefix.length > 1) {
             return reply("🤔 O prefixo deve ter no máximo 1 digito.");
           }
@@ -24634,7 +27317,11 @@ case 'divulgar':
           
           groupData.customPrefix = newPrefix;
           fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
-          await reply(`✅ Prefixo do bot alterado para "${newPrefix}" neste grupo!`);
+          
+          // Se não foi convertido, envia mensagem normal
+          if (newPrefix !== '/') {
+            await reply(`✅ Prefixo do bot alterado para "${newPrefix}" neste grupo!`);
+          }
         } catch (e) {
           console.error('Erro no comando setprefix:', e);
           await reply("Ocorreu um erro ao alterar o prefixo 💔");
@@ -24828,12 +27515,19 @@ Exemplos:
           const admins = groupAdmins || [];
           const fantasmas = validUsers.filter(u => (u.msg || 0) <= limite && !admins.includes(u.id) && u.id !== botNumber && u.id !== sender && u.id !== nmrdn).map(u => u.id)
           if (!fantasmas.length) return reply(`🎉 Nenhum fantasma com até ${limite} msg.`);
+          
+          let removidos = 0;
           try {
             await nazu.groupParticipantsUpdate(from, fantasmas, 'remove');
+            removidos = fantasmas.length;
+            
+            // Atualiza o contador removendo os usuários banidos
+            dados.contador = updatedContador.filter(u => !fantasmas.includes(u.id));
+            fs.writeFileSync(arquivoGrupo, JSON.stringify(dados, null, 2));
           } catch (e) {
             console.error("Erro ao remover:", e);
           }
-          const removidos = fantasmas.length
+          
           reply(removidos === 0 ? `⚠️ Nenhum fantasma pôde ser removido com até ${limite} msg.` : `✅ ${removidos} fantasma(s) removido(s).`);
         } catch (e) {
           console.error("Erro no banghost:", e);
@@ -25451,6 +28145,26 @@ Exemplos:
           reply("ocorreu um erro 💔");
         }
         break;
+      case 'antilinkcanal':
+      case 'antilinkch':
+        try {
+          if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
+          if (!isGroupAdmin) return reply("você precisa ser adm 💔");
+          if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
+          const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
+          let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
+            antilinkcanal: false
+          };
+          
+          groupData.antilinkcanal = !groupData.antilinkcanal;
+          fs.writeFileSync(groupFilePath, JSON.stringify(groupData));
+          const message = groupData.antilinkcanal ? `✅ *Antilinkcanal foi ativado com sucesso!*\n\nAgora, se alguém enviar links de canais do WhatsApp, será banido automaticamente. Mantenha o grupo seguro! 🛡️` : `✅ *Antilinkcanal foi desativado.*\n\nLinks de canais não serão mais bloqueados. Use com cuidado! ⚠️`;
+          reply(`${message}`);
+        } catch (e) {
+          console.error(e);
+          reply("ocorreu um erro 💔");
+        }
+        break;
       case 'antilinksoft':
         try {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
@@ -25528,12 +28242,61 @@ Exemplos:
           }
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Você precisa ser administrador 💔");
+          
           const groupFilePath = __dirname + `/../database/grupos/${from}.json`;
           let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {};
           
-          groupData.assistente = !groupData.assistente;
+          // Se não tem argumento, apenas ativa/desativa
+          if (!q) {
+            groupData.assistente = !groupData.assistente;
+            if (!groupData.assistente) {
+              // Se desativar, remove a personalidade
+              delete groupData.assistentePersonality;
+            } else {
+              // Se ativar sem especificar, usa padrão
+              groupData.assistentePersonality = groupData.assistentePersonality || 'nazuna';
+            }
+            fs.writeFileSync(groupFilePath, JSON.stringify(groupData, null, 2));
+            
+            const statusMsg = groupData.assistente 
+              ? `✅ *Assistente ativada com sucesso!*\n\n` +
+                `🤖 *Personalidade atual:* ${groupData.assistentePersonality === 'nazuna' ? 'Nazuna (Padrão)' : groupData.assistentePersonality === 'humana' ? 'Humana' : 'IA Normal'}\n\n` +
+                `💡 *Trocar personalidade:*\n` +
+                `• ${prefix}assistente nazuna - Personalidade padrão Nazuna\n` +
+                `• ${prefix}assistente humana - Age 100% como humana\n` +
+                `• ${prefix}assistente ia - IA normal sem personalidade\n\n` +
+                `🧠 A IA aprende com base nos padrões de conversa para oferecer respostas mais relevantes.`
+              : `❌ *Assistente desativada!*`;
+            
+            return reply(statusMsg);
+          }
+          
+          // Se tem argumento, define a personalidade
+          const personality = q.toLowerCase().trim();
+          
+          if (!['nazuna', 'humana', 'ia'].includes(personality)) {
+            return reply(`❌ *Personalidade inválida!*\n\n` +
+              `Escolha uma das opções:\n` +
+              `• ${prefix}assistente nazuna - Personalidade padrão Nazuna (vampira tsundere)\n` +
+              `• ${prefix}assistente humana - Age 100% como uma pessoa real\n` +
+              `• ${prefix}assistente ia - IA normal e objetiva`);
+          }
+          
+          groupData.assistente = true;
+          groupData.assistentePersonality = personality;
           fs.writeFileSync(groupFilePath, JSON.stringify(groupData, null, 2));
-          reply(`✅ *Assistente ${groupData.assistente ? 'ativada' : 'desativada'} com sucesso!*\n\n⚠️ Esta é uma funcionalidade *experimental (beta)* e ainda está em fase de testes. Podem ocorrer erros ou comportamentos inesperados. Caso encontre algo estranho, avise um administrador!\n\n🧠 Ao ativar essa IA, você concorda que ela pode *aprender com base nos padrões de conversa do grupo* para oferecer respostas mais relevantes e contextuais.`);
+          
+          const personalityNames = {
+            'nazuna': '🌙 *Nazuna* - Vampira moderna com personalidade tsundere',
+            'humana': '👤 *Humana* - Age como uma pessoa real, nunca admite ser IA',
+            'ia': '🤖 *IA Normal* - Assistente objetiva e direta'
+          };
+          
+          reply(`✅ *Personalidade alterada!*\n\n` +
+            `${personalityNames[personality]}\n\n` +
+            `💬 A assistente agora responderá com essa personalidade.\n` +
+            `🧠 Cada personalidade mantém memórias separadas.`);
+            
         } catch (e) {
           console.error(e);
           reply("Ocorreu um erro 💔");
@@ -25733,6 +28496,7 @@ Exemplos:
         break;
       case 'ttt':
       case 'jogodavelha':
+      case 'tictactoe':
         {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           if (!menc_os2) return reply("Marque alguém 🙄");
@@ -25747,6 +28511,1043 @@ Exemplos:
           });
           break;
         }
+
+      // ═══════════════════════════════════════════════════════════════
+      // CONNECT 4 - Jogo de 4 em linha
+      // ═══════════════════════════════════════════════════════════════
+      case 'connect4':
+      case 'c4':
+      case 'ligue4':
+        {
+          if (!isGroup) return reply("❌ Este comando só pode ser usado em grupos!");
+          if (!connect4 || typeof connect4.invitePlayer !== 'function') {
+            return reply("Sistema Connect4 temporariamente indisponível.");
+          }
+          if (!menc_os2) return reply(`❌ Marque alguém para desafiar!\n\nUso: ${prefix}connect4 @usuario`);
+          const result = await connect4.invitePlayer(from, sender, menc_os2);
+          await nazu.sendMessage(from, { text: result.message, mentions: result.mentions });
+          break;
+        }
+
+      // ═══════════════════════════════════════════════════════════════
+      // UNO - Jogo de cartas
+      // ═══════════════════════════════════════════════════════════════
+      case 'uno':
+        if (!isGroup) return reply("❌ Este comando só pode ser usado em grupos!");
+        if (!uno) return reply("Sistema UNO temporariamente indisponível.");
+        
+        const subCmdUno = args[0]?.toLowerCase();
+        
+        if (!subCmdUno || subCmdUno === 'help' || subCmdUno === 'ajuda') {
+            return reply(`🎴 *UNO - Comandos*
+
+${prefix}uno criar - Cria uma nova partida
+${prefix}uno entrar - Entra em uma partida
+${prefix}uno iniciar - Inicia a partida (criador)
+${prefix}uno jogar <n°> - Joga uma carta pelo número
+${prefix}uno jogar <n°> <cor> - Joga coringa com cor
+${prefix}uno comprar - Compra uma carta
+${prefix}uno mao - Ver sua mão (envia no PV)
+${prefix}uno uno - Grita UNO!
+${prefix}uno status - Ver status da partida
+${prefix}uno cancelar - Cancela a partida (host/admin)
+${prefix}uno sair - Sair da partida
+
+*Cores:* vermelho/azul/verde/amarelo
+*Especiais:* +2, reverso, pular, coringa, +4
+
+⚠️ *Timeout:* 1 minuto por turno
+🚨 3 timeouts = expulsão!`);
+          }
+          
+          // Verificação automática de timeout antes de processar comandos
+          const timeoutCheck = uno.checkTimeout(from);
+          if (timeoutCheck && timeoutCheck.success) {
+            nazu.sendMessage(from, { 
+              text: timeoutCheck.message, 
+              mentions: timeoutCheck.mentions || [] 
+            });
+            // Se o jogo terminou por timeout, não processar mais comandos
+            if (timeoutCheck.finished) return;
+          }
+          
+          switch (subCmdUno) {
+            case 'criar':
+            case 'create': {
+              const result = uno.createGame(from, sender, pushname);
+              return reply(result.message, result.mentions ? { mentions: result.mentions } : undefined);
+            }
+            case 'entrar':
+            case 'join': {
+              const result = uno.joinGame(from, sender, pushname);
+              return reply(result.message, result.mentions ? { mentions: result.mentions } : undefined);
+            }
+            case 'iniciar':
+            case 'start': {
+              const result = uno.startGame(from, sender);
+              if (result.success) {
+                await reply(result.message, result.mentions ? { mentions: result.mentions } : undefined);
+                // Envia mão para cada jogador no PV
+                for (const [playerId, hand] of Object.entries(result.hands)) {
+                  try {
+                    await nazu.sendMessage(playerId, { text: `🎴 *Sua mão inicial:*\n${hand}` });
+                  } catch (e) { console.error('Erro ao enviar mão:', e); }
+                }
+              } else {
+                return reply(result.message, result.mentions ? { mentions: result.mentions } : undefined);
+              }
+              break;
+            }
+            case 'jogar':
+            case 'play': {
+              const cartaArg = args.slice(1).join(' ').trim();
+              if (!cartaArg) return reply(`❌ Especifique a carta!\n\nUso: ${prefix}uno jogar <número>\nExemplo: ${prefix}uno jogar 3\n\nUse "mão" no PV para ver suas cartas numeradas.`);
+              
+              // Parse: pode ser só número ou número + cor (para coringas)
+              const parts = cartaArg.split(/\s+/);
+              const cardIndex = parseInt(parts[0]);
+              const chosenColor = parts[1]?.toLowerCase();
+              
+              if (isNaN(cardIndex)) return reply(`❌ Use o número da carta!\n\nExemplo: ${prefix}uno jogar 3`);
+              
+              const result = uno.playCard(from, sender, cardIndex, chosenColor);
+              if (result.success) {
+                await nazu.sendMessage(from, { text: result.message, mentions: result.mentions || [] });
+                // Envia nova mão no PV
+                const newHand = uno.getPlayerHand(from, sender);
+                if (newHand) {
+                  try {
+                    await nazu.sendMessage(sender, { text: `🎴 *Sua mão:*\n${newHand}` });
+                  } catch (e) {}
+                }
+              } else {
+                return reply(result.message, result.mentions ? { mentions: result.mentions } : undefined);
+              }
+              break;
+            }
+            case 'comprar':
+            case 'draw': {
+              const result = uno.drawCard(from, sender);
+              if (result.success) {
+                await reply(result.message, result.mentions ? { mentions: result.mentions } : undefined);
+                if (result.newHand) {
+                  try {
+                    await nazu.sendMessage(sender, { text: `🎴 *Sua mão:*\n${result.newHand}` });
+                  } catch (e) {}
+                }
+              } else {
+                return reply(result.message, result.mentions ? { mentions: result.mentions } : undefined);
+              }
+              break;
+            }
+            case 'uno': {
+              const result = uno.callUno(from, sender);
+              return reply(result.message, result.mentions ? { mentions: result.mentions } : undefined);
+            }
+            case 'status': {
+              const result = uno.getStatus(from);
+              return reply(result.message, result.mentions ? { mentions: result.mentions } : undefined);
+            }
+            case 'mao':
+            case 'hand':
+            case 'cartas': {
+              const hand = uno.getPlayerHand(from, sender);
+              if (hand) {
+                try {
+                  await nazu.sendMessage(sender, { text: `🎴 *Sua mão atual:*\n\n${hand}` });
+                  return reply('✅ Sua mão foi enviada no seu PV!');
+                } catch (e) {
+                  return reply('❌ Não consegui enviar no seu PV. Você me bloqueou?');
+                }
+              } else {
+                return reply('❌ Você não está em uma partida de UNO!');
+              }
+            }
+            case 'sair':
+            case 'leave': {
+              const result = uno.leaveGame(from, sender);
+              return reply(result.message, result.mentions ? { mentions: result.mentions } : undefined);
+            }
+            case 'cancelar':
+            case 'parar':
+            case 'cancel': {
+              const result = uno.cancelGame(from, sender, isGroupAdmin);
+              return reply(result.message, result.mentions ? { mentions: result.mentions } : undefined);
+            }
+            case 'checktimeout': {
+              // Comando oculto para verificar timeout manualmente
+              const result = uno.checkTimeout(from);
+              if (result) {
+                return reply(result.message, result.mentions ? { mentions: result.mentions } : undefined);
+              }
+              return reply('✅ Nenhum timeout detectado.');
+            }
+            default:
+              return reply(`❌ Subcomando desconhecido. Use ${prefix}uno ajuda`);
+          }
+          break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // MEMÓRIA - Jogo da memória
+      // ═══════════════════════════════════════════════════════════════
+      case 'memoria':
+      case 'memory':
+        if (!isGroup) return reply("❌ Este comando só pode ser usado em grupos!");
+        if (!memoria) return reply("Sistema de memória temporariamente indisponível.");
+        
+        const subCmdMemory = args[0]?.toLowerCase();
+        
+        if (subCmdMemory === 'ranking' || subCmdMemory === 'rank') {
+            const ranking = memoria.getRanking(10);
+            return reply(ranking);
+          }
+          
+          // Verifica se tem jogo ativo
+          if (memoria.hasActiveGame(from)) {
+            // Tentar jogar
+            const pos = parseInt(args[0]);
+            if (!isNaN(pos)) {
+              const result = memoria.makeMove(from, sender, pos);
+              return reply(result.message);
+            }
+          return reply(`🎮 Jogo em andamento! Use um número de 1-16 para revelar uma carta.\nOu ${prefix}memoria sair para desistir.`);
+        }
+        
+        if (subCmdMemory === 'sair') {
+          const resultEnd = memoria.endGame(from);
+          return reply(resultEnd.message);
+        }
+          
+        // Criar novo jogo
+        const resultStart = memoria.startGame(from, sender, pushname);
+        return reply(resultStart.message);
+        break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // CONQUISTAS - Sistema de achievements (modo brincadeira)
+      // ═══════════════════════════════════════════════════════════════
+      case 'conquistasbn':
+      case 'achievementsbn':
+      case 'medalhasbn':
+        if (!achievements) return reply("Sistema de conquistas temporariamente indisponível.");
+        const list = achievements.formatAchievementsList(sender);
+        return reply(list);
+        break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // PRESENTES - Sistema de caixas e presentes
+      // ═══════════════════════════════════════════════════════════════
+      case 'caixa':
+      case 'box':
+        if (!gifts) return reply("Sistema de presentes temporariamente indisponível.");
+        
+        const tipoBox = args[0]?.toLowerCase();
+        if (!tipoBox) {
+          return reply(`🎁 *Sistema de Caixas*
+
+${prefix}caixa diaria - Abre caixa diária grátis
+${prefix}caixa rara - Abre caixa rara (500 gold)
+${prefix}caixa lendaria - Abre caixa lendária (2000 gold)
+
+Use ${prefix}inventario para ver seus itens!`);
+        }
+        
+        // Precisa do sistema de economia para caixas pagas
+        const userEco = getEcoUser(sender);
+        
+        let resultBox;
+        if (tipoBox === 'diaria' || tipoBox === 'daily') {
+          resultBox = gifts.openDailyBox(sender);
+        } else if (tipoBox === 'rara' || tipoBox === 'rare') {
+          if (userEco.gold < 500) return reply("❌ Você precisa de 500 gold para abrir uma caixa rara!");
+          resultBox = gifts.openPaidBox(sender, 'rara');
+          if (resultBox.success) {
+            userEco.gold -= 500;
+            saveEconomy();
+          }
+        } else if (tipoBox === 'lendaria' || tipoBox === 'legendary') {
+          if (userEco.gold < 2000) return reply("❌ Você precisa de 2000 gold para abrir uma caixa lendária!");
+          resultBox = gifts.openPaidBox(sender, 'lendaria');
+          if (resultBox.success) {
+            userEco.gold -= 2000;
+            saveEconomy();
+          }
+        } else {
+          return reply(`❌ Tipo inválido! Use: diaria, rara ou lendaria`);
+        }
+        
+        return reply(resultBox.message);
+        break;
+
+      case 'presentebn':
+      case 'giftbn':
+        if (!gifts) return reply("Sistema de presentes temporariamente indisponível.");
+        if (!menc_os2) return reply(`❌ Marque alguém para enviar um presente!\n\nUso: ${prefix}presente @user <tipo>\nTipos: rosa, chocolate, anel, coracao, estrela...`);
+        
+        const tipoGift = args[1]?.toLowerCase();
+        if (!tipoGift) {
+          const tipos = gifts.getGiftTypes();
+          return reply(`🎁 *Tipos de Presente*\n\n${tipos}\n\nUso: ${prefix}presente @user <tipo>`);
+        }
+        
+        const resultGift = gifts.sendGift(sender, menc_os2, tipoGift);
+        if (resultGift.success) {
+          await nazu.sendMessage(from, { text: resultGift.message, mentions: [sender, menc_os2] });
+        } else {
+          return reply(resultGift.message);
+        }
+        break;
+
+      case 'inventario':
+      case 'inventory':
+        if (!gifts) return reply("Sistema de presentes temporariamente indisponível.");
+        const inv = gifts.getInventory(sender);
+        return reply(inv);
+        break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // REPUTAÇÃO - Sistema de rep e denúncias (modo brincadeira)
+      // ═══════════════════════════════════════════════════════════════
+      case 'repbn':
+      case 'reputacaobn':
+        if (!reputation) return reply("Sistema de reputação temporariamente indisponível.");
+        
+        const actionRep = args[0]?.toLowerCase();
+        
+        if (!actionRep || (!menc_os2 && actionRep !== '+' && actionRep !== '-')) {
+          // Ver própria reputação ou de alguém
+          const target = menc_os2 || sender;
+          const rep = reputation.getReputation(target);
+          const name = menc_os2 ? `@${menc_os2.split('@')[0]}` : pushname;
+          return nazu.sendMessage(from, {
+            text: `⭐ *Reputação de ${name}*\n\n${rep}`,
+            mentions: menc_os2 ? [menc_os2] : []
+          });
+        }
+        
+        if ((actionRep === '+' || actionRep === 'mais') && menc_os2) {
+          const resultRepPlus = reputation.giveRep(sender, menc_os2, true);
+          return reply(resultRepPlus.message);
+        }
+        
+        if ((actionRep === '-' || actionRep === 'menos') && menc_os2) {
+          const resultRepMinus = reputation.giveRep(sender, menc_os2, false);
+          return reply(resultRepMinus.message);
+        }
+        
+        return reply(`❌ Uso: ${prefix}rep + @user ou ${prefix}rep - @user`);
+        break;
+
+      case 'toprep':
+      case 'rankrep':
+        if (!reputation) return reply("Sistema de reputação temporariamente indisponível.");
+        const ranking = reputation.getRepRanking(10);
+        return reply(ranking);
+        break;
+
+      case 'denunciar':
+      case 'report':
+        if (!reputation) return reply("Sistema de reputação temporariamente indisponível.");
+        if (!menc_os2) return reply(`❌ Marque quem você quer denunciar!\n\nUso: ${prefix}denunciar @user <motivo>`);
+        
+        const motivoDenuncia = args.slice(1).join(' ');
+        if (!motivoDenuncia) return reply("❌ Informe o motivo da denúncia!");
+        
+        const resultReport = reputation.reportUser(sender, menc_os2, from, motivoDenuncia);
+        return reply(resultReport.message);
+        break;
+
+      case 'denuncias':
+      case 'reports':
+        if (!reputation) return reply("Sistema de reputação temporariamente indisponível.");
+        if (!isGroupAdmin && !isOwnerOrSub) return reply("❌ Apenas admins podem ver denúncias!");
+        
+        const reportsData = reputation.getReports(from);
+        return reply(reportsData);
+        break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // QR CODE - Gerar e ler (modo brincadeira)
+      // ═══════════════════════════════════════════════════════════════
+      case 'qrcodebn':
+      case 'gerarqrbn':
+        if (!qrcode) return reply("Sistema de QR Code temporariamente indisponível.");
+        if (!q) return reply(`❌ Digite o texto/link para gerar o QR Code!\n\nUso: ${prefix}qrcode <texto ou link>`);
+        
+        const resultQRCode = await qrcode.generateQRCode(q, 300, prefix);
+        if (resultQRCode.success) {
+          await nazu.sendMessage(from, {
+            image: { url: resultQRCode.url },
+            caption: `📱 *QR Code gerado!*\n\nConteúdo: ${q}`
+          }, { quoted: info });
+        } else {
+          return reply(resultQRCode.message);
+        }
+        break;
+
+      case 'lerqr':
+      case 'readqr':
+      case 'scanqr':
+        if (!qrcode) return reply("Sistema de QR Code temporariamente indisponível.");
+        
+        const quotedMsgQR = info.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+        const hasImageQR = type === 'imageMessage' || quotedMsgQR?.imageMessage;
+        
+        if (!hasImageQR) return reply("❌ Responda a uma imagem com QR Code para ler!");
+        
+        try {
+          const mediaMsgQR = quotedMsgQR?.imageMessage || info.message?.imageMessage;
+          const bufferQR = await downloadContentFromMessage(mediaMsgQR, 'image');
+          const chunksQR = [];
+          for await (const chunk of bufferQR) chunksQR.push(chunk);
+          const imageBufferQR = Buffer.concat(chunksQR);
+          
+          const resultQR = await qrcode.readQRCode(imageBufferQR);
+          return reply(resultQR.message);
+        } catch (e) {
+          console.error('Erro ao ler QR:', e);
+          return reply("❌ Erro ao processar a imagem!");
+        }
+        break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // NOTAS - Sistema de notas pessoais
+      // ═══════════════════════════════════════════════════════════════
+      case 'nota':
+      case 'note':
+        if (!notes) return reply("Sistema de notas temporariamente indisponível.");
+        
+        const subCmdNote = args[0]?.toLowerCase();
+        
+        if (!subCmdNote) {
+          return reply(`📝 *Sistema de Notas*
+
+${prefix}nota add <texto> - Adiciona uma nota
+${prefix}notas - Lista suas notas
+${prefix}nota ver <id> - Ver nota específica
+${prefix}nota del <id> - Deleta uma nota
+${prefix}nota fixar <id> - Fixa/desfixa nota
+${prefix}nota buscar <termo> - Busca nas notas`);
+        }
+        
+        switch (subCmdNote) {
+          case 'add':
+          case 'criar': {
+            const texto = args.slice(1).join(' ');
+            if (!texto) return reply("❌ Digite o texto da nota!");
+            const resultNoteAdd = notes.addNote(sender, texto, null, prefix);
+            return reply(resultNoteAdd.message);
+          }
+          case 'ver':
+          case 'view': {
+            const id = parseInt(args[1]);
+            if (isNaN(id)) return reply("❌ Informe o ID da nota!");
+            const resultNoteView = notes.getNote(sender, id, prefix);
+            return reply(resultNoteView.message);
+          }
+          case 'del':
+          case 'deletar':
+          case 'delete': {
+            const id = parseInt(args[1]);
+            if (isNaN(id)) return reply("❌ Informe o ID da nota!");
+            const resultNoteDel = notes.deleteNote(sender, id);
+            return reply(resultNoteDel.message);
+          }
+          case 'fixar':
+          case 'pin': {
+            const id = parseInt(args[1]);
+            if (isNaN(id)) return reply("❌ Informe o ID da nota!");
+            const resultNotePin = notes.togglePin(sender, id);
+            return reply(resultNotePin.message);
+          }
+          case 'buscar':
+          case 'search': {
+            const termo = args.slice(1).join(' ');
+            if (!termo) return reply("❌ Digite o termo de busca!");
+            const resultNoteSearch = notes.searchNotes(sender, termo);
+            return reply(resultNoteSearch.message);
+          }
+          default:
+            return reply(`❌ Subcomando desconhecido. Use ${prefix}nota para ver ajuda.`);
+        }
+        break;
+
+      case 'notas':
+      case 'notes':
+        if (!notes) return reply("Sistema de notas temporariamente indisponível.");
+        const pageNotes = parseInt(args[0]) || 1;
+        const resultNotes = notes.listNotes(sender, pageNotes, 10, prefix);
+        return reply(resultNotes.message);
+        break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // CALCULADORA - Cálculos matemáticos
+      // ═══════════════════════════════════════════════════════════════
+      case 'calc':
+      case 'calcular':
+      case 'calculadora':
+        if (!calculator) return reply("Sistema de calculadora temporariamente indisponível.");
+          
+          if (!q) {
+            return reply(`🧮 *Calculadora Científica*
+
+${prefix}calc <expressão> - Calcula expressão
+${prefix}calc converter <valor> <de> <para>
+
+*Operadores:* + - * / ^ % !
+*Funções:* sin, cos, tan, sqrt, log, abs, ceil, floor
+*Constantes:* pi, e, phi
+
+*Exemplos:*
+${prefix}calc 2+2*3
+${prefix}calc sqrt(144)
+${prefix}calc sin(45)
+${prefix}calc 5!
+${prefix}calc converter 100 km mi`);
+          }
+          
+          if (args[0]?.toLowerCase() === 'converter' || args[0]?.toLowerCase() === 'convert') {
+            const valor = parseFloat(args[1]);
+            const de = args[2]?.toLowerCase();
+            const para = args[3]?.toLowerCase();
+            if (isNaN(valor) || !de || !para) {
+              return reply(`❌ Uso: ${prefix}calc converter <valor> <de> <para>\nExemplo: ${prefix}calc converter 100 km mi`);
+            }
+            const result = calculator.convert(valor, de, para);
+            return reply(result.message);
+          }
+        
+        const resultCalc = calculator.calculate(q, prefix);
+        return reply(resultCalc.message);
+        break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // EDIÇÃO DE ÁUDIO - Cortar, velocidade, etc
+      // ═══════════════════════════════════════════════════════════════
+      case 'cortaraudio':
+      case 'cutaudio':
+        if (!audioEdit) return reply("Sistema de edição de áudio temporariamente indisponível.");
+        
+        const quotedMsgCut = info.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+        const hasAudioCut = type === 'audioMessage' || quotedMsgCut?.audioMessage;
+        
+        if (!hasAudioCut) return reply("❌ Responda a um áudio para cortar!");
+        
+        const inicioCut = args[0];
+        const fimCut = args[1];
+        if (!inicioCut || !fimCut) return reply(`❌ Informe início e fim!\n\nUso: ${prefix}cortaraudio <inicio> <fim>\nExemplo: ${prefix}cortaraudio 0:10 0:30`);
+        
+        try {
+          const mediaMsgCut = quotedMsgCut?.audioMessage || info.message?.audioMessage;
+          const bufferCut = await downloadContentFromMessage(mediaMsgCut, 'audio');
+          const chunksCut = [];
+          for await (const chunk of bufferCut) chunksCut.push(chunk);
+          const audioBufferCut = Buffer.concat(chunksCut);
+          
+          const resultCut = await audioEdit.cutAudio(audioBufferCut, inicioCut, fimCut, prefix);
+          if (resultCut.success) {
+            await nazu.sendMessage(from, {
+              audio: resultCut.buffer,
+              mimetype: 'audio/mpeg',
+              ptt: false
+            }, { quoted: info });
+          } else {
+            return reply(resultCut.message);
+          }
+        } catch (e) {
+          console.error('Erro ao cortar áudio:', e);
+          return reply("❌ Erro ao processar o áudio!");
+        }
+        break;
+
+      case 'velocidade':
+      case 'speed':
+        if (!audioEdit) return reply("Sistema de edição de áudio temporariamente indisponível.");
+        
+        const quotedMsgSpeed = info.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+        const hasAudioSpeed = type === 'audioMessage' || quotedMsgSpeed?.audioMessage;
+        
+        if (!hasAudioSpeed) return reply("❌ Responda a um áudio para alterar velocidade!");
+        
+        const vel = parseFloat(args[0]);
+        if (isNaN(vel) || vel < 0.5 || vel > 3) return reply(`❌ Velocidade inválida!\n\nUso: ${prefix}velocidade <0.5-3.0>\nExemplo: ${prefix}velocidade 1.5`);
+        
+        try {
+          const mediaMsgSpeed = quotedMsgSpeed?.audioMessage || info.message?.audioMessage;
+          const bufferSpeed = await downloadContentFromMessage(mediaMsgSpeed, 'audio');
+          const chunksSpeed = [];
+          for await (const chunk of bufferSpeed) chunksSpeed.push(chunk);
+          const audioBufferSpeed = Buffer.concat(chunksSpeed);
+          
+          const resultSpeed = await audioEdit.changeSpeed(audioBufferSpeed, vel);
+          if (resultSpeed.success) {
+            await nazu.sendMessage(from, {
+              audio: resultSpeed.buffer,
+              mimetype: 'audio/mpeg',
+              ptt: false
+            }, { quoted: info });
+          } else {
+            return reply(resultSpeed.message);
+          }
+        } catch (e) {
+          console.error('Erro ao alterar velocidade:', e);
+          return reply("❌ Erro ao processar o áudio!");
+        }
+        break;
+
+      case 'reversobn':
+      case 'reversebn':
+        if (!audioEdit) return reply("Sistema de edição de áudio temporariamente indisponível.");
+        
+        const quotedMsgReverse = info.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+        const hasAudioReverse = type === 'audioMessage' || quotedMsgReverse?.audioMessage;
+        
+        if (!hasAudioReverse) return reply("❌ Responda a um áudio para reverter!");
+        
+        try {
+          const mediaMsgReverse = quotedMsgReverse?.audioMessage || info.message?.audioMessage;
+          const bufferReverse = await downloadContentFromMessage(mediaMsgReverse, 'audio');
+          const chunksReverse = [];
+          for await (const chunk of bufferReverse) chunksReverse.push(chunk);
+          const audioBufferReverse = Buffer.concat(chunksReverse);
+          
+          const resultReverse = await audioEdit.reverseAudio(audioBufferReverse);
+          if (resultReverse.success) {
+            await nazu.sendMessage(from, {
+              audio: resultReverse.buffer,
+              mimetype: 'audio/mpeg',
+              ptt: false
+            }, { quoted: info });
+          } else {
+            return reply(resultReverse.message);
+          }
+        } catch (e) {
+          console.error('Erro ao reverter áudio:', e);
+          return reply("❌ Erro ao processar o áudio!");
+        }
+        break;
+
+      case 'bassbn':
+      case 'bassboostbn':
+        if (!audioEdit) return reply("Sistema de edição de áudio temporariamente indisponível.");
+        
+        const quotedMsgBass = info.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+        const hasAudioBass = type === 'audioMessage' || quotedMsgBass?.audioMessage;
+        
+        if (!hasAudioBass) return reply("❌ Responda a um áudio para adicionar bass!");
+        
+        const levelBass = parseInt(args[0]) || 10;
+        if (levelBass < 1 || levelBass > 20) return reply(`❌ Nível de bass inválido!\n\nUso: ${prefix}bass <1-20>\nExemplo: ${prefix}bass 15`);
+        
+        try {
+          const mediaMsgBass = quotedMsgBass?.audioMessage || info.message?.audioMessage;
+          const bufferBass = await downloadContentFromMessage(mediaMsgBass, 'audio');
+          const chunksBass = [];
+          for await (const chunk of bufferBass) chunksBass.push(chunk);
+          const audioBufferBass = Buffer.concat(chunksBass);
+          
+          const resultBass = await audioEdit.bassBoost(audioBufferBass, levelBass);
+          if (resultBass.success) {
+            await nazu.sendMessage(from, {
+              audio: resultBass.buffer,
+              mimetype: 'audio/mpeg',
+              ptt: false
+            }, { quoted: info });
+          } else {
+            return reply(resultBass.message);
+          }
+        } catch (e) {
+          console.error('Erro ao adicionar bass:', e);
+          return reply("❌ Erro ao processar o áudio!");
+        }
+        break;
+
+      case 'normalizar':
+      case 'normalize':
+        if (!audioEdit) return reply("Sistema de edição de áudio temporariamente indisponível.");
+        
+        const quotedMsgNorm = info.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+        const hasAudioNorm = type === 'audioMessage' || quotedMsgNorm?.audioMessage;
+        
+        if (!hasAudioNorm) return reply("❌ Responda a um áudio para normalizar!");
+        
+        try {
+          const mediaMsgNorm = quotedMsgNorm?.audioMessage || info.message?.audioMessage;
+          const bufferNorm = await downloadContentFromMessage(mediaMsgNorm, 'audio');
+          const chunksNorm = [];
+          for await (const chunk of bufferNorm) chunksNorm.push(chunk);
+          const audioBufferNorm = Buffer.concat(chunksNorm);
+          
+          const resultNorm = await audioEdit.normalizeAudio(audioBufferNorm);
+          if (resultNorm.success) {
+            await nazu.sendMessage(from, {
+              audio: resultNorm.buffer,
+              mimetype: 'audio/mpeg',
+              ptt: false
+            }, { quoted: info });
+          } else {
+            return reply(resultNorm.message);
+          }
+        } catch (e) {
+          console.error('Erro ao normalizar áudio:', e);
+          return reply("❌ Erro ao processar o áudio!");
+        }
+        break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // EDIÇÃO DE VÍDEO - Cortar vídeo
+      // ═══════════════════════════════════════════════════════════════
+      case 'cortarvideo':
+      case 'cortarvid':
+      case 'cutvideo':
+        try {
+          const quotedMsgVideoCut = info.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+          const hasVideoCut = type === 'videoMessage' || quotedMsgVideoCut?.videoMessage;
+          
+          if (!hasVideoCut) return reply("❌ Responda a um vídeo para cortar!");
+          
+          const inicioVid = args[0];
+          const fimVid = args[1];
+          if (!inicioVid || !fimVid) {
+            return reply(`❌ Informe início e fim!\n\nUso: ${prefix}cortarvideo <inicio> <fim>\nExemplo: ${prefix}cortarvideo 0:10 0:30`);
+          }
+          
+          await reply('🎬 Cortando vídeo... Por favor, aguarde alguns segundos.');
+          
+          const encmediaVideoCut = quotedMsgVideoCut?.videoMessage || info.message.videoMessage;
+          const raneVideoCut = __dirname + `/../database/tmp/${Math.random()}.mp4`;
+          const buffimgVideoCut = await getFileBuffer(encmediaVideoCut, 'video');
+          fs.writeFileSync(raneVideoCut, buffimgVideoCut);
+          
+          const ranVideoCut = __dirname + `/../database/tmp/${Math.random()}_cut.mp4`;
+          // Recodifica o vídeo para garantir que a imagem seja preservada
+          const ffmpegCmdCut = `ffmpeg -ss ${inicioVid} -i ${raneVideoCut} -to ${fimVid} -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 128k ${ranVideoCut}`;
+          
+          exec(ffmpegCmdCut, async (err) => {
+            await fs.unlinkSync(raneVideoCut);
+            if (err) {
+              console.error('FFMPEG Error (Cortar Vídeo):', err);
+              return reply('❌ Erro ao cortar vídeo! Verifique o formato de tempo (HH:MM:SS ou MM:SS).');
+            }
+            
+            const bufferVideoCut = fs.readFileSync(ranVideoCut);
+            await nazu.sendMessage(from, {
+              video: bufferVideoCut,
+              mimetype: 'video/mp4'
+            }, { quoted: info });
+            await fs.unlinkSync(ranVideoCut);
+          });
+        } catch (e) {
+          console.error('Erro ao cortar vídeo:', e);
+          return reply("❌ Erro ao processar o vídeo!");
+        }
+        break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // HORÓSCOPO - Previsões por signo
+      // ═══════════════════════════════════════════════════════════════
+      case 'horoscopo':
+      case 'signo':
+        if (!iaExpanded) return reply("Sistema de horóscopo temporariamente indisponível.");
+        if (!ia || !KeyCog) return reply("❌ Sistema de IA não disponível no momento.");
+        
+        const signoHoroscopo = args[0]?.toLowerCase();
+        if (!signoHoroscopo) {
+          return reply(`🔮 *Horóscopo - Signos*
+
+${prefix}horoscopo <signo>
+
+*Signos disponíveis:*
+♈ Áries | ♉ Touro | ♊ Gêmeos
+♋ Câncer | ♌ Leão | ♍ Virgem
+♎ Libra | ♏ Escorpião | ♐ Sagitário
+♑ Capricórnio | ♒ Aquário | ♓ Peixes`);
+        }
+        
+        reply("🔮 Consultando as estrelas...");
+        
+        // Função wrapper para a IA
+        const aiFunctionHoroscope = (prompt) => {
+          return ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog)
+            .then(response => response?.data?.choices?.[0]?.message?.content || '');
+        };
+        
+        iaExpanded.generateHoroscope(signoHoroscopo, aiFunctionHoroscope, prefix).then(resultHoroscope => {
+          reply(resultHoroscope.message);
+        }).catch(err => {
+          reply('❌ Erro ao gerar horóscopo. Tente novamente!');
+        });
+        break;
+
+      case 'signos':
+        return reply(`🔮 *Signos do Zodíaco*
+
+♈ *Áries* (21/03 - 19/04)
+♉ *Touro* (20/04 - 20/05)
+♊ *Gêmeos* (21/05 - 20/06)
+♋ *Câncer* (21/06 - 22/07)
+♌ *Leão* (23/07 - 22/08)
+♍ *Virgem* (23/08 - 22/09)
+♎ *Libra* (23/09 - 22/10)
+♏ *Escorpião* (23/10 - 21/11)
+♐ *Sagitário* (22/11 - 21/12)
+♑ *Capricórnio* (22/12 - 19/01)
+♒ *Aquário* (20/01 - 18/02)
+♓ *Peixes* (19/02 - 20/03)
+
+Use ${prefix}horoscopo <signo> para ver a previsão!`);
+        break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // DEBATER - Gerador de argumentos
+      // ═══════════════════════════════════════════════════════════════
+      case 'debater':
+      case 'debate':
+        if (!iaExpanded) return reply("Sistema de debate temporariamente indisponível.");
+        if (!ia || !KeyCog) return reply("❌ Sistema de IA não disponível no momento.");
+        if (!q) return reply(`💬 *Debater*\n\nUso: ${prefix}debater <tema>\n\nExemplo: ${prefix}debater redes sociais fazem bem ou mal`);
+        
+        reply("💬 Analisando argumentos...");
+        
+        // Função wrapper para a IA
+        const aiFunctionDebate = (prompt) => {
+          return ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog)
+            .then(response => response?.data?.choices?.[0]?.message?.content || '');
+        };
+        
+        iaExpanded.generateDebate(q, aiFunctionDebate, prefix).then(resultDebate => {
+          reply(resultDebate.message);
+        }).catch(err => {
+          reply('❌ Erro ao gerar debate. Tente novamente!');
+        });
+        break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // HISTÓRIA INTERATIVA - Aventura por escolhas
+      // ═══════════════════════════════════════════════════════════════
+      case 'historiainterativa':
+      case 'storyinteractive':
+      case 'aventura':
+        if (!iaExpanded) return reply("Sistema de história temporariamente indisponível.");
+        if (!ia || !KeyCog) return reply("❌ Sistema de IA não disponível no momento.");
+        
+        const subCmdStory = args[0]?.toLowerCase();
+        
+        // Função wrapper para a IA
+        const aiFunctionStory = (prompt) => {
+          return ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog)
+            .then(response => response?.data?.choices?.[0]?.message?.content || '');
+        };
+        
+        if (!subCmdStory) {
+          return reply(`📖 *História Interativa*
+
+${prefix}aventura <gênero> - Inicia uma história
+${prefix}aventura escolha <1/2/3> - Faz uma escolha
+${prefix}aventura status - Ver status atual
+${prefix}aventura sair - Abandona a história
+
+*Gêneros:* fantasia, terror, romance, aventura, ficção, mistério`);
+        }
+        
+        switch (subCmdStory) {
+          case 'escolha':
+          case 'choice': {
+            const escolha = parseInt(args[1]);
+            if (isNaN(escolha) || escolha < 1 || escolha > 3) {
+              return reply("❌ Escolha inválida! Use 1, 2 ou 3.");
+            }
+            reply("📖 Continuando a história...");
+            iaExpanded.continueStory(sender, escolha, aiFunctionStory).then(resultStory => {
+              reply(resultStory.message);
+            }).catch(err => {
+              reply('❌ Erro ao continuar história. Tente novamente!');
+            });
+            break;
+          }
+          case 'status': {
+            const resultStatus = iaExpanded.getStoryStatus(sender);
+            return reply(resultStatus.message);
+          }
+          case 'sair':
+          case 'quit': {
+            const resultQuit = iaExpanded.cancelStory(sender);
+            return reply(resultQuit.message);
+          }
+          default: {
+            // Tenta iniciar história com o gênero
+            const generos = ['fantasia', 'terror', 'romance', 'aventura', 'ficção', 'ficcao', 'mistério', 'misterio'];
+            const genero = subCmdStory;
+            if (!generos.some(g => g.startsWith(genero))) {
+              return reply(`❌ Gênero inválido!\n\nGêneros: fantasia, terror, romance, aventura, ficção, mistério`);
+            }
+            reply("📖 Criando sua história...");
+            iaExpanded.startStory(sender, genero, aiFunctionStory, prefix).then(resultStory => {
+              reply(resultStory.message);
+            }).catch(err => {
+              reply('❌ Erro ao criar história. Tente novamente!');
+            });
+            break;
+          }
+        }
+        break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // ANTITOXIC - Configuração (apenas admins)
+      // ═══════════════════════════════════════════════════════════════
+      case 'antitoxic':
+      case 'antitóxico':
+        if (!isGroup) return reply("❌ Este comando só pode ser usado em grupos!");
+        if (!isGroupAdmin) return reply("❌ Apenas admins podem configurar o antitoxic!");
+        if (!antitoxic) return reply("Sistema antitoxic temporariamente indisponível.");
+        
+        const subCmdToxic = args[0]?.toLowerCase();
+        
+        if (!subCmdToxic || subCmdToxic === 'on') {
+            const result = antitoxic.enableAntitoxic(from);
+            return reply(result.message);
+          }
+        
+        if (subCmdToxic === 'off') {
+            const result = antitoxic.disableAntitoxic(from);
+            return reply(result.message);
+          }
+        
+        if (subCmdToxic === 'config') {
+            const acao = args[1]?.toLowerCase();
+            if (!acao || !['avisar', 'apagar', 'mute'].includes(acao)) {
+              return reply(`❌ Ação inválida!\n\nUso: ${prefix}antitoxic config <avisar/apagar/mute>`);
+            }
+            const result = antitoxic.setAntitoxicAction(from, acao);
+            return reply(result.message);
+          }
+        
+        if (subCmdToxic === 'sensibilidade' || subCmdToxic === 'threshold') {
+          const nivel = parseInt(args[1]);
+          if (isNaN(nivel) || nivel < 0 || nivel > 100) {
+            return reply(`❌ Nível inválido!\n\nUso: ${prefix}antitoxic sensibilidade <0-100>\nMenor = mais sensível`);
+          }
+          const result = antitoxic.setAntitoxicThreshold(from, nivel);
+          return reply(result.message);
+        }
+        
+        return reply(`⚠️ *Antitoxic - Configuração*
+
+${prefix}antitoxic on - Ativa
+${prefix}antitoxic off - Desativa
+${prefix}antitoxic config <ação> - Define ação (avisar/apagar/mute)
+${prefix}antitoxic sensibilidade <0-100> - Define sensibilidade
+
+⚠️ Este sistema usa IA e pode cometer erros!`);
+        break;
+
+      // ═══════════════════════════════════════════════════════════════
+      // ANTIPALAVRA - Sistema de blacklist de palavras (apenas admins)
+      // ═══════════════════════════════════════════════════════════════
+      case 'antipalavra':
+      case 'antiword':
+        if (!isGroup) return reply("❌ Este comando só pode ser usado em grupos!");
+        if (!isGroupAdmin) return reply("❌ Apenas administradores podem usar este comando!");
+        if (!antipalavra) return reply("❌ Sistema antipalavra temporariamente indisponível.");
+        
+        const subCmdAntipalavra = args[0]?.toLowerCase();
+        
+        // Ativa o sistema
+        if (subCmdAntipalavra === 'on' || subCmdAntipalavra === 'ativar') {
+          const result = antipalavra.enableAntipalavra(from);
+          return reply(result.message);
+        }
+        
+        // Desativa o sistema
+        if (subCmdAntipalavra === 'off' || subCmdAntipalavra === 'desativar') {
+          const result = antipalavra.disableAntipalavra(from);
+          return reply(result.message);
+        }
+        
+        // Adiciona palavra à blacklist
+        if (subCmdAntipalavra === 'add' || subCmdAntipalavra === 'adicionar') {
+            const palavra = args.slice(1).join(' ').trim();
+            if (!palavra) {
+              return reply(`❌ Você precisa especificar a palavra!\n\nUso: ${prefix}antipalavra add <palavra>`);
+            }
+            const result = antipalavra.addPalavraBlacklist(from, palavra);
+            return reply(result.message);
+          }
+          
+        // Remove palavra da blacklist
+        if (subCmdAntipalavra === 'del' || subCmdAntipalavra === 'remover' || subCmdAntipalavra === 'remove') {
+          const palavra = args.slice(1).join(' ').trim();
+            if (!palavra) {
+            return reply(`❌ Você precisa especificar a palavra!\n\nUso: ${prefix}antipalavra del <palavra>`);
+          }
+          const result = antipalavra.removePalavraBlacklist(from, palavra);
+          return reply(result.message);
+        }
+        
+        // Lista todas as palavras
+        if (subCmdAntipalavra === 'list' || subCmdAntipalavra === 'lista' || subCmdAntipalavra === 'listar') {
+          const result = antipalavra.listPalavrasBlacklist(from);
+          return reply(result.message);
+        }
+        
+        // Limpa a blacklist
+        if (subCmdAntipalavra === 'clear' || subCmdAntipalavra === 'limpar') {
+          const result = antipalavra.clearBlacklist(from);
+          return reply(result.message);
+        }
+        
+        // Estatísticas
+        if (subCmdAntipalavra === 'stats' || subCmdAntipalavra === 'estatisticas') {
+          const stats = antipalavra.getStats(from);
+          let msg = `📊 *ANTIPALAVRA - ESTATÍSTICAS*\n`;
+          msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+          msg += `📊 Status: ${stats.enabled ? '✅ Ativo' : '❌ Desativado'}\n`;
+          msg += `🔢 Palavras na blacklist: ${stats.totalWords}\n`;
+          msg += `🚫 Total de bans: ${stats.totalBans}\n`;
+          msg += `🔍 Total de detecções: ${stats.totalDetections}\n`;
+          
+          if (stats.topWords && stats.topWords.length > 0) {
+            msg += `\n🔝 *Top 5 palavras mais detectadas:*\n`;
+            stats.topWords.forEach((item, index) => {
+              msg += `${index + 1}. "${item.palavra}" - ${item.detections}x\n`;
+            });
+          }
+          
+          return reply(msg);
+        }
+        
+        // Menu de ajuda
+        return reply(`🚫 *ANTIPALAVRA - SISTEMA DE BLACKLIST*
+
+*Comandos disponíveis:*
+
+${prefix}antipalavra on
+└ Ativa o sistema
+
+${prefix}antipalavra off
+└ Desativa o sistema
+
+${prefix}antipalavra add <palavra>
+└ Adiciona palavra à blacklist
+
+${prefix}antipalavra del <palavra>
+└ Remove palavra da blacklist
+
+${prefix}antipalavra list
+└ Lista todas as palavras
+
+${prefix}antipalavra clear
+└ Limpa toda a blacklist
+
+${prefix}antipalavra stats
+└ Mostra estatísticas
+
+⚠️ *IMPORTANTE:*
+Membros que falarem palavras da blacklist serão BANIDOS AUTOMATICAMENTE do grupo!
+
+💡 *Dica:* O sistema ignora acentos e maiúsculas/minúsculas na detecção.`);
+        break;
+
       case 'chance':
         try {
           if (!isGroup) return reply("🎮 Ops! Esse comando só funciona em grupos! Chama a galera! 👥�");
@@ -26424,21 +30225,10 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
         try {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           if (!isModoBn) return reply('❌ O modo brincadeira não esta ativo nesse grupo');
-          await nazu.sendMessage(from, {
-            poll: {
-              name: toolsJson().iNever[Math.floor(Math.random() * toolsJson().iNever.length)],
-              values: ["Eu nunca", "Eu ja"],
-              selectableCount: 1
-            },
-            messageContextInfo: {
-              messageSecret: Math.random()
-            }
-          }, {
-            from,
-            options: {
-              userJid: nazu?.user?.id
-            }
-          });
+          
+          const pollQuestion = toolsJson().iNever[Math.floor(Math.random() * toolsJson().iNever.length)];
+          
+          await reply(`🔞 *EU NUNCA*\n\n${pollQuestion}\n\nResponda com: *Eu nunca* ou *Eu já*`);
         } catch (e) {
           console.error(e);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
@@ -26448,22 +30238,10 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
         try {
           if (!isGroup) return reply("isso so pode ser usado em grupo 💔");
           if (!isModoBn) return reply('❌ O modo brincadeira não esta ativo nesse grupo');
+          
           const vabs = vabJson()[Math.floor(Math.random() * vabJson().length)];
-          await nazu.sendMessage(from, {
-            poll: {
-              name: 'O que você prefere?',
-              values: [vabs.option1, vabs.option2],
-              selectableCount: 1
-            },
-            messageContextInfo: {
-              messageSecret: Math.random()
-            }
-          }, {
-            from,
-            options: {
-              userJid: nazu?.user?.id
-            }
-          });
+          
+          await reply(`🤔 *O QUE VOCÊ PREFERE?*\n\n1️⃣ ${vabs.option1}\n2️⃣ ${vabs.option2}`);
         } catch (e) {
           console.error(e);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
@@ -26616,18 +30394,18 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
         }
         break;
       case 'suicidio':
-        try {
-          await reply(`*É uma pena que tenha tomado essa decisão ${pushname}, vamos sentir saudades... 😕*`);
-          setTimeout(async () => {
-            await nazu.groupParticipantsUpdate(from, [sender], "remove");
+        reply(`*É uma pena que tenha tomado essa decisão ${pushname}, vamos sentir saudades... 😕*`).then(() => {
+          setTimeout(() => {
+            nazu.groupParticipantsUpdate(from, [sender], "remove").then(() => {
+              setTimeout(() => {
+                reply(`*Ainda bem que morreu, não aguentava mais essa praga kkkkkk*`);
+              }, 1000);
+            });
           }, 2000);
-          setTimeout(async () => {
-            await reply(`*Ainda bem que morreu, não aguentava mais essa praga kkkkkk*`);
-          }, 3000);
-        } catch (e) {
+        }).catch((e) => {
           console.error(e);
-          await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
-        }
+          reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
+        });
         break;
       case 'gay':
       case 'burro':
@@ -26716,7 +30494,6 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
       case 'atleta':
       case 'estudioso':
       case 'romantico':
-      case 'ciumento':
       case 'extrovertido':
       case 'introvertido':
       case 'calmo':
@@ -26768,8 +30545,7 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
       case 'maduro':
       case 'infantil':
       case 'serio':
-      case 'brincalhao':
-      case 'sorte':
+      case 'sortudo2':
       case 'zueira':
       case 'viaja nte':
       case 'responsavel':
@@ -26815,34 +30591,23 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
         break;
       case 'lesbica':
       case 'burra':
-      case 'inteligente':
-      case 'otaku':
-      case 'fiel':
-      case 'infiel':
       case 'corna':
-      case 'gado':
       case 'gostosa':
       case 'feia':
       case 'rica':
-      case 'pobre':
       case 'bucetuda':
-      case 'nazista':
       case 'ladra':
       case 'safada':
       case 'vesga':
       case 'bebada':
-      case 'machista':
       case 'homofobica':
-      case 'racista':
       case 'chata':
       case 'sortuda':
       case 'azarada':
-      case 'forte':
       case 'fraca':
       case 'pegadora':
       case 'otaria':
       case 'boba':
-      case 'nerd':
       case 'preguicosa':
       case 'trabalhadora':
       case 'braba':
@@ -26853,38 +30618,22 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
       case 'charmosa':
       case 'misteriosa':
       case 'carinhosa':
-      case 'desumilde':
-      case 'humilde':
       case 'ciumenta':
       case 'corajosa':
-      case 'covarde':
       case 'esperta':
       case 'talarica':
       case 'chorona':
       case 'brincalhona':
-      case 'bolsonarista':
-      case 'petista':
-      case 'comunista':
-      case 'lulista':
       case 'traidora':
       case 'bandida':
       case 'cachorra':
       case 'vagabunda':
-      case 'pilantra':
-      case 'mito':
-      case 'padrao':
-      case 'comedia':
-      case 'psicopata':
       case 'fortona':
       case 'magrela':
       case 'bombada':
-      case 'chefe':
       case 'presidenta':
       case 'rainha':
       case 'patroa':
-      case 'playboy':
-      case 'zueira':
-      case 'gamer':
       case 'programadora':
       case 'visionaria':
       case 'bilionaria':
@@ -26895,10 +30644,8 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
       case 'dorminhoca':
       case 'comilona':
       case 'sedentaria':
-      case 'atleta':
       case 'estudiosa':
       case 'romantica':
-      case 'ciumenta':
       case 'extrovertida':
       case 'introvertida':
       case 'calma':
@@ -26907,52 +30654,26 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
       case 'bagunceira':
       case 'economica':
       case 'gastadora':
-      case 'saudavel':
-      case 'doente':
       case 'supersticiosa':
       case 'cetica':
       case 'religiosa':
       case 'ateia':
-      case 'tradicional':
       case 'moderna':
       case 'conservadora':
-      case 'liberal':
       case 'patriotica':
-      case 'cosmopolita':
-      case 'rural':
       case 'urbana':
       case 'aventureira':
       case 'caseira':
-      case 'viajante':
-      case 'local':
-      case 'global':
       case 'tecnologica':
       case 'analogica':
-      case 'digital':
-      case 'offline':
-      case 'online':
-      case 'social':
-      case 'antisocial':
-      case 'popular':
       case 'solitaria':
-      case 'lider':
       case 'seguidora':
-      case 'independente':
-      case 'dependente':
       case 'criativa':
       case 'pratica':
       case 'sonhadora':
-      case 'realista':
-      case 'otimista':
-      case 'pessimista':
-      case 'confiante':
       case 'insegura':
       case 'madura':
-      case 'infantil':
       case 'seria':
-      case 'brincalhona':
-      case 'responsavel':
-      case 'irresponsavel':
         try {
           if (isModoLite && ['bucetuda', 'cachorra', 'vagabunda', 'racista', 'nazista', 'gostosa', 'machista', 'homofobica'].includes(command)) return nazu.react('❌', {
             key: info.key
@@ -27092,18 +30813,11 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
         break;
       case 'ranklesbica':
       case 'rankburra':
-      case 'rankinteligente':
-      case 'rankotaku':
-      case 'rankfiel':
-      case 'rankinfiel':
       case 'rankcorna':
       case 'rankgada':
       case 'rankgostosa':
       case 'rankrica':
-      case 'rankpobre':
-      case 'rankforte':
       case 'rankpegadora':
-      case 'ranknerd':
       case 'ranktrabalhadora':
       case 'rankbraba':
       case 'ranklinda':
@@ -27115,18 +30829,11 @@ ${nivelSorte >= 70 ? '🎉 Hoje é seu dia de sorte!' : nivelSorte >= 40 ? '🤔
       case 'rankvencedora':
       case 'ranklesbicas':
       case 'rankburras':
-      case 'rankinteligentes':
-      case 'rankotakus':
-      case 'rankfiels':
-      case 'rankinfieis':
       case 'rankcornas':
       case 'rankgads':
       case 'rankgostosas':
       case 'rankricas':
-      case 'rankpobres':
-      case 'rankfortes':
       case 'rankpegadoras':
-      case 'ranknerds':
       case 'ranktrabalhadoras':
       case 'rankbrabas':
       case 'ranklindas':
@@ -27622,7 +31329,6 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
   // Mandem agradecimentos a ele 🫶🏻
   case 'likeff':
   case 'likes':
-  case 'likeff':
   case 'likesff':
   try {
     // Verificar API key
@@ -27636,7 +31342,7 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
     }
 
     const playerId = q.replace(/\D/g, '');
-    if (!playerId || playerId.length < 8) {
+    if (!playerId) {
       return reply(`❌ *ID inválido!*\n\n📝 Digite um ID válido do Free Fire.\n💡 Exemplo: ${prefix}likes 1033857091`);
     }
 
@@ -27650,7 +31356,7 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
         headers: {
           'Authorization': `Bearer ${KeyCog}`
         },
-        timeout: 30000
+        timeout: 120000
       });
 
       // Verificar se a resposta indica erro de limite
@@ -27775,6 +31481,1301 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   } catch (e) {
     console.error('Erro geral no comando likes:', e);
     reply('❌ Ocorreu um erro ao processar sua solicitação.');
+  }
+  break;
+
+  // ═══════════════════════════════════════════════════════════════
+  // 🎮 BRAWL STARS - COMANDOS DE CONSULTA
+  // ═══════════════════════════════════════════════════════════════
+  
+  case 'bsplayer':
+  case 'bsjogador':
+  case 'bsperfil':
+  {
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    if (!q) {
+      return reply(`🎮 *BRAWL STARS - PERFIL DE JOGADOR*\n\n📝 *Como usar:*\n• Digite a TAG do jogador após o comando\n• Exemplo: ${prefix}bsplayer #2PP\n\n💡 *Dica:* Você pode copiar sua tag do jogo`);
+    }
+
+    let playerTag = q.trim().toUpperCase();
+    if (!playerTag.startsWith('#')) playerTag = '#' + playerTag;
+    const encodedTag = encodeURIComponent(playerTag);
+
+    reply('🔍 Buscando informações do jogador...');
+
+    Promise.all([
+      axios.get(`https://cog.api.br/api/v1/brawlstars/players/${encodedTag}`, {
+        headers: { 'X-API-Key': KeyCog },
+        timeout: 120000
+      }),
+      axios.get('https://api.brawlify.com/v1/icons', { timeout: 30000 }).catch(() => null)
+    ]).then(([playerRes, iconsRes]) => {
+      if (!playerRes.data || !playerRes.data.tag) {
+        return reply('❌ Jogador não encontrado. Verifique a TAG e tente novamente.');
+      }
+
+      const player = playerRes.data;
+      const icons = iconsRes?.data?.player || {};
+      
+      // Calcular estatísticas extras
+      const totalVictories = (player['3vs3Victories'] || 0) + (player.soloVictories || 0) + (player.duoVictories || 0);
+      const brawlersAtMax = player.brawlers?.filter(b => b.power === 11).length || 0;
+      const brawlersAtRank25 = player.brawlers?.filter(b => b.rank >= 25).length || 0;
+      const brawlersAtRank30 = player.brawlers?.filter(b => b.rank >= 30).length || 0;
+      const brawlersAtRank35 = player.brawlers?.filter(b => b.rank >= 35).length || 0;
+      const totalStarPowers = player.brawlers?.reduce((sum, b) => sum + (b.starPowers?.length || 0), 0) || 0;
+      const totalGadgets = player.brawlers?.reduce((sum, b) => sum + (b.gadgets?.length || 0), 0) || 0;
+      const totalGears = player.brawlers?.reduce((sum, b) => sum + (b.gears?.length || 0), 0) || 0;
+      
+      let msg = `🎮 *BRAWL STARS - PERFIL COMPLETO*\n${'═'.repeat(30)}\n\n`;
+      
+      msg += `👤 *INFORMAÇÕES BÁSICAS*\n`;
+      msg += `┣ 📛 Nome: ${player.name}\n`;
+      msg += `┣ 🏷️ TAG: ${player.tag}\n`;
+      msg += `┣ 🎨 Cor do Nome: ${player.nameColor || 'Padrão'}\n`;
+      msg += `┗ 📈 Nível: ${player.expLevel || 1} (${player.expPoints?.toLocaleString() || 0} XP)\n\n`;
+      
+      msg += `🏆 *TROFÉUS*\n`;
+      msg += `┣ 🥇 Atual: ${player.trophies?.toLocaleString() || 0}\n`;
+      msg += `┗ 🌟 Recorde: ${player.highestTrophies?.toLocaleString() || 0}\n\n`;
+      
+      msg += `⚔️ *VITÓRIAS*\n`;
+      msg += `┣ 📊 Total: ${totalVictories.toLocaleString()}\n`;
+      msg += `┣ 🎯 3v3: ${(player['3vs3Victories'] || 0).toLocaleString()}\n`;
+      msg += `┣ 🥇 Solo: ${(player.soloVictories || 0).toLocaleString()}\n`;
+      msg += `┗ 👥 Dupla: ${(player.duoVictories || 0).toLocaleString()}\n\n`;
+      
+      if (player.club && player.club.name) {
+        msg += `🛡️ *CLUBE*\n`;
+        msg += `┣ 📛 ${player.club.name}\n`;
+        msg += `┗ 🏷️ ${player.club.tag}\n\n`;
+      } else {
+        msg += `🛡️ *CLUBE:* Sem clube\n\n`;
+      }
+      
+      msg += `👾 *BRAWLERS (${player.brawlers?.length || 0})*\n`;
+      msg += `┣ ⭐ Power 11: ${brawlersAtMax}\n`;
+      msg += `┣ 🔮 Star Powers: ${totalStarPowers}\n`;
+      msg += `┣ 🔧 Gadgets: ${totalGadgets}\n`;
+      msg += `┣ ⚙️ Gears: ${totalGears}\n`;
+      msg += `┣ 🏅 Rank 25+: ${brawlersAtRank25}\n`;
+      msg += `┣ 💎 Rank 30+: ${brawlersAtRank30}\n`;
+      msg += `┗ 🔥 Rank 35: ${brawlersAtRank35}\n\n`;
+      
+      if (player.brawlers && player.brawlers.length > 0) {
+        const ranked = player.brawlers
+          .sort((a, b) => (b.trophies || 0) - (a.trophies || 0))
+          .slice(0, 10);
+        
+        msg += `🏆 *TOP 10 BRAWLERS*\n`;
+        ranked.forEach((b, i) => {
+          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+          const rankBadge = b.rank >= 35 ? '🔥' : b.rank >= 30 ? '💎' : b.rank >= 25 ? '🏅' : '⭐';
+          msg += `${medal} ${b.name} - 🏆${b.trophies} | ${rankBadge}R${b.rank} | P${b.power || 1}\n`;
+        });
+      }
+
+      // Buscar imagem completa do perfil (com todos os brawlers)
+      const tagWithoutHash = player.tag.replace('#', '');
+      const profileImageUrl = `https://img.sltbot.com/player/${tagWithoutHash}/brawlers?o=h`;
+
+      axios.get(profileImageUrl, { responseType: 'arraybuffer', timeout: 15000 })
+        .then(imageBuffer => {
+          nazu.sendMessage(from, {
+            image: Buffer.from(imageBuffer.data),
+            caption: msg
+          }, { quoted: info });
+        })
+        .catch(() => reply(msg));
+    }).catch(e => {
+      console.error('Erro no bsplayer:', e);
+      if (e.response?.status === 404) {
+        return reply('❌ Jogador não encontrado. Verifique a TAG e tente novamente.');
+      }
+      if (isApiKeyError(e)) {
+        ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
+        return reply(`❌ Erro na API. O dono foi notificado.`);
+      }
+      reply('❌ Erro ao buscar informações do jogador.');
+    });
+  }
+  break;
+
+  case 'bsclub':
+  case 'bscla':
+  case 'bsclube':
+  {
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
+    if (!q) {
+      return reply(`⚔️ *BRAWL STARS - INFORMAÇÕES DO CLUBE*\n\n📝 *Como usar:*\n• Digite a TAG do clube após o comando\n• Exemplo: ${prefix}bsclub #2PP\n\n💡 *Dica:* Você pode copiar a tag do clube no jogo`);
+    }
+
+    let clubTag = q.trim().toUpperCase();
+    if (!clubTag.startsWith('#')) clubTag = '#' + clubTag;
+    const encodedTag = encodeURIComponent(clubTag);
+
+    reply('🔍 Buscando informações do clube...');
+
+    axios.get(`https://cog.api.br/api/v1/brawlstars/clubs/${encodedTag}`, {
+      headers: { 'X-API-Key': KeyCog },
+      timeout: 120000
+    }).then(response => {
+
+    if (!response.data || !response.data.tag) {
+      return reply('❌ Clube não encontrado. Verifique a TAG e tente novamente.');
+    }
+
+    const club = response.data;
+    
+    // Calcular estatísticas do clube
+    const totalTrophies = club.members?.reduce((sum, m) => sum + (m.trophies || 0), 0) || 0;
+    const avgTrophies = club.members?.length ? Math.round(totalTrophies / club.members.length) : 0;
+    const president = club.members?.find(m => m.role === 'president');
+    const viceCount = club.members?.filter(m => m.role === 'vicePresident').length || 0;
+    const seniorCount = club.members?.filter(m => m.role === 'senior').length || 0;
+    
+    const typeEmoji = { open: '🟢', inviteOnly: '🟡', closed: '🔴' };
+    const typeText = { open: 'Aberto', inviteOnly: 'Apenas Convite', closed: 'Fechado' };
+    
+    let msg = `🛡️ *BRAWL STARS - CLUBE*\n${'═'.repeat(30)}\n\n`;
+    
+    msg += `📋 *INFORMAÇÕES GERAIS*\n`;
+    msg += `┣ 📛 Nome: ${club.name}\n`;
+    msg += `┣ 🏷️ TAG: ${club.tag}\n`;
+    msg += `┣ ${typeEmoji[club.type] || '⚪'} Tipo: ${typeText[club.type] || club.type}\n`;
+    msg += `┗ 🎯 Troféus Mínimos: ${club.requiredTrophies?.toLocaleString() || 0}\n\n`;
+    
+    if (club.description) {
+      msg += `📝 *DESCRIÇÃO*\n${club.description}\n\n`;
+    }
+    
+    msg += `📊 *ESTATÍSTICAS*\n`;
+    msg += `┣ 🏆 Troféus Totais: ${club.trophies?.toLocaleString() || 0}\n`;
+    msg += `┣ 📈 Média por Membro: ${avgTrophies.toLocaleString()}\n`;
+    msg += `┗ 👥 Membros: ${club.members?.length || 0}/30\n\n`;
+    
+    msg += `👑 *HIERARQUIA*\n`;
+    if (president) {
+      msg += `┣ 👑 Presidente: ${president.name}\n`;
+    }
+    msg += `┣ ⭐ Vice-Presidentes: ${viceCount}\n`;
+    msg += `┗ 🎖️ Veteranos: ${seniorCount}\n\n`;
+    
+    if (club.members && club.members.length > 0) {
+      const sorted = club.members
+        .sort((a, b) => (b.trophies || 0) - (a.trophies || 0));
+      
+      msg += `🏆 *RANKING DE MEMBROS*\n`;
+      sorted.slice(0, 15).forEach((m, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+        const role = m.role === 'president' ? '👑' : m.role === 'vicePresident' ? '⭐' : m.role === 'senior' ? '🎖️' : '👤';
+        msg += `${medal} ${role} ${m.name}\n    🏆 ${m.trophies?.toLocaleString()} | 🏷️ ${m.tag}\n`;
+      });
+      
+      if (sorted.length > 15) {
+        msg += `\n... e mais ${sorted.length - 15} membros`;
+      }
+    }
+
+    // Buscar badge do clube
+    let badgeUrl = null;
+    if (club.badgeId) {
+      badgeUrl = `https://cdn.brawlify.com/club-badges/regular/${club.badgeId}.png`;
+    }
+
+    if (badgeUrl) {
+      axios.get(badgeUrl, { responseType: 'arraybuffer', timeout: 15000 })
+        .then(imageBuffer => {
+          nazu.sendMessage(from, {
+            image: Buffer.from(imageBuffer.data),
+            caption: msg
+          }, { quoted: info });
+        })
+        .catch(() => reply(msg));
+    } else {
+      reply(msg);
+    }
+    }).catch(e => {
+      console.error('Erro no bsclub:', e);
+      if (e.response?.status === 404) {
+        return reply('❌ Clube não encontrado. Verifique a TAG e tente novamente.');
+      }
+      if (isApiKeyError(e)) {
+        ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
+        return reply(`❌ Erro na API. O dono foi notificado.`);
+      }
+      reply('❌ Erro ao buscar informações do clube.');
+    });
+  }
+  break;
+
+  case 'bsbrawlers':
+  case 'bslista':
+  try {
+    reply('🔍 Buscando lista de brawlers...');
+
+    // Usar API Brawlify (gratuita e com mais dados)
+    axios.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 }).then(response => {
+
+    if (!response.data || !response.data.list) {
+      return reply('❌ Erro ao buscar lista de brawlers.');
+    }
+
+    const brawlers = response.data.list;
+    
+    // Agrupar por raridade
+    const byRarity = {};
+    brawlers.forEach(b => {
+      const rarity = b.rarity?.name || 'Comum';
+      if (!byRarity[rarity]) byRarity[rarity] = [];
+      byRarity[rarity].push(b);
+    });
+
+    let msg = `👾 *BRAWL STARS - TODOS OS BRAWLERS*\n${'═'.repeat(30)}\n\n`;
+    msg += `📊 *Total:* ${brawlers.length} brawlers disponíveis\n\n`;
+
+    const rarityOrder = ['Legendary', 'Mythic', 'Epic', 'Super Rare', 'Rare', 'Trophy Road', 'Common', 'Starting'];
+    const rarityEmoji = {
+      'Legendary': '💛',
+      'Mythic': '❤️',
+      'Epic': '💜',
+      'Super Rare': '💙',
+      'Rare': '💚',
+      'Trophy Road': '🏆',
+      'Common': '⬜',
+      'Starting': '⭐'
+    };
+    const rarityPT = {
+      'Legendary': 'Lendário',
+      'Mythic': 'Mítico',
+      'Epic': 'Épico',
+      'Super Rare': 'Super Raro',
+      'Rare': 'Raro',
+      'Trophy Road': 'Estrada de Troféus',
+      'Common': 'Comum',
+      'Starting': 'Inicial'
+    };
+
+    rarityOrder.forEach(rarity => {
+      if (byRarity[rarity] && byRarity[rarity].length > 0) {
+        msg += `${rarityEmoji[rarity] || '•'} *${rarityPT[rarity] || rarity}* (${byRarity[rarity].length})\n`;
+        byRarity[rarity].forEach(b => {
+          const classEmoji = {
+            'Damage Dealer': '⚔️',
+            'Tank': '🛡️',
+            'Support': '💚',
+            'Assassin': '🗡️',
+            'Controller': '🎯',
+            'Marksman': '🎯',
+            'Artillery': '💥'
+          };
+          msg += `  ${classEmoji[b.class?.name] || '•'} ${b.name}\n`;
+        });
+        msg += `\n`;
+      }
+    });
+
+    msg += `💡 *Dica:* Use ${prefix}bsbrawler <nome> para detalhes`;
+
+    reply(msg);
+    }).catch(e => {
+      console.error('Erro no bsbrawlers:', e);
+      reply('❌ Erro ao buscar lista de brawlers.');
+    });
+  } catch (e) {
+    console.error('Erro no bsbrawlers:', e);
+    reply('❌ Erro ao processar comando.');
+  }
+  break;
+
+  case 'bsbrawler':
+  case 'bspersonagem':
+  {
+    if (!q) {
+      return reply(`👾 *BRAWL STARS - INFO DO BRAWLER*\n\n📝 *Como usar:*\n• Digite o nome do brawler\n• Exemplo: ${prefix}bsbrawler shelly\n• Exemplo: ${prefix}bsbrawler leon\n\n💡 Use ${prefix}bsbrawlers para ver a lista completa`);
+    }
+
+    const brawlerName = q.trim().toLowerCase();
+    
+    reply('🔍 Buscando informações do brawler...');
+    
+    // Usar API Brawlify com dados completos
+    axios.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 }).then(listResponse => {
+
+    if (!listResponse.data || !listResponse.data.list) {
+      return reply('❌ Erro ao buscar informações.');
+    }
+
+    const brawlers = listResponse.data.list;
+    const found = brawlers.find(b => 
+      b.name.toLowerCase() === brawlerName || 
+      b.name.toLowerCase().includes(brawlerName) ||
+      b.hash?.toLowerCase() === brawlerName
+    );
+    
+    if (!found) {
+      // Tentar busca parcial
+      const partial = brawlers.filter(b => 
+        b.name.toLowerCase().includes(brawlerName)
+      );
+      if (partial.length > 0) {
+        let suggestions = `❌ Brawler "${q}" não encontrado.\n\n🔎 *Você quis dizer:*\n`;
+        partial.slice(0, 5).forEach(b => {
+          suggestions += `• ${b.name}\n`;
+        });
+        return reply(suggestions);
+      }
+      return reply(`❌ Brawler "${q}" não encontrado.\n\n💡 Use ${prefix}bsbrawlers para ver a lista completa`);
+    }
+
+    const brawler = found;
+    
+    // Classificações
+    const rarityPT = {
+      'Legendary': 'Lendário 💛',
+      'Mythic': 'Mítico ❤️',
+      'Epic': 'Épico 💜',
+      'Super Rare': 'Super Raro 💙',
+      'Rare': 'Raro 💚',
+      'Trophy Road': 'Estrada de Troféus 🏆',
+      'Common': 'Comum ⬜',
+      'Starting': 'Inicial ⭐'
+    };
+    
+    const classPT = {
+      'Damage Dealer': 'Atacante ⚔️',
+      'Tank': 'Tanque 🛡️',
+      'Support': 'Suporte 💚',
+      'Assassin': 'Assassino 🗡️',
+      'Controller': 'Controlador 🎯',
+      'Marksman': 'Atirador 🎯',
+      'Artillery': 'Artilheiro 💥',
+      'Thrower': 'Arremessador 💣'
+    };
+    
+    let msg = `👾 *${brawler.name.toUpperCase()}*\n${'═'.repeat(30)}\n\n`;
+    
+    msg += `📋 *INFORMAÇÕES BÁSICAS*\n`;
+    msg += `┣ 🆔 ID: ${brawler.id}\n`;
+    msg += `┣ 💎 Raridade: ${rarityPT[brawler.rarity?.name] || brawler.rarity?.name || 'N/A'}\n`;
+    msg += `┣ ⚔️ Classe: ${classPT[brawler.class?.name] || brawler.class?.name || 'N/A'}\n`;
+    msg += `┗ 🔗 Link: ${brawler.link || 'N/A'}\n\n`;
+    
+    if (brawler.description) {
+      msg += `📝 *DESCRIÇÃO*\n${brawler.description}\n\n`;
+    }
+
+    if (brawler.starPowers && brawler.starPowers.length > 0) {
+      msg += `⭐ *STAR POWERS (${brawler.starPowers.length})*\n`;
+      brawler.starPowers.forEach((sp, i) => {
+        msg += `\n${i + 1}. *${sp.name}*\n`;
+        if (sp.description) {
+          msg += `   ${sp.description.replace(/<[^>]*>/g, '')}\n`;
+        }
+      });
+      msg += `\n`;
+    }
+
+    if (brawler.gadgets && brawler.gadgets.length > 0) {
+      msg += `🔧 *GADGETS (${brawler.gadgets.length})*\n`;
+      brawler.gadgets.forEach((g, i) => {
+        msg += `\n${i + 1}. *${g.name}*\n`;
+        if (g.description) {
+          msg += `   ${g.description.replace(/<[^>]*>/g, '')}\n`;
+        }
+      });
+    }
+
+    // Imagens disponíveis
+    const imageUrl = brawler.imageUrl2 || brawler.imageUrl || brawler.imageUrl3;
+
+    if (imageUrl) {
+        axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 15000 })
+          .then(imageBuffer => {
+            nazu.sendMessage(from, {
+              image: Buffer.from(imageBuffer.data),
+              caption: msg
+            }, { quoted: info });
+          })
+          .catch(() => reply(msg));
+      } else {
+        reply(msg);
+      }
+    }).catch(e => {
+      console.error('Erro no bsbrawler:', e);
+      reply('❌ Erro ao buscar informações do brawler.');
+    });
+  }
+  break;
+
+  case 'bsrankings':
+  case 'bsrank':
+  case 'bstop': {
+  if (!KeyCog) {
+    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+    return reply(API_KEY_REQUIRED_MESSAGE);
+  }
+
+  const argsRank = q ? q.trim().toLowerCase().split(/\s+/) : [];
+  const country = argsRank[0] || 'global';
+  const type = argsRank[1] || 'players';
+  const brawlerId = argsRank[2] || null;
+
+  const validTypes = ['players', 'clubs', 'brawlers'];
+  if (!validTypes.includes(type)) {
+    return reply(`🏆 *BRAWL STARS - RANKINGS*\n${'═'.repeat(30)}\n\n📝 *Como usar:*\n• ${prefix}bsrank [país] [tipo]\n\n*Tipos disponíveis:*\n• players - Top jogadores\n• clubs - Top clubes\n• brawlers - Top por brawler\n\n*Países:*\n• global - Mundial\n• br - Brasil\n• us - Estados Unidos\n• pt - Portugal\n• mx - México\n\n*Exemplos:*\n• ${prefix}bsrank global players\n• ${prefix}bsrank br clubs\n• ${prefix}bsrank br brawlers shelly`);
+  }
+
+  reply('🔍 Buscando ranking...');
+
+  let url;
+  if (country === 'global') {
+    url = `https://cog.api.br/api/v1/brawlstars/rankings/global/${type}`;
+  } else {
+    url = `https://cog.api.br/api/v1/brawlstars/rankings/${country}/${type}`;
+  }
+  
+  // Se for ranking de brawler específico
+  if (type === 'brawlers' && brawlerId) {
+    // Buscar ID do brawler pelo nome
+    axios.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 }).then(brawlersRes => {
+      const found = brawlersRes.data.list.find(b => b.name.toLowerCase() === brawlerId.toLowerCase());
+      if (found) {
+        url = country === 'global' 
+          ? `https://cog.api.br/api/v1/brawlstars/rankings/global/brawlers/${found.id}`
+          : `https://cog.api.br/api/v1/brawlstars/rankings/${country}/brawlers/${found.id}`;
+      }
+
+      axios.get(url, {
+        headers: { 'X-API-Key': KeyCog },
+        timeout: 120000
+      }).then(response => {
+        if (!response.data || !response.data.items) {
+          return reply('❌ Erro ao buscar ranking.');
+        }
+
+        const items = response.data.items.slice(0, 25);
+        const typeNames = {
+          players: '👤 JOGADORES',
+          clubs: '🛡️ CLUBES',
+          brawlers: '👾 BRAWLERS'
+        };
+        
+        const countryNames = {
+          global: '🌍 Global',
+          br: '🇧🇷 Brasil',
+          us: '🇺🇸 Estados Unidos',
+          pt: '🇵🇹 Portugal',
+          mx: '🇲🇽 México',
+          ar: '🇦🇷 Argentina',
+          es: '🇪🇸 Espanha',
+          de: '🇩🇪 Alemanha',
+          fr: '🇫🇷 França',
+          uk: '🇬🇧 Reino Unido',
+          jp: '🇯🇵 Japão',
+          kr: '🇰🇷 Coreia do Sul',
+          cn: '🇨🇳 China',
+          in: '🇮🇳 Índia',
+          ru: '🇷🇺 Rússia'
+        };
+
+        let msg = `🏆 *BRAWL STARS - RANKING*\n${'═'.repeat(30)}\n\n`;
+        msg += `📊 *Tipo:* ${typeNames[type]}\n`;
+        msg += `🌍 *Região:* ${countryNames[country] || country.toUpperCase()}\n`;
+        msg += `📋 *Mostrando:* Top ${items.length}\n\n`;
+
+        items.forEach((item, i) => {
+          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+          
+          if (type === 'players') {
+            msg += `${medal} *${item.name}*\n`;
+            msg += `   🏷️ ${item.tag}\n`;
+            msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
+            if (item.club?.name) msg += `   🛡️ ${item.club.name}\n`;
+            msg += `\n`;
+          } else if (type === 'clubs') {
+            msg += `${medal} *${item.name}*\n`;
+            msg += `   🏷️ ${item.tag}\n`;
+            msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
+            msg += `   👥 ${item.memberCount || 0}/30 membros\n`;
+            msg += `\n`;
+          } else if (type === 'brawlers') {
+            msg += `${medal} *${item.name}*\n`;
+            msg += `   🏷️ ${item.tag}\n`;
+            msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
+            if (item.brawler?.name) msg += `   👾 ${item.brawler.name}\n`;
+            msg += `\n`;
+          }
+        });
+
+        reply(msg);
+      }).catch(e => {
+        console.error('Erro no bsrankings:', e);
+        if (e.response?.status === 404) {
+          return reply('❌ País ou tipo de ranking não encontrado.');
+        }
+        if (isApiKeyError(e)) {
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
+          return reply(`❌ Erro na API. O dono foi notificado.`);
+        }
+        reply('❌ Erro ao buscar ranking.');
+      });
+    }).catch(e => {
+      console.error('Erro ao buscar brawler:', e);
+      reply('❌ Erro ao buscar informações do brawler.');
+    });
+  } else {
+    axios.get(url, {
+      headers: { 'X-API-Key': KeyCog },
+      timeout: 120000
+    }).then(response => {
+      if (!response.data || !response.data.items) {
+        return reply('❌ Erro ao buscar ranking.');
+      }
+
+      const items = response.data.items.slice(0, 25);
+      const typeNames = {
+        players: '👤 JOGADORES',
+        clubs: '🛡️ CLUBES',
+        brawlers: '👾 BRAWLERS'
+      };
+      
+      const countryNames = {
+        global: '🌍 Global',
+        br: '🇧🇷 Brasil',
+        us: '🇺🇸 Estados Unidos',
+        pt: '🇵🇹 Portugal',
+        mx: '🇲🇽 México',
+        ar: '🇦🇷 Argentina',
+        es: '🇪🇸 Espanha',
+        de: '🇩🇪 Alemanha',
+        fr: '🇫🇷 França',
+        uk: '🇬🇧 Reino Unido',
+        jp: '🇯🇵 Japão',
+        kr: '🇰🇷 Coreia do Sul',
+        cn: '🇨🇳 China',
+        in: '🇮🇳 Índia',
+        ru: '🇷🇺 Rússia'
+      };
+
+      let msg = `🏆 *BRAWL STARS - RANKING*\n${'═'.repeat(30)}\n\n`;
+      msg += `📊 *Tipo:* ${typeNames[type]}\n`;
+      msg += `🌍 *Região:* ${countryNames[country] || country.toUpperCase()}\n`;
+      msg += `📋 *Mostrando:* Top ${items.length}\n\n`;
+
+      items.forEach((item, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+        
+        if (type === 'players') {
+          msg += `${medal} *${item.name}*\n`;
+          msg += `   🏷️ ${item.tag}\n`;
+          msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
+          if (item.club?.name) msg += `   🛡️ ${item.club.name}\n`;
+          msg += `\n`;
+        } else if (type === 'clubs') {
+          msg += `${medal} *${item.name}*\n`;
+          msg += `   🏷️ ${item.tag}\n`;
+          msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
+          msg += `   👥 ${item.memberCount || 0}/30 membros\n`;
+          msg += `\n`;
+        } else if (type === 'brawlers') {
+          msg += `${medal} *${item.name}*\n`;
+          msg += `   🏷️ ${item.tag}\n`;
+          msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
+          if (item.brawler?.name) msg += `   👾 ${item.brawler.name}\n`;
+          msg += `\n`;
+        }
+      });
+
+      reply(msg);
+    }).catch(e => {
+      console.error('Erro no bsrankings:', e);
+      if (e.response?.status === 404) {
+        return reply('❌ País ou tipo de ranking não encontrado.');
+      }
+      if (isApiKeyError(e)) {
+        ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
+        return reply(`❌ Erro na API. O dono foi notificado.`);
+      }
+      reply('❌ Erro ao buscar ranking.');
+    });
+  }
+  }
+  break;
+
+  case 'bsevents':
+  case 'bseventos':
+  case 'bsrotacao':
+  reply('🔍 Buscando eventos atuais...');
+
+  // Usar API Brawlify com dados completos dos eventos
+  axios.get('https://api.brawlify.com/v1/events', { timeout: 30000 }).then(response => {
+    if (!response.data) {
+      return reply('❌ Erro ao buscar eventos.');
+    }
+
+    const { active, upcoming } = response.data;
+    
+    let msg = `🎮 *BRAWL STARS - EVENTOS*\n${'═'.repeat(30)}\n\n`;
+
+    // Eventos ativos
+    if (active && active.length > 0) {
+      msg += `🟢 *EVENTOS ATIVOS*\n\n`;
+      
+      active.forEach((event, i) => {
+        if (event.map) {
+          const endTime = event.endTime ? new Date(event.endTime) : null;
+          const timeLeft = endTime ? Math.max(0, Math.floor((endTime - Date.now()) / 1000 / 60 / 60)) : 0;
+          
+          msg += `${event.slot?.emoji || '🎯'} *${event.slot?.name || `Slot ${i + 1}`}*\n`;
+          msg += `┣ 🗺️ Mapa: ${event.map.name}\n`;
+          msg += `┣ 🎮 Modo: ${event.map.gameMode?.name || 'N/A'}\n`;
+          if (event.modifier) {
+            msg += `┣ ⚡ Modificador: ${event.modifier.name || 'Especial'}\n`;
+          }
+          msg += `┗ ⏰ Tempo restante: ${timeLeft}h\n\n`;
+        }
+      });
+    }
+
+    // Próximos eventos
+    if (upcoming && upcoming.length > 0) {
+      msg += `🟡 *PRÓXIMOS EVENTOS*\n\n`;
+      
+      upcoming.slice(0, 5).forEach((event, i) => {
+        if (event.map) {
+          const startTime = event.startTime ? new Date(event.startTime) : null;
+          const timeUntil = startTime ? Math.max(0, Math.floor((startTime - Date.now()) / 1000 / 60 / 60)) : 0;
+          
+          msg += `${event.slot?.emoji || '🎯'} *${event.slot?.name || `Slot ${i + 1}`}*\n`;
+          msg += `┣ 🗺️ Mapa: ${event.map.name}\n`;
+          msg += `┣ 🎮 Modo: ${event.map.gameMode?.name || 'N/A'}\n`;
+          msg += `┗ ⏳ Começa em: ${timeUntil}h\n\n`;
+        }
+      });
+    }
+
+    if ((!active || active.length === 0) && (!upcoming || upcoming.length === 0)) {
+      msg = '⚠️ Nenhum evento encontrado no momento.';
+    }
+
+    msg += `💡 Use ${prefix}bsmapa <nome> para detalhes de um mapa`;
+
+    reply(msg);
+  }).catch(e => {
+    console.error('Erro no bsevents:', e);
+    reply('❌ Erro ao buscar eventos.');
+  });
+  break;
+
+  // ═══════════════════════════════════════════════════════════════
+  // 🆕 NOVOS COMANDOS BRAWL STARS
+  // ═══════════════════════════════════════════════════════════════
+
+  case 'bsbattlelog':
+  case 'bshistorico':
+  case 'bspartidas':
+  {
+  if (!KeyCog) {
+    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+    return reply(API_KEY_REQUIRED_MESSAGE);
+  }
+
+  if (!q) {
+    return reply(`📜 *BRAWL STARS - HISTÓRICO DE BATALHAS*\n\n📝 *Como usar:*\n• Digite a TAG do jogador\n• Exemplo: ${prefix}bsbattlelog #2PP\n\n💡 Mostra as últimas 25 partidas`);
+  }
+
+  let playerTag = q.trim().toUpperCase();
+  if (!playerTag.startsWith('#')) playerTag = '#' + playerTag;
+  const encodedTag = encodeURIComponent(playerTag);
+
+  reply('🔍 Buscando histórico de batalhas...');
+
+  axios.get(`https://cog.api.br/api/v1/brawlstars/players/${encodedTag}/battlelog`, {
+    headers: { 'X-API-Key': KeyCog },
+    timeout: 120000
+  }).then(response => {
+    if (!response.data || !response.data.items) {
+      return reply('❌ Histórico não encontrado. Verifique a TAG.');
+    }
+
+    const battles = response.data.items.slice(0, 15);
+    
+    // Estatísticas
+    const victories = battles.filter(b => b.battle?.result === 'victory').length;
+    const defeats = battles.filter(b => b.battle?.result === 'defeat').length;
+    const draws = battles.filter(b => b.battle?.result === 'draw').length;
+    
+    let msg = `📜 *HISTÓRICO DE BATALHAS*\n${'═'.repeat(30)}\n\n`;
+    msg += `🏷️ *Jogador:* ${playerTag}\n`;
+    msg += `📊 *Últimas ${battles.length} partidas:*\n`;
+    msg += `┣ ✅ Vitórias: ${victories}\n`;
+    msg += `┣ ❌ Derrotas: ${defeats}\n`;
+    msg += `┗ 🤝 Empates: ${draws}\n\n`;
+    
+    msg += `📋 *PARTIDAS RECENTES*\n\n`;
+    
+    battles.forEach((battle, i) => {
+      const b = battle.battle;
+      const event = battle.event;
+      
+      const resultEmoji = b?.result === 'victory' ? '✅' : b?.result === 'defeat' ? '❌' : '🤝';
+      const resultText = b?.result === 'victory' ? 'Vitória' : b?.result === 'defeat' ? 'Derrota' : 'Empate';
+      
+      const battleTime = battle.battleTime ? new Date(battle.battleTime.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6')) : null;
+      const timeAgo = battleTime ? Math.floor((Date.now() - battleTime) / 1000 / 60) : 0;
+      const timeText = timeAgo < 60 ? `${timeAgo}min` : timeAgo < 1440 ? `${Math.floor(timeAgo/60)}h` : `${Math.floor(timeAgo/1440)}d`;
+      
+      msg += `${i + 1}. ${resultEmoji} *${resultText}*\n`;
+      msg += `   🎮 ${event?.mode || b?.mode || 'N/A'}`;
+      if (event?.map) msg += ` - ${event.map}`;
+      msg += `\n`;
+      
+      // Brawler usado pelo jogador
+      if (b?.teams || b?.players) {
+        const players = b.teams ? b.teams.flat() : b.players;
+        const playerData = players?.find(p => p.tag === playerTag);
+        if (playerData?.brawler) {
+          msg += `   👾 ${playerData.brawler.name} (P${playerData.brawler.power || 1})`;
+          if (playerData.brawler.trophies !== undefined) {
+            const change = b?.trophyChange || 0;
+            msg += ` | ${change >= 0 ? '+' : ''}${change}🏆`;
+          }
+          msg += `\n`;
+        }
+      }
+      
+      msg += `   ⏰ ${timeText} atrás\n\n`;
+    });
+
+    reply(msg);
+  }).catch(e => {
+    console.error('Erro no bsbattlelog:', e);
+    if (e.response?.status === 404) {
+      return reply('❌ Jogador não encontrado.');
+    }
+    if (isApiKeyError(e)) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
+      return reply(`❌ Erro na API. O dono foi notificado.`);
+    }
+    reply('❌ Erro ao buscar histórico de batalhas.');
+  });
+  }
+  break;
+
+  case 'bsmapa':
+  case 'bsmap':
+  if (!q) {
+    return reply(`🗺️ *BRAWL STARS - INFO DO MAPA*\n\n📝 *Como usar:*\n• Digite o nome do mapa\n• Exemplo: ${prefix}bsmapa skull creek\n\n💡 Use ${prefix}bsmapas para ver todos`);
+  }
+
+  const mapName = q.trim().toLowerCase();
+  
+  reply('🔍 Buscando informações do mapa...');
+  
+  axios.get('https://api.brawlify.com/v1/maps', { timeout: 30000 }).then(response => {
+    if (!response.data || !response.data.list) {
+      return reply('❌ Erro ao buscar mapas.');
+    }
+
+    const maps = response.data.list;
+    const found = maps.find(m => 
+      m.name.toLowerCase() === mapName || 
+      m.name.toLowerCase().includes(mapName) ||
+      m.hash?.toLowerCase().replace(/-/g, ' ') === mapName
+    );
+    
+    if (!found) {
+      const partial = maps.filter(m => m.name.toLowerCase().includes(mapName)).slice(0, 5);
+      if (partial.length > 0) {
+        let suggestions = `❌ Mapa "${q}" não encontrado.\n\n🔎 *Você quis dizer:*\n`;
+        partial.forEach(m => { suggestions += `• ${m.name}\n`; });
+        return reply(suggestions);
+      }
+      return reply(`❌ Mapa "${q}" não encontrado.`);
+    }
+
+    const map = found;
+    
+    let msg = `🗺️ *${map.name.toUpperCase()}*\n${'═'.repeat(30)}\n\n`;
+    
+    msg += `📋 *INFORMAÇÕES*\n`;
+    msg += `┣ 🆔 ID: ${map.id}\n`;
+    msg += `┣ 🎮 Modo: ${map.gameMode?.name || 'N/A'}\n`;
+    msg += `┣ 🌍 Ambiente: ${map.environment?.name || 'N/A'}\n`;
+    if (map.credit) msg += `┣ 👤 Criador: ${map.credit}\n`;
+    msg += `┣ 🆕 Novo: ${map.new ? 'Sim' : 'Não'}\n`;
+    msg += `┗ ❌ Desativado: ${map.disabled ? 'Sim' : 'Não'}\n\n`;
+    
+    // Melhores brawlers no mapa
+    if (map.stats && map.stats.length > 0) {
+      axios.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 }).then(brawlersRes => {
+        const brawlersList = brawlersRes?.data?.list || [];
+        
+        const topStats = map.stats
+          .sort((a, b) => b.winRate - a.winRate)
+          .slice(0, 5);
+        
+        msg += `🏆 *MELHORES BRAWLERS*\n`;
+        topStats.forEach((stat, i) => {
+          const brawler = brawlersList.find(b => b.id === stat.brawler);
+          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+          msg += `${medal} ${brawler?.name || `ID:${stat.brawler}`}\n`;
+          msg += `   📈 Win Rate: ${stat.winRate.toFixed(1)}%\n`;
+          msg += `   📊 Pick Rate: ${stat.useRate.toFixed(1)}%\n\n`;
+        });
+        
+        // Melhor composição de time
+        if (map.teamStats && map.teamStats.length > 0) {
+          const bestTeam = map.teamStats[0];
+          msg += `👥 *MELHOR COMPOSIÇÃO*\n`;
+          msg += `${bestTeam.name}\n`;
+          msg += `📈 Win Rate: ${bestTeam.data.winRate.toFixed(1)}%\n\n`;
+        }
+
+        // Imagem do mapa
+        if (map.imageUrl) {
+          axios.get(map.imageUrl, { responseType: 'arraybuffer', timeout: 15000 }).then(imageBuffer => {
+            nazu.sendMessage(from, {
+              image: Buffer.from(imageBuffer.data),
+              caption: msg
+            }, { quoted: info });
+          }).catch(() => {
+            reply(msg);
+          });
+        } else {
+          reply(msg);
+        }
+      }).catch(() => {
+        // Se falhou ao buscar brawlers, continua sem eles
+        // Melhor composição de time
+        if (map.teamStats && map.teamStats.length > 0) {
+          const bestTeam = map.teamStats[0];
+          msg += `👥 *MELHOR COMPOSIÇÃO*\n`;
+          msg += `${bestTeam.name}\n`;
+          msg += `📈 Win Rate: ${bestTeam.data.winRate.toFixed(1)}%\n\n`;
+        }
+
+        // Imagem do mapa
+        if (map.imageUrl) {
+          axios.get(map.imageUrl, { responseType: 'arraybuffer', timeout: 15000 }).then(imageBuffer => {
+            nazu.sendMessage(from, {
+              image: Buffer.from(imageBuffer.data),
+              caption: msg
+            }, { quoted: info });
+          }).catch(() => {
+            reply(msg);
+          });
+        } else {
+          reply(msg);
+        }
+      });
+    } else {
+      // Sem stats, vai direto para composição e imagem
+      // Melhor composição de time
+      if (map.teamStats && map.teamStats.length > 0) {
+        const bestTeam = map.teamStats[0];
+        msg += `👥 *MELHOR COMPOSIÇÃO*\n`;
+        msg += `${bestTeam.name}\n`;
+        msg += `📈 Win Rate: ${bestTeam.data.winRate.toFixed(1)}%\n\n`;
+      }
+
+      // Imagem do mapa
+      if (map.imageUrl) {
+        axios.get(map.imageUrl, { responseType: 'arraybuffer', timeout: 15000 }).then(imageBuffer => {
+          nazu.sendMessage(from, {
+            image: Buffer.from(imageBuffer.data),
+            caption: msg
+          }, { quoted: info });
+        }).catch(() => {
+          reply(msg);
+        });
+      } else {
+        reply(msg);
+      }
+    }
+  }).catch(e => {
+    console.error('Erro no bsmapa:', e);
+    reply('❌ Erro ao buscar informações do mapa.');
+  });
+  break;
+
+  case 'bsmapas':
+  case 'bsmaps':
+  reply('🔍 Buscando lista de mapas...');
+  
+  axios.get('https://api.brawlify.com/v1/maps', { timeout: 30000 }).then(response => {
+    if (!response.data || !response.data.list) {
+      return reply('❌ Erro ao buscar mapas.');
+    }
+
+    const maps = response.data.list.filter(m => !m.disabled);
+    
+    // Agrupar por modo de jogo
+    const byMode = {};
+    maps.forEach(m => {
+      const mode = m.gameMode?.name || 'Outro';
+      if (!byMode[mode]) byMode[mode] = [];
+      byMode[mode].push(m);
+    });
+
+    let msg = `🗺️ *BRAWL STARS - MAPAS*\n${'═'.repeat(30)}\n\n`;
+    msg += `📊 *Total:* ${maps.length} mapas ativos\n\n`;
+
+    const modeEmoji = {
+      'Gem Grab': '💎',
+      'Brawl Ball': '⚽',
+      'Bounty': '⭐',
+      'Heist': '🔒',
+      'Siege': '🤖',
+      'Hot Zone': '🔥',
+      'Knockout': '💀',
+      'Solo Showdown': '🎯',
+      'Duo Showdown': '👥',
+      'Showdown': '🎯'
+    };
+
+    Object.keys(byMode).sort().forEach(mode => {
+      const mapsInMode = byMode[mode];
+      msg += `${modeEmoji[mode] || '🎮'} *${mode}* (${mapsInMode.length})\n`;
+      mapsInMode.slice(0, 5).forEach(m => {
+        msg += `  • ${m.name}\n`;
+      });
+      if (mapsInMode.length > 5) {
+        msg += `  ... e mais ${mapsInMode.length - 5}\n`;
+      }
+      msg += `\n`;
+    });
+
+    msg += `💡 Use ${prefix}bsmapa <nome> para detalhes`;
+
+    reply(msg);
+  }).catch(e => {
+    console.error('Erro no bsmapas:', e);
+    reply('❌ Erro ao buscar lista de mapas.');
+  });
+  break;
+
+  case 'bsmodos':
+  case 'bsmodes':
+  case 'bsgamemodes':
+  reply('🔍 Buscando modos de jogo...');
+  
+  axios.get('https://api.brawlify.com/v1/gamemodes', { timeout: 30000 }).then(response => {
+    if (!response.data || !response.data.list) {
+      return reply('❌ Erro ao buscar modos de jogo.');
+    }
+
+    const modes = response.data.list;
+    
+    let msg = `🎮 *BRAWL STARS - MODOS DE JOGO*\n${'═'.repeat(30)}\n\n`;
+    msg += `📊 *Total:* ${modes.length} modos\n\n`;
+
+    modes.forEach((mode, i) => {
+      msg += `${i + 1}. *${mode.name}*\n`;
+      if (mode.description) {
+        msg += `   ${mode.description.substring(0, 100)}${mode.description.length > 100 ? '...' : ''}\n`;
+      }
+      msg += `   🎨 Cor: ${mode.color || 'N/A'}\n\n`;
+    });
+
+    reply(msg);
+  }).catch(e => {
+    console.error('Erro no bsmodos:', e);
+    reply('❌ Erro ao buscar modos de jogo.');
+  });
+  break;
+
+  case 'bsicons':
+  case 'bsicones':
+  reply('🔍 Buscando ícones disponíveis...');
+  
+  axios.get('https://api.brawlify.com/v1/icons', { timeout: 30000 }).then(response => {
+    if (!response.data) {
+      return reply('❌ Erro ao buscar ícones.');
+    }
+
+    const playerIcons = Object.values(response.data.player || {});
+    const clubIcons = Object.values(response.data.club || {});
+    
+    let msg = `🖼️ *BRAWL STARS - ÍCONES*\n${'═'.repeat(30)}\n\n`;
+    
+    msg += `👤 *ÍCONES DE JOGADOR*\n`;
+    msg += `📊 Total: ${playerIcons.length} ícones\n\n`;
+    
+    // Agrupar por brawler
+    const byBrawler = playerIcons.filter(i => i.brawler);
+    const special = playerIcons.filter(i => !i.brawler && i.isReward);
+    const regular = playerIcons.filter(i => !i.brawler && !i.isReward);
+    
+    msg += `┣ 👾 De Brawlers: ${byBrawler.length}\n`;
+    msg += `┣ ⭐ Especiais/Recompensa: ${special.length}\n`;
+    msg += `┗ 🎨 Regulares: ${regular.length}\n\n`;
+    
+    msg += `🛡️ *BADGES DE CLUBE*\n`;
+    msg += `📊 Total: ${clubIcons.length} badges\n\n`;
+
+    msg += `💡 *Dica:* Ícones podem ser vistos no perfil dos jogadores`;
+
+    reply(msg);
+  }).catch(e => {
+    console.error('Erro no bsicons:', e);
+    reply('❌ Erro ao buscar ícones.');
+  });
+  break;
+
+  case 'bsclubmembers':
+  case 'bsmembros': {
+  if (!KeyCog) {
+    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+    return reply(API_KEY_REQUIRED_MESSAGE);
+  }
+
+  if (!q) {
+    return reply(`👥 *BRAWL STARS - MEMBROS DO CLUBE*\n\n📝 *Como usar:*\n• Digite a TAG do clube\n• Exemplo: ${prefix}bsmembros #2PP\n\n💡 Lista completa de todos os membros`);
+  }
+
+  let clubTag = q.trim().toUpperCase();
+  if (!clubTag.startsWith('#')) clubTag = '#' + clubTag;
+  const encodedTag = encodeURIComponent(clubTag);
+
+  reply('🔍 Buscando membros do clube...');
+
+  axios.get(`https://cog.api.br/api/v1/brawlstars/clubs/${encodedTag}/members`, {
+    headers: { 'X-API-Key': KeyCog },
+    timeout: 120000
+  }).then(response => {
+    if (!response.data || !response.data.items) {
+      return reply('❌ Clube não encontrado.');
+    }
+
+    const members = response.data.items;
+    
+    let msg = `👥 *MEMBROS DO CLUBE*\n${'═'.repeat(30)}\n\n`;
+    msg += `🏷️ *TAG:* ${clubTag}\n`;
+    msg += `📊 *Total:* ${members.length}/30 membros\n\n`;
+    
+    const roleOrder = { president: 1, vicePresident: 2, senior: 3, member: 4 };
+    const sorted = members.sort((a, b) => {
+      if (roleOrder[a.role] !== roleOrder[b.role]) {
+        return roleOrder[a.role] - roleOrder[b.role];
+      }
+      return (b.trophies || 0) - (a.trophies || 0);
+    });
+    
+    sorted.forEach((m, i) => {
+      const roleEmoji = {
+        president: '👑',
+        vicePresident: '⭐',
+        senior: '🎖️',
+        member: '👤'
+      };
+      const roleName = {
+        president: 'Presidente',
+        vicePresident: 'Vice',
+        senior: 'Veterano',
+        member: 'Membro'
+      };
+      
+      msg += `${i + 1}. ${roleEmoji[m.role] || '👤'} *${m.name}*\n`;
+      msg += `   🏷️ ${m.tag}\n`;
+      msg += `   🏆 ${m.trophies?.toLocaleString() || 0} troféus\n`;
+      msg += `   📌 ${roleName[m.role] || m.role}\n\n`;
+    });
+
+    reply(msg);
+  }).catch(e => {
+    console.error('Erro no bsclubmembers:', e);
+    if (e.response?.status === 404) {
+      return reply('❌ Clube não encontrado.');
+    }
+    if (isApiKeyError(e)) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
+      return reply(`❌ Erro na API. O dono foi notificado.`);
+    }
+    reply('❌ Erro ao buscar membros do clube.');
+  });
+  }
+  break;
+
+  case 'bscompare':
+  case 'bscomparar':
+  if (!KeyCog) {
+    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+    return reply(API_KEY_REQUIRED_MESSAGE);
+  }
+
+  const tags = q ? q.trim().split(/\s+/) : [];
+  if (tags.length < 2) {
+    return reply(`⚖️ *BRAWL STARS - COMPARAR JOGADORES*\n\n📝 *Como usar:*\n• Digite duas TAGs separadas por espaço\n• Exemplo: ${prefix}bscompare #TAG1 #TAG2\n\n💡 Compara estatísticas de dois jogadores`);
+  }
+
+  reply('🔍 Comparando jogadores...');
+
+  const [tag1, tag2] = tags.map(t => {
+    let tag = t.toUpperCase();
+    if (!tag.startsWith('#')) tag = '#' + tag;
+    return encodeURIComponent(tag);
+  });
+
+  Promise.all([
+    axios.get(`https://cog.api.br/api/v1/brawlstars/players/${tag1}`, { headers: { 'X-API-Key': KeyCog }, timeout: 120000 }),
+    axios.get(`https://cog.api.br/api/v1/brawlstars/players/${tag2}`, { headers: { 'X-API-Key': KeyCog }, timeout: 120000 })
+  ]).then(([res1, res2]) => {
+    if (!res1.data?.tag || !res2.data?.tag) {
+      return reply('❌ Um ou ambos os jogadores não foram encontrados.');
+    }
+
+    const p1 = res1.data;
+    const p2 = res2.data;
+    
+    // Funções auxiliares
+    const better = (v1, v2) => v1 > v2 ? '✅' : v1 < v2 ? '❌' : '🤝';
+    const format = (v) => (v || 0).toLocaleString();
+    
+    let msg = `⚖️ *COMPARAÇÃO DE JOGADORES*\n${'═'.repeat(30)}\n\n`;
+    
+    msg += `👤 *${p1.name}* vs *${p2.name}*\n`;
+    msg += `🏷️ ${p1.tag} vs ${p2.tag}\n\n`;
+    
+    msg += `📊 *ESTATÍSTICAS*\n\n`;
+    
+    msg += `🏆 *Troféus Atuais*\n`;
+    msg += `${better(p1.trophies, p2.trophies)} ${format(p1.trophies)} vs ${format(p2.trophies)}\n\n`;
+    
+    msg += `🌟 *Troféus Máximos*\n`;
+    msg += `${better(p1.highestTrophies, p2.highestTrophies)} ${format(p1.highestTrophies)} vs ${format(p2.highestTrophies)}\n\n`;
+    
+    msg += `📈 *Nível*\n`;
+    msg += `${better(p1.expLevel, p2.expLevel)} ${p1.expLevel || 1} vs ${p2.expLevel || 1}\n\n`;
+    
+    msg += `⚔️ *Vitórias 3v3*\n`;
+    msg += `${better(p1['3vs3Victories'], p2['3vs3Victories'])} ${format(p1['3vs3Victories'])} vs ${format(p2['3vs3Victories'])}\n\n`;
+    
+    msg += `🥇 *Vitórias Solo*\n`;
+    msg += `${better(p1.soloVictories, p2.soloVictories)} ${format(p1.soloVictories)} vs ${format(p2.soloVictories)}\n\n`;
+    
+    msg += `👥 *Vitórias Dupla*\n`;
+    msg += `${better(p1.duoVictories, p2.duoVictories)} ${format(p1.duoVictories)} vs ${format(p2.duoVictories)}\n\n`;
+    
+    msg += `👾 *Brawlers*\n`;
+    msg += `${better(p1.brawlers?.length, p2.brawlers?.length)} ${p1.brawlers?.length || 0} vs ${p2.brawlers?.length || 0}\n\n`;
+    
+    // Brawlers Power 11
+    const p1Max = p1.brawlers?.filter(b => b.power === 11).length || 0;
+    const p2Max = p2.brawlers?.filter(b => b.power === 11).length || 0;
+    msg += `⭐ *Power 11*\n`;
+    msg += `${better(p1Max, p2Max)} ${p1Max} vs ${p2Max}\n`;
+
+    reply(msg);
+  }).catch(e => {
+    console.error('Erro no bscompare:', e);
+    if (e.response?.status === 404) {
+      return reply('❌ Um ou ambos os jogadores não foram encontrados.');
+    }
+    if (isApiKeyError(e)) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
+      return reply(`❌ Erro na API. O dono foi notificado.`);
+    }
+    reply('❌ Erro ao comparar jogadores.');
+  });
+  break;
+
+  case 'bsplayerbrawlers':
+  case 'bsjogadorbrawlers':
+  case 'bsmeusbrawlers': {
+  if (!KeyCog) {
+    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+    return reply(API_KEY_REQUIRED_MESSAGE);
+  }
+
+  if (!q) {
+    return reply(`👾 *BRAWL STARS - BRAWLERS DO JOGADOR*\n\n📝 *Como usar:*\n• Digite a TAG do jogador\n• Exemplo: ${prefix}bsmeusbrawlers #2PP\n\n💡 Lista completa de brawlers com detalhes`);
+  }
+
+  let playerTag = q.trim().toUpperCase();
+  if (!playerTag.startsWith('#')) playerTag = '#' + playerTag;
+  const encodedTag = encodeURIComponent(playerTag);
+
+  reply('🔍 Buscando brawlers do jogador...');
+
+  axios.get(`https://cog.api.br/api/v1/brawlstars/players/${encodedTag}`, {
+    headers: { 'X-API-Key': KeyCog },
+    timeout: 120000
+  }).then(response => {
+    if (!response.data || !response.data.brawlers) {
+      return reply('❌ Jogador não encontrado.');
+    }
+
+    const player = response.data;
+    const brawlers = player.brawlers.sort((a, b) => (b.trophies || 0) - (a.trophies || 0));
+    
+    // Estatísticas gerais
+    const totalTrophies = brawlers.reduce((sum, b) => sum + (b.trophies || 0), 0);
+    const avgTrophies = Math.round(totalTrophies / brawlers.length);
+    const maxPower = brawlers.filter(b => b.power === 11).length;
+    const rank25 = brawlers.filter(b => b.rank >= 25).length;
+    const rank30 = brawlers.filter(b => b.rank >= 30).length;
+    const rank35 = brawlers.filter(b => b.rank >= 35).length;
+    
+    let msg = `👾 *BRAWLERS DE ${player.name}*\n${'═'.repeat(30)}\n\n`;
+    
+    msg += `📊 *ESTATÍSTICAS GERAIS*\n`;
+    msg += `┣ 👾 Total: ${brawlers.length}\n`;
+    msg += `┣ 🏆 Troféus: ${totalTrophies.toLocaleString()}\n`;
+    msg += `┣ 📈 Média: ${avgTrophies} por brawler\n`;
+    msg += `┣ ⭐ Power 11: ${maxPower}\n`;
+    msg += `┣ 🏅 Rank 25+: ${rank25}\n`;
+    msg += `┣ 💎 Rank 30+: ${rank30}\n`;
+    msg += `┗ 🔥 Rank 35: ${rank35}\n\n`;
+    
+    msg += `📋 *LISTA COMPLETA*\n\n`;
+    
+    brawlers.forEach((b, i) => {
+      const rankBadge = b.rank >= 35 ? '🔥' : b.rank >= 30 ? '💎' : b.rank >= 25 ? '🏅' : b.rank >= 20 ? '⭐' : '•';
+      const powerBadge = b.power === 11 ? '⭐' : b.power >= 9 ? '✨' : '';
+      
+      msg += `${i + 1}. ${rankBadge} *${b.name}* ${powerBadge}\n`;
+      msg += `   🏆 ${b.trophies} | R${b.rank} | P${b.power}\n`;
+      
+      // Star Powers e Gadgets
+      const sp = b.starPowers?.length || 0;
+      const gd = b.gadgets?.length || 0;
+      const gr = b.gears?.length || 0;
+      if (sp || gd || gr) {
+        msg += `   SP:${sp}/2 | Gd:${gd}/2 | Gr:${gr}/3\n`;
+      }
+      msg += `\n`;
+    });
+
+    // Dividir mensagem se muito grande
+    if (msg.length > 4000) {
+      const parts = msg.match(/.{1,4000}/gs) || [msg];
+      for (const part of parts) {
+        reply(part);
+      }
+    } else {
+      reply(msg);
+    }
+  }).catch(e => {
+    console.error('Erro no bsplayerbrawlers:', e);
+    if (e.response?.status === 404) {
+      return reply('❌ Jogador não encontrado.');
+    }
+    if (isApiKeyError(e)) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
+      return reply(`❌ Erro na API. O dono foi notificado.`);
+    }
+    reply('❌ Erro ao buscar brawlers do jogador.');
+  });
   }
   break;
   

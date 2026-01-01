@@ -26,8 +26,7 @@ export default async function menurpg(prefix, botName = "MeuBot", userName = "Us
     adminMenuTitle = "🔧 ADMIN RPG (DONO)"
 } = {}) {
   const h = header.replace(/#user#/g, userName);
-    return `‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎
-${h} 
+    return `${h} 
 
 ${menuTopBorder}${separatorIcon} *${profileMenuTitle}*
 ${middleBorder}
@@ -44,8 +43,10 @@ ${bottomBorder}
 ${menuTopBorder}${separatorIcon} *${evolutionMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}evoluir
+${middleBorder}${menuItemIcon}${prefix}prestige
 ${middleBorder}${menuItemIcon}${prefix}streak
 ${middleBorder}${menuItemIcon}${prefix}reivindicar
+${middleBorder}${menuItemIcon}${prefix}speedup
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${economyMenuTitle}*
@@ -54,9 +55,15 @@ ${middleBorder}${menuItemIcon}${prefix}depositar <valor|all>
 ${middleBorder}${menuItemIcon}${prefix}sacar <valor|all>
 ${middleBorder}${menuItemIcon}${prefix}transferir @user <valor>
 ${middleBorder}${menuItemIcon}${prefix}pix @user <valor>
+${middleBorder}${menuItemIcon}${prefix}loja
+${middleBorder}${menuItemIcon}${prefix}comprar <item>
+${middleBorder}${menuItemIcon}${prefix}vender <item> <qtd>
 ${middleBorder}${menuItemIcon}${prefix}vagas
 ${middleBorder}${menuItemIcon}${prefix}emprego <vaga>
 ${middleBorder}${menuItemIcon}${prefix}demitir
+${middleBorder}${menuItemIcon}${prefix}habilidades
+${middleBorder}${menuItemIcon}${prefix}desafiosemanal
+${middleBorder}${menuItemIcon}${prefix}desafiomensal
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${investmentMenuTitle}*
@@ -72,6 +79,7 @@ ${middleBorder}${menuItemIcon}${prefix}dados <valor>
 ${middleBorder}${menuItemIcon}${prefix}coinflip <cara|coroa> <valor>
 ${middleBorder}${menuItemIcon}${prefix}crash <valor>
 ${middleBorder}${menuItemIcon}${prefix}slots <valor>
+${middleBorder}${menuItemIcon}${prefix}apostar <valor>
 ${middleBorder}${menuItemIcon}${prefix}roleta <valor> <cor>
 ${middleBorder}${menuItemIcon}${prefix}blackjack <valor>
 ${middleBorder}${menuItemIcon}${prefix}loteria
@@ -88,16 +96,24 @@ ${middleBorder}${menuItemIcon}${prefix}trabalhar
 ${middleBorder}${menuItemIcon}${prefix}minerar
 ${middleBorder}${menuItemIcon}${prefix}pescar
 ${middleBorder}${menuItemIcon}${prefix}coletar
+${middleBorder}${menuItemIcon}${prefix}colher
 ${middleBorder}${menuItemIcon}${prefix}caçar
+${middleBorder}${menuItemIcon}${prefix}plantar <planta>
 ${middleBorder}${menuItemIcon}${prefix}cultivar <planta>
+${middleBorder}${menuItemIcon}${prefix}plantacao
 ${middleBorder}${menuItemIcon}${prefix}cozinhar <receita>
+${middleBorder}${menuItemIcon}${prefix}receitas
+${middleBorder}${menuItemIcon}${prefix}ingredientes
+${middleBorder}${menuItemIcon}${prefix}comer <comida>
+${middleBorder}${menuItemIcon}${prefix}vendercomida <item>
+${middleBorder}${menuItemIcon}${prefix}sementes
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${adventureMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}explorar
 ${middleBorder}${menuItemIcon}${prefix}masmorra
-${middleBorder}${menuItemIcon}${prefix}chefe
+${middleBorder}${menuItemIcon}${prefix}cheferpg
 ${middleBorder}${menuItemIcon}${prefix}eventos
 ${bottomBorder}
 
@@ -131,15 +147,24 @@ ${middleBorder}${menuItemIcon}${prefix}mercadoplayer vender <item> <preço>
 ${middleBorder}${menuItemIcon}${prefix}mercadoplayer comprar <nº>
 ${middleBorder}${menuItemIcon}${prefix}mercadoplayer meus
 ${middleBorder}${menuItemIcon}${prefix}mercadoplayer cancelar <nº>
+${middleBorder}
+${middleBorder}${menuTitleIcon} *MERCADO GERAL* ${menuTitleIcon}
+${middleBorder}${menuItemIcon}${prefix}mercado
+${middleBorder}${menuItemIcon}${prefix}listar <item> <preço>
+${middleBorder}${menuItemIcon}${prefix}comprarmercado <nº>
+${middleBorder}${menuItemIcon}${prefix}meusanuncios
+${middleBorder}${menuItemIcon}${prefix}cancelar <nº>
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${combatMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}duelar @user
+${middleBorder}${menuItemIcon}${prefix}duelarrpg @user
 ${middleBorder}${menuItemIcon}${prefix}arena
 ${middleBorder}${menuItemIcon}${prefix}torneio
 ${middleBorder}${menuItemIcon}${prefix}assaltar @user
 ${middleBorder}${menuItemIcon}${prefix}crime
+${middleBorder}${menuItemIcon}${prefix}guerra
+${middleBorder}${menuItemIcon}${prefix}desafio
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${craftingMenuTitle}*
@@ -147,7 +172,9 @@ ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}forjar <item>
 ${middleBorder}${menuItemIcon}${prefix}encantar
 ${middleBorder}${menuItemIcon}${prefix}desmontar <item>
+${middleBorder}${menuItemIcon}${prefix}reparar <item>
 ${middleBorder}${menuItemIcon}${prefix}materiais
+${middleBorder}${menuItemIcon}${prefix}precos
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${socialMenuTitle}*
@@ -158,9 +185,9 @@ ${middleBorder}${menuItemIcon}${prefix}namorar @user
 ${middleBorder}${menuItemIcon}${prefix}terminar
 ${middleBorder}${menuItemIcon}${prefix}relacionamento
 ${middleBorder}${menuItemIcon}${prefix}casais
-${middleBorder}${menuItemIcon}${prefix}abracar @user
-${middleBorder}${menuItemIcon}${prefix}beijar @user
-${middleBorder}${menuItemIcon}${prefix}bater @user
+${middleBorder}${menuItemIcon}${prefix}abracarrpg @user
+${middleBorder}${menuItemIcon}${prefix}beijarrpg @user
+${middleBorder}${menuItemIcon}${prefix}baterrpg @user
 ${middleBorder}${menuItemIcon}${prefix}proteger @user
 ${bottomBorder}
 
@@ -168,6 +195,7 @@ ${menuTopBorder}${separatorIcon} *${familyMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}familia
 ${middleBorder}${menuItemIcon}${prefix}adotaruser @user
+${middleBorder}${menuItemIcon}${prefix}deserdar @user
 ${middleBorder}${menuItemIcon}${prefix}arvore
 ${bottomBorder}
 
@@ -195,8 +223,8 @@ ${middleBorder}${menuItemIcon}${prefix}pets
 ${middleBorder}${menuItemIcon}${prefix}adotar <pet>
 ${middleBorder}${menuItemIcon}${prefix}alimentar <nº>
 ${middleBorder}${menuItemIcon}${prefix}treinar <nº>
-${middleBorder}${menuItemIcon}${prefix}evoluir <nº>
-${middleBorder}${menuItemIcon}${prefix}batalha <nº>
+${middleBorder}${menuItemIcon}${prefix}evoluirpet <nº>
+${middleBorder}${menuItemIcon}${prefix}batalhapet <nº>
 ${middleBorder}${menuItemIcon}${prefix}renomearpet <nº> <nome>
 ${middleBorder}${menuItemIcon}${prefix}apostarpet <valor> <nº> @user
 ${middleBorder}${menuItemIcon}${prefix}equippet <nº> <nome do item>
@@ -238,20 +266,5 @@ ${middleBorder}${menuItemIcon}${prefix}rpgremoveitem @user <item> <qtd>
 ${middleBorder}${menuItemIcon}${prefix}rpgresetplayer @user
 ${middleBorder}${menuItemIcon}${prefix}rpgresetglobal confirmar
 ${middleBorder}${menuItemIcon}${prefix}rpgstats
-${bottomBorder}
-
-${menuTopBorder}${separatorIcon} *💎 SISTEMA DE PROGRESSO DIÁRIO*
-${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}diario
-${middleBorder}${menuItemIcon}${prefix}streak 
-${middleBorder}${menuItemIcon}${prefix}reivindicar
-${middleBorder}${menuItemIcon}${prefix}missoes
-${middleBorder}${menuItemIcon}${prefix}investir
-${middleBorder}${menuItemIcon}${prefix}torneio
-${middleBorder}${menuItemIcon}${prefix}evoluir
-${middleBorder}${menuItemIcon}${prefix}rankglobal
-${middleBorder}${menuItemIcon}${prefix}toprpg
-${middleBorder}${menuItemIcon}${prefix}ranklevel
-${middleBorder}${menuItemIcon}${prefix}conquistas
 ${bottomBorder}`
 }

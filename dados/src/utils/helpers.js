@@ -4,6 +4,8 @@ import pathz from 'path';
 // Cache global de JID → LID em memória (para acesso rápido)
 let jidLidMemoryCache = new Map();
 let jidLidCacheFile = null;
+let cacheModified = false;
+let saveCacheTimeout = null;
 
 // Inicializa o caminho do cache
 function initJidLidCache(cacheFilePath) {
@@ -19,27 +21,48 @@ function initJidLidCache(cacheFilePath) {
   } catch (error) {
     console.warn(`⚠️ Erro ao carregar cache JID→LID: ${error.message}`);
   }
+  
+  // Auto-save periódico (a cada 5 minutos se houver mudanças)
+  setInterval(() => {
+    if (cacheModified) {
+      saveJidLidCache();
+    }
+  }, 5 * 60 * 1000);
 }
 
-// Salva o cache em disco
-function saveJidLidCache() {
-  if (!jidLidCacheFile) return;
+// Salva o cache em disco com debounce
+function saveJidLidCache(force = false) {
+  if (!jidLidCacheFile || (!cacheModified && !force)) return;
   
-  try {
-    const data = {
-      version: '1.0',
-      lastUpdate: new Date().toISOString(),
-      mappings: Object.fromEntries(jidLidMemoryCache)
-    };
-    
-    const dirPath = pathz.dirname(jidLidCacheFile);
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
+  // Debounce: agrupa salvamentos em 3 segundos
+  if (!force && saveCacheTimeout) {
+    clearTimeout(saveCacheTimeout);
+  }
+  
+  const doSave = () => {
+    try {
+      const data = {
+        version: '1.0',
+        lastUpdate: new Date().toISOString(),
+        mappings: Object.fromEntries(jidLidMemoryCache)
+      };
+      
+      const dirPath = pathz.dirname(jidLidCacheFile);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+      
+      fs.writeFileSync(jidLidCacheFile, JSON.stringify(data, null, 2));
+      cacheModified = false;
+    } catch (error) {
+      console.error(`❌ Erro ao salvar cache JID→LID: ${error.message}`);
     }
-    
-    fs.writeFileSync(jidLidCacheFile, JSON.stringify(data, null, 2));
-  } catch (error) {
-    console.error(`❌ Erro ao salvar cache JID→LID: ${error.message}`);
+  };
+  
+  if (force) {
+    doSave();
+  } else {
+    saveCacheTimeout = setTimeout(doSave, 3000);
   }
 }
 
@@ -69,11 +92,9 @@ async function getLidFromJidCached(nazu, jid) {
       
       // Salva no cache
       jidLidMemoryCache.set(jid, lid);
+      cacheModified = true;
       
-      // Salva em disco (debounced - a cada 10 novos)
-      if (jidLidMemoryCache.size % 10 === 0) {
-        saveJidLidCache();
-      }
+      // Debounce automático salvará depois
       
       return lid;
     }
@@ -150,6 +171,14 @@ async function normalizeUserId(nazu, userId) {
   
   // Outros formatos retornam como estão
   return userId;
+}
+
+// Força salvamento imediato do cache (útil ao finalizar o bot)
+function flushJidLidCache() {
+  if (saveCacheTimeout) {
+    clearTimeout(saveCacheTimeout);
+  }
+  saveJidLidCache(true);
 }
 
 function formatUptime(seconds, longFormat = false, showZero = false) {
@@ -434,14 +463,55 @@ function ensureJsonFileExists(filePath, defaultContent = {}) {
   }
 }
 
-const loadJsonFile = (path, defaultValue = {}) => {
+// Cache de arquivos JSON em memória
+const jsonFileCache = new Map();
+const JSON_CACHE_TTL = 30000; // 30 segundos
+
+const loadJsonFile = (path, defaultValue = {}, useCache = false) => {
   try {
-    return fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, 'utf-8')) : defaultValue;
+    // Verifica cache se ativado
+    if (useCache && jsonFileCache.has(path)) {
+      const cached = jsonFileCache.get(path);
+      if (Date.now() - cached.timestamp < JSON_CACHE_TTL) {
+        return cached.data;
+      }
+      jsonFileCache.delete(path);
+    }
+    
+    if (!fs.existsSync(path)) return defaultValue;
+    
+    const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
+    
+    // Salva no cache se ativado
+    if (useCache) {
+      jsonFileCache.set(path, { data, timestamp: Date.now() });
+    }
+    
+    return data;
   } catch (error) {
     console.error(`Erro ao carregar arquivo ${path}:`, error);
     return defaultValue;
   }
 };
+
+// Limpa cache de JSON
+function clearJsonFileCache(path = null) {
+  if (path) {
+    jsonFileCache.delete(path);
+  } else {
+    jsonFileCache.clear();
+  }
+}
+
+// Limpa caches antigos periodicamente (auto-cleanup)
+setInterval(() => {
+  const now = Date.now();
+  for (const [path, cached] of jsonFileCache.entries()) {
+    if (now - cached.timestamp > JSON_CACHE_TTL) {
+      jsonFileCache.delete(path);
+    }
+  }
+}, 60000); // A cada 1 minuto
 
 // ═══════════════════════════════════════════════════════════════════
 // SISTEMA DE SEGURANÇA JSON - Proteção contra corrupção de dados
@@ -853,8 +923,10 @@ export {
   ensureDirectoryExists,
   ensureJsonFileExists,
   loadJsonFile,
+  clearJsonFileCache,
   initJidLidCache,
   saveJidLidCache,
+  flushJidLidCache,
   getLidFromJidCached,
   normalizeUserId,
   convertIdsToLid,

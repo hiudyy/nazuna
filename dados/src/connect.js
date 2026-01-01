@@ -26,8 +26,8 @@ class MessageQueue {
     constructor(maxWorkers = 4, batchSize = 10, messagesPerBatch = 2) {
         this.queue = [];
         this.maxWorkers = maxWorkers;
-        this.batchSize = batchSize; // Número de lotes
-        this.messagesPerBatch = messagesPerBatch; // Mensagens por lote
+        this.batchSize = batchSize;
+        this.messagesPerBatch = messagesPerBatch;
         this.activeWorkers = 0;
         this.isProcessing = false;
         this.processingInterval = null;
@@ -40,6 +40,7 @@ class MessageQueue {
             batchesProcessed: 0,
             avgBatchTime: 0
         };
+        this.idCounter = 0; // Contador simples ao invés de crypto.randomUUID()
     }
 
     setErrorHandler(handler) {
@@ -54,13 +55,7 @@ class MessageQueue {
                 resolve,
                 reject,
                 timestamp: Date.now(),
-                id: (() => {
-                  try {
-                    return crypto.randomUUID();
-                  } catch (error) {
-                    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-                  }
-                })()
+                id: `msg_${++this.idCounter}_${Date.now()}`
             });
             
             this.stats.currentQueueLength = this.queue.length;
@@ -533,17 +528,6 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
                     await NazunaSock.sendMessage(from, message).catch(err => {
                         console.error(`❌ Erro ao enviar mensagem de boas-vindas: ${err.message}`);
                     });
-                    
-                    // Notificação X9 para adições
-                    if (groupSettings.x9 && inf.author) {
-                        const memberNames = membersToWelcome.map(m => `@${m.split('@')[0]}`).join(', ');
-                        await NazunaSock.sendMessage(from, {
-                            text: `📝 *X9 Report:* ${memberNames} ${membersToWelcome.length > 1 ? 'foram adicionados' : 'foi adicionado'} ao grupo por @${inf.author.split('@')[0]}.`,
-                            mentions: [...membersToWelcome, inf.author],
-                        }).catch(err => {
-                            console.error(`❌ Erro ao enviar notificação X9 de adição: ${err.message}`);
-                        });
-                    }
                 }
                 break;
             }
@@ -554,46 +538,11 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
                         console.error(`❌ Erro ao enviar mensagem de saída: ${err.message}`);
                     });
                 }
-                
-                // Notificação X9 para remoções/saídas
-                if (groupSettings.x9 && inf.participants.length > 0) {
-                    for (const participant of inf.participants) {
-                        if (inf.author && inf.author !== participant) {
-                            // Removido por alguém
-                            await NazunaSock.sendMessage(from, {
-                                text: `🚪 *X9 Report:* @${participant.split('@')[0]} foi removido(a) do grupo por @${inf.author.split('@')[0]}.`,
-                                mentions: [participant, inf.author],
-                            }).catch(err => {
-                                console.error(`❌ Erro ao enviar notificação X9 de remoção: ${err.message}`);
-                            });
-                        } else if (!inf.author || inf.author === participant) {
-                            // Saiu por conta própria
-                            await NazunaSock.sendMessage(from, {
-                                text: `🚻 *X9 Report:* @${participant.split('@')[0]} saiu do grupo.`,
-                                mentions: [participant],
-                            }).catch(err => {
-                                console.error(`❌ Erro ao enviar notificação X9 de saída: ${err.message}`);
-                            });
-                        }
-                    }
-                }
                 break;
             }
             case 'promote':
             case 'demote': {
-                // Notificação X9 (sem bloqueio de ação)
-                if (groupSettings.x9 && inf.author) {
-                    for (const participant of inf.participants) {
-                        const action = inf.action === 'promote' ? 'promovido(a) a ADM' : 'rebaixado(a) de ADM';
-                        const emoji = inf.action === 'promote' ? '⬆️' : '⬇️';
-                        await NazunaSock.sendMessage(from, {
-                            text: `${emoji} *X9 Report:* @${participant.split('@')[0]} foi ${action} por @${inf.author.split('@')[0]}.`,
-                            mentions: [participant, inf.author],
-                        }).catch(err => {
-                            console.error(`❌ Erro ao enviar notificação X9: ${err.message}`);
-                        });
-                    }
-                }
+                // Ação sem notificação
                 break;
             }
         }
@@ -636,24 +585,6 @@ async function handleGroupJoinRequest(NazunaSock, inf) {
         const participantJid = inf.participantPn || inf.participant;
         const participantDisplay = participantJid ? participantJid.split('@')[0] : 'Desconhecido';
         
-        // Notificação X9 para aprovações/recusas
-        if (groupSettings.x9 && participantJid) {
-            if (inf.action === 'rejected' && inf.author) {
-                // Solicitação foi rejeitada por um admin
-                await NazunaSock.sendMessage(from, {
-                    text: `❌ *X9 Report:* Solicitação de @${participantDisplay} foi recusada por @${inf.author.split('@')[0]}.`,
-                    mentions: [participantJid, inf.author],
-                }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
-            } else if (inf.action === 'revoked') {
-                // Solicitação foi cancelada pelo próprio usuário
-                await NazunaSock.sendMessage(from, {
-                    text: `🔄 *X9 Report:* @${participantDisplay} cancelou sua solicitação de entrada.`,
-                    mentions: [participantJid],
-                }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
-            }
-            // 'created' = nova solicitação - não notificamos aqui, só processamos auto-aceitar
-        }
-        
         // Auto-aceitar se configurado e for uma nova solicitação
         if (groupSettings.autoAcceptRequests && inf.action === 'created' && participantJid) {
             try {
@@ -677,13 +608,6 @@ async function handleGroupJoinRequest(NazunaSock, inf) {
                         text: `🔐 *Verificação de Segurança*\n\nVocê solicitou entrar no grupo. Para ser aprovado, resolva esta conta:\n\n❓ Quanto é *${num1} + ${num2}*?\n\n⏱️ Você tem 5 minutos para responder.\n\n💡 Responda apenas com o número.`
                     }).catch(err => console.error(`❌ Erro ao enviar captcha: ${err.message}`));
                     
-                    if (groupSettings.x9) {
-                        await NazunaSock.sendMessage(from, {
-                            text: `🔐 *X9 Report:* Nova solicitação de @${participantDisplay}. Captcha enviado no PV.`,
-                            mentions: [participantJid],
-                        }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
-                    }
-                    
                     // Auto-rejeitar após 5 minutos se não responder
                     setTimeout(async () => {
                         const currentSettings = await loadGroupSettings(from);
@@ -691,25 +615,11 @@ async function handleGroupJoinRequest(NazunaSock, inf) {
                             delete currentSettings.pendingCaptchas[participantJid];
                             await saveGroupSettings(from, currentSettings);
                             await NazunaSock.groupRequestParticipantsUpdate(from, [participantJid], 'reject').catch(() => {});
-                            
-                            if (currentSettings.x9) {
-                                await NazunaSock.sendMessage(from, {
-                                    text: `⏱️ *X9 Report:* Solicitação de @${participantDisplay} foi rejeitada (timeout do captcha).`,
-                                    mentions: [participantJid],
-                                }).catch(() => {});
-                            }
                         }
                     }, 5 * 60 * 1000);
                 } else {
                     // Auto-aceitar direto sem captcha
                     await NazunaSock.groupRequestParticipantsUpdate(from, [participantJid], 'approve');
-                    
-                    if (groupSettings.x9) {
-                        await NazunaSock.sendMessage(from, {
-                            text: `✅ *X9 Report:* Solicitação de @${participantDisplay} foi aprovada automaticamente pelo bot.`,
-                            mentions: [participantJid],
-                        }).catch(err => console.error(`❌ Erro ao enviar X9: ${err.message}`));
-                    }
                 }
             } catch (err) {
                 console.error(`Erro ao processar auto-aceitar: ${err.message}`);
@@ -1079,7 +989,9 @@ async function performMigration(NazunaSock) {
 let reconnectAttempts = 0;
 let isReconnecting = false; // Flag para evitar múltiplas reconexões simultâneas
 let reconnectTimer = null; // Timer de reconexão para poder cancelar
+let forbidden403Attempts = 0; // Contador específico para erro 403
 const MAX_RECONNECT_ATTEMPTS = 10;
+const MAX_403_ATTEMPTS = 3; // Máximo de 3 tentativas para erro 403
 const RECONNECT_DELAY_BASE = 5000; // 5 segundos base
 
 async function createBotSocket(authDir) {
@@ -1367,6 +1279,7 @@ async function createBotSocket(authDir) {
                 const reasonMessage = {
                     [DisconnectReason.loggedOut]: 'Deslogado do WhatsApp',
                     401: 'Sessão expirada',
+                    403: 'Acesso proibido (Forbidden)',
                     [DisconnectReason.connectionClosed]: 'Conexão fechada',
                     [DisconnectReason.connectionLost]: 'Conexão perdida',
                     [DisconnectReason.connectionReplaced]: 'Conexão substituída',
@@ -1382,6 +1295,32 @@ async function createBotSocket(authDir) {
                     clearInterval(cacheCleanupInterval);
                     cacheCleanupInterval = null;
                 }
+                
+                // Tratamento especial para erro 403 (Forbidden)
+                if (reason === 403) {
+                    forbidden403Attempts++;
+                    console.log(`⚠️ Erro 403 detectado. Tentativa ${forbidden403Attempts}/${MAX_403_ATTEMPTS}`);
+                    
+                    if (forbidden403Attempts >= MAX_403_ATTEMPTS) {
+                        console.log('❌ Máximo de tentativas para erro 403 atingido. Apagando QR code e parando...');
+                        await clearAuthDir();
+                        console.log('🗑️ Autenticação removida. Reinicie o bot para gerar um novo QR code.');
+                        process.exit(1);
+                    }
+                    
+                    // Aguarda antes de tentar reconectar
+                    console.log('🔄 Tentando reconectar em 5 segundos...');
+                    if (reconnectTimer) {
+                        clearTimeout(reconnectTimer);
+                    }
+                    reconnectTimer = setTimeout(() => {
+                        startNazu();
+                    }, 5000);
+                    return;
+                }
+                
+                // Reset do contador 403 se for outro tipo de erro
+                forbidden403Attempts = 0;
                 
                 if (reason === DisconnectReason.badSession || reason === DisconnectReason.loggedOut) {
                     await clearAuthDir();
@@ -1413,6 +1352,7 @@ async function createBotSocket(authDir) {
                 
                 reconnectTimer = setTimeout(() => {
                     reconnectAttempts = 0; // Reset ao reconectar por desconexão normal
+                    forbidden403Attempts = 0; // Reset contador de erro 403
                     startNazu();
                 }, reconnectDelay);
             }
@@ -1435,6 +1375,7 @@ async function startNazu() {
     
     try {
         reconnectAttempts = 0; // Reset contador ao conectar com sucesso
+        forbidden403Attempts = 0; // Reset contador de erro 403
         console.log('🚀 Iniciando Nazuna...');
         await createBotSocket(AUTH_DIR);
         isReconnecting = false; // Conexão estabelecida com sucesso

@@ -23,7 +23,8 @@ const menuModules = {
     menuTopCmd: './topcmd.js',
     menuRPG: './menurpg.js',
     menuVIP: './menuvip.js',
-    menuBuscas: './menubuscas.js'
+    menuBuscas: './menubuscas.js',
+    menuBrawlStars: './menubrawl.js'
 };
 
 let menusPromise;

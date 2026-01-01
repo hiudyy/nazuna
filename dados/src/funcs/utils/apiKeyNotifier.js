@@ -125,8 +125,8 @@ Uma API Key é como uma "senha especial" que permite ao bot acessar os serviços
 4️⃣ *Problema temporário do servidor* → Aguardar alguns minutos
 
 ⚙️ *Como ativar key:*
-• Use o comando: !apikey suachave
-• Exemplo: !apikey ABC123XYZ789
+• Use o comando: ${prefix}apikey suachave
+• Exemplo: ${prefix}apikey ABC123XYZ789
 • Reinicie o bot após configurar
 
 💬 Você receberá no máximo 3 avisos por dia para evitar spam.`;

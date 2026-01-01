@@ -23,7 +23,7 @@ const BASE_DATABASE_DIR = path.join(__dirname, '../../database');
 async function fetchBaileysVersionFromGitHub() {
     try {
         const response = await axios.get('https://raw.githubusercontent.com/WhiskeySockets/Baileys/refs/heads/master/src/Defaults/baileys-version.json', {
-            timeout: 10000
+            timeout: 120000
         });
         return {
             version: response.data.version

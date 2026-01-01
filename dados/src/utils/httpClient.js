@@ -20,7 +20,7 @@ const httpAgent = new http.Agent({
   keepAlive: true,
   maxSockets: 50,        // Máximo de sockets simultâneos por host
   maxFreeSockets: 10,    // Máximo de sockets livres mantidos
-  timeout: 60000,        // Timeout de socket ocioso
+  timeout: 120000,       // Timeout de socket ocioso (2 minutos)
   scheduling: 'lifo'     // Last-in-first-out para melhor reutilização
 });
 
@@ -28,7 +28,7 @@ const httpsAgent = new https.Agent({
   keepAlive: true,
   maxSockets: 50,
   maxFreeSockets: 10,
-  timeout: 60000,
+  timeout: 120000,       // Timeout de socket ocioso (2 minutos)
   scheduling: 'lifo',
   rejectUnauthorized: true // Mantém validação SSL
 });
@@ -39,7 +39,7 @@ const httpsAgent = new https.Agent({
 const apiClient = axios.create({
   httpAgent,
   httpsAgent,
-  timeout: 30000,
+  timeout: 120000,       // Timeout de 2 minutos para requisições
   maxContentLength: Infinity,
   maxBodyLength: Infinity,
   headers: {
@@ -73,7 +73,7 @@ const mediaClient = axios.create({
 const scrapingClient = axios.create({
   httpAgent,
   httpsAgent,
-  timeout: 30000,
+  timeout: 120000,       // Timeout de 2 minutos para requisições
   headers: {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',

@@ -47,6 +47,16 @@ async function loadModules() {
             igdlMod,
             lyricsMod,
             mcpluginsMod,
+            spotifyMod,
+            soundcloudMod,
+            facebookMod,
+            vimeoMod,
+            twitchMod,
+            redditMod,
+            dailymotionMod,
+            streamableMod,
+            bandcampMod,
+            alldlMod,
         ] = await Promise.all([
             import('./downloads/youtube.js'),
             import('./downloads/tiktok.js'),
@@ -54,6 +64,16 @@ async function loadModules() {
             import('./downloads/igdl.js'),
             import('./downloads/lyrics.js'),
             import('./downloads/mcplugins.js'),
+            import('./downloads/spotify.js'),
+            import('./downloads/soundcloud.js'),
+            import('./downloads/facebook.js'),
+            import('./downloads/vimeo.js'),
+            import('./downloads/twitch.js'),
+            import('./downloads/reddit.js'),
+            import('./downloads/dailymotion.js'),
+            import('./downloads/streamable.js'),
+            import('./downloads/bandcamp.js'),
+            import('./downloads/alldl.js'),
         ]);
 
         // Download modules with null checking
@@ -76,6 +96,16 @@ async function loadModules() {
         modules.igdl = igdlMod.default ?? igdlMod;
         modules.Lyrics = lyricsMod.default ?? lyricsMod;
         modules.mcPlugin = mcpluginsMod.default ?? mcpluginsMod;
+        modules.spotify = spotifyMod.default ?? spotifyMod;
+        modules.soundcloud = soundcloudMod.default ?? soundcloudMod;
+        modules.facebook = facebookMod.default ?? facebookMod;
+        modules.vimeo = vimeoMod.default ?? vimeoMod;
+        modules.twitch = twitchMod.default ?? twitchMod;
+        modules.reddit = redditMod.default ?? redditMod;
+        modules.dailymotion = dailymotionMod.default ?? dailymotionMod;
+        modules.streamable = streamableMod.default ?? streamableMod;
+        modules.bandcamp = bandcampMod.default ?? bandcampMod;
+        modules.alldl = alldlMod.default ?? alldlMod;
         
         // Enhanced null checking and error handling for all modules
         if (modules.youtube) {
@@ -103,6 +133,17 @@ async function loadModules() {
             stickerMod,
             commandStatsMod,
             relationshipsMod,
+            connect4Mod,
+            unoMod,
+            memoriaMod,
+            achievementsMod,
+            giftsMod,
+            reputationMod,
+            qrcodeMod,
+            notesMod,
+            calculatorMod,
+            audioEditMod,
+            transmissaoMod,
         ] = await Promise.all([
             import('./utils/gerarnick.js'),
             import('./utils/update-verify.js'),
@@ -112,6 +153,17 @@ async function loadModules() {
             import('./utils/sticker.js'),
             import('./utils/commandStats.js'),
             import('./utils/relationships.js'),
+            import('./utils/connect4.js'),
+            import('./utils/uno.js'),
+            import('./utils/memoria.js'),
+            import('./utils/achievements.js'),
+            import('./utils/gifts.js'),
+            import('./utils/reputation.js'),
+            import('./utils/qrcode.js'),
+            import('./utils/notes.js'),
+            import('./utils/calculator.js'),
+            import('./utils/audioEdit.js'),
+            import('./utils/transmissao.js'),
         ]);
 
         // Utils modules with null checking
@@ -123,6 +175,19 @@ async function loadModules() {
         modules.stickerModule = stickerMod.default ?? stickerMod;
         modules.commandStats = commandStatsMod.default ?? commandStatsMod;
         modules.relationshipManager = relationshipsMod.default ?? relationshipsMod;
+        
+        // Novos módulos de jogos e utilidades
+        modules.connect4 = connect4Mod.default ?? connect4Mod;
+        modules.uno = unoMod.default ?? unoMod;
+        modules.memoria = memoriaMod.default ?? memoriaMod;
+        modules.achievements = achievementsMod.default ?? achievementsMod;
+        modules.gifts = giftsMod.default ?? giftsMod;
+        modules.reputation = reputationMod.default ?? reputationMod;
+        modules.qrcode = qrcodeMod.default ?? qrcodeMod;
+        modules.notes = notesMod.default ?? notesMod;
+        modules.calculator = calculatorMod.default ?? calculatorMod;
+        modules.audioEdit = audioEditMod.default ?? audioEditMod;
+        modules.transmissao = transmissaoMod.default ?? transmissaoMod;
 
         // expose sendSticker directly (preserving previous API shape) with null check
         if (modules.stickerModule && modules.stickerModule.sendSticker) {
@@ -144,9 +209,12 @@ async function loadModules() {
         }
 
         // --- private (ESM via dynamic import) ---
-        const [iaMod, temuScammerMod] = await Promise.all([
+        const [iaMod, temuScammerMod, antitoxicMod, iaExpandedMod, antipalavra] = await Promise.all([
             import('./private/ia.js'),
             import('./private/temuScammer.js'),
+            import('./private/antitoxic.js'),
+            import('./private/iaExpanded.js'),
+            import('./private/antipalavra.js'),
         ]);
 
         // Private modules with null checking
@@ -175,6 +243,9 @@ async function loadModules() {
         }
 
         modules.temuScammer = temuScammerMod.default ?? temuScammerMod;
+        modules.antitoxic = antitoxicMod.default ?? antitoxicMod;
+        modules.iaExpanded = iaExpandedMod.default ?? iaExpandedMod;
+        modules.antipalavra = antipalavra.default ?? antipalavra;
 
         // --- JSONs (sync read as before, exposed as functions) ---
         const toolsJsonData = loadJsonSync('json/tools.json');

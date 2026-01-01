@@ -1,6 +1,6 @@
 {
     "name": "nazuna",
-    "version": "7.0.0",
+    "version": "8.0.0",
     "description": "Bot de whatsapp criada por hiudy",
     "type": "module",
     "main": "dados/src/connect.js",
@@ -28,7 +28,8 @@
         "node-webpmux": "^3.2.1",
         "pino": "^10.1.0",
         "qrcode-terminal": "^0.12.0",
-        "whaileys": "^6.4.7"
+        "whaileys": "^6.4.7",
+        "youtube-sr": "^4.3.12"
     },
     "devDependencies": {
         "nodemon": "^3.1.4"

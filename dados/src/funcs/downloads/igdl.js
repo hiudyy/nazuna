@@ -18,7 +18,7 @@ async function igdl(url, apiKey) {
       url: url
     }, {
       headers: { 'X-API-Key': apiKey },
-      timeout: 30000
+      timeout: 120000
     });
 
     if (!response.data.success || !response.data.data) {
@@ -35,7 +35,7 @@ async function igdl(url, apiKey) {
         try {
           // Baixar o conteúdo da mídia
           const mediaResponse = await mediaClient.get(mediaItem.url, { 
-            timeout: 60000
+            timeout: 120000
           });
           
           results.push({

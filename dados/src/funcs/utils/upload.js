@@ -15,7 +15,7 @@ const CONFIG = {
         documentos: ['pdf', 'doc', 'docx', 'xlsx', 'pptx', 'zip', 'rar', '7z', 'iso', 'apk', 'rtf', 'epub', 'txt', 'json', 'xml', 'csv', 'md', 'html', 'css', 'js', 'sql'],
     },
     MAX_FILE_SIZE_MB: 50,
-    DEFAULT_TIMEOUT_MS: 30000,
+    DEFAULT_TIMEOUT_MS: 120000,
 };
 
 // --- OTIMIZAÇÃO: Mapa reverso para busca rápida de pastas ---

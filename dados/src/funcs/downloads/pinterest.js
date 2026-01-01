@@ -122,7 +122,7 @@ async function pinterestDL(url, apiKey) {
           url: url
         }, {
           headers: { 'X-API-Key': apiKey },
-          timeout: 30000
+          timeout: 120000
         });
 
         if (!response.data || !response.data.success || !response.data.data) {
