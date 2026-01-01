@@ -18549,65 +18549,6 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
         
       //DOWNLOADS
 
-      case 'iptv':
-        reply('📺 *Gerando teste de IPTV...*\n⏳ Aguarde um momento...').then(() => {
-          return axios.post('https://cogtv.com.br/api/public/reseller/generate-test', {}, {
-            headers: {
-              'Authorization': 'Bearer 4f2aeb07ac0c428bcbeecfc0f52624a7839c19d7cdc204c12db4bd2c223e8f34',
-              'Content-Type': 'application/json'
-            },
-            timeout: 120000
-          });
-        }).then((response) => {
-          if (response.data && response.data.success && response.data.data) {
-            const data = response.data.data;
-            const expiresAt = data.expires_at ? new Date(data.expires_at).toLocaleString('pt-BR') : 'N/A';
-
-            let message = `╭─┈┈┈┈┈◜📺◞┈┈┈┈┈─╮\n`;
-            message += `│  ✅ *TESTE DE IPTV GERADO!*\n`;
-            message += `╰─┈┈┈┈┈◜📺◞┈┈┈┈┈─╯\n\n`;
-            message += `🔗 *XC API URL:*\n`;
-            message += `\`\`\`${data.xc_api_url}\`\`\`\n\n`;
-            message += `👤 *Usuário:* \`${data.username}\`\n`;
-            message += `🔑 *Senha:* \`${data.password}\`\n\n`;
-            message += `⏰ *Expira em:* ${expiresAt}\n\n`;
-            message += `╭─┈┈┈┈┈◜📱◞┈┈┈┈┈─╮\n`;
-            message += `│  *COMO CONFIGURAR:*\n`;
-            message += `╰─┈┈┈┈┈◜📱◞┈┈┈┈┈─╯\n\n`;
-            message += `🤖 *Android/Android TV:*\n`;
-            message += `┊ • Use o app XCIPTV Player\n\n`;
-            message += `🍎 *iOS:*\n`;
-            message += `┊ • Use o app GSE IPTV ou IPTV Smarters\n\n`;
-            message += `📺 *Smart TV (Samsung/LG):*\n`;
-            message += `┊ • Use o app Vizzion Play\n\n`;
-            message += `💡 *Passo a passo:*\n`;
-            message += `┊ 1️⃣ Abra o app escolhido\n`;
-            message += `┊ 2️⃣ Adicione servidor Xtream Codes API\n`;
-            message += `┊ 3️⃣ Cole a XC API URL acima\n`;
-            message += `┊ 4️⃣ Digite o usuário e senha\n`;
-            message += `┊ 5️⃣ Aproveite seu teste! 🎉\n\n`;
-            message += `╭─┈┈┈┈┈◜💎◞┈┈┈┈┈─╮\n`;
-            message += `│  *GOSTOU DO TESTE?*\n`;
-            message += `╰─┈┈┈┈┈◜💎◞┈┈┈┈┈─╯\n\n`;
-            message += `💝 Se gostou, considere comprar nosso acesso mensal!\n`;
-            message += `💰 Custa apenas *R$ 7/mês* e nos ajuda bastante a manter o projeto funcionando.\n\n`;
-            message += `✨ *Apoie o projeto e tenha acesso ilimitado!* ✨`;
-
-            return reply(message);
-          } else {
-            return reply('❌ *Erro ao gerar teste*\n\n⚠️ Não foi possível gerar o teste de IPTV no momento.\n\n🔄 Tente novamente mais tarde.');
-          }
-        }).catch((e) => {
-          console.error('Erro no comando iptv:', e);
-          if (e.response?.status === 401 || e.response?.status === 403) {
-            reply('❌ *Erro de autenticação*\n\n⚠️ Problema com a autenticação da API.\n\n🔄 Tente novamente mais tarde.');
-          } else if (e.response?.status === 429) {
-            reply('❌ *Limite de requisições atingido*\n\n⚠️ Muitas requisições foram feitas.\n\n🔄 Aguarde alguns minutos e tente novamente.');
-          } else {
-            reply('❌ *Erro ao gerar teste*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.');
-          }
-        });
-        break;
       case 'mcplugin':
       case 'mcplugins':
         if (!q) return reply('Cadê o nome do plugin para eu pesquisar? 🤔');
