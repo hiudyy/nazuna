@@ -21503,14 +21503,16 @@ Bem-vindo ao guia completo de configuração e personalização! Vamos aprender 
 ━━━━━━━━━━━━━━━━━━━━
 
 1️⃣ Configurações Básicas
-2️⃣ Personalização Visual
+2️⃣ Personalização Visual  
 3️⃣ Sistema de Comandos
 4️⃣ Automação e Respostas
-5️⃣ Gerenciamento de Grupos
+5️⃣ Gerenciamento de Usuários
 6️⃣ Sistema de Aluguel
 7️⃣ Sub-Bots
 8️⃣ Sistema VIP/Premium
-9️⃣ Recursos Avançados
+9️⃣ Controle e Manutenção
+🔟 Monitoramento e Análise
+1️⃣1️⃣ Transmissões
 
 ━━━━━━━━━━━━━━━━━━━━
 1️⃣ *CONFIGURAÇÕES BÁSICAS*
@@ -21521,6 +21523,13 @@ Use: ${prefix}prefixo <novo_prefixo>
 Exemplo: ${prefix}prefixo .
 • Define qual símbolo inicia os comandos
 • Pode ser: ! . / # $ ou qualquer caractere
+
+🔹 *Mensagem de Prefixo*
+Use: ${prefix}msgprefix <mensagem>
+Exemplo: ${prefix}msgprefix Use #prefixo# antes do comando!
+• Mensagem mostrada quando esquecem o prefixo
+• Use #prefixo# onde o prefixo deve aparecer
+• Para desativar: ${prefix}msgprefix off
 
 🔹 *Nome do Bot*
 Use: ${prefix}nomebot <nome>
@@ -21544,6 +21553,32 @@ Use: ${prefix}apikey <tipo> <chave>
 Tipos: gemini, openai, cognimax
 • Necessário para comandos de IA
 • Obtenha em: cog.api.br/plans
+
+🔹 *Mensagem de Comando Não Encontrado*
+Use: ${prefix}configcmdnotfound <ação>
+Ações disponíveis:
+• activate - Ativar mensagens personalizadas
+• deactivate - Desativar mensagens
+• set <texto> - Definir mensagem customizada
+• style <estilo> - Mudar estilo (friendly/formal/casual/emoji)
+• preview - Ver como ficará a mensagem
+• reset - Restaurar configurações padrão
+
+Variáveis disponíveis:
+{command} - Comando digitado
+{prefix} - Prefixo do bot
+{user} - Usuário que digitou
+{botName} - Nome do bot
+{userName} - Nome do usuário
+
+Exemplo: ${prefix}configcmdnotfound set ❌ {command} não existe! Veja: {prefix}menu
+
+🔹 *Personalização de Grupos*
+Use: ${prefix}personalizargrupo
+• Ativa/desativa personalização por grupo
+• Quando ativo, admins podem:
+  - Mudar foto do menu do grupo
+  - Personalizar nome do bot no grupo
 
 ━━━━━━━━━━━━━━━━━━━━
 2️⃣ *PERSONALIZAÇÃO VISUAL*
@@ -21576,14 +21611,30 @@ Use: ${prefix}designmenu
 • Cabeçalho Personalizado:
   ${prefix}setheader ╭━━━❖ Olá, #user# ❖━━━╮
 
-📸 *Mídia do Menu*
-• Foto: ${prefix}fotomenu (responda uma imagem)
-• Vídeo: ${prefix}videomenu (responda um vídeo)
-• Foto do Bot: ${prefix}fotobot (responda uma imagem)
-
 🔄 *Resetar Design*
 Use: ${prefix}resetdesign
 • Volta ao design padrão
+
+📸 *Mídia do Menu*
+
+• Foto do Menu: ${prefix}fotomenu
+  Responda uma imagem
+  
+• Vídeo do Menu: ${prefix}videomenu
+  Responda um vídeo
+  
+• Áudio do Menu: ${prefix}audiomenu
+  Responda um áudio
+  Para remover: ${prefix}audiomenu off
+  
+• Foto do Bot (perfil): ${prefix}fotobot
+  Responda uma imagem
+
+📱 *"Ler Mais" nos Menus*
+Use: ${prefix}lermais
+• Ativa/desativa caracteres invisíveis no início do menu
+• Quando ativo, WhatsApp mostra "Ler mais"
+• Deixa os menus mais limpos na prévia
 
 ━━━━━━━━━━━━━━━━━━━━
 3️⃣ *SISTEMA DE COMANDOS*
@@ -21604,6 +21655,7 @@ Exemplo: ${prefix}addcmdmidia bemvindo | Seja bem-vindo!
 • Listar: ${prefix}listcmd
 • Deletar: ${prefix}delcmd <nome>
 • Testar: ${prefix}testcmd <nome>
+• Definir resposta: ${prefix}setcmdmsg (mesmo que configcmdnotfound)
 
 🔀 *Sistema de Alias*
 • Adicionar: ${prefix}addalias <comando_existente> | <novo_nome>
@@ -21638,10 +21690,10 @@ ${prefix}addautomidia <palavra> | <legenda>
 • Deletar: ${prefix}delauto <palavra>
 
 😊 *Reações Automáticas*
-• Adicionar: ${prefix}addreact <palavra> | <emoji>
-  Exemplo: ${prefix}addreact obrigado | 🙏
+• Adicionar: ${prefix}addreact <palavra> <emoji>
+  Exemplo: ${prefix}addreact obrigado 🙏
 • Listar: ${prefix}listreact
-• Deletar: ${prefix}delreact <palavra>
+• Deletar: ${prefix}delreact <id>
 
 🔓 *Comandos Sem Prefixo*
 • Adicionar: ${prefix}addnopref <comando>
@@ -21649,16 +21701,29 @@ ${prefix}addautomidia <palavra> | <legenda>
 • Listar: ${prefix}listnopref
 • Deletar: ${prefix}delnopref <comando>
 
-⏰ *Mensagens Automáticas (por horário)*
+⏰ *Mensagens Automáticas (em grupos)*
+📌 Comando só funciona em grupos!
+
 • Adicionar: ${prefix}automsg add HH:MM | descrição
-  Responda uma mensagem
+  Responda uma mensagem (texto/imagem/vídeo/áudio/documento/sticker)
   Exemplo: ${prefix}automsg add 08:00 | Bom dia!
+  
 • Listar: ${prefix}automsg list
+  Mostra todas as mensagens automáticas do grupo
+  
 • Deletar: ${prefix}automsg del <id>
-• Ativar/Desativar: ${prefix}automsg on/off <id>
+  Remove uma mensagem automática
+  
+• Ativar: ${prefix}automsg on <id>
+  Ativa uma mensagem desativada
+  
+• Desativar: ${prefix}automsg off <id>
+  Desativa sem deletar
+
+💡 As mensagens serão enviadas no horário definido, todos os dias!
 
 ━━━━━━━━━━━━━━━━━━━━
-5️⃣ *GERENCIAMENTO DE GRUPOS*
+5️⃣ *GERENCIAMENTO DE USUÁRIOS*
 ━━━━━━━━━━━━━━━━━━━━
 
 👑 *Sub-Donos*
@@ -21671,6 +21736,20 @@ ${prefix}addautomidia <palavra> | <legenda>
 • Adicionar: ${prefix}addpremium @usuario
 • Remover: ${prefix}delpremium @usuario
 • Listar: ${prefix}listprem
+• Resetar gold: ${prefix}resetgold @usuario
+  (Remove todo ouro/pontos do usuário)
+
+🎁 *Sistema de Indicações*
+• Adicionar indicação: ${prefix}addindicacao @usuario
+  Adiciona +1 indicação ao usuário
+  
+• Ver ranking: ${prefix}topindica
+  Mostra top 10 usuários com mais indicações
+  
+• Remover indicações: ${prefix}delindicacao @usuario [quantidade]
+  Se não especificar quantidade, remove todas
+  Exemplo: ${prefix}delindicacao @usuario 5
+  Remove 5 indicações
 
 🚫 *Blacklist Global*
 • Banir: ${prefix}addblackglobal @usuario | motivo
@@ -21680,6 +21759,7 @@ ${prefix}addautomidia <palavra> | <legenda>
 
 🚷 *Banimento de Grupos*
 • Banir grupo: ${prefix}bangp
+  Bane o grupo atual
 • Desbanir: ${prefix}unbangp <id_grupo>
 • Listar: ${prefix}listbangp
 
@@ -21716,6 +21796,7 @@ ${prefix}addautomidia <palavra> | <legenda>
 
 • Listar todos:
   ${prefix}listaraluguel
+  ou ${prefix}listaluguel
 
 • Remover aluguel:
   ${prefix}removeraluguel <id_grupo>
@@ -21794,94 +21875,185 @@ Use: ${prefix}divulgar
   ${prefix}infovip @usuario
 
 ━━━━━━━━━━━━━━━━━━━━
-9️⃣ *RECURSOS AVANÇADOS*
+9️⃣ *CONTROLE E MANUTENÇÃO*
 ━━━━━━━━━━━━━━━━━━━━
 
-🔧 *Manutenção*
+🔧 *Controle do Bot*
 
 • Atualizar bot:
   ${prefix}atualizar
+  Baixa e aplica atualizações do repositório
 
 • Reiniciar:
   ${prefix}reiniciar
+  Reinicia o bot completamente
 
 • Entrar em grupo:
   ${prefix}entrar <link>
+  Faz o bot entrar em um grupo via link
 
 • Sair de grupo:
   ${prefix}sairgp
+  Bot sai do grupo atual
 
 • Virar ADM:
   ${prefix}seradm
+  Bot vira administrador (você deve promovê-lo)
 
 • Virar membro:
   ${prefix}sermembro
+  Remove privilégios de admin do bot
 
-📊 *Monitoramento*
+🛡️ *Proteção Anti-Ban*
+Use: ${prefix}antibanmarcar <ação>
+Ações: on, off, status
 
-• Listar grupos:
-  ${prefix}listagp
+Protege o bot de banimento ao usar comandos de marcação em massa (hidetag, marcar, etc) em grupos com 150+ membros.
 
-• Ver mensagens deletadas:
-  ${prefix}viewmsg
-
-• Estatísticas de IA:
-  ${prefix}iastatus
-
-• Limpar cache de IA:
-  ${prefix}iaclear
-
-• Recuperar IA:
-  ${prefix}iarecovery
-
-• Ver cases disponíveis:
-  ${prefix}cases
-
-• Ver código de comando:
-  ${prefix}getcase <comando>
-
-🔒 *Privacidade*
-
-• Anti-PV (níveis 1-4):
-  ${prefix}antipv, ${prefix}antipv2, ${prefix}antipv3, ${prefix}antipv4
-
-• Mensagem do Anti-PV:
-  ${prefix}antipvmsg <texto>
-
-• Anti-spam de comandos:
-  ${prefix}antispamcmd
-
-📡 *Transmissões*
-
-• Transmissão em grupos:
-  ${prefix}tm <texto>
-
-• Transmissão privada:
-  ${prefix}tm2 <texto>
-
-• Status da transmissão:
-  ${prefix}statustm
-
-💡 *Dicas Extras:*
-
-• Use sempre com moderação
-• Teste comandos antes de divulgar
-• Mantenha backups das configurações
-• Acompanhe os logs do bot
+• on - Ativar proteção (limite de 5 usos a cada 5h)
+• off - Desativar proteção
+• status - Ver status atual e usos restantes
 
 🧹 *Limpeza e Manutenção*
 
 • Limpar banco de dados:
   ${prefix}limpardb
+  Remove dados antigos/desnecessários
 
 • Limpar ranking de grupos:
   ${prefix}limparrankg
+  Reseta rankings de todos os grupos
 
 • Reviver QR Code:
   ${prefix}reviverqr
+  Gera novo QR para reconexão
 
-• Nuke (limpar tudo - CUIDADO!):
+• Nuke (CUIDADO!):
   ${prefix}nuke
+  Limpa TUDO - use apenas se necessário
+
+━━━━━━━━━━━━━━━━━━━━
+🔟 *MONITORAMENTO E ANÁLISE*
+━━━━━━━━━━━━━━━━━━━━
+
+📊 *Monitoramento de Grupos*
+
+• Listar todos os grupos:
+  ${prefix}listagp
+  Mostra todos os grupos onde o bot está
+
+• Visualização de mensagens:
+  ${prefix}viewmsg on/off
+  Ativa/desativa o status de visualização do bot
+
+🤖 *Monitoramento de IA*
+
+• Status da IA:
+  ${prefix}iastatus
+  Estatísticas de uso da IA
+
+• Limpar cache de IA:
+  ${prefix}iaclear
+  Limpa histórico de conversas da IA
+
+• Recuperar IA:
+  ${prefix}iarecovery
+  Recupera IA de erros
+
+💻 *Desenvolvimento*
+
+• Ver cases disponíveis:
+  ${prefix}cases
+  Lista todos os comandos disponíveis
+
+• Ver código de comando:
+  ${prefix}getcase <comando>
+  Mostra o código-fonte do comando
+
+🔒 *Controles de Privacidade*
+
+• Anti-PV - Nível 1:
+  ${prefix}antipv
+  Ignora mensagens no privado
+
+• Anti-PV - Nível 2:
+  ${prefix}antipv2
+  Responde e bloqueia automaticamente
+
+• Anti-PV - Nível 3:
+  ${prefix}antipv3
+  Bloqueia imediatamente
+
+• Anti-PV - Nível 4:
+  ${prefix}antipv4
+  Modo ultra-restritivo
+
+• Mensagem do Anti-PV:
+  ${prefix}antipvmsg <texto>
+  Personaliza mensagem de bloqueio
+
+• Anti-spam de comandos:
+  ${prefix}antispamcmd
+  Ativa/desativa proteção anti-spam
+
+🌍 *Modo Lite Global*
+Use: ${prefix}modoliteglobal
+• Ativa/desativa filtro de conteúdo inapropriado
+• Quando ativo, filtra conteúdo adulto em todos os grupos
+• Ideal para ambientes familiares
+
+━━━━━━━━━━━━━━━━━━━━
+1️⃣1️⃣ *TRANSMISSÕES*
+━━━━━━━━━━━━━━━━━━━━
+
+📡 *Enviar Mensagens em Massa*
+
+🔹 *Transmissão em Grupos:*
+${prefix}tm <mensagem>
+• Envia mensagem para todos os grupos
+• Use com responsabilidade
+• Pode incluir texto, imagens, vídeos
+
+Exemplo: ${prefix}tm Novidade! Bot atualizado 🎉
+
+🔹 *Transmissão Privada:*
+${prefix}tm2 <mensagem>
+• Envia para usuários inscritos no PV
+• Usuários se inscrevem com: ${prefix}inscrevertm
+• Só funciona no privado do usuário
+
+📊 *Status da Transmissão:*
+${prefix}statustm
+• Ver quantos usuários estão inscritos
+• Estatísticas de envios
+• Última transmissão realizada
+
+💡 *Dicas para Transmissões:*
+• Use com moderação para não ser bloqueado
+• Envie conteúdo relevante
+• Respeite os usuários
+
+━━━━━━━━━━━━━━━━━━━━
+📚 *RECURSOS EXTRAS*
+━━━━━━━━━━━━━━━━━━━━
+
+💡 *Dicas Gerais:*
+
+✅ Use sempre com moderação
+✅ Teste comandos antes de divulgar
+✅ Mantenha backups das configurações
+✅ Acompanhe os logs do bot
+✅ Configure API keys para IA
+✅ Ative proteção anti-ban em grupos grandes
+✅ Use o sistema de aluguel para monetizar
+
+⚠️ *Avisos Importantes:*
+
+• Comando ${prefix}nuke deleta TUDO - use com cuidado!
+• Anti-PV níveis 3 e 4 bloqueiam todos no privado
+• Transmissões em massa podem resultar em ban
+• Sempre teste novos comandos em grupos pequenos
+• Mantenha o bot atualizado regularmente
 
 ━━━━━━━━━━━━━━━━━━━━
 📞 *SUPORTE*
@@ -21893,10 +22065,17 @@ Precisa de ajuda? Entre em contato:
 
 ━━━━━━━━━━━━━━━━━━━━
 
-✨ *Dica Final:*
-Comece pelas configurações básicas, depois personalize o visual e por fim explore os recursos avançados. Vá com calma e aproveite!
+✨ *Próximos Passos:*
+1. Configure o básico (prefixo, nome, API keys)
+2. Personalize o visual do menu
+3. Adicione comandos e automações personalizadas
+4. Configure o sistema de aluguel (se for monetizar)
+5. Teste tudo em um grupo privado
+6. Adicione o bot aos seus grupos!
 
-📚 Use ${prefix}tutorial a qualquer momento para consultar este guia novamente.`;
+📚 Use ${prefix}tutorial a qualquer momento para consultar este guia novamente.
+
+🎉 *Aproveite seu bot ${nomebot}!*`;
 
           await reply(tutorialText);
         } catch (error) {
