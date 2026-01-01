@@ -45,7 +45,6 @@ ${middleBorder}${menuItemIcon}${prefix}twitch
 ${middleBorder}${menuItemIcon}${prefix}reddit
 ${middleBorder}${menuItemIcon}${prefix}dailymotion
 ${middleBorder}${menuItemIcon}${prefix}streamable
-${middleBorder}${menuItemIcon}${prefix}iptv
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${downloadMenuTitle}*
