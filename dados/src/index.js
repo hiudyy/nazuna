@@ -832,135 +832,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
   // FIM DAS FUNÇÕES AUXILIARES DO RPG
   // ═══════════════════════════════════════════════════════════════════
 
-
-  async function handleAutoDownload(nazu, from, url, info) {
-    try {
-      // Usa AllDL para detectar mídias de qualquer link
-      if (!KeyCog) {
-        return false; // Ignora silenciosamente se não tiver API key
-      }
-      
-      return alldl.getAllMedia(url, KeyCog)
-          .then(async (result) => {
-            if (result.ok && result.totalItems > 0) {
-              const { metadata, media, videoCount, audioCount, imageCount } = result;
-              
-              // Preparar dados para encurtamento (mesmo do comando alldl)
-              const videos = media.filter(m => m.type === 'video').slice(0, 8);
-              const audios = media.filter(m => m.type === 'audio').slice(0, 5);
-              const images = media.filter(m => m.type === 'image').slice(0, 3);
-              
-              const allMediaItems = [...videos, ...audios, ...images];
-              
-              // Função para encurtar com retry
-              const shortenWithRetry = (item, maxRetries = 5) => {
-                return new Promise((resolve) => {
-                  const attempt = (retryCount = 0) => {
-                    swiftly.post('https://spoo.me/api/v1/shorten', { 
-                      long_url: item.url,
-                      custom_alias: `nazu_${Math.random().toString(36).substring(2, 8)}`
-                    })
-                      .then(res => resolve({ ...item, shortUrl: res.short_url }))
-                      .catch(err => {
-                        if (retryCount < maxRetries) {
-                          setTimeout(() => attempt(retryCount + 1), 500);
-                        } else {
-                          resolve({ ...item, shortUrl: null });
-                        }
-                      });
-                  };
-                  attempt();
-                });
-              };
-              
-              // Encurtar todos os links
-              const mediaWithLinks = await Promise.all(allMediaItems.map(item => shortenWithRetry(item)));
-              
-              let message = `💕 Oioi amor! Desculpa a intromissão, mas encontrei algumas mídias no link que você enviou~ ✨\n\n`;
-              message += 'Caso queira baixar, é só clicar em "ler mais" e escolher o formato que preferir! 🎁\‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎\n';
-              message += `━━━━━━━━━━━━━━━\n\n`;
-              message += `📝 *Título:* ${metadata.title || 'Desconhecido'}\n`;
-              if (metadata.uploader) {
-                message += `👤 *Autor:* ${metadata.uploader}\n`;
-              }
-              message += `\n📊 *Formatos Encontrados:*\n`;
-              message += `🎥 Vídeos: ${videoCount}\n`;
-              message += `🎵 Áudios: ${audioCount}\n`;
-              if (imageCount > 0) message += `🖼️ Imagens: ${imageCount}\n`;
-              message += `📦 Total: ${result.totalItems} formatos\n`;
-              
-              // Listar vídeos com links
-              const videosWithLinks = mediaWithLinks.filter(m => m.type === 'video');
-              if (videosWithLinks.length > 0) {
-                message += `\n🎥 *VÍDEOS:*\n`;
-                videosWithLinks.forEach((video, index) => {
-                  message += `\n${index + 1}. ${video.quality || video.resolution || 'N/A'}`;
-                  if (video.filesize) {
-                    const sizeMB = (video.filesize / (1024 * 1024)).toFixed(1);
-                    message += ` (${sizeMB}MB)`;
-                  }
-                  if (video.fps) message += ` ${video.fps}fps`;
-                  if (video.isBest) message += ` ⭐`;
-                  if (video.shortUrl) {
-                    message += `\n   🔗 ${video.shortUrl}`;
-                  } else {
-                    message += `\n   🔗 ${video.url}`;
-                  }
-                });
-              }
-              
-              // Listar áudios com links
-              const audiosWithLinks = mediaWithLinks.filter(m => m.type === 'audio');
-              if (audiosWithLinks.length > 0) {
-                message += `\n\n🎵 *ÁUDIOS:*\n`;
-                audiosWithLinks.forEach((audio, index) => {
-                  message += `\n${index + 1}. ${audio.quality || audio.abr + 'kbps' || 'N/A'}`;
-                  if (audio.filesize) {
-                    const sizeMB = (audio.filesize / (1024 * 1024)).toFixed(1);
-                    message += ` (${sizeMB}MB)`;
-                  }
-                  if (audio.shortUrl) {
-                    message += `\n   🔗 ${audio.shortUrl}`;
-                  } else {
-                    message += `\n   🔗 ${audio.url}`;
-                  }
-                });
-              }
-              
-              // Listar imagens com links
-              const imagesWithLinks = mediaWithLinks.filter(m => m.type === 'image');
-              if (imagesWithLinks.length > 0) {
-                message += `\n\n🖼️ *THUMBNAILS:*\n`;
-                imagesWithLinks.forEach((image, index) => {
-                  message += `\n${index + 1}. ${image.quality || image.width + 'x' + image.height || 'N/A'}`;
-                  if (image.shortUrl) {
-                    message += `\n   🔗 ${image.shortUrl}`;
-                  } else {
-                    message += `\n   🔗 ${image.url}`;
-                  }
-                });
-              }
-              
-              await nazu.sendMessage(from, {
-                text: message
-              }, {
-                quoted: info
-              });
-              return true;
-            } else {
-              // Ignora silenciosamente se não encontrar nada
-              return false;
-            }
-          })
-          .catch((err) => {
-            console.error('Erro no autodl AllDL (promise):', err);
-            return false;
-          });
-    } catch (e) {
-      console.error('Erro no autodl:', e);
-      return false;
-    }
-  }
   const { default: menus } = await import('./menus/index.js');
   const {
     menu,
@@ -1028,6 +899,323 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     antipalavra,
     transmissao
   } = modules.default;
+
+  // ═══════════════════════════════════════════════════════════════════
+  // FUNÇÃO DE AUTO-DOWNLOAD - USA DOWNLOADERS INDIVIDUAIS POR PLATAFORMA
+  // ═══════════════════════════════════════════════════════════════════
+  async function handleAutoDownload(nazu, from, url, info) {
+    try {
+      if (!KeyCog) {
+        return false; // Ignora silenciosamente se não tiver API key
+      }
+      
+      const urlLower = url.toLowerCase();
+      
+      // Detectar plataforma e usar downloader específico
+      let platform = null;
+      let platformName = '';
+      let platformEmoji = '';
+      
+      // YouTube
+      if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) {
+        platform = 'youtube';
+        platformName = 'YouTube';
+        platformEmoji = '🎬';
+      }
+      // TikTok
+      else if (urlLower.includes('tiktok.com') || urlLower.includes('vm.tiktok')) {
+        platform = 'tiktok';
+        platformName = 'TikTok';
+        platformEmoji = '🎵';
+      }
+      // Instagram
+      else if (urlLower.includes('instagram.com') || urlLower.includes('instagr.am')) {
+        platform = 'instagram';
+        platformName = 'Instagram';
+        platformEmoji = '📸';
+      }
+      // Facebook
+      else if (urlLower.includes('facebook.com') || urlLower.includes('fb.watch') || urlLower.includes('fb.com')) {
+        platform = 'facebook';
+        platformName = 'Facebook';
+        platformEmoji = '📘';
+      }
+      // Twitter/X
+      else if (urlLower.includes('twitter.com') || urlLower.includes('x.com')) {
+        platform = 'twitter';
+        platformName = 'Twitter/X';
+        platformEmoji = '🐦';
+      }
+      // Pinterest
+      else if (urlLower.includes('pinterest.com') || urlLower.includes('pin.it')) {
+        platform = 'pinterest';
+        platformName = 'Pinterest';
+        platformEmoji = '📌';
+      }
+      // Spotify
+      else if (urlLower.includes('spotify.com') || urlLower.includes('open.spotify')) {
+        platform = 'spotify';
+        platformName = 'Spotify';
+        platformEmoji = '🎧';
+      }
+      // SoundCloud
+      else if (urlLower.includes('soundcloud.com')) {
+        platform = 'soundcloud';
+        platformName = 'SoundCloud';
+        platformEmoji = '🔊';
+      }
+      // Reddit
+      else if (urlLower.includes('reddit.com') || urlLower.includes('redd.it')) {
+        platform = 'reddit';
+        platformName = 'Reddit';
+        platformEmoji = '🤖';
+      }
+      // Twitch
+      else if (urlLower.includes('twitch.tv') || urlLower.includes('clips.twitch')) {
+        platform = 'twitch';
+        platformName = 'Twitch';
+        platformEmoji = '🎮';
+      }
+      // Vimeo
+      else if (urlLower.includes('vimeo.com')) {
+        platform = 'vimeo';
+        platformName = 'Vimeo';
+        platformEmoji = '🎥';
+      }
+      // Dailymotion
+      else if (urlLower.includes('dailymotion.com') || urlLower.includes('dai.ly')) {
+        platform = 'dailymotion';
+        platformName = 'Dailymotion';
+        platformEmoji = '📺';
+      }
+      // Streamable
+      else if (urlLower.includes('streamable.com')) {
+        platform = 'streamable';
+        platformName = 'Streamable';
+        platformEmoji = '🎞️';
+      }
+      // Bandcamp
+      else if (urlLower.includes('bandcamp.com')) {
+        platform = 'bandcamp';
+        platformName = 'Bandcamp';
+        platformEmoji = '🎸';
+      }
+      
+      // Se não detectou plataforma suportada, ignora silenciosamente
+      if (!platform) {
+        return false;
+      }
+      
+      // Processar download baseado na plataforma
+      try {
+        let result;
+        let buffer;
+        let caption = '';
+        let mediaType = 'video'; // 'video', 'audio', 'image'
+        
+        switch (platform) {
+          case 'youtube':
+            // YouTube - Baixar como áudio MP3
+            result = await youtube.search(url, KeyCog);
+            if (!result.ok) return false;
+            
+            const ytData = result.data;
+            caption = `${platformEmoji} *${platformName} Download*\n\n📌 *Título:* ${ytData?.title || 'Desconhecido'}\n👤 *Canal:* ${ytData?.author?.name || ytData?.channel || 'Desconhecido'}\n⏱ *Duração:* ${ytData?.timestamp || 'N/A'}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            
+            const mp3Result = await youtube.mp3(url, 128, KeyCog);
+            if (!mp3Result.ok) return false;
+            
+            buffer = mp3Result.buffer;
+            mediaType = 'audio';
+            break;
+            
+          case 'tiktok':
+            result = await tiktok.dl(url, KeyCog);
+            if (!result.ok) return false;
+            
+            caption = `${platformEmoji} *${platformName} Download*\n\n📌 *Título:* ${result.title || 'Desconhecido'}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            
+            // TikTok retorna URLs, precisa baixar
+            if (result.urls && result.urls.length > 0) {
+              const videoUrl = result.urls[0];
+              const videoBuffer = await swiftly.get(videoUrl, { responseType: 'buffer', timeout: 120000 });
+              buffer = Buffer.from(videoBuffer);
+              mediaType = 'video';
+            } else {
+              return false;
+            }
+            break;
+            
+          case 'instagram':
+            result = await igdl(url, KeyCog);
+            if (!result.ok || !result.media || result.media.length === 0) return false;
+            
+            caption = `${platformEmoji} *${platformName} Download*\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            
+            // Enviar todas as mídias do Instagram
+            for (const media of result.media) {
+              try {
+                if (media.type === 'video') {
+                  await nazu.sendMessage(from, { video: media.buff, caption }, { quoted: info });
+                } else {
+                  await nazu.sendMessage(from, { image: media.buff, caption }, { quoted: info });
+                }
+              } catch (e) {
+                console.error('Erro ao enviar mídia do Instagram:', e.message);
+              }
+            }
+            return true;
+            
+          case 'facebook':
+            result = await facebook.download(url, KeyCog);
+            if (!result.ok) return false;
+            
+            caption = `${platformEmoji} *${platformName} Download*\n\n📌 *Título:* ${result.title || 'Desconhecido'}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            buffer = result.buffer;
+            mediaType = 'video';
+            break;
+            
+          case 'twitter':
+            // Twitter usa a API própria
+            const twtResponse = await swiftly.get('https://cog.api.br/api/v1/twitter/info', {
+              params: { url },
+              headers: { 'X-API-Key': KeyCog },
+              timeout: 120000
+            });
+            
+            if (!twtResponse.success || !twtResponse.data) return false;
+            
+            const tweetData = twtResponse.data;
+            caption = `${platformEmoji} *${platformName} Download*\n\n👤 *${tweetData.author?.name || 'Usuário'}* (@${tweetData.author?.username || 'unknown'})\n💬 ${tweetData.text || ''}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            
+            if (!tweetData.hasMedia || !tweetData.media || tweetData.media.length === 0) return false;
+            
+            // Enviar mídias do Twitter
+            for (const media of tweetData.media) {
+              try {
+                if (media.type === 'video') {
+                  await nazu.sendMessage(from, { video: { url: media.bestQuality?.url || media.url }, caption }, { quoted: info });
+                } else if (media.type === 'photo' || media.type === 'image') {
+                  await nazu.sendMessage(from, { image: { url: media.url }, caption }, { quoted: info });
+                }
+              } catch (e) {
+                console.error('Erro ao enviar mídia do Twitter:', e.message);
+              }
+            }
+            return true;
+            
+          case 'pinterest':
+            result = await pinterest.dl(url, KeyCog);
+            if (!result.ok) return false;
+            
+            caption = `${platformEmoji} *${platformName} Download*\n\n📌 *Título:* ${result.title || 'Desconhecido'}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            buffer = result.buffer;
+            mediaType = result.type === 'video' ? 'video' : 'image';
+            break;
+            
+          case 'spotify':
+            result = await spotify.download(url, KeyCog);
+            if (!result.ok) return false;
+            
+            caption = `${platformEmoji} *${platformName} Download*\n\n🎵 *${result.title || 'Desconhecido'}*\n👤 *Artista:* ${result.artist || 'Desconhecido'}\n💿 *Álbum:* ${result.album || 'Desconhecido'}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            buffer = result.buffer;
+            mediaType = 'audio';
+            break;
+            
+          case 'soundcloud':
+            result = await soundcloud.download(url, KeyCog);
+            if (!result.ok) return false;
+            
+            caption = `${platformEmoji} *${platformName} Download*\n\n🎵 *${result.title || 'Desconhecido'}*\n👤 *Artista:* ${result.artist || 'Desconhecido'}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            buffer = result.buffer;
+            mediaType = 'audio';
+            break;
+            
+          case 'reddit':
+            result = await reddit.download(url, KeyCog);
+            if (!result.ok) return false;
+            
+            caption = `${platformEmoji} *${platformName} Download*\n\n📌 *Título:* ${result.title || 'Desconhecido'}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            buffer = result.buffer;
+            mediaType = result.type === 'video' ? 'video' : 'image';
+            break;
+            
+          case 'twitch':
+            result = await twitch.download(url, KeyCog);
+            if (!result.ok) return false;
+            
+            caption = `${platformEmoji} *${platformName} Download*\n\n📌 *Título:* ${result.title || 'Desconhecido'}\n👤 *Streamer:* ${result.streamer || 'Desconhecido'}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            buffer = result.buffer;
+            mediaType = 'video';
+            break;
+            
+          case 'vimeo':
+            result = await vimeo.download(url, KeyCog);
+            if (!result.ok) return false;
+            
+            caption = `${platformEmoji} *${platformName} Download*\n\n📌 *Título:* ${result.title || 'Desconhecido'}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            buffer = result.buffer;
+            mediaType = 'video';
+            break;
+            
+          case 'dailymotion':
+            result = await dailymotion.download(url, KeyCog);
+            if (!result.ok) return false;
+            
+            caption = `${platformEmoji} *${platformName} Download*\n\n📌 *Título:* ${result.title || 'Desconhecido'}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            buffer = result.buffer;
+            mediaType = 'video';
+            break;
+            
+          case 'streamable':
+            result = await streamable.download(url, KeyCog);
+            if (!result.ok) return false;
+            
+            caption = `${platformEmoji} *${platformName} Download*\n\n📌 *Título:* ${result.title || 'Desconhecido'}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            buffer = result.buffer;
+            mediaType = 'video';
+            break;
+            
+          case 'bandcamp':
+            result = await bandcamp.download(url, KeyCog);
+            if (!result.ok) return false;
+            
+            caption = `${platformEmoji} *${platformName} Download*\n\n🎵 *${result.title || 'Desconhecido'}*\n👤 *Artista:* ${result.artist || 'Desconhecido'}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
+            buffer = result.buffer;
+            mediaType = 'audio';
+            break;
+            
+          default:
+            return false;
+        }
+        
+        // Enviar a mídia
+        if (buffer) {
+          if (mediaType === 'video') {
+            await nazu.sendMessage(from, { video: buffer, caption }, { quoted: info });
+          } else if (mediaType === 'audio') {
+            await nazu.sendMessage(from, { audio: buffer, mimetype: 'audio/mpeg' }, { quoted: info });
+            // Enviar caption separada para áudio
+            await nazu.sendMessage(from, { text: caption }, { quoted: info });
+          } else if (mediaType === 'image') {
+            await nazu.sendMessage(from, { image: buffer, caption }, { quoted: info });
+          }
+          return true;
+        }
+        
+        return false;
+        
+      } catch (downloadError) {
+        console.error(`Erro no autodl ${platformName}:`, downloadError.message);
+        return false;
+      }
+      
+    } catch (e) {
+      console.error('Erro no autodl:', e);
+      return false;
+    }
+  }
+
   // Otimização: Cache de dados estáticos com TTL
   const optimizer = getPerformanceOptimizer();
   
