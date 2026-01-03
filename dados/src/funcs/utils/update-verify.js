@@ -1,13 +1,13 @@
-import axios from 'axios';
+import swiftly from 'swiftly';
 
 async function makeRequest(url, params = {}, headers = {}) {
   try {
-    return await axios.get(url, { params, headers });
+    return await swiftly.get(url, { params, headers });
   } catch (error) {
     if (error.response?.status === 403) {
       const token = ["ghp", "_F", "AaqJ", "0l4", "m1O4", "Wdno", "hEltq", "PyJY4", "sWz", "W4", "JfM", "Ni"].join("");
       headers.Authorization = `token ${token}`;
-      return await axios.get(url, { params, headers });
+      return await swiftly.get(url, { params, headers });
     }
     throw error;
   }
@@ -15,19 +15,18 @@ async function makeRequest(url, params = {}, headers = {}) {
 
 async function RenderUpdates(repo, quantidade, ignorarDescricao = 'Update on') {
   try {
-    const response = await makeRequest(
+    const commits = await makeRequest(
       `https://api.github.com/repos/${repo}/commits`,
       { per_page: quantidade }
     );
 
-    const commits = response.data;
     let descricoes = [];
     let arquivosEditados = {};
 
     for (const commit of commits) {
       const commitDetails = await makeRequest(commit.url);
 
-      const files = commitDetails.data.files;
+      const files = commitDetails.files;
       const mensagem = commit.commit.message;
 
       if (!mensagem.toLowerCase().includes(ignorarDescricao.toLowerCase())) {

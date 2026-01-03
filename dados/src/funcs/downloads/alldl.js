@@ -1,4 +1,4 @@
-import axios from 'axios';
+import swiftly from 'swiftly';
 
 /**
  * Extrai todos os formatos de mídia disponíveis de uma URL
@@ -11,7 +11,7 @@ export async function getAllMedia(url, apiKey) {
     const endpoint = 'https://cog.api.br/api/v1/alldl';
     
     // Fazer requisição para obter todos os formatos
-    const response = await axios.get(endpoint, {
+    const response = await swiftly.get(endpoint, {
       params: { url },
       headers: {
         'x-api-key': apiKey
@@ -19,23 +19,23 @@ export async function getAllMedia(url, apiKey) {
       timeout: 120000 // 2 minutos
     });
 
-    if (!response.data || !response.data.success) {
+    if (!response || !response.success) {
       return {
         ok: false,
-        message: response.data?.message || 'Erro ao buscar informações da mídia.'
+        message: response?.message || 'Erro ao buscar informações da mídia.'
       };
     }
 
-    const { data } = response.data;
+    const data = response.data;
 
     return {
       ok: true,
-      metadata: data.metadata || {},
-      media: data.media || [],
-      totalItems: data.totalItems || 0,
-      videoCount: data.videoCount || 0,
-      audioCount: data.audioCount || 0,
-      imageCount: data.imageCount || 0
+      metadata: data?.metadata || {},
+      media: data?.media || [],
+      totalItems: data?.totalItems || 0,
+      videoCount: data?.videoCount || 0,
+      audioCount: data?.audioCount || 0,
+      imageCount: data?.imageCount || 0
     };
 
   } catch (error) {
@@ -62,7 +62,7 @@ export async function getAllMedia(url, apiKey) {
 
       return {
         ok: false,
-        message: `Erro na API: ${error.response.data?.message || 'Erro desconhecido'}`
+        message: `Erro na API: ${error.response?.message || 'Erro desconhecido'}`
       };
     }
 
@@ -88,14 +88,12 @@ export async function getAllMedia(url, apiKey) {
  */
 export async function downloadMedia(mediaUrl, type = 'video') {
   try {
-    const response = await axios.get(mediaUrl, {
-      responseType: 'arraybuffer',
+    const response = await swiftly.get(mediaUrl, {
+      responseType: 'buffer',
       timeout: 180000, // 3 minutos
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity
     });
 
-    const buffer = Buffer.from(response.data);
+    const buffer = Buffer.from(response);
 
     return {
       ok: true,

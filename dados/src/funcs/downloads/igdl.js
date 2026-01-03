@@ -21,11 +21,11 @@ async function igdl(url, apiKey) {
       timeout: 120000
     });
 
-    if (!response.data.success || !response.data.data) {
+    if (!response.success || !response) {
       throw new Error('Resposta inválida da API');
     }
 
-    const apiData = response.data.data;
+    const apiData = response.data;
     
     // Processar os dados para baixar os buffers
     const results = [];
@@ -40,7 +40,7 @@ async function igdl(url, apiKey) {
           
           results.push({
             type: mediaItem.type || 'image', // 'video' ou 'image'
-            buff: mediaResponse.data,
+            buff: mediaResponse,
             url: mediaItem.url,
             mime: mediaItem.mime || 'application/octet-stream'
           });

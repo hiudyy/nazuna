@@ -68,11 +68,11 @@ async function pinterestSearch(query, apiKey) {
       timeout: 30000
     });
 
-    if (!response.data || !response.data.success || !response.data.data) {
+    if (!response || !response.success || !response) {
       throw new Error('Resposta inválida da API');
     }
 
-    const data = response.data.data;
+    const data = response.data;
     const result = {
       ok: true,
       criador: data.criador || 'Hiudy',
@@ -125,11 +125,11 @@ async function pinterestDL(url, apiKey) {
           timeout: 120000
         });
 
-        if (!response.data || !response.data.success || !response.data.data) {
+        if (!response || !response.success || !response) {
           throw new Error('Resposta inválida da API');
         }
 
-        const data = response.data.data;
+        const data = response.data;
         let urls = [];
         if (Array.isArray(data.urls)) {
           urls = data.urls.map(u => typeof u === 'string' ? u : u.url || '').filter(Boolean);

@@ -11,7 +11,7 @@ import { readFile } from 'fs/promises';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
-import axios from 'axios';
+import swiftly from 'swiftly';
 
 import PerformanceOptimizer from './utils/performanceOptimizer.js';
 import RentalExpirationManager from './utils/rentalExpirationManager.js';

@@ -16,7 +16,7 @@ async function getLyrics(topic) {
     }
 
     // Parse JSONP response
-    const jsonData = response.data.replace('LetrasSug(', '').replace(')\n', '');
+    const jsonData = response.replace('LetrasSug(', '').replace(')\n', '');
     const parsedData = JSON.parse(jsonData);
 
     if (!parsedData?.response?.docs?.length) {
@@ -37,7 +37,7 @@ async function getLyrics(topic) {
     }
 
     // Parse HTML with linkedom
-    const { document } = parseHTML(lyricResponse.data);
+    const { document } = parseHTML(lyricResponse);
 
     // Extract metadata
     const title = document.querySelector('h1')?.textContent || 'Título não disponível';

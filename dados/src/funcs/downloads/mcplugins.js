@@ -4,7 +4,7 @@
  * Versão: 2.0.0
  */
 
-import axios from 'axios';
+import swiftly from 'swiftly';
 import { parseHTML } from 'linkedom';
 
 // Configurações
@@ -141,7 +141,7 @@ class PluginParser {
 // Cliente Modrinth
 class ModrinthClient {
   constructor() {
-    this.axios = axios.create({
+    this.client = swiftly({
       baseURL: CONFIG.API.BASE_URL,
       timeout: CONFIG.API.TIMEOUT,
       headers: CONFIG.API.HEADERS
@@ -150,7 +150,7 @@ class ModrinthClient {
 
   async request(config, attempt = 1) {
     try {
-      return await this.axios.request(config);
+      return await this.client.request(config);
     } catch (error) {
       if (attempt < CONFIG.RETRY.MAX_ATTEMPTS) {
         await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY.DELAY * attempt));
@@ -166,7 +166,7 @@ class ModrinthClient {
       url: `/plugins?q=${encodeURIComponent(query)}`
     });
 
-    return parseHTML(response.data).document;
+    return parseHTML(response).document;
   }
 }
 

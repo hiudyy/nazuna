@@ -1,4 +1,4 @@
-import axios from 'axios';
+import swiftly from 'swiftly';
 
 const BASE_URL = 'https://cog.api.br/api/v1/spotify';
 
@@ -10,7 +10,7 @@ const BASE_URL = 'https://cog.api.br/api/v1/spotify';
  */
 async function download(url, apiKey) {
   try {
-    const response = await axios.get(`${BASE_URL}/download`, {
+    const response = await swiftly.get(`${BASE_URL}/download`, {
       params: { url },
       headers: {
         'x-api-key': apiKey
@@ -18,24 +18,24 @@ async function download(url, apiKey) {
       timeout: 120000
     });
 
-    if (!response.data || !response.data.success) {
+    if (!response || !response.success) {
       return {
         ok: false,
-        msg: response.data?.message || 'Erro ao processar download do Spotify'
+        msg: response?.message || 'Erro ao processar download do Spotify'
       };
     }
 
-    const { data } = response.data;
+    const { data } = response;
     
     // Baixar o arquivo de áudio
-    const audioResponse = await axios.get(data.downloadUrl, {
-      responseType: 'arraybuffer',
+    const audioBuffer = await swiftly.get(data.downloadUrl, {
+      responseType: 'buffer',
       timeout: 120000
     });
 
     return {
       ok: true,
-      buffer: Buffer.from(audioResponse.data),
+      buffer: Buffer.from(audioBuffer),
       title: data.title,
       artists: data.artists,
       albumImage: data.albumImage,
@@ -82,7 +82,7 @@ async function download(url, apiKey) {
  */
 async function searchDownload(query, apiKey) {
   try {
-    const response = await axios.get(`${BASE_URL}/search-download`, {
+    const response = await swiftly.get(`${BASE_URL}/search-download`, {
       params: { q: query },
       headers: {
         'x-api-key': apiKey
@@ -90,25 +90,25 @@ async function searchDownload(query, apiKey) {
       timeout: 120000
     });
 
-    if (!response.data || !response.data.success) {
+    if (!response || !response.success) {
       return {
         ok: false,
-        msg: response.data?.message || 'Erro ao buscar música no Spotify'
+        msg: response?.message || 'Erro ao buscar música no Spotify'
       };
     }
 
-    const { track, download: downloadData } = response.data;
+    const { track, download: downloadData } = response;
     
     // Baixar o arquivo de áudio
-    const audioResponse = await axios.get(downloadData.downloadUrl, {
-      responseType: 'arraybuffer',
+    const audioBuffer = await swiftly.get(downloadData.downloadUrl, {
+      responseType: 'buffer',
       timeout: 120000
     });
 
     return {
       ok: true,
-      buffer: Buffer.from(audioResponse.data),
-      query: response.data.query,
+      buffer: Buffer.from(audioBuffer),
+      query: response.query,
       track: {
         name: track.name,
         artists: track.artists,

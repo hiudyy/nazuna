@@ -1,6 +1,6 @@
 // --- UTILIDADES QR CODE ---
 // Gerar QR Code e Ler QR Code (sem jimp, usando API externa)
-import axios from 'axios';
+import swiftly from 'swiftly';
 
 const CONFIG = {
     GENERATE_SIZE: 300,
@@ -34,14 +34,14 @@ const generateQRCode = async (text, size = CONFIG.GENERATE_SIZE, prefix = '/') =
     try {
         const url = `${CONFIG.GENERATE_API}?size=${size}x${size}&data=${encodeURIComponent(text)}`;
         
-        const response = await axios.get(url, {
-            responseType: 'arraybuffer',
+        const data = await swiftly.get(url, {
+            responseType: 'buffer',
             timeout: 120000
         });
         
         return {
             success: true,
-            buffer: Buffer.from(response.data),
+            buffer: Buffer.from(data),
             message: `✅ *QR CODE GERADO*\n\n📝 Conteúdo: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}`
         };
     } catch (err) {
@@ -83,13 +83,13 @@ const readQRCode = async (imageInput) => {
                 contentType: 'image/png'
             });
             
-            response = await axios.post(CONFIG.READ_API, form, {
+            response = await swiftly.post(CONFIG.READ_API, form, {
                 headers: form.getHeaders(),
                 timeout: 120000
             });
         } else if (typeof imageInput === 'string') {
             // Enviar URL
-            response = await axios.get(`${CONFIG.READ_API}?fileurl=${encodeURIComponent(imageInput)}`, {
+            response = await swiftly.get(`${CONFIG.READ_API}?fileurl=${encodeURIComponent(imageInput)}`, {
                 timeout: 120000
             });
         } else {
@@ -99,8 +99,8 @@ const readQRCode = async (imageInput) => {
             };
         }
         
-        // Processar resposta
-        const result = response.data;
+        // Processar resposta (swiftly já retorna os dados diretamente)
+        const result = response;
         
         if (Array.isArray(result) && result[0]?.symbol?.[0]) {
             const symbol = result[0].symbol[0];

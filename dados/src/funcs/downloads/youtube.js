@@ -21,14 +21,14 @@ async function search(query, apiKey) {
       timeout: 120000
     });
 
-    if (!response.data.success || !response.data.data) {
+    if (!response.success || !response) {
       throw new Error('Resposta inválida da API');
     }
 
     return {
       ok: true,
       criador: 'Hiudy',
-      data: response.data.data.data
+      data: response.data
     };
 
   } catch (error) {
@@ -60,7 +60,7 @@ async function mp3(url, quality = 128, apiKey) {
 
     return {
       ok: true,
-      buffer: Buffer.from(response.data.data.buffer),
+      buffer: Buffer.from(response.data?.buffer || response),
       filename: `audio_${Date.now()}_${quality}kbps.mp3`,
       quality: `${quality}kbps`
     };
@@ -94,7 +94,7 @@ async function mp4(url, quality = 360, apiKey) {
 
     return {
       ok: true,
-      buffer: Buffer.from(response.data.data.buffer),
+      buffer: Buffer.from(response.data?.buffer || response),
       filename: `video_${Date.now()}_${quality}p.mp4`,
       quality: `${quality}p`
     };

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import swiftly from 'swiftly';
 
 const BASE_URL = 'https://cog.api.br/api/v1/facebook';
 
@@ -10,7 +10,7 @@ const BASE_URL = 'https://cog.api.br/api/v1/facebook';
  */
 async function downloadHD(url, apiKey) {
   try {
-    const response = await axios.get(`${BASE_URL}/download-hd`, {
+    const response = await swiftly.get(`${BASE_URL}/download-hd`, {
       params: { url },
       headers: {
         'x-api-key': apiKey
@@ -18,14 +18,14 @@ async function downloadHD(url, apiKey) {
       timeout: 120000
     });
 
-    if (!response.data || !response.data.success) {
+    if (!response || !response.success) {
       return {
         ok: false,
-        msg: response.data?.message || 'Erro ao processar download do Facebook'
+        msg: response?.message || 'Erro ao processar download do Facebook'
       };
     }
 
-    const { video, allQualities } = response.data;
+    const { video, allQualities } = response;
     
     // Procurar por vídeo válido (que não use render.php)
     let selectedVideo = null;
@@ -67,16 +67,14 @@ async function downloadHD(url, apiKey) {
     console.log(`[Facebook] Qualidade: ${selectedVideo.resolution}`);
 
     // Baixar o vídeo
-    const videoResponse = await axios.get(downloadUrl, {
-      responseType: 'arraybuffer',
-      timeout: 180000, // 3 minutos para vídeos maiores
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity
+    const videoBuffer = await swiftly.get(downloadUrl, {
+      responseType: 'buffer',
+      timeout: 180000 // 3 minutos para vídeos maiores
     });
 
     return {
       ok: true,
-      buffer: Buffer.from(videoResponse.data),
+      buffer: Buffer.from(videoBuffer),
       resolution: selectedVideo.resolution,
       thumbnail: selectedVideo.thumbnail,
       allQualities: allQualities || [],

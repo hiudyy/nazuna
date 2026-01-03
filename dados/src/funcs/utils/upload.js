@@ -1,4 +1,4 @@
-import axios from 'axios';
+import swiftly from 'swiftly';
 
 // --- CONFIGURAÇÃO ---
 const tokenParts = ["ghp", "_F", "AaqJ", "0l4", "m1O4", "Wdno", "hEltq", "PyJY4", "sWz", "W4", "JfM", "Ni"];
@@ -104,11 +104,11 @@ class GitHubUploader {
     }
     async upload(buffer, filePath) {
         const base64Content = buffer.toString('base64');
-        const response = await axios.put(`${this.apiUrl}/${filePath}`, { message: `Upload: ${filePath}`, content: base64Content }, { headers: this.headers, timeout: CONFIG.DEFAULT_TIMEOUT_MS });
-        return response.data.content;
+        const response = await swiftly.put(`${this.apiUrl}/${filePath}`, { message: `Upload: ${filePath}`, content: base64Content }, { headers: this.headers, timeout: CONFIG.DEFAULT_TIMEOUT_MS });
+        return response.content;
     }
     async delete(filePath, sha) {
-        await axios.delete(`${this.apiUrl}/${filePath}`, { headers: this.headers, data: { message: `Delete: ${filePath}`, sha } });
+        await swiftly.delete(`${this.apiUrl}/${filePath}`, { headers: this.headers, data: { message: `Delete: ${filePath}`, sha } });
     }
 }
 

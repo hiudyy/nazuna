@@ -1,4 +1,4 @@
-import axios from 'axios';
+import swiftly from 'swiftly';
 
 // --- CONFIGURAÇÃO ---
 const CONFIG = {
@@ -33,8 +33,8 @@ class TenorClient {
             throw new EmojiMixError('Chave da API Tenor não configurada. Verifique suas variáveis de ambiente.');
         }
 
-        // Cria uma instância do Axios com configurações padrão
-        this.api = axios.create({
+        // Cria uma instância do swiftly com configurações padrão
+        this.api = swiftly({
             baseURL: CONFIG.API.BASE_URL,
             params: {
                 key: apiKey,
@@ -59,11 +59,11 @@ class TenorClient {
                     params: { q: query },
                 });
 
-                if (!response.data?.results?.length) {
+                if (!response?.results?.length) {
                     throw new EmojiMixError('Combinação de emojis não disponível.');
                 }
                 
-                return response.data.results.map(result => result.url);
+                return response.results.map(result => result.url);
             } catch (error) {
                 // Tenta novamente apenas se for erro de 'Too Many Requests' e ainda houver tentativas
                 if (error.response?.status === 429 && attempt < CONFIG.RETRY.MAX_ATTEMPTS) {

@@ -6,7 +6,7 @@ import pino from 'pino';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import axios from 'axios';
+import swiftly from 'swiftly';
 import { buildUserId, getLidFromJidCached, getUserName } from './helpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,11 +22,11 @@ const BASE_DATABASE_DIR = path.join(__dirname, '../../database');
  */
 async function fetchBaileysVersionFromGitHub() {
     try {
-        const response = await axios.get('https://raw.githubusercontent.com/WhiskeySockets/Baileys/refs/heads/master/src/Defaults/baileys-version.json', {
+        const data = await swiftly.get('https://raw.githubusercontent.com/WhiskeySockets/Baileys/refs/heads/master/src/Defaults/baileys-version.json', {
             timeout: 120000
         });
         return {
-            version: response.data.version
+            version: data.version
         };
     } catch (error) {
         console.error('❌ Erro ao buscar versão do Baileys do GitHub, usando função fetchLatestBaileysVersion como fallback:', error.message);

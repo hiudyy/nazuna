@@ -3,7 +3,7 @@ import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import webp from 'node-webpmux';
-import axios from 'axios';
+import swiftly from 'swiftly';
 import ffmpeg from 'fluent-ffmpeg';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -24,7 +24,7 @@ function generateTempFileName(ext) {
 
 // Download para buffer
 async function getBuffer(url) {
-  const { data } = await axios.get(url, { responseType: "arraybuffer" });
+  const data = await swiftly.get(url, { responseType: "buffer" });
   if (!data || data.length === 0) throw new Error("Download vazio");
   return Buffer.from(data);
 }

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import swiftly from 'swiftly';
 
 const BASE_URL = 'https://cog.api.br/api/v1/twitch';
 
@@ -10,7 +10,7 @@ const BASE_URL = 'https://cog.api.br/api/v1/twitch';
  */
 async function download(url, apiKey) {
   try {
-    const response = await axios.get(`${BASE_URL}/download`, {
+    const response = await swiftly.get(`${BASE_URL}/download`, {
       params: { url },
       headers: {
         'x-api-key': apiKey
@@ -18,17 +18,17 @@ async function download(url, apiKey) {
       timeout: 120000
     });
 
-    if (!response.data || !response.data.success) {
+    if (!response || !response.success) {
       return {
         ok: false,
-        msg: response.data?.message || 'Erro ao processar download do Twitch'
+        msg: response?.message || 'Erro ao processar download do Twitch'
       };
     }
 
-    const { data } = response.data;
+    const data = response.data;
     
     // Construir URL de download
-    let downloadUrl = data.downloadUrl;
+    let downloadUrl = data?.downloadUrl;
     if (downloadUrl.startsWith('/')) {
       downloadUrl = `https://cog.api.br${downloadUrl}`;
     }
@@ -39,16 +39,14 @@ async function download(url, apiKey) {
     console.log(`[Twitch] Duração: ${data.duration}s`);
 
     // Baixar o vídeo
-    const videoResponse = await axios.get(downloadUrl, {
-      responseType: 'arraybuffer',
+    const videoBuffer = await swiftly.get(downloadUrl, {
+      responseType: 'buffer',
       timeout: 180000, // 3 minutos
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity
     });
 
     return {
       ok: true,
-      buffer: Buffer.from(videoResponse.data),
+      buffer: Buffer.from(videoBuffer),
       title: data.title,
       streamer: data.streamer,
       thumbnail: data.thumbnail,

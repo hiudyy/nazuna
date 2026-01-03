@@ -1,4 +1,4 @@
-import axios from 'axios';
+import swiftly from 'swiftly';
 
 /**
  * Baixa vídeo do Dailymotion
@@ -11,7 +11,7 @@ export async function download(url, apiKey) {
     const endpoint = 'https://cog.api.br/api/v1/dailymotion/download';
     
     // Fazer requisição para obter informações do vídeo
-    const response = await axios.get(endpoint, {
+    const response = await swiftly.get(endpoint, {
       params: { url },
       headers: {
         'x-api-key': apiKey
@@ -19,17 +19,17 @@ export async function download(url, apiKey) {
       timeout: 120000
     });
 
-    if (!response.data || !response.data.success) {
+    if (!response || !response.success) {
       return {
         ok: false,
-        message: response.data?.message || 'Erro ao buscar informações do vídeo do Dailymotion.'
+        message: response?.message || 'Erro ao buscar informações do vídeo do Dailymotion.'
       };
     }
 
-    const { data } = response.data;
+    const data = response.data;
 
     // Verificar se tem URL de download
-    if (!data.downloadUrl) {
+    if (!data?.downloadUrl) {
       return {
         ok: false,
         message: 'Não foi possível obter o link de download do Dailymotion.'
@@ -44,14 +44,12 @@ export async function download(url, apiKey) {
     }
 
     // Baixar o arquivo
-    const fileResponse = await axios.get(downloadUrl, {
-      responseType: 'arraybuffer',
+    const fileBuffer = await swiftly.get(downloadUrl, {
+      responseType: 'buffer',
       timeout: 180000, // 3 minutos para download
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity
     });
 
-    const buffer = Buffer.from(fileResponse.data);
+    const buffer = Buffer.from(fileBuffer);
 
     // Gerar nome do arquivo
     const sanitizedTitle = data.title
@@ -99,7 +97,7 @@ export async function download(url, apiKey) {
 
       return {
         ok: false,
-        message: `Erro na API: ${error.response.data?.message || 'Erro desconhecido'}`
+        message: `Erro na API: ${error.response?.message || 'Erro desconhecido'}`
       };
     }
 
