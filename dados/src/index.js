@@ -18583,15 +18583,16 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
                 ia.Shazam(buffi).then((Slakzin) => {
                   youtube.search(`${Slakzin.result.title} - ${Slakzin.result.artist}`, KeyCog)
                     .then((videoInfo) => {
-                      const views = typeof videoInfo.data.views === 'number' ? videoInfo.data.views.toLocaleString('pt-BR') : videoInfo.data.views;
-                      const description = videoInfo.data.description ? videoInfo.data.description.slice(0, 100) + (videoInfo.data.description.length > 100 ? '...' : '') : 'Sem descrição disponível';
-                      const caption = `🎵 *Música Encontrada* 🎵\n\n📌 *Título:* ${videoInfo.data.title}\n👤 *Artista/Canal:* ${videoInfo.data.author.name}\n⏱ *Duração:* ${videoInfo.data.timestamp} (${videoInfo.data.seconds} segundos)\n👀 *Visualizações:* ${views}\n📅 *Publicado:* ${videoInfo.data.ago}\n📜 *Descrição:* ${description}\n🔗 *Link:* ${videoInfo.data.url}\n\n🎧 *Baixando e processando sua música, aguarde...*`;
+                      const views = typeof videoInfo.data?.views === 'number' ? videoInfo.data.views.toLocaleString('pt-BR') : (videoInfo.data?.views || 'N/A');
+                      const description = videoInfo.data?.description ? videoInfo.data.description.slice(0, 100) + (videoInfo.data.description.length > 100 ? '...' : '') : 'Sem descrição disponível';
+                      const authorName = videoInfo.data?.author?.name || videoInfo.data?.channel || 'Desconhecido';
+                      const caption = `🎵 *Música Encontrada* 🎵\n\n📌 *Título:* ${videoInfo.data?.title || 'Sem título'}\n👤 *Artista/Canal:* ${authorName}\n⏱ *Duração:* ${videoInfo.data?.timestamp || 'N/A'} (${videoInfo.data?.seconds || 0} segundos)\n👀 *Visualizações:* ${views}\n📅 *Publicado:* ${videoInfo.data?.ago || 'N/A'}\n📜 *Descrição:* ${description}\n🔗 *Link:* ${videoInfo.data?.url}\n\n🎧 *Baixando e processando sua música, aguarde...*`;
                       nazu.sendMessage(from, {
-                        image: { url: videoInfo.data.thumbnail },
+                        image: { url: videoInfo.data?.thumbnail },
                         caption: caption,
                         footer: `${nomebot} • Versão ${botVersion}`
                       }, { quoted: info });
-                      return youtube.mp3(videoInfo.data.url, 128, KeyCog);
+                      return youtube.mp3(videoInfo.data?.url, 128, KeyCog);
                     })
                     .then((dlRes) => {
                       if (!dlRes.ok) {
@@ -18716,17 +18717,19 @@ case 'ytmp3':
           videoInfo = result;
           videoUrl = result.data.url;
 
-          if (videoInfo.data.seconds > 1800) return reply(`⚠️ Este vídeo é muito longo (${videoInfo.data.timestamp}).\nPor favor, escolha um vídeo com menos de 30 minutos.`);
+          if (videoInfo.data?.seconds > 1800) return reply(`⚠️ Este vídeo é muito longo (${videoInfo.data?.timestamp}).\nPor favor, escolha um vídeo com menos de 30 minutos.`);
 
-          const views = typeof videoInfo.data.views === 'number'
+          const views = typeof videoInfo.data?.views === 'number'
             ? videoInfo.data.views.toLocaleString('pt-BR')
-            : videoInfo.data.views;
+            : videoInfo.data?.views || 'N/A';
 
-          const description = videoInfo.data.description
+          const description = videoInfo.data?.description
             ? videoInfo.data.description.slice(0, 100) + (videoInfo.data.description.length > 100 ? '...' : '')
             : 'Sem descrição disponível';
 
-          const caption = `🎵 *Música Encontrada* 🎵\n\n📌 *Título:* ${videoInfo.data.title}\n👤 *Artista/Canal:* ${videoInfo.data.author.name}\n⏱ *Duração:* ${videoInfo.data.timestamp} (${videoInfo.data.seconds} segundos)\n👀 *Visualizações:* ${views}\n📅 *Publicado:* ${videoInfo.data.ago}\n📜 *Descrição:* ${description}\n🔗 *Link:* ${videoInfo.data.url}\n\n🎧 *Baixando e processando sua música, aguarde...*`;
+          const authorName = videoInfo.data?.author?.name || videoInfo.data?.channel || videoInfo.data?.uploader || 'Desconhecido';
+          
+          const caption = `🎵 *Música Encontrada* 🎵\n\n📌 *Título:* ${videoInfo.data?.title || 'Sem título'}\n👤 *Artista/Canal:* ${authorName}\n⏱ *Duração:* ${videoInfo.data?.timestamp || 'N/A'} (${videoInfo.data?.seconds || 0} segundos)\n👀 *Visualizações:* ${views}\n📅 *Publicado:* ${videoInfo.data?.ago || 'N/A'}\n📜 *Descrição:* ${description}\n🔗 *Link:* ${videoInfo.data?.url || videoUrl}\n\n🎧 *Baixando e processando sua música, aguarde...*`;
 
           nazu.sendMessage(from, {
             image: { url: videoInfo.data.thumbnail },
@@ -19207,12 +19210,15 @@ case 'playsoundcloud':
             youtube.search(q, KeyCog)
               .then((videoInfo) => {
                 if (!videoInfo.ok) return reply(videoInfo.msg);
-                videoUrl = videoInfo.data.url;
+                videoUrl = videoInfo.data?.url;
 
-                const caption = `\n🎬 *Vídeo Encontrado* 🎬\n\n📌 *Título:* ${videoInfo.data.title}\n👤 *Artista/Canal:* ${videoInfo.data.author.name}\n⏱ *Duração:* ${videoInfo.data.timestamp} (${videoInfo.data.seconds} segundos)\n👀 *Visualizações:* ${videoInfo.data.views.toLocaleString()}\n📅 *Publicado:* ${videoInfo.data.ago}\n📜 *Descrição:* ${videoInfo.data.description.slice(0, 100)}${videoInfo.data.description.length > 100 ? '...' : ''}\n🔗 *Link:* ${videoInfo.data.url}\n\n📹 *Enviando seu vídeo, aguarde!*`;
+                const authorName = videoInfo.data?.author?.name || videoInfo.data?.channel || 'Desconhecido';
+                const views = videoInfo.data?.views?.toLocaleString?.() || 'N/A';
+                const desc = videoInfo.data?.description || '';
+                const caption = `\n🎬 *Vídeo Encontrado* 🎬\n\n📌 *Título:* ${videoInfo.data?.title || 'Sem título'}\n👤 *Artista/Canal:* ${authorName}\n⏱ *Duração:* ${videoInfo.data?.timestamp || 'N/A'} (${videoInfo.data?.seconds || 0} segundos)\n👀 *Visualizações:* ${views}\n📅 *Publicado:* ${videoInfo.data?.ago || 'N/A'}\n📜 *Descrição:* ${desc.slice(0, 100)}${desc.length > 100 ? '...' : ''}\n🔗 *Link:* ${videoInfo.data?.url}\n\n📹 *Enviando seu vídeo, aguarde!*`;
 
                 nazu.sendMessage(from, {
-                  image: { url: videoInfo.data.thumbnail },
+                  image: { url: videoInfo.data?.thumbnail },
                   caption: caption,
                   footer: `By: ${nomebot}`
                 }, { quoted: info }).catch((sendErr) => console.error('Erro ao enviar mensagem de resultado (playvid):', sendErr));
