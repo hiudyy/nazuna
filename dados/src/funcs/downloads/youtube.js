@@ -58,9 +58,47 @@ async function mp3(url, quality = 128, apiKey) {
       timeout: 120000
     });
 
+    // Verificar se a resposta contém dados válidos
+    const bufferData = response.data?.buffer || response.buffer || response;
+    
+    if (!bufferData) {
+      console.error('Erro no download MP3: Resposta sem dados de buffer');
+      return { 
+        ok: false, 
+        msg: 'Erro ao baixar áudio: Resposta inválida da API (sem dados)' 
+      };
+    }
+
+    // Converter para Buffer se necessário
+    let finalBuffer;
+    if (Buffer.isBuffer(bufferData)) {
+      finalBuffer = bufferData;
+    } else if (typeof bufferData === 'string') {
+      // Se for base64
+      finalBuffer = Buffer.from(bufferData, 'base64');
+    } else if (bufferData.type === 'Buffer' && Array.isArray(bufferData.data)) {
+      // Se for objeto Buffer serializado
+      finalBuffer = Buffer.from(bufferData.data);
+    } else if (ArrayBuffer.isView(bufferData) || bufferData instanceof ArrayBuffer) {
+      finalBuffer = Buffer.from(bufferData);
+    } else {
+      console.error('Erro no download MP3: Tipo de buffer desconhecido:', typeof bufferData);
+      return { 
+        ok: false, 
+        msg: 'Erro ao baixar áudio: Formato de resposta não suportado' 
+      };
+    }
+
+    if (!finalBuffer || finalBuffer.length === 0) {
+      return { 
+        ok: false, 
+        msg: 'Erro ao baixar áudio: Buffer vazio recebido' 
+      };
+    }
+
     return {
       ok: true,
-      buffer: Buffer.from(response.data?.buffer || response),
+      buffer: finalBuffer,
       filename: `audio_${Date.now()}_${quality}kbps.mp3`,
       quality: `${quality}kbps`
     };
@@ -92,9 +130,47 @@ async function mp4(url, quality = 360, apiKey) {
       timeout: 120000
     });
 
+    // Verificar se a resposta contém dados válidos
+    const bufferData = response.data?.buffer || response.buffer || response;
+    
+    if (!bufferData) {
+      console.error('Erro no download MP4: Resposta sem dados de buffer');
+      return { 
+        ok: false, 
+        msg: 'Erro ao baixar vídeo: Resposta inválida da API (sem dados)' 
+      };
+    }
+
+    // Converter para Buffer se necessário
+    let finalBuffer;
+    if (Buffer.isBuffer(bufferData)) {
+      finalBuffer = bufferData;
+    } else if (typeof bufferData === 'string') {
+      // Se for base64
+      finalBuffer = Buffer.from(bufferData, 'base64');
+    } else if (bufferData.type === 'Buffer' && Array.isArray(bufferData.data)) {
+      // Se for objeto Buffer serializado
+      finalBuffer = Buffer.from(bufferData.data);
+    } else if (ArrayBuffer.isView(bufferData) || bufferData instanceof ArrayBuffer) {
+      finalBuffer = Buffer.from(bufferData);
+    } else {
+      console.error('Erro no download MP4: Tipo de buffer desconhecido:', typeof bufferData);
+      return { 
+        ok: false, 
+        msg: 'Erro ao baixar vídeo: Formato de resposta não suportado' 
+      };
+    }
+
+    if (!finalBuffer || finalBuffer.length === 0) {
+      return { 
+        ok: false, 
+        msg: 'Erro ao baixar vídeo: Buffer vazio recebido' 
+      };
+    }
+
     return {
       ok: true,
-      buffer: Buffer.from(response.data?.buffer || response),
+      buffer: finalBuffer,
       filename: `video_${Date.now()}_${quality}p.mp4`,
       quality: `${quality}p`
     };

@@ -33,8 +33,8 @@ const apiClient = swiftly({
   },
   circuitBreaker: {
     enabled: true,
-    failureThreshold: 5,
-    resetTimeout: 30000
+    failureThreshold: 15,
+    resetTimeout: 15000
   }
 });
 
@@ -67,8 +67,8 @@ const mediaClient = swiftly({
   },
   circuitBreaker: {
     enabled: true,
-    failureThreshold: 3,
-    resetTimeout: 60000
+    failureThreshold: 10,
+    resetTimeout: 30000
   }
 });
 
@@ -102,8 +102,8 @@ const scrapingClient = swiftly({
   },
   circuitBreaker: {
     enabled: true,
-    failureThreshold: 5,
-    resetTimeout: 60000
+    failureThreshold: 15,
+    resetTimeout: 30000
   }
 });
 

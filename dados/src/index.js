@@ -18919,11 +18919,17 @@ case 'ytmp3':
           
           const caption = `🎵 *Música Encontrada* 🎵\n\n📌 *Título:* ${videoInfo.data?.title || 'Sem título'}\n👤 *Artista/Canal:* ${authorName}\n⏱ *Duração:* ${videoInfo.data?.timestamp || 'N/A'} (${videoInfo.data?.seconds || 0} segundos)\n👀 *Visualizações:* ${views}\n📅 *Publicado:* ${videoInfo.data?.ago || 'N/A'}\n📜 *Descrição:* ${description}\n🔗 *Link:* ${videoInfo.data?.url || videoUrl}\n\n🎧 *Baixando e processando sua música, aguarde...*`;
 
-          nazu.sendMessage(from, {
-            image: { url: videoInfo.data.thumbnail },
-            caption,
-            footer: `${nomebot} • Versão ${botVersion}`
-          }, { quoted: info }).catch((sendErr) => console.error('Erro ao enviar mensagem de resultado (busca):', sendErr));
+          // Enviar mensagem com thumbnail se disponível, senão apenas texto
+          const thumbnailUrl = videoInfo.data?.thumbnail;
+          if (thumbnailUrl) {
+            nazu.sendMessage(from, {
+              image: { url: thumbnailUrl },
+              caption,
+              footer: `${nomebot} • Versão ${botVersion}`
+            }, { quoted: info }).catch((sendErr) => console.error('Erro ao enviar mensagem de resultado (busca):', sendErr));
+          } else {
+            nazu.sendMessage(from, { text: caption }, { quoted: info }).catch((sendErr) => console.error('Erro ao enviar mensagem de resultado (busca):', sendErr));
+          }
 
           youtube.mp3(videoUrl, 128, KeyCog)
             .then(async (dlRes) => {
