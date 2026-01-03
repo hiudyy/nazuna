@@ -19,14 +19,14 @@ export async function getAllMedia(url, apiKey) {
       timeout: 120000 // 2 minutos
     });
 
-    if (!response || !response.success) {
+    if (!response?.data || !response.data.success) {
       return {
         ok: false,
-        message: response?.message || 'Erro ao buscar informações da mídia.'
+        message: response?.data?.message || 'Erro ao buscar informações da mídia.'
       };
     }
 
-    const data = response.data;
+    const data = response.data.data;
 
     return {
       ok: true,
@@ -93,7 +93,7 @@ export async function downloadMedia(mediaUrl, type = 'video') {
       timeout: 180000, // 3 minutos
     });
 
-    const buffer = Buffer.from(response);
+    const buffer = Buffer.from(response.data);
 
     return {
       ok: true,

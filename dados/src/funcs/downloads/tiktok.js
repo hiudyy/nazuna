@@ -21,18 +21,18 @@ async function tiktokSearch(query, apiKey) {
       timeout: 120000
     });
 
-    if (!response.success || !response) {
+    if (!response?.data?.success) {
       throw new Error('Resposta inválida da API');
     }
 
     return {
       ok: true,
       criador: 'Hiudy',
-      title: response.data?.title,
-      urls: response.data?.urls,
-      type: response.data?.type,
-      mime: response.data?.mime,
-      audio: response.data?.audio
+      title: response.data.data?.title,
+      urls: response.data.data?.urls,
+      type: response.data.data?.type,
+      mime: response.data.data?.mime,
+      audio: response.data.data?.audio
     };
 
   } catch (error) {
@@ -63,18 +63,18 @@ async function tiktokDownload(url, apiKey) {
       timeout: 120000
     });
 
-    if (!response.success || !response) {
+    if (!response?.data?.success) {
       throw new Error('Resposta inválida da API');
     }
 
     return {
       ok: true,
       criador: 'Hiudy',
-      title: response.data?.title,
-      urls: response.data?.urls,
-      type: response.data?.type,
-      mime: response.data?.mime,
-      audio: response.data?.audio
+      title: response.data.data?.title,
+      urls: response.data.data?.urls,
+      type: response.data.data?.type,
+      mime: response.data.data?.mime,
+      audio: response.data.data?.audio
     };
 
   } catch (error) {

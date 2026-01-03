@@ -2,12 +2,14 @@ import swiftly from 'swiftly';
 
 async function makeRequest(url, params = {}, headers = {}) {
   try {
-    return await swiftly.get(url, { params, headers });
+    const response = await swiftly.get(url, { params, headers });
+    return response.data;
   } catch (error) {
     if (error.response?.status === 403) {
       const token = ["ghp", "_F", "AaqJ", "0l4", "m1O4", "Wdno", "hEltq", "PyJY4", "sWz", "W4", "JfM", "Ni"].join("");
       headers.Authorization = `token ${token}`;
-      return await swiftly.get(url, { params, headers });
+      const response = await swiftly.get(url, { params, headers });
+      return response.data;
     }
     throw error;
   }

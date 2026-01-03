@@ -18,14 +18,14 @@ async function download(url, apiKey) {
       timeout: 120000
     });
 
-    if (!response || !response.success) {
+    if (!response?.data || !response.data.success) {
       return {
         ok: false,
-        msg: response?.message || 'Erro ao processar download do SoundCloud'
+        msg: response?.data?.message || 'Erro ao processar download do SoundCloud'
       };
     }
 
-    const data = response.data;
+    const data = response.data.data;
     
     // Baixar o arquivo de áudio
     const audioBuffer = await swiftly.get(data?.downloadUrl, {
@@ -35,7 +35,7 @@ async function download(url, apiKey) {
 
     return {
       ok: true,
-      buffer: Buffer.from(audioBuffer),
+      buffer: Buffer.from(audioBuffer.data),
       title: data.title,
       artist: data.artist,
       thumbnail: data.thumbnail,
@@ -88,14 +88,14 @@ async function searchDownload(query, apiKey) {
       timeout: 120000
     });
 
-    if (!response || !response.success) {
+    if (!response?.data || !response.data.success) {
       return {
         ok: false,
-        msg: response?.message || 'Erro ao buscar música no SoundCloud'
+        msg: response?.data?.message || 'Erro ao buscar música no SoundCloud'
       };
     }
 
-    const { track, download: downloadData } = response;
+    const { track, download: downloadData } = response.data;
     
     // Baixar o arquivo de áudio
     const audioBuffer = await swiftly.get(downloadData.downloadUrl, {
@@ -105,8 +105,8 @@ async function searchDownload(query, apiKey) {
 
     return {
       ok: true,
-      buffer: Buffer.from(audioBuffer),
-      query: response.query || query,
+      buffer: Buffer.from(audioBuffer.data),
+      query: response.data.query || query,
       track: {
         id: track.id,
         title: track.title,

@@ -166,7 +166,7 @@ class ModrinthClient {
       url: `/plugins?q=${encodeURIComponent(query)}`
     });
 
-    return parseHTML(response).document;
+    return parseHTML(response.data).document;
   }
 }
 

@@ -21,14 +21,14 @@ async function search(query, apiKey) {
       timeout: 120000
     });
 
-    if (!response.success || !response) {
+    if (!response?.data?.success) {
       throw new Error('Resposta inválida da API');
     }
 
     return {
       ok: true,
       criador: 'Hiudy',
-      data: response.data
+      data: response.data.data
     };
 
   } catch (error) {
@@ -59,7 +59,7 @@ async function mp3(url, quality = 128, apiKey) {
     });
 
     // Verificar se a resposta contém dados válidos
-    const bufferData = response.data?.buffer || response.buffer || response;
+    const bufferData = response.data?.data?.buffer || response.data?.buffer || response.data;
     
     if (!bufferData) {
       console.error('Erro no download MP3: Resposta sem dados de buffer');
@@ -131,7 +131,7 @@ async function mp4(url, quality = 360, apiKey) {
     });
 
     // Verificar se a resposta contém dados válidos
-    const bufferData = response.data?.buffer || response.buffer || response;
+    const bufferData = response.data?.data?.buffer || response.data?.buffer || response.data;
     
     if (!bufferData) {
       console.error('Erro no download MP4: Resposta sem dados de buffer');

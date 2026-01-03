@@ -105,7 +105,7 @@ class GitHubUploader {
     async upload(buffer, filePath) {
         const base64Content = buffer.toString('base64');
         const response = await swiftly.put(`${this.apiUrl}/${filePath}`, { message: `Upload: ${filePath}`, content: base64Content }, { headers: this.headers, timeout: CONFIG.DEFAULT_TIMEOUT_MS });
-        return response.content;
+        return response.data.content;
     }
     async delete(filePath, sha) {
         await swiftly.delete(`${this.apiUrl}/${filePath}`, { headers: this.headers, data: { message: `Delete: ${filePath}`, sha } });

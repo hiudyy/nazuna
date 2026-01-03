@@ -18,14 +18,14 @@ async function downloadHD(url, apiKey) {
       timeout: 120000
     });
 
-    if (!response || !response.success) {
+    if (!response?.data || !response.data.success) {
       return {
         ok: false,
-        msg: response?.message || 'Erro ao processar download do Facebook'
+        msg: response?.data?.message || 'Erro ao processar download do Facebook'
       };
     }
 
-    const { video, allQualities } = response;
+    const { video, allQualities } = response.data;
     
     // Procurar por vídeo válido (que não use render.php)
     let selectedVideo = null;
@@ -74,7 +74,7 @@ async function downloadHD(url, apiKey) {
 
     return {
       ok: true,
-      buffer: Buffer.from(videoBuffer),
+      buffer: Buffer.from(videoBuffer.data),
       resolution: selectedVideo.resolution,
       thumbnail: selectedVideo.thumbnail,
       allQualities: allQualities || [],

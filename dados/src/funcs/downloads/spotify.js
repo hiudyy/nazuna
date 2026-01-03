@@ -18,14 +18,14 @@ async function download(url, apiKey) {
       timeout: 120000
     });
 
-    if (!response || !response.success) {
+    if (!response?.data || !response.data.success) {
       return {
         ok: false,
-        msg: response?.message || 'Erro ao processar download do Spotify'
+        msg: response?.data?.message || 'Erro ao processar download do Spotify'
       };
     }
 
-    const { data } = response;
+    const { data } = response.data;
     
     // Baixar o arquivo de áudio
     const audioBuffer = await swiftly.get(data.downloadUrl, {
@@ -35,7 +35,7 @@ async function download(url, apiKey) {
 
     return {
       ok: true,
-      buffer: Buffer.from(audioBuffer),
+      buffer: Buffer.from(audioBuffer.data),
       title: data.title,
       artists: data.artists,
       albumImage: data.albumImage,
@@ -90,14 +90,14 @@ async function searchDownload(query, apiKey) {
       timeout: 120000
     });
 
-    if (!response || !response.success) {
+    if (!response?.data || !response.data.success) {
       return {
         ok: false,
-        msg: response?.message || 'Erro ao buscar música no Spotify'
+        msg: response?.data?.message || 'Erro ao buscar música no Spotify'
       };
     }
 
-    const { track, download: downloadData } = response;
+    const { track, download: downloadData } = response.data;
     
     // Baixar o arquivo de áudio
     const audioBuffer = await swiftly.get(downloadData.downloadUrl, {
@@ -107,8 +107,8 @@ async function searchDownload(query, apiKey) {
 
     return {
       ok: true,
-      buffer: Buffer.from(audioBuffer),
-      query: response.query,
+      buffer: Buffer.from(audioBuffer.data),
+      query: response.data.query,
       track: {
         name: track.name,
         artists: track.artists,

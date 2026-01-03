@@ -22,11 +22,11 @@ const BASE_DATABASE_DIR = path.join(__dirname, '../../database');
  */
 async function fetchBaileysVersionFromGitHub() {
     try {
-        const data = await swiftly.get('https://raw.githubusercontent.com/WhiskeySockets/Baileys/refs/heads/master/src/Defaults/baileys-version.json', {
+        const response = await swiftly.get('https://raw.githubusercontent.com/WhiskeySockets/Baileys/refs/heads/master/src/Defaults/baileys-version.json', {
             timeout: 120000
         });
         return {
-            version: data.version
+            version: response.data.version
         };
     } catch (error) {
         console.error('❌ Erro ao buscar versão do Baileys do GitHub, usando função fetchLatestBaileysVersion como fallback:', error.message);
