@@ -55,11 +55,10 @@ class TenorClient {
         // Lógica de retentativa usando um loop, que é mais escalável que recursão
         for (let attempt = 1; attempt <= CONFIG.RETRY.MAX_ATTEMPTS; attempt++) {
             try {
-                const apiResponse = await this.api.get('/featured', {
+                const response = await this.api.get('/featured', {
                     params: { q: query },
                 });
 
-                const response = apiResponse.data;
                 if (!response?.results?.length) {
                     throw new EmojiMixError('Combinação de emojis não disponível.');
                 }

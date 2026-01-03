@@ -18,14 +18,15 @@ async function download(url, apiKey) {
       timeout: 120000
     });
 
-    if (!response?.data || !response.data.success) {
+    if (!response || !response.success) {
       return {
         ok: false,
-        msg: response?.data?.message || 'Erro ao processar download do Twitch'
+        msg: response?.message || 'Erro ao processar download do Twitch'
       };
     }
 
-    const data = response.data.data;
+    // Acessar dados corretamente - pode estar em response.data.data ou response.data
+    const data = response.data?.data || response.data;
     
     // Construir URL de download
     let downloadUrl = data?.downloadUrl;
@@ -46,7 +47,7 @@ async function download(url, apiKey) {
 
     return {
       ok: true,
-      buffer: Buffer.from(videoBuffer.data),
+      buffer: Buffer.from(videoBuffer),
       title: data.title,
       streamer: data.streamer,
       thumbnail: data.thumbnail,

@@ -24,8 +24,7 @@ function generateTempFileName(ext) {
 
 // Download para buffer
 async function getBuffer(url) {
-  const response = await swiftly.get(url, { responseType: "buffer" });
-  const data = response.data;
+  const data = await swiftly.get(url, { responseType: "buffer" });
   if (!data || data.length === 0) throw new Error("Download vazio");
   return Buffer.from(data);
 }

@@ -1039,7 +1039,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
             if (result.urls && result.urls.length > 0) {
               const videoUrl = result.urls[0];
               const videoBuffer = await swiftly.get(videoUrl, { responseType: 'buffer', timeout: 120000 });
-              buffer = Buffer.from(videoBuffer.data);
+              buffer = Buffer.from(videoBuffer);
               mediaType = 'video';
             } else {
               return false;
@@ -1083,9 +1083,9 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
               timeout: 120000
             });
             
-            if (!twtResponse?.data?.success || !twtResponse.data.data) return false;
+            if (!twtResponse.success || !twtResponse.data) return false;
             
-            const tweetData = twtResponse.data.data;
+            const tweetData = twtResponse.data;
             caption = `${platformEmoji} *${platformName} Download*\n\n👤 *${tweetData.author?.name || 'Usuário'}* (@${tweetData.author?.username || 'unknown'})\n💬 ${tweetData.text || ''}\n\n✨ _Baixado automaticamente pela Nazuna~_`;
             
             if (!tweetData.hasMedia || !tweetData.media || tweetData.media.length === 0) return false;
@@ -3375,8 +3375,8 @@ Código: *${roleCode}*`,
                 Porn: 0,
                 Hentai: 0
               };
-              if (Array.isArray(apiData?.data)) {
-                scores = apiData.data.reduce((acc, item) => {
+              if (Array.isArray(apiData)) {
+                scores = apiData.reduce((acc, item) => {
                   if (item && typeof item.className === 'string' && typeof item.probability === 'number') {
                     if (item.className === 'Porn' || item.className === 'Hentai') {
                       acc[item.className] = Math.max(acc[item.className] || 0, item.probability);
@@ -12568,8 +12568,7 @@ ${conversaTexto.substring(0, 8000)}
 Faça um resumo conciso mas completo, destacando o que é mais relevante.`;
 
           return ia.makeCognimaRequest('abacusai/dracarys-llama-3.1-70b-instruct', prompt, null, KeyCog);
-        }).then(response => {
-          const responseData = response.data || response;
+        }).then(responseData => {
           return reply(`💬 *Resumo da Conversa* (últimas mensagens)\n\n${formatAIResponse(responseData.choices[0].message.content)}`);
         }).catch(e => {
           console.error('Erro ao resumir conversa:', e);
@@ -14366,15 +14365,15 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
           const response = await swiftly.get(`https://api.fishfish.gg/v1/domains/${encodeURIComponent(domain)}`, {
             timeout: 120000
           }).catch(err => {
-            if (err.response?.status === 404) return { data: { _status: 404 } };
+            if (err.response?.status === 404) return { _status: 404 };
             throw err;
           });
 
-          if (response?.data?._status === 404 || !response?.data) {
+          if (response._status === 404 || !response) {
             // Domínio não encontrado na base de dados maliciosos = provavelmente seguro
             await reply(`✅ *Link Verificado*\n\n🔗 *Domínio:* ${domain}\n\n🟢 *Status:* Não encontrado em listas de ameaças\n\n⚠️ *Nota:* Isso não garante 100% de segurança, apenas que o link não está em bases de dados conhecidas de malware/phishing.`);
-          } else if (response?.data) {
-            const data = response.data;
+          } else if (response) {
+            const data = response;
             const categoria = data.category || 'unknown';
             
             let emoji = '🔴';
@@ -14420,12 +14419,11 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
         try {
           // Usar wttr.in que é gratuito e não precisa de API key
           const cidade = encodeURIComponent(q);
-          const response = await swiftly.get(`https://wttr.in/${cidade}?format=j1&lang=pt`, {
+          const data = await swiftly.get(`https://wttr.in/${cidade}?format=j1&lang=pt`, {
             timeout: 120000,
             headers: { 'User-Agent': 'curl/7.68.0' }
           });
 
-          const data = response.data;
           const current = data.current_condition[0];
           const location = data.nearest_area[0];
           
@@ -14771,13 +14769,13 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           let found = false;
           try {
             const respPT = await swiftly.get(`https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(q)}`);
-            if (respPT?.data && respPT.data.extract) {
+            if (respPT && respPT.extract) {
               const {
                 title,
                 extract,
                 content_urls,
                 thumbnail
-              } = respPT.data;
+              } = respPT;
               const link = content_urls?.desktop?.page || '';
               const thumbUrl = thumbnail?.source || '';
               let mensagem = `📖✨ *Encontrei isso na Wikipédia (PT):*\n\n*${title || q}*\n\n${extract}\n\n`;
@@ -14806,13 +14804,13 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           if (!found) {
             try {
               const respEN = await swiftly.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(q)}`);
-              if (respEN?.data && respEN.data.extract) {
+              if (respEN && respEN.extract) {
                 const {
                   title,
                   extract,
                   content_urls,
                   thumbnail
-                } = respEN.data;
+                } = respEN;
                 const link = content_urls?.desktop?.page || '';
                 const thumbUrl = thumbnail?.source || '';
                 let mensagem = `📖✨ *Encontrei isso na Wikipédia (EN):*\n\n*${title || q}*\n\n${extract}\n\n`;
@@ -14857,8 +14855,8 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         reply("📔 Procurando no dicionário... Aguarde um pouquinho! ⏳").then(() => {
           const palavra = q.trim().toLowerCase();
           swiftly.get(`https://significado.herokuapp.com/${encodeURIComponent(palavra)}`).then((resp) => {
-            if (resp?.data && resp.data.length > 0 && resp.data[0].meanings) {
-              const significados = resp.data[0];
+            if (resp && resp.length > 0 && resp[0].meanings) {
+              const significados = resp[0];
               let mensagem = `📘✨ *Significado de "${palavra.toUpperCase()}":*\n\n`;
               if (significados.class) {
                 mensagem += `*Classe:* ${significados.class}\n\n`;
@@ -14897,7 +14895,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
             headers: {
               Accept: 'application/vnd.github+json'
             }
-          }).then(r => r.headers?.link?.match(/page=(\d+)>;\s*rel="last"/)?.[1]);
+          }).then(r => r.headers.link?.match(/page=(\d+)>;\s*rel="last"/)?.[1]);
           const {
             total
           } = JSON.parse(fs.readFileSync(pathz.join(__dirname, '..', 'database', 'updateSave.json'), 'utf-8'));
@@ -17717,8 +17715,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
               'Authorization': `Bearer ${KeyCog}`
             },
             timeout: 120000
-          }).then(response => {
-            const responseData = response.data;
+          }).then(responseData => {
             // Verificar se a resposta indica erro de limite
             if (responseData && responseData.success === false && responseData.error === "Acesso negado") {
               const errorData = responseData;
@@ -17844,8 +17841,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
               'Authorization': `Bearer ${KeyCog}`
             },
             timeout: 120000
-          }).then(response => {
-            const responseData = response.data;
+          }).then(responseData => {
             // Verificar se a resposta indica erro de limite
             if (responseData && responseData.success === false && responseData.error === "Acesso negado") {
               const errorData = responseData;
@@ -17969,8 +17965,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
               'Authorization': `Bearer ${KeyCog}`
             },
             timeout: 120000
-          }).then(response => {
-            const responseData = response.data;
+          }).then(responseData => {
             // Verificar se a resposta indica erro de limite
             if (responseData && responseData.success === false && responseData.error === "Acesso negado") {
               const errorData = responseData;
@@ -18031,8 +18026,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
             'Authorization': `Bearer ${KeyCog}`
           },
           timeout: 120000
-        }).then(response => {
-          const responseData = response.data;
+        }).then(responseData => {
           if (responseData && responseData.success === false && responseData.error === "Acesso negado") {
             const errorData = responseData;
             if (errorData.required_limit && errorData.required_limit > 500) {
@@ -18106,8 +18100,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
             'Authorization': `Bearer ${KeyCog}`
           },
           timeout: 120000
-        }).then(response => {
-          const responseData = response.data;
+        }).then(responseData => {
           if (responseData && responseData.success === false && responseData.error === "Acesso negado") {
             const errorData = responseData;
             if (errorData.required_limit && errorData.required_limit > 500) {
@@ -18183,8 +18176,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
             'Authorization': `Bearer ${KeyCog}`
           },
           timeout: 120000
-        }).then(response => {
-          const responseData = response.data;
+        }).then(responseData => {
           if (responseData && responseData.success === false && responseData.error === "Acesso negado") {
             const errorData = responseData;
             if (errorData.required_limit && errorData.required_limit > 500) {
@@ -18258,8 +18250,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
             'Authorization': `Bearer ${KeyCog}`
           },
           timeout: 120000
-        }).then(response => {
-          const responseData = response.data;
+        }).then(responseData => {
           if (responseData && responseData.success === false && responseData.error === "Acesso negado") {
             const errorData = responseData;
             if (errorData.required_limit && errorData.required_limit > 500) {
@@ -18334,8 +18325,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
             'Authorization': `Bearer ${KeyCog}`
           },
           timeout: 120000
-        }).then(response => {
-          const responseData = response.data;
+        }).then(responseData => {
           if (responseData && responseData.success === false && responseData.error === "Acesso negado") {
             const errorData = responseData;
             if (errorData.required_limit && errorData.required_limit > 500) {
@@ -18409,8 +18399,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
             'Authorization': `Bearer ${KeyCog}`
           },
           timeout: 120000
-        }).then(response => {
-          const responseData = response.data;
+        }).then(responseData => {
           if (responseData && responseData.success === false && responseData.error === "Acesso negado") {
             const errorData = responseData;
             if (errorData.required_limit && errorData.required_limit > 500) {
@@ -18542,7 +18531,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
             // Domínio não encontrado na base de dados = provavelmente seguro
             await reply(`✅ *Resultado da Verificação*\n\n🔗 *Link:* ${urlToCheck}\n🌐 *Domínio:* ${domain}\n\n📊 *Status:* Não encontrado na base de ameaças\n\n💚 *Análise:* Este domínio não está listado como malicioso na base de dados FishFish. Isso geralmente indica que é seguro, mas sempre tenha cuidado ao acessar links desconhecidos!\n\n⚠️ *Dica:* Mesmo links "seguros" podem ter conteúdo prejudicial. Navegue com cautela!`);
           } else if (fishResponse.status === 200) {
-            const data = fishResponse.data;
+            const data = fishResponse;
             const category = data.category || 'unknown';
             const createdAt = data.created ? new Date(data.created).toLocaleDateString('pt-BR') : 'N/A';
             
@@ -20725,7 +20714,7 @@ case 'streamabledl':
             }
           });
           
-          const fileBuffer = Buffer.from(fileResponse.data);
+          const fileBuffer = Buffer.from(fileResponse);
           
           // Determinar o tipo de mídia e enviar
           if (mimetype.startsWith('image/')) {
@@ -20840,7 +20829,7 @@ case 'streamabledl':
             }
           });
           
-          const fileBuffer = Buffer.from(fileResponse.data);
+          const fileBuffer = Buffer.from(fileResponse);
           const mimeType = mimetype || 'application/octet-stream';
           
           // Determinar o tipo de mídia e enviar
@@ -21219,7 +21208,7 @@ case 'streamabledl':
               responseType: 'buffer'
             }).then((response) => {
               nazu.sendMessage(from, {
-                document: Buffer.from(response.data),
+                document: Buffer.from(responseData),
                 fileName: 'nazuna-bot.zip',
                 mimetype: 'application/zip',
                 caption: `📦 *Código-fonte do ${nomebot}*\n\n📖 Leia a documentação no repositório para entender melhor como instalar:\n🔗 https://github.com/hiudyy/nazuna\n\n⚠️ *Importante:* Certifique-se de ter Node.js instalado e siga os passos do README.md!`
@@ -25905,7 +25894,7 @@ ${prefix}togglecmdvip premium_ia off`);
                 timeout: 120000
               });
               
-              const stickerBuffer = Buffer.from(stickerResponse.data);
+              const stickerBuffer = Buffer.from(stickerResponse);
               
               // Enviar figurinha
               await nazu.sendMessage(destino, {
@@ -32053,8 +32042,7 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
     reply('🔍 Buscando lista de brawlers...');
 
     // Usar API Brawlify (gratuita e com mais dados)
-    swiftly.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 }).then(response => {
-    const responseData = response.data;
+    swiftly.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 }).then(responseData => {
 
     if (!responseData || !responseData.list) {
       return reply('❌ Erro ao buscar lista de brawlers.');
@@ -32448,8 +32436,7 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   reply('🔍 Buscando eventos atuais...');
 
   // Usar API Brawlify com dados completos dos eventos
-  swiftly.get('https://api.brawlify.com/v1/events', { timeout: 30000 }).then(response => {
-    const responseData = response.data;
+  swiftly.get('https://api.brawlify.com/v1/events', { timeout: 30000 }).then(responseData => {
     if (!responseData) {
       return reply('❌ Erro ao buscar eventos.');
     }
@@ -32613,8 +32600,7 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   
   reply('🔍 Buscando informações do mapa...');
   
-  swiftly.get('https://api.brawlify.com/v1/maps', { timeout: 30000 }).then(response => {
-    const responseData = response.data;
+  swiftly.get('https://api.brawlify.com/v1/maps', { timeout: 30000 }).then(responseData => {
     if (!responseData || !responseData.list) {
       return reply('❌ Erro ao buscar mapas.');
     }
@@ -32745,8 +32731,7 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bsmaps':
   reply('🔍 Buscando lista de mapas...');
   
-  swiftly.get('https://api.brawlify.com/v1/maps', { timeout: 30000 }).then(response => {
-    const responseData = response.data;
+  swiftly.get('https://api.brawlify.com/v1/maps', { timeout: 30000 }).then(responseData => {
     if (!responseData || !responseData.list) {
       return reply('❌ Erro ao buscar mapas.');
     }
@@ -32803,8 +32788,7 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bsgamemodes':
   reply('🔍 Buscando modos de jogo...');
   
-  swiftly.get('https://api.brawlify.com/v1/gamemodes', { timeout: 30000 }).then(response => {
-    const responseData = response.data;
+  swiftly.get('https://api.brawlify.com/v1/gamemodes', { timeout: 30000 }).then(responseData => {
     if (!responseData || !responseData.list) {
       return reply('❌ Erro ao buscar modos de jogo.');
     }
@@ -32833,8 +32817,7 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bsicones':
   reply('🔍 Buscando ícones disponíveis...');
   
-  swiftly.get('https://api.brawlify.com/v1/icons', { timeout: 30000 }).then(response => {
-    const responseData = response.data;
+  swiftly.get('https://api.brawlify.com/v1/icons', { timeout: 30000 }).then(responseData => {
     if (!responseData) {
       return reply('❌ Erro ao buscar ícones.');
     }

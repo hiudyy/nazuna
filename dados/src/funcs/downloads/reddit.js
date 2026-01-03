@@ -19,14 +19,15 @@ export async function download(url, apiKey) {
       timeout: 120000
     });
 
-    if (!response?.data || !response.data.success) {
+    if (!response || !response.success) {
       return {
         ok: false,
-        message: response?.data?.message || 'Erro ao buscar informações do post do Reddit.'
+        message: response?.message || 'Erro ao buscar informações do post do Reddit.'
       };
     }
 
-    const data = response.data.data;
+    // Acessar dados corretamente - pode estar em response.data.data ou response.data
+    const data = response.data?.data || response.data;
 
     // Verificar se tem URL de download
     if (!data?.downloadUrl) {
@@ -49,7 +50,7 @@ export async function download(url, apiKey) {
       timeout: 180000, // 3 minutos para download
     });
 
-    const buffer = Buffer.from(fileBuffer.data);
+    const buffer = Buffer.from(fileBuffer);
 
     // Determinar extensão do arquivo baseado no tipo de mídia
     const isVideo = data.isVideo !== false;

@@ -984,7 +984,7 @@ async function makeCognimaRequest(modelo, texto, systemPrompt = null, key, histo
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
-      const response = await swiftly.post(
+      const responseData = await swiftly.post(
         `https://cog.api.br/api/v1/completion`,
         {
           messages,
@@ -1001,8 +1001,7 @@ async function makeCognimaRequest(modelo, texto, systemPrompt = null, key, histo
         }
       );
 
-      const responseData = response.data;
-      if (!responseData || !responseData.data || !responseData.data.choices || !responseData.data.choices[0]) {
+      if (!responseData.data || !responseData.data.choices || !responseData.data.choices[0]) {
         throw new Error('Resposta da API inválida');
       }
 
@@ -2394,14 +2393,14 @@ async function Shazam(buffer, api_token, filename = "audio.mp3") {
   const finalBody = Buffer.concat([preBuffer, buffer, postBuffer]);
 
   try {
-    const response = await swiftly.post("https://api.audd.io/", finalBody, {
+    const responseData = await swiftly.post("https://api.audd.io/", finalBody, {
       headers: {
         "Content-Type": `multipart/form-data; boundary=${boundary}`,
         "Content-Length": finalBody.length,
       },
       timeout: 15000
     });
-    return response.data;
+    return responseData;
   } catch (err) {
     return {
       error: true,

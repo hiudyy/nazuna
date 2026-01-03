@@ -183,11 +183,11 @@ const apiRequest = async (url, data, apiKey, options = {}) => {
  * @returns {Promise<Buffer>}
  */
 const downloadMedia = async (url, options = {}) => {
-  const response = await mediaClient.get(url, {
+  const data = await mediaClient.get(url, {
     ...options,
     responseType: 'buffer'
   });
-  return Buffer.from(response.data);
+  return Buffer.from(data);
 };
 
 export {

@@ -34,14 +34,14 @@ const generateQRCode = async (text, size = CONFIG.GENERATE_SIZE, prefix = '/') =
     try {
         const url = `${CONFIG.GENERATE_API}?size=${size}x${size}&data=${encodeURIComponent(text)}`;
         
-        const response = await swiftly.get(url, {
+        const data = await swiftly.get(url, {
             responseType: 'buffer',
             timeout: 120000
         });
         
         return {
             success: true,
-            buffer: Buffer.from(response.data),
+            buffer: Buffer.from(data),
             message: `✅ *QR CODE GERADO*\n\n📝 Conteúdo: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}`
         };
     } catch (err) {
@@ -99,8 +99,8 @@ const readQRCode = async (imageInput) => {
             };
         }
         
-        // Processar resposta
-        const result = response.data;
+        // Processar resposta (swiftly já retorna os dados diretamente)
+        const result = response;
         
         if (Array.isArray(result) && result[0]?.symbol?.[0]) {
             const symbol = result[0].symbol[0];
