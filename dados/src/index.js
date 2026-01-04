@@ -1823,20 +1823,33 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       return userWhitelist.antis.includes(antiType);
     };
     const groupPrefix = groupData.customPrefix || prefixo;
-    var isCmd = body.trim().startsWith(groupPrefix);
+    
+    // Normalizar body para aceitar espaço após prefixo (ex: "! play" -> "!play")
+    const normalizedBody = body.trim().startsWith(groupPrefix) 
+      ? groupPrefix + body.trim().slice(groupPrefix.length).replace(/^\s+/, '')
+      : body.trim();
+    
+    var isCmd = normalizedBody.startsWith(groupPrefix);
+    
+    // Recalcular args e q usando o body normalizado quando for comando
+    if (isCmd) {
+      args = normalizedBody.split(/ +/).slice(1);
+      q = args.join(' ');
+    }
+    
     const aliases = loadCommandAliases();
-    const matchedAlias = aliases.find(item => normalizar(budy2.trim().slice(groupPrefix.length).split(/ +/).shift().trim()) === item.alias);
+    const matchedAlias = aliases.find(item => normalizar(normalizedBody.slice(groupPrefix.length).split(/ +/).shift().trim()) === item.alias);
     
     // Se encontrou um alias, aplicar parâmetros fixos
     if (matchedAlias && matchedAlias.fixedParams) {
-      const userArgs = body.trim().slice(groupPrefix.length).split(/ +/).slice(1).join(' ');
+      const userArgs = normalizedBody.slice(groupPrefix.length).split(/ +/).slice(1).join(' ');
       const combinedParams = matchedAlias.fixedParams + (userArgs ? ' ' + userArgs : '');
       q = combinedParams;
       args.length = 0;
       args.push(...combinedParams.split(/ +/));
     }
     
-    var command = isCmd ? matchedAlias ? matchedAlias.command : normalizar(body.trim().slice(groupPrefix.length).split(/ +/).shift().trim()).replace(/\s+/g, '') : null;
+    var command = isCmd ? matchedAlias ? matchedAlias.command : normalizar(normalizedBody.slice(groupPrefix.length).split(/ +/).shift().trim()).replace(/\s+/g, '') : null;
     const isPremium = premiumListaZinha[sender] || premiumListaZinha[from] || isOwner;
     
     // Verificação de captcha para solicitações de entrada em grupos (DEVE vir ANTES de antipv)
