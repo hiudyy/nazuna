@@ -21038,24 +21038,33 @@ case 'streamabledl':
       case 'downloadbot':
       case 'download-bot':
         try {
-          reply('📦 Baixando o código-fonte do bot... Aguarde!').then(() => {
-            axios.get('https://github.com/hiudyy/nazuna/archive/refs/heads/main.zip', {
-              responseType: 'arraybuffer'
-            }).then((response) => {
-              nazu.sendMessage(from, {
-                document: Buffer.from(response.data),
-                fileName: 'nazuna-bot.zip',
-                mimetype: 'application/zip',
-                caption: `📦 *Código-fonte do ${nomebot}*\n\n📖 Leia a documentação no repositório para entender melhor como instalar:\n🔗 https://github.com/hiudyy/nazuna\n\n⚠️ *Importante:* Certifique-se de ter Node.js instalado e siga os passos do README.md!`
-              }, { quoted: info });
-            }).catch((e) => {
-              console.error('Erro ao baixar zip do bot:', e);
-              reply('❌ Erro ao baixar o arquivo. Tente novamente mais tarde ou acesse diretamente: https://github.com/hiudyy/nazuna');
-            });
+          await reply('📦 Baixando o código-fonte do bot... Aguarde!');
+          
+          const zipResponse = await axios.get('https://github.com/hiudyy/nazuna/archive/refs/heads/main.zip', {
+            responseType: 'arraybuffer',
+            timeout: 60000 // 60 segundos de timeout
           });
+          
+          if (!zipResponse.data) {
+            throw new Error('Resposta vazia do servidor GitHub');
+          }
+          
+          await nazu.sendMessage(from, {
+            document: Buffer.from(zipResponse.data),
+            fileName: 'nazuna-bot.zip',
+            mimetype: 'application/zip',
+            caption: `📦 *Código-fonte do ${nomebot}*\n\n📖 Leia a documentação no repositório para entender melhor como instalar:\n🔗 https://github.com/hiudyy/nazuna\n\n⚠️ *Importante:* Certifique-se de ter Node.js instalado e siga os passos do README.md!`
+          }, { quoted: info });
+          
         } catch (e) {
-          console.error('Erro no comando zipbot:', e);
-          reply('❌ Erro ao processar o comando. Tente novamente.');
+          console.error('Erro ao baixar zip do bot:', e);
+          const errorMsg = e.response?.status === 404 
+            ? '❌ Repositório não encontrado.' 
+            : e.code === 'ECONNABORTED' || e.code === 'ETIMEDOUT'
+            ? '❌ Tempo de conexão esgotado. Tente novamente.'
+            : '❌ Erro ao baixar o arquivo.';
+          
+          await reply(`${errorMsg}\n\nTente acessar diretamente:\n🔗 https://github.com/hiudyy/nazuna`);
         }
         break;
       case 'gitbot':
