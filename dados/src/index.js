@@ -31667,11 +31667,8 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
 
     reply('🔍 Buscando informações do jogador...');
 
-    // Usando API gratuita Brawl Stars API oficial via proxy público
-    axios.get(`https://api.brawlstars.com/v1/players/%23${tagWithoutHash}`, {
-      headers: {
-        'Authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6ImNmMmIxNDJhLTA0ZjMtNDIwOC04ODkyLTRmMjk0YzY5ZjUzNyIsImlhdCI6MTczNjA5NDA3Niwic3ViIjoiZGV2ZWxvcGVyLzVkYzJhZGM5LTBjMGUtNGNlYy00N2RiLTdhNmQyMzBjZTkxNSIsInNjb3BlcyI6WyJicmF3bHN0YXJzIl0sImxpbWl0cyI6W3sidGllciI6ImRldmVsb3Blci9zaWx2ZXIiLCJ0eXBlIjoidGhyb3R0bGluZyJ9LHsiY2lkcnMiOlsiMC4wLjAuMC8wIl0sInR5cGUiOiJjbGllbnQifV19.7NfK7LHD6q5Bq8qKZLGSvJMHRfPKGHQEPf_nJxqS7oDLrCHj8yF1Ow9CXS5LBGvVQOjqr1FU3lKzZ5QXJXqJGg'
-      },
+    // Usando API pública Brawlify (sem autenticação necessária)
+    axios.get(`https://api.brawlify.com/v1/player/${tagWithoutHash}`, {
       timeout: 30000
     }).then((playerRes) => {
       if (!playerRes.data || !playerRes.data.tag) {
@@ -31679,7 +31676,6 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
       }
 
       const player = playerRes.data;
-      const icons = iconsRes?.data?.player || {};
       
       // Calcular estatísticas extras
       const totalVictories = (player['3vs3Victories'] || 0) + (player.soloVictories || 0) + (player.duoVictories || 0);
@@ -31778,10 +31774,8 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
 
     reply('🔍 Buscando informações do clube...');
 
-    axios.get(`https://api.brawlstars.com/v1/clubs/%23${tagWithoutHash}`, {
-      headers: {
-        'Authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6ImNmMmIxNDJhLTA0ZjMtNDIwOC04ODkyLTRmMjk0YzY5ZjUzNyIsImlhdCI6MTczNjA5NDA3Niwic3ViIjoiZGV2ZWxvcGVyLzVkYzJhZGM5LTBjMGUtNGNlYy00N2RiLTdhNmQyMzBjZTkxNSIsInNjb3BlcyI6WyJicmF3bHN0YXJzIl0sImxpbWl0cyI6W3sidGllciI6ImRldmVsb3Blci9zaWx2ZXIiLCJ0eXBlIjoidGhyb3R0bGluZyJ9LHsiY2lkcnMiOlsiMC4wLjAuMC8wIl0sInR5cGUiOiJjbGllbnQifV19.7NfK7LHD6q5Bq8qKZLGSvJMHRfPKGHQEPf_nJxqS7oDLrCHj8yF1Ow9CXS5LBGvVQOjqr1FU3lKzZ5QXJXqJGg'
-      },
+    // Usando API pública Brawlify (sem autenticação necessária)
+    axios.get(`https://api.brawlify.com/v1/club/${tagWithoutHash}`, {
       timeout: 30000
     }).then(response => {
 
@@ -32074,15 +32068,10 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bsrankings':
   case 'bsrank':
   case 'bstop': {
-  if (!KeyCog) {
-    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-    return reply(API_KEY_REQUIRED_MESSAGE);
-  }
-
   const argsRank = q ? q.trim().toLowerCase().split(/\s+/) : [];
   const country = argsRank[0] || 'global';
   const type = argsRank[1] || 'players';
-  const brawlerId = argsRank[2] || null;
+  const brawlerName = argsRank[2] || null;
 
   const validTypes = ['players', 'clubs', 'brawlers'];
   if (!validTypes.includes(type)) {
@@ -32091,139 +32080,105 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
 
   reply('🔍 Buscando ranking...');
 
-  let url;
-  if (country === 'global') {
-    url = `https://cog.api.br/api/v1/brawlstars/rankings/global/${type}`;
-  } else {
-    url = `https://cog.api.br/api/v1/brawlstars/rankings/${country}/${type}`;
-  }
+  // Usando API pública Brawlify
+  const countryCode = country === 'global' ? 'global' : country.toUpperCase();
   
-  // Se for ranking de brawler específico
-  if (type === 'brawlers' && brawlerId) {
-    // Buscar ID do brawler pelo nome
-    axios.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 }).then(brawlersRes => {
-      const found = brawlersRes.data.list.find(b => b.name.toLowerCase() === brawlerId.toLowerCase());
-      if (found) {
-        url = country === 'global' 
-          ? `https://cog.api.br/api/v1/brawlstars/rankings/global/brawlers/${found.id}`
-          : `https://cog.api.br/api/v1/brawlstars/rankings/${country}/brawlers/${found.id}`;
-      }
+  const typeNames = {
+    players: '👤 JOGADORES',
+    clubs: '🛡️ CLUBES',
+    brawlers: '👾 BRAWLERS'
+  };
+  
+  const countryNames = {
+    global: '🌍 Global',
+    BR: '🇧🇷 Brasil',
+    US: '🇺🇸 Estados Unidos',
+    PT: '🇵🇹 Portugal',
+    MX: '🇲🇽 México',
+    AR: '🇦🇷 Argentina',
+    ES: '🇪🇸 Espanha',
+    DE: '🇩🇪 Alemanha',
+    FR: '🇫🇷 França',
+    GB: '🇬🇧 Reino Unido',
+    JP: '🇯🇵 Japão',
+    KR: '🇰🇷 Coreia do Sul',
+    CN: '🇨🇳 China',
+    IN: '🇮🇳 Índia',
+    RU: '🇷🇺 Rússia'
+  };
 
-      axios.get(url, {
-        headers: { 'X-API-Key': KeyCog },
-        timeout: 120000
-      }).then(response => {
-        if (!response.data || !response.data.items) {
-          return reply('❌ Erro ao buscar ranking.');
-        }
-
-        const items = response.data.items.slice(0, 25);
-        const typeNames = {
-          players: '👤 JOGADORES',
-          clubs: '🛡️ CLUBES',
-          brawlers: '👾 BRAWLERS'
-        };
+  // Brawlify Rankings API
+  let url;
+  if (type === 'players') {
+    url = `https://api.brawlify.com/v1/rankings/${countryCode}/players`;
+  } else if (type === 'clubs') {
+    url = `https://api.brawlify.com/v1/rankings/${countryCode}/clubs`;
+  } else if (type === 'brawlers') {
+    // Primeiro buscar o ID do brawler
+    if (!brawlerName) {
+      return reply(`👾 *RANKING POR BRAWLER*\n\nDigite o nome do brawler!\n\n*Exemplo:* ${prefix}bsrank br brawlers shelly`);
+    }
+    
+    axios.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 })
+      .then(brawlersRes => {
+        const found = brawlersRes.data.list?.find(b => 
+          b.name.toLowerCase() === brawlerName.toLowerCase() ||
+          b.name.toLowerCase().includes(brawlerName.toLowerCase())
+        );
         
-        const countryNames = {
-          global: '🌍 Global',
-          br: '🇧🇷 Brasil',
-          us: '🇺🇸 Estados Unidos',
-          pt: '🇵🇹 Portugal',
-          mx: '🇲🇽 México',
-          ar: '🇦🇷 Argentina',
-          es: '🇪🇸 Espanha',
-          de: '🇩🇪 Alemanha',
-          fr: '🇫🇷 França',
-          uk: '🇬🇧 Reino Unido',
-          jp: '🇯🇵 Japão',
-          kr: '🇰🇷 Coreia do Sul',
-          cn: '🇨🇳 China',
-          in: '🇮🇳 Índia',
-          ru: '🇷🇺 Rússia'
-        };
-
-        let msg = `🏆 *BRAWL STARS - RANKING*\n${'═'.repeat(30)}\n\n`;
-        msg += `📊 *Tipo:* ${typeNames[type]}\n`;
-        msg += `🌍 *Região:* ${countryNames[country] || country.toUpperCase()}\n`;
-        msg += `📋 *Mostrando:* Top ${items.length}\n\n`;
-
-        items.forEach((item, i) => {
-          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-          
-          if (type === 'players') {
-            msg += `${medal} *${item.name}*\n`;
-            msg += `   🏷️ ${item.tag}\n`;
-            msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
-            if (item.club?.name) msg += `   🛡️ ${item.club.name}\n`;
-            msg += `\n`;
-          } else if (type === 'clubs') {
-            msg += `${medal} *${item.name}*\n`;
-            msg += `   🏷️ ${item.tag}\n`;
-            msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
-            msg += `   👥 ${item.memberCount || 0}/30 membros\n`;
-            msg += `\n`;
-          } else if (type === 'brawlers') {
-            msg += `${medal} *${item.name}*\n`;
-            msg += `   🏷️ ${item.tag}\n`;
-            msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
-            if (item.brawler?.name) msg += `   👾 ${item.brawler.name}\n`;
-            msg += `\n`;
-          }
-        });
-
-        reply(msg);
-      }).catch(e => {
-        console.error('Erro no bsrankings:', e);
-        if (e.response?.status === 404) {
-          return reply('❌ País ou tipo de ranking não encontrado.');
+        if (!found) {
+          return reply(`❌ Brawler "${brawlerName}" não encontrado.\n\n💡 Use ${prefix}bsbrawlers para ver a lista`);
         }
-        if (isApiKeyError(e)) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
-          return reply(`❌ Erro na API. O dono foi notificado.`);
-        }
-        reply('❌ Erro ao buscar ranking.');
+        
+        const brawlerUrl = `https://api.brawlify.com/v1/rankings/${countryCode}/brawlers/${found.id}`;
+        
+        axios.get(brawlerUrl, { timeout: 30000 })
+          .then(response => {
+            const items = (response.data.items || response.data.list || []).slice(0, 25);
+            
+            if (items.length === 0) {
+              return reply('❌ Nenhum dado encontrado para este ranking.');
+            }
+            
+            let msg = `🏆 *BRAWL STARS - RANKING*\n${'═'.repeat(30)}\n\n`;
+            msg += `📊 *Tipo:* Top ${found.name}\n`;
+            msg += `🌍 *Região:* ${countryNames[countryCode] || countryCode}\n`;
+            msg += `📋 *Mostrando:* Top ${items.length}\n\n`;
+            
+            items.forEach((item, i) => {
+              const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+              msg += `${medal} *${item.name}*\n`;
+              msg += `   🏷️ ${item.tag}\n`;
+              msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
+              if (item.club?.name) msg += `   🛡️ ${item.club.name}\n`;
+              msg += `\n`;
+            });
+            
+            reply(msg);
+          })
+          .catch(e => {
+            console.error('Erro no bsrankings brawler:', e);
+            reply('❌ Erro ao buscar ranking do brawler.');
+          });
+      })
+      .catch(e => {
+        console.error('Erro ao buscar brawler:', e);
+        reply('❌ Erro ao buscar informações do brawler.');
       });
-    }).catch(e => {
-      console.error('Erro ao buscar brawler:', e);
-      reply('❌ Erro ao buscar informações do brawler.');
-    });
-  } else {
-    axios.get(url, {
-      headers: { 'X-API-Key': KeyCog },
-      timeout: 120000
-    }).then(response => {
-      if (!response.data || !response.data.items) {
-        return reply('❌ Erro ao buscar ranking.');
-      }
+    return;
+  }
 
-      const items = response.data.items.slice(0, 25);
-      const typeNames = {
-        players: '👤 JOGADORES',
-        clubs: '🛡️ CLUBES',
-        brawlers: '👾 BRAWLERS'
-      };
+  axios.get(url, { timeout: 30000 })
+    .then(response => {
+      const items = (response.data.items || response.data.list || []).slice(0, 25);
       
-      const countryNames = {
-        global: '🌍 Global',
-        br: '🇧🇷 Brasil',
-        us: '🇺🇸 Estados Unidos',
-        pt: '🇵🇹 Portugal',
-        mx: '🇲🇽 México',
-        ar: '🇦🇷 Argentina',
-        es: '🇪🇸 Espanha',
-        de: '🇩🇪 Alemanha',
-        fr: '🇫🇷 França',
-        uk: '🇬🇧 Reino Unido',
-        jp: '🇯🇵 Japão',
-        kr: '🇰🇷 Coreia do Sul',
-        cn: '🇨🇳 China',
-        in: '🇮🇳 Índia',
-        ru: '🇷🇺 Rússia'
-      };
+      if (items.length === 0) {
+        return reply('❌ Nenhum dado encontrado para este ranking.');
+      }
 
       let msg = `🏆 *BRAWL STARS - RANKING*\n${'═'.repeat(30)}\n\n`;
       msg += `📊 *Tipo:* ${typeNames[type]}\n`;
-      msg += `🌍 *Região:* ${countryNames[country] || country.toUpperCase()}\n`;
+      msg += `🌍 *Região:* ${countryNames[countryCode] || countryCode}\n`;
       msg += `📋 *Mostrando:* Top ${items.length}\n\n`;
 
       items.forEach((item, i) => {
@@ -32241,28 +32196,18 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
           msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
           msg += `   👥 ${item.memberCount || 0}/30 membros\n`;
           msg += `\n`;
-        } else if (type === 'brawlers') {
-          msg += `${medal} *${item.name}*\n`;
-          msg += `   🏷️ ${item.tag}\n`;
-          msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
-          if (item.brawler?.name) msg += `   👾 ${item.brawler.name}\n`;
-          msg += `\n`;
         }
       });
 
       reply(msg);
-    }).catch(e => {
+    })
+    .catch(e => {
       console.error('Erro no bsrankings:', e);
       if (e.response?.status === 404) {
         return reply('❌ País ou tipo de ranking não encontrado.');
       }
-      if (isApiKeyError(e)) {
-        ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
-        return reply(`❌ Erro na API. O dono foi notificado.`);
-      }
-      reply('❌ Erro ao buscar ranking.');
+      reply('❌ Erro ao buscar ranking. Verifique o país e tente novamente.');
     });
-  }
   }
   break;
 
