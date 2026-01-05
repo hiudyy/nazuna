@@ -9248,16 +9248,33 @@ Entre em contato com o dono do bot:
         text += `│ ${pushname}\n`;
         text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
         
-        // Cônjuge
-        if (me.family.spouse) {
-          const spouseData = getEcoUser(econ, me.family.spouse);
-          text += `💍 *Cônjuge:*\n`;
+        // Buscar relacionamento ativo do sistema de relacionamentos
+        const activePair = relationshipManager.getActivePairForUser(sender);
+        if (activePair && activePair.partnerId) {
+          let relationshipEmoji = '💍';
+          let relationshipType = 'Cônjuge';
+          
+          if (activePair.pair?.status === 'casamento') {
+            relationshipEmoji = '💍';
+            relationshipType = 'Cônjuge';
+          } else if (activePair.pair?.status === 'namoro') {
+            relationshipEmoji = '💞';
+            relationshipType = 'Namorado(a)';
+          } else if (activePair.pair?.status === 'brincadeira') {
+            relationshipEmoji = '🎈';
+            relationshipType = 'Parceiro(a)';
+          }
+          
+          const relationshipSince = activePair.pair?.stages?.[activePair.pair.status]?.since;
+          const sinceDate = relationshipSince ? new Date(relationshipSince).toLocaleDateString() : 'Data desconhecida';
+          
+          text += `${relationshipEmoji} *${relationshipType}:*\n`;
           text += `┌─────────────────\n`;
-          text += `│ @${me.family.spouse.split('@')[0]}\n`;
-          text += `│ ❤️ Desde: ${new Date(me.marriedAt || Date.now()).toLocaleDateString()}\n`;
+          text += `│ @${activePair.partnerId.split('@')[0]}\n`;
+          text += `│ ❤️ Desde: ${sinceDate}\n`;
           text += `└─────────────────\n\n`;
         } else {
-          text += `💍 *Cônjuge:* Solteiro(a)\n\n`;
+          text += `💔 *Relacionamento:* Solteiro(a)\n\n`;
         }
         
         // Pais
@@ -9293,11 +9310,16 @@ Entre em contato com o dono do bot:
         text += `💡 Use ${prefix}arvore para ver árvore genealógica`;
         
         const mentions = [
-          me.family.spouse,
           ...(me.family.parents || []),
           ...(me.family.children || []),
           ...(me.family.siblings || [])
         ].filter(Boolean);
+        
+        // Adiciona o parceiro do sistema de relacionamentos nas menções
+        const activePairForMentions = relationshipManager.getActivePairForUser(sender);
+        if (activePairForMentions && activePairForMentions.partnerId) {
+          mentions.push(activePairForMentions.partnerId);
+        }
         
         saveEconomy(econ);
         return reply(text, { mentions });
@@ -9347,13 +9369,14 @@ Entre em contato com o dono do bot:
         if (!targetUser.family.parents) targetUser.family.parents = [];
         targetUser.family.parents.push(sender);
         
-        // Se tiver cônjuge, adicionar como pai/mãe também
-        if (me.family.spouse) {
-          const spouseData = getEcoUser(econ, me.family.spouse);
-          if (!spouseData.family) spouseData.family = { spouse: sender, children: [], parents: [], siblings: [] };
+        // Se tiver parceiro(a) no sistema de relacionamentos, adicionar como pai/mãe também
+        const activePair = relationshipManager.getActivePairForUser(sender);
+        if (activePair && activePair.partnerId) {
+          const spouseData = getEcoUser(econ, activePair.partnerId);
+          if (!spouseData.family) spouseData.family = { spouse: null, children: [], parents: [], siblings: [] };
           if (!spouseData.family.children) spouseData.family.children = [];
           spouseData.family.children.push(target);
-          targetUser.family.parents.push(me.family.spouse);
+          targetUser.family.parents.push(activePair.partnerId);
         }
         
         let text = `╭━━━⊱ 👶 *ADOÇÃO* ⊱━━━╮\n`;
@@ -9399,14 +9422,15 @@ Entre em contato com o dono do bot:
           targetUser.family.parents = targetUser.family.parents.filter(parent => parent !== sender);
         }
         
-        // Se tiver cônjuge, remover como pai/mãe também
-        if (me.family.spouse) {
-          const spouseData = getEcoUser(econ, me.family.spouse);
+        // Se tiver parceiro(a) no sistema de relacionamentos, remover como pai/mãe também
+        const activePair = relationshipManager.getActivePairForUser(sender);
+        if (activePair && activePair.partnerId) {
+          const spouseData = getEcoUser(econ, activePair.partnerId);
           if (spouseData.family && spouseData.family.children) {
             spouseData.family.children = spouseData.family.children.filter(child => child !== target);
           }
           if (targetUser.family.parents) {
-            targetUser.family.parents = targetUser.family.parents.filter(parent => parent !== me.family.spouse);
+            targetUser.family.parents = targetUser.family.parents.filter(parent => parent !== activePair.partnerId);
           }
         }
         
@@ -9464,8 +9488,15 @@ Entre em contato com o dono do bot:
         
         // Você
         text += `👤 *Você:* ${pushname}\n`;
-        if (me.family.spouse) {
-          text += `💍 *Cônjuge:* @${me.family.spouse.split('@')[0]}\n`;
+        
+        // Buscar relacionamento ativo do sistema de relacionamentos
+        const activePair = relationshipManager.getActivePairForUser(sender);
+        if (activePair && activePair.partnerId) {
+          const relationshipEmoji = activePair.pair?.status === 'casamento' ? '💍' : 
+                                   activePair.pair?.status === 'namoro' ? '💞' : '🎈';
+          const relationshipType = activePair.pair?.status === 'casamento' ? 'Cônjuge' :
+                                  activePair.pair?.status === 'namoro' ? 'Namorado(a)' : 'Parceiro(a)';
+          text += `${relationshipEmoji} *${relationshipType}:* @${activePair.partnerId.split('@')[0]}\n`;
         }
         text += `\n`;
         
@@ -9502,10 +9533,15 @@ Entre em contato com o dono do bot:
         const allMembers = [
           ...grandparents,
           ...(me.family.parents || []),
-          me.family.spouse,
           ...(me.family.children || []),
           ...grandchildren
         ].filter(Boolean);
+        
+        // Adiciona o parceiro do sistema de relacionamentos nas menções
+        const activePairForMentions = relationshipManager.getActivePairForUser(sender);
+        if (activePairForMentions && activePairForMentions.partnerId) {
+          allMembers.push(activePairForMentions.partnerId);
+        }
         
         return reply(text, { mentions: [...new Set(allMembers)] });
         break;
