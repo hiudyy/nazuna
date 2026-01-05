@@ -11857,7 +11857,7 @@ Entre em contato com o dono do bot:
       case 'gemma':
         if (!q) return reply(`🤔 Qual sua dúvida para o Gemma? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Gemma... ✨`).then(() => {
@@ -11866,7 +11866,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Gemma:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Gemma! Tente novamente em alguns instantes, tá? 🌈`);
@@ -11878,7 +11878,7 @@ Entre em contato com o dono do bot:
       case 'phi3':
         if (!q) return reply(`🤔 Qual sua dúvida para o Phi? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Phi... ✨`).then(() => {
@@ -11887,7 +11887,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Phi:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Phi! Tente novamente em alguns instantes, tá? 🌈`);
@@ -11898,7 +11898,7 @@ Entre em contato com o dono do bot:
       case 'qwen2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Qwen2? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Qwen2... ✨`).then(() => {
@@ -11907,7 +11907,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Qwen2:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Qwen2! Tente novamente em alguns instantes, tá? 🌈`);
@@ -11919,7 +11919,7 @@ Entre em contato com o dono do bot:
       case 'qwen3':
         if (!q) return reply(`🤔 Qual sua dúvida para o Qwen? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Qwen... ✨`).then(() => {
@@ -11928,7 +11928,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Qwen:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Qwen! Tente novamente em alguns instantes, tá? 🌈`);
@@ -11940,7 +11940,7 @@ Entre em contato com o dono do bot:
       case 'llama3':
         if (!q) return reply(`🤔 Qual sua dúvida para o Llama? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Llama... ✨`).then(() => {
@@ -11949,7 +11949,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Llama:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Llama! Tente novamente em alguns instantes, tá? 🌈`);
@@ -11961,7 +11961,7 @@ Entre em contato com o dono do bot:
       case 'baichuan2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Baichuan? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Baichuan... ✨`).then(() => {
@@ -11970,7 +11970,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Baichuan:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Baichuan! Tente novamente em alguns instantes, tá? 🌈`);
@@ -11981,7 +11981,7 @@ Entre em contato com o dono do bot:
       case 'marin':
         if (!q) return reply(`🤔 Qual sua dúvida para o Marin? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Marin... ✨`).then(() => {
@@ -11990,7 +11990,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Marin:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Marin! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12002,7 +12002,7 @@ Entre em contato com o dono do bot:
       case 'kimik2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Kimi? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Kimi... ✨`).then(() => {
@@ -12011,7 +12011,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Kimi:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Kimi! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12022,7 +12022,7 @@ Entre em contato com o dono do bot:
       case 'mistral':
         if (!q) return reply(`🤔 Qual sua dúvida para o Mistral? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Mistral... ✨`).then(() => {
@@ -12031,7 +12031,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Mistral:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Mistral! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12042,7 +12042,7 @@ Entre em contato com o dono do bot:
       case 'magistral':
         if (!q) return reply(`🤔 Qual sua dúvida para o Magistral? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Magistral... ✨`).then(() => {
@@ -12051,7 +12051,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Magistral:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Magistral! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12063,7 +12063,7 @@ Entre em contato com o dono do bot:
       case 'rocket':
         if (!q) return reply(`🤔 Qual sua dúvida para o RakutenAI? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o RakutenAI... ✨`).then(() => {
@@ -12072,7 +12072,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API RakutenAI:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o RakutenAI! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12083,7 +12083,7 @@ Entre em contato com o dono do bot:
       case 'yi':
         if (!q) return reply(`🤔 Qual sua dúvida para o Yi? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Yi... ✨`).then(() => {
@@ -12092,7 +12092,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Yi:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Yi! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12103,7 +12103,7 @@ Entre em contato com o dono do bot:
       case 'gemma2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Gemma2? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Gemma2... ✨`).then(() => {
@@ -12112,7 +12112,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Gemma2:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Gemma2! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12123,7 +12123,7 @@ Entre em contato com o dono do bot:
       case 'swallow':
         if (!q) return reply(`🤔 Qual sua dúvida para o Swallow? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Swallow... ✨`).then(() => {
@@ -12132,7 +12132,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Swallow:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Swallow! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12143,7 +12143,7 @@ Entre em contato com o dono do bot:
       case 'falcon':
         if (!q) return reply(`🤔 Qual sua dúvida para o Falcon? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Falcon... ✨`).then(() => {
@@ -12152,7 +12152,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Falcon:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Falcon! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12163,7 +12163,7 @@ Entre em contato com o dono do bot:
       case 'qwencoder':
         if (!q) return reply(`🤔 Qual sua dúvida para o Qwencoder? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o Qwencoder... ✨`).then(() => {
@@ -12172,7 +12172,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API Qwencoder:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Qwencoder! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12183,7 +12183,7 @@ Entre em contato com o dono do bot:
       case 'codegemma':
         if (!q) return reply(`🤔 Qual sua dúvida para o CodeGemma? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply(`⏳ Só um segundinho, estou consultando o CodeGemma... ✨`).then(() => {
@@ -12192,7 +12192,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro na API CodeGemma:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o CodeGemma! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12203,7 +12203,7 @@ Entre em contato com o dono do bot:
       case 'resumir':
         if (!q) return reply(`📝 *Resumidor de Texto*\n\n💡 *Como usar:*\n• Envie o texto que deseja resumir após o comando\n• Ex: ${prefix}resumir [seu texto aqui]\n\n✨ O texto será resumido de forma clara e objetiva!`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply('⏳ Aguarde enquanto preparo um resumo bem caprichado... ✨').then(() => {
@@ -12213,7 +12213,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro ao resumir texto:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply('😓 Ops, não consegui resumir agora! Que tal tentar de novo? 🌟');
@@ -12224,7 +12224,7 @@ Entre em contato com o dono do bot:
       case 'resumirurl':
         if (!q) return reply(`🌐 Quer resumir uma página? Envie a URL após o comando ${prefix}resumirurl! Exemplo: ${prefix}resumirurl https://exemplo.com/artigo 😊`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         if (!q.startsWith('http://') && !q.startsWith('https://')) {
@@ -12250,7 +12250,7 @@ Entre em contato com o dono do bot:
             }).catch((e) => {
               console.error('Erro ao resumir URL (IA):', e.message);
               if (e.message && e.message.includes('API key inválida')) {
-                ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+                ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
                 reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
               } else {
                 reply('😓 Vixe, algo deu errado ao resumir a página! Tente novamente em breve, combinado? 🌈');
@@ -12272,7 +12272,7 @@ Entre em contato com o dono do bot:
       case 'ideia':
         if (!q) return reply(`💡 Quer ideias criativas? Diga o tema após o comando ${prefix}ideias! Exemplo: ${prefix}ideias nomes para um aplicativo de receitas 😊`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply('⏳ Um segundinho, estou pensando em ideias incríveis... ✨').then(() => {
@@ -12282,7 +12282,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro ao gerar ideias:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply('😓 Poxa, não consegui gerar ideias agora! Tente de novo em breve, tá? 🌈');
@@ -12294,7 +12294,7 @@ Entre em contato com o dono do bot:
       case 'explique':
         if (!q) return reply(`🤓 Quer entender algo? Diga o que deseja explicar após o comando ${prefix}explicar! Exemplo: ${prefix}explicar o que é inteligência artificial 😊`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply('⏳ Um momentinho, estou preparando uma explicação bem clara... ✨').then(() => {
@@ -12304,7 +12304,7 @@ Entre em contato com o dono do bot:
           }).catch((e) => {
             console.error('Erro ao explicar conceito:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply('😓 Vixe, não consegui explicar agora! Tente de novo em alguns instantes, tá? 🌈');
@@ -12316,7 +12316,7 @@ Entre em contato com o dono do bot:
       case 'correcao':
         if (!q) return reply(`✍️ Quer corrigir um texto? Envie o texto após o comando ${prefix}corrigir! Exemplo: ${prefix}corrigir Eu foi no mercado e comprei frutas. 😊`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply('⏳ Aguarde enquanto dou um polimento no seu texto... ✨').then(() => {
@@ -12341,7 +12341,7 @@ Entre em contato com o dono do bot:
         }
         
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
 
@@ -12420,7 +12420,7 @@ Faça um resumo conciso mas completo, destacando o que é mais relevante.`;
         }).catch(e => {
           console.error('Erro ao resumir conversa:', e);
           if (e.message?.includes('API key inválida')) {
-            ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
             return reply('🤖 *Sistema de IA temporariamente indisponível*\n\nO administrador já foi notificado!');
           } else {
             return reply('😓 Não consegui resumir a conversa agora! Tente novamente em breve. 🌈');
@@ -12436,7 +12436,7 @@ Faça um resumo conciso mas completo, destacando o que é mais relevante.`;
       case 'story':
       case 'gerarhistoria': {
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         
@@ -12486,7 +12486,7 @@ Seja criativo e original. Não use clichês. A história deve ser envolvente do 
         } catch (e) {
           console.error('Erro ao gerar história:', e);
           if (e.message?.includes('API key inválida')) {
-            ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
             await reply('🤖 *Sistema de IA temporariamente indisponível*\n\nO administrador já foi notificado!');
           } else {
             await reply('😓 Não consegui escrever a história agora! Tente novamente em breve. 🌈');
@@ -12503,7 +12503,7 @@ Seja criativo e original. Não use clichês. A história deve ser envolvente do 
       case 'recomendação':
       case 'suggest': {
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         
@@ -12546,7 +12546,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
         } catch (e) {
           console.error('Erro ao gerar recomendações:', e);
           if (e.message?.includes('API key inválida')) {
-            ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
             await reply('🤖 *Sistema de IA temporariamente indisponível*\n\nO administrador já foi notificado!');
           } else {
             await reply('😓 Não consegui buscar recomendações agora! Tente novamente em breve. 🌈');
@@ -14556,7 +14556,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
       case 'cog':
         if (!q) return reply(`📢 Ei, falta a pergunta! Me diga o que quer saber após o comando ${prefix}cog! 😴`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply('⏳ Um momentinho, estou pensando na melhor resposta... 🌟').then(() => {
@@ -14573,7 +14573,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
         if (!q) return reply(`🌍 Quer traduzir algo? Me diga o idioma e o texto assim: ${prefix}${command} idioma | texto
 Exemplo: ${prefix}tradutor inglês | Bom dia! 😊`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         {
@@ -14695,7 +14695,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'dictionary':
         if (!q) return reply(`📔 Qual palavra você quer procurar no dicionário? Me diga após o comando ${prefix}${command}! 😊`);
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         reply("📔 Procurando no dicionário... Aguarde um pouquinho! ⏳").then(() => {
@@ -18606,7 +18606,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
         break;
       case 'shazam':
         if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
           return reply(API_KEY_REQUIRED_MESSAGE);
         }
         try {
@@ -18652,7 +18652,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
                 }).catch((e) => {
                   console.error(e);
                   if (e.message && e.message.includes('API key inválida')) {
-                    ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message);
+                    ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
                     reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
                   } else {
                     reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
@@ -18685,7 +18685,7 @@ case 'ytmp3':
     }
 
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -18723,7 +18723,7 @@ case 'ytmp3':
         .catch((downloadError) => {
           console.error('Erro no download (link direto):', downloadError);
           if (downloadError.message?.includes('API key inválida')) {
-            youtube.notifyOwnerAboutApiKey(nazu, numerodono, downloadError.message, command);
+            notifyOwnerAboutApiKey(nazu, nmrdn, downloadError.message, "YouTube", prefix);
             nazu.sendMessage(from, { text: '🤖 *Sistema de YouTube temporariamente indisponível*' }, { quoted: info });
           } else if (String(downloadError).includes("age")) {
             nazu.sendMessage(from, { text: `🔞 Este conteúdo possui restrição de idade e não pode ser baixado.` }, { quoted: info });
@@ -18794,7 +18794,7 @@ case 'ytmp3':
             .catch((downloadError) => {
               console.error('Erro no download (busca):', downloadError);
               if (downloadError.message?.includes('API key inválida')) {
-                youtube.notifyOwnerAboutApiKey(nazu, numerodono, downloadError.message, command);
+                notifyOwnerAboutApiKey(nazu, nmrdn, downloadError.message, "YouTube", prefix);
                 nazu.sendMessage(from, { text: '🤖 *Sistema de YouTube temporariamente indisponível*' }, { quoted: info });
               } else if (String(downloadError).includes("age")) {
                 nazu.sendMessage(from, { text: `🔞 Este conteúdo possui restrição de idade e não pode ser baixado.` }, { quoted: info });
@@ -18815,7 +18815,7 @@ case 'ytmp3':
     console.error('Erro no comando play/ytmp3 (bloco principal):', error);
 
     if (error.message?.includes('API key inválida')) {
-      await youtube.notifyOwnerAboutApiKey(nazu, numerodono, error.message, command);
+      await notifyOwnerAboutApiKey(nazu, nmrdn, error.message, "YouTube", prefix);
       return reply('🤖 *Sistema de YouTube temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
     }
 
@@ -18841,7 +18841,7 @@ case 'spotify':
     }
 
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -18929,7 +18929,7 @@ case 'playspotify':
     }
 
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -19014,7 +19014,7 @@ case 'soundcloud':
     }
 
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -19100,7 +19100,7 @@ case 'playsoundcloud':
     }
 
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -19191,7 +19191,7 @@ case 'playsoundcloud':
           
           // Verificar se tem API key
           if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
 
@@ -19230,7 +19230,7 @@ case 'playsoundcloud':
               .catch((e) => {
                 console.error('Erro ao baixar/enviar vídeo direto (promise):', e);
                 if (e.message?.includes('API key inválida')) {
-                  youtube.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+                  notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "YouTube", prefix);
                   return reply('🤖 *Sistema de YouTube temporariamente indisponível*');
                 }
                 reply('❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.');
@@ -19278,7 +19278,7 @@ case 'playsoundcloud':
               .catch((e) => {
                 console.error('Erro no download/playvid:', e);
                 if (e.message && e.message.includes('API key inválida')) {
-                  youtube.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+                  notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "YouTube", prefix);
                   return reply('🤖 *Sistema de YouTube temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
                 }
                 reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
@@ -19293,7 +19293,7 @@ case 'playsoundcloud':
           
           // Verificar se é erro de API key e notificar o dono
           if (e.message && e.message.includes('API key inválida')) {
-            await youtube.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+            await notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "YouTube", prefix);
             return reply('🤖 *Sistema de YouTube temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
           }
           
@@ -19319,7 +19319,7 @@ case 'bandcampdl':
     
     // Verificar se tem API key
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -19449,7 +19449,7 @@ case 'getallmedia':
     
     // Verificar se tem API key
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -19645,7 +19645,7 @@ case 'getallmedia':
           
           // Verificar se tem API key
           if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
 
@@ -19679,7 +19679,7 @@ case 'getallmedia':
             .catch(async (e) => {
               console.error('Erro no comando TikTok (promise):', e);
               if (e.message && e.message.includes('API key inválida')) {
-                await tiktok.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+                await notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "TikTok", prefix);
                 return reply('🤖 *Sistema de TikTok temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
               }
 
@@ -19692,7 +19692,7 @@ case 'getallmedia':
           
           // Verificar se é erro de API key e notificar o dono
           if (e.message && e.message.includes('API key inválida')) {
-            await tiktok.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+            await notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "TikTok", prefix);
             return reply('🤖 *Sistema de TikTok temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
           }
           
@@ -19717,7 +19717,7 @@ case 'facebookdl':
     }
 
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -19806,7 +19806,7 @@ case 'vimeodl':
     }
 
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -19900,7 +19900,7 @@ case 'twitchdl':
     
     // Verificar se tem API key
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -20034,7 +20034,7 @@ case 'redditdl':
     
     // Verificar se tem API key
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -20175,7 +20175,7 @@ case 'dailymotiondl':
     
     // Verificar se tem API key
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -20314,7 +20314,7 @@ case 'streamabledl':
     
     // Verificar se tem API key
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -20454,7 +20454,7 @@ case 'streamabledl':
           
           // Verificar se tem API key
           if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
 
@@ -20474,7 +20474,7 @@ case 'streamabledl':
             .catch(async (e) => {
               console.error('Erro no comando Instagram (promise):', e);
               if (e.message && e.message.includes('API key inválida')) {
-                await igdl.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+                await notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "Instagram", prefix);
                 return reply('🤖 *Sistema de Instagram temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
               }
               reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
@@ -20485,7 +20485,7 @@ case 'streamabledl':
           
           // Verificar se é erro de API key e notificar o dono
           if (e.message && e.message.includes('API key inválida')) {
-            await igdl.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+            await notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "Instagram", prefix);
             return reply('🤖 *Sistema de Instagram temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
           }
           
@@ -20506,7 +20506,7 @@ case 'streamabledl':
           }
           
           if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           
@@ -20584,7 +20584,7 @@ case 'streamabledl':
           console.error('Erro no comando gdrive:', e);
           
           if (e.response?.status === 401 || (e.message && e.message.includes('API key'))) {
-            ia.notifyOwnerAboutApiKey(nazu, numerodono, 'API key inválida ou expirada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida ou expirada');
             return reply('🤖 *Sistema temporariamente indisponível*\n\n😅 Estou com problemas técnicos. O administrador já foi notificado!');
           }
           
@@ -20611,7 +20611,7 @@ case 'streamabledl':
           }
           
           if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           
@@ -20701,7 +20701,7 @@ case 'streamabledl':
           console.error('Erro no comando mediafire:', e);
           
           if (e.response?.status === 401 || (e.message && e.message.includes('API key'))) {
-            ia.notifyOwnerAboutApiKey(nazu, numerodono, 'API key inválida ou expirada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida ou expirada');
             return reply('🤖 *Sistema temporariamente indisponível*\n\n😅 Estou com problemas técnicos. O administrador já foi notificado!');
           }
           
@@ -20731,7 +20731,7 @@ case 'streamabledl':
           }
           
           if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           
@@ -20794,7 +20794,7 @@ case 'streamabledl':
           console.error('Erro no comando twitter:', e);
           
           if (e.response?.status === 401 || (e.message && e.message.includes('API key'))) {
-            ia.notifyOwnerAboutApiKey(nazu, numerodono, 'API key inválida ou expirada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida ou expirada');
             return reply('🤖 *Sistema temporariamente indisponível*\n\n😅 Estou com problemas técnicos. O administrador já foi notificado!');
           }
           
@@ -20817,7 +20817,7 @@ case 'streamabledl':
           if (!q) return reply(`🔍 *Pesquisa Web*\n\n❌ Digite o que deseja pesquisar.\n\n📝 *Uso:* ${prefix}${command} <termo>\n\n📌 *Exemplo:*\n${prefix}${command} inteligência artificial`);
           
           if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           
@@ -20848,7 +20848,7 @@ case 'streamabledl':
           console.error('Erro no comando google:', e);
           
           if (e.response?.status === 401) {
-            ia.notifyOwnerAboutApiKey(nazu, numerodono, 'API key inválida');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida');
             return reply('🤖 *Sistema temporariamente indisponível*');
           }
           
@@ -20862,7 +20862,7 @@ case 'streamabledl':
           if (!q) return reply(`📰 *Pesquisa de Notícias*\n\n❌ Digite o que deseja pesquisar.\n\n📝 *Uso:* ${prefix}${command} <termo>\n\n📌 *Exemplo:*\n${prefix}${command} tecnologia brasil`);
           
           if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           
@@ -20893,7 +20893,7 @@ case 'streamabledl':
           console.error('Erro no comando noticias:', e);
           
           if (e.response?.status === 401) {
-            ia.notifyOwnerAboutApiKey(nazu, numerodono, 'API key inválida');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida');
             return reply('🤖 *Sistema temporariamente indisponível*');
           }
           
@@ -20909,7 +20909,7 @@ case 'streamabledl':
           if (!q) return reply(`📱 *Pesquisa de Apps*\n\n❌ Digite o nome do aplicativo.\n\n📝 *Uso:* ${prefix}${command} <nome do app>\n\n📌 *Exemplo:*\n${prefix}${command} whatsapp`);
           
           if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           
@@ -20961,7 +20961,7 @@ case 'streamabledl':
           console.error('Erro no comando apps:', e);
           
           if (e.response?.status === 401) {
-            ia.notifyOwnerAboutApiKey(nazu, numerodono, 'API key inválida');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida');
             return reply('🤖 *Sistema temporariamente indisponível*');
           }
           
@@ -20994,7 +20994,7 @@ case 'streamabledl':
           const isPinUrl = PIN_URL_REGEX.test(searchTerm);
           // Ensure API key is configured
           if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           const pinPromise = isPinUrl ? pinterest.dl(searchTerm, KeyCog) : pinterest.search(searchTerm, KeyCog);
@@ -21016,7 +21016,7 @@ case 'streamabledl':
             .catch((e) => {
               console.error('Erro no comando pinterest (promise):', e);
               if (e.message && e.message.includes('API key inválida')) {
-                ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+                ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "Pinterest", prefix);
                 return reply('🤖 *Sistema de Pinterest temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
               }
               reply("Ocorreu um erro ao processar o Pinterest 💔");
@@ -21025,7 +21025,7 @@ case 'streamabledl':
         } catch (e) {
           console.error('Erro no comando pinterest:', e);
           if (e.message && e.message.includes('API key inválida')) {
-            ia.notifyOwnerAboutApiKey(nazu, numerodono, e.message, command);
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "Pinterest", prefix);
             return reply('🤖 *Sistema de Pinterest temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
           }
           reply("Ocorreu um erro ao processar o Pinterest 💔");
@@ -28402,7 +28402,7 @@ Exemplos:
       case 'assistent':
         try {
           if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
             return reply(API_KEY_REQUIRED_MESSAGE);
           }
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
@@ -31658,7 +31658,7 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bsperfil':
   {
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -31775,7 +31775,7 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bsclube':
   {
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -32085,7 +32085,7 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bsrank':
   case 'bstop': {
   if (!KeyCog) {
-    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
     return reply(API_KEY_REQUIRED_MESSAGE);
   }
 
@@ -32350,7 +32350,7 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bspartidas':
   {
   if (!KeyCog) {
-    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
     return reply(API_KEY_REQUIRED_MESSAGE);
   }
 
@@ -32700,7 +32700,7 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bsclubmembers':
   case 'bsmembros': {
   if (!KeyCog) {
-    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
     return reply(API_KEY_REQUIRED_MESSAGE);
   }
 
@@ -32774,7 +32774,7 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bscompare':
   case 'bscomparar':
   if (!KeyCog) {
-    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
     return reply(API_KEY_REQUIRED_MESSAGE);
   }
 
@@ -32858,7 +32858,7 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bsjogadorbrawlers':
   case 'bsmeusbrawlers': {
   if (!KeyCog) {
-    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada');
+    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
     return reply(API_KEY_REQUIRED_MESSAGE);
   }
 

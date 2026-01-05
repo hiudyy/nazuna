@@ -77,8 +77,18 @@ function isApiKeyError(error) {
  * @param {string} ownerLid - ID do dono no formato WhatsApp
  * @param {string} error - Mensagem de erro
  * @param {string} serviceName - Nome do serviço afetado (YouTube, TikTok, Instagram, IA)
+ * @param {string} prefix - Prefixo do bot (opcional, padrão: '!')
  */
-async function notifyOwnerAboutApiKey(nazu, ownerLid, error, serviceName = 'Sistema') {
+async function notifyOwnerAboutApiKey(nazu, ownerLid, error, serviceName = 'Sistema', prefix = '!') {
+  // Validar parâmetros obrigatórios
+  if (!nazu || !ownerLid) {
+    console.error('❌ notifyOwnerAboutApiKey: Parâmetros inválidos', { 
+      hasNazu: !!nazu, 
+      ownerLid: ownerLid || 'undefined' 
+    });
+    return;
+  }
+  
   // Verificar se pode enviar notificação
   if (!canSendNotification()) {
     // Se já atingiu o limite, enviar mensagem de limite apenas uma vez
