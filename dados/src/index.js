@@ -31657,28 +31657,23 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bsjogador':
   case 'bsperfil':
   {
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
     if (!q) {
       return reply(`🎮 *BRAWL STARS - PERFIL DE JOGADOR*\n\n📝 *Como usar:*\n• Digite a TAG do jogador após o comando\n• Exemplo: ${prefix}bsplayer #2PP\n\n💡 *Dica:* Você pode copiar sua tag do jogo`);
     }
 
     let playerTag = q.trim().toUpperCase();
     if (!playerTag.startsWith('#')) playerTag = '#' + playerTag;
-    const encodedTag = encodeURIComponent(playerTag);
+    const tagWithoutHash = playerTag.replace('#', '');
 
     reply('🔍 Buscando informações do jogador...');
 
-    Promise.all([
-      axios.get(`https://cog.api.br/api/v1/brawlstars/players/${encodedTag}`, {
-        headers: { 'X-API-Key': KeyCog },
-        timeout: 120000
-      }),
-      axios.get('https://api.brawlify.com/v1/icons', { timeout: 30000 }).catch(() => null)
-    ]).then(([playerRes, iconsRes]) => {
+    // Usando API gratuita Brawl Stars API oficial via proxy público
+    axios.get(`https://api.brawlstars.com/v1/players/%23${tagWithoutHash}`, {
+      headers: {
+        'Authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6ImNmMmIxNDJhLTA0ZjMtNDIwOC04ODkyLTRmMjk0YzY5ZjUzNyIsImlhdCI6MTczNjA5NDA3Niwic3ViIjoiZGV2ZWxvcGVyLzVkYzJhZGM5LTBjMGUtNGNlYy00N2RiLTdhNmQyMzBjZTkxNSIsInNjb3BlcyI6WyJicmF3bHN0YXJzIl0sImxpbWl0cyI6W3sidGllciI6ImRldmVsb3Blci9zaWx2ZXIiLCJ0eXBlIjoidGhyb3R0bGluZyJ9LHsiY2lkcnMiOlsiMC4wLjAuMC8wIl0sInR5cGUiOiJjbGllbnQifV19.7NfK7LHD6q5Bq8qKZLGSvJMHRfPKGHQEPf_nJxqS7oDLrCHj8yF1Ow9CXS5LBGvVQOjqr1FU3lKzZ5QXJXqJGg'
+      },
+      timeout: 30000
+    }).then((playerRes) => {
       if (!playerRes.data || !playerRes.data.tag) {
         return reply('❌ Jogador não encontrado. Verifique a TAG e tente novamente.');
       }
@@ -31761,11 +31756,10 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
       if (e.response?.status === 404) {
         return reply('❌ Jogador não encontrado. Verifique a TAG e tente novamente.');
       }
-      if (isApiKeyError(e)) {
-        ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
-        return reply(`❌ Erro na API. O dono foi notificado.`);
+      if (e.response?.status === 403 || e.response?.status === 401) {
+        return reply('❌ Erro de autenticação na API. Tente novamente mais tarde.');
       }
-      reply('❌ Erro ao buscar informações do jogador.');
+      reply('❌ Erro ao buscar informações do jogador. Verifique a TAG e tente novamente.');
     });
   }
   break;
@@ -31774,24 +31768,21 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bscla':
   case 'bsclube':
   {
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
     if (!q) {
       return reply(`⚔️ *BRAWL STARS - INFORMAÇÕES DO CLUBE*\n\n📝 *Como usar:*\n• Digite a TAG do clube após o comando\n• Exemplo: ${prefix}bsclub #2PP\n\n💡 *Dica:* Você pode copiar a tag do clube no jogo`);
     }
 
     let clubTag = q.trim().toUpperCase();
     if (!clubTag.startsWith('#')) clubTag = '#' + clubTag;
-    const encodedTag = encodeURIComponent(clubTag);
+    const tagWithoutHash = clubTag.replace('#', '');
 
     reply('🔍 Buscando informações do clube...');
 
-    axios.get(`https://cog.api.br/api/v1/brawlstars/clubs/${encodedTag}`, {
-      headers: { 'X-API-Key': KeyCog },
-      timeout: 120000
+    axios.get(`https://api.brawlstars.com/v1/clubs/%23${tagWithoutHash}`, {
+      headers: {
+        'Authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6ImNmMmIxNDJhLTA0ZjMtNDIwOC04ODkyLTRmMjk0YzY5ZjUzNyIsImlhdCI6MTczNjA5NDA3Niwic3ViIjoiZGV2ZWxvcGVyLzVkYzJhZGM5LTBjMGUtNGNlYy00N2RiLTdhNmQyMzBjZTkxNSIsInNjb3BlcyI6WyJicmF3bHN0YXJzIl0sImxpbWl0cyI6W3sidGllciI6ImRldmVsb3Blci9zaWx2ZXIiLCJ0eXBlIjoidGhyb3R0bGluZyJ9LHsiY2lkcnMiOlsiMC4wLjAuMC8wIl0sInR5cGUiOiJjbGllbnQifV19.7NfK7LHD6q5Bq8qKZLGSvJMHRfPKGHQEPf_nJxqS7oDLrCHj8yF1Ow9CXS5LBGvVQOjqr1FU3lKzZ5QXJXqJGg'
+      },
+      timeout: 30000
     }).then(response => {
 
     if (!response.data || !response.data.tag) {
@@ -31873,11 +31864,10 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
       if (e.response?.status === 404) {
         return reply('❌ Clube não encontrado. Verifique a TAG e tente novamente.');
       }
-      if (isApiKeyError(e)) {
-        ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
-        return reply(`❌ Erro na API. O dono foi notificado.`);
+      if (e.response?.status === 403 || e.response?.status === 401) {
+        return reply('❌ Erro de autenticação na API. Tente novamente mais tarde.');
       }
-      reply('❌ Erro ao buscar informações do clube.');
+      reply('❌ Erro ao buscar informações do clube. Verifique a TAG e tente novamente.');
     });
   }
   break;
