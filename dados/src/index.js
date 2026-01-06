@@ -3925,8 +3925,25 @@ Código: *${roleCode}*`,
         
         // Detectar menções na mensagem
         const mencoesNaMensagem = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-        // Filtrar menção do bot das menções
-        const mencoesFiltradas = mencoesNaMensagem.filter(m => !m.includes(_botShort));
+        
+        // Obter todos os possíveis identificadores do bot para filtrar
+        const botLid = nazu.user?.lid ? nazu.user.lid.split(':')[0] : null;
+        const botJid = nazu.user?.id ? nazu.user.id.split(':')[0] : null;
+        const botIdentifiers = [_botShort, botLid, botJid, botNumber].filter(Boolean);
+        
+        console.log('🤖 [DEBUG] Bot identifiers:', botIdentifiers);
+        console.log('🤖 [DEBUG] Menções originais:', mencoesNaMensagem);
+        
+        // Filtrar menção do bot das menções (usando todos os identificadores possíveis)
+        const mencoesFiltradas = mencoesNaMensagem.filter(m => {
+          const mNumber = m.split('@')[0].split(':')[0]; // Pega só o número
+          return !botIdentifiers.some(id => {
+            const idNumber = id.split('@')[0].split(':')[0];
+            return mNumber === idNumber;
+          });
+        });
+        
+        console.log('🤖 [DEBUG] Menções filtradas:', mencoesFiltradas);
         const primeiraMencao = mencoesFiltradas.length > 0 ? mencoesFiltradas[0] : null;
         
         const jSoNzIn = {
@@ -4033,12 +4050,30 @@ Código: *${roleCode}*`,
               
               // Obter menções originais da mensagem e filtrar a menção do bot
               const originalMentions = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-              const mentionsWithoutBot = originalMentions.filter(m => m !== botNumber && !m.includes(_botShort));
+              
+              // Usar os mesmos identificadores do bot para filtrar
+              const botLidPro = nazu.user?.lid ? nazu.user.lid.split(':')[0] : null;
+              const botJidPro = nazu.user?.id ? nazu.user.id.split(':')[0] : null;
+              const botIdentifiersPro = [_botShort, botLidPro, botJidPro, botNumber].filter(Boolean);
+              
+              const mentionsWithoutBot = originalMentions.filter(m => {
+                const mNumber = m.split('@')[0].split(':')[0];
+                return !botIdentifiersPro.some(id => {
+                  const idNumber = id.split('@')[0].split(':')[0];
+                  return mNumber === idNumber;
+                });
+              });
               const targetMention = mentionsWithoutBot.length > 0 ? mentionsWithoutBot[0] : null;
               
               // Se não tem menção no texto, pode ter marcado mensagem de alguém (resposta)
               const quotedParticipant = info.message?.extendedTextMessage?.contextInfo?.participant;
-              const mentionOrQuoted = targetMention || quotedParticipant;
+              // Verificar se o quotedParticipant não é o próprio bot
+              const isQuotedBot = quotedParticipant ? botIdentifiersPro.some(id => {
+                const idNumber = id.split('@')[0].split(':')[0];
+                const qNumber = quotedParticipant.split('@')[0].split(':')[0];
+                return qNumber === idNumber;
+              }) : true;
+              const mentionOrQuoted = targetMention || (quotedParticipant && !isQuotedBot ? quotedParticipant : null);
               
               console.log(`🤖 [PRO] Menções originais: ${JSON.stringify(originalMentions)}`);
               console.log(`🤖 [PRO] Menções sem bot: ${JSON.stringify(mentionsWithoutBot)}`);
