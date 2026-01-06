@@ -3913,11 +3913,15 @@ Código: *${roleCode}*`,
                               info.message?.documentMessage ? 'documento' : null;
         
         // Detectar tipo de mídia marcada
+        console.log('🤖 [DEBUG] quotedMessageContent:', quotedMessageContent ? Object.keys(quotedMessageContent) : 'null');
+        // Checar também pttMessage (mensagem de voz) que pode vir separado
         const tipoMidiaMarcada = quotedMessageContent?.imageMessage ? 'imagem' : 
                                  quotedMessageContent?.videoMessage ? 'video' : 
                                  quotedMessageContent?.audioMessage ? 'audio' : 
+                                 quotedMessageContent?.pttMessage ? 'audio' :
                                  quotedMessageContent?.stickerMessage ? 'sticker' : 
                                  quotedMessageContent?.documentMessage ? 'documento' : null;
+        console.log('🤖 [DEBUG] tipoMidiaMarcada:', tipoMidiaMarcada);
         
         // Detectar menções na mensagem
         const mencoesNaMensagem = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
@@ -3978,6 +3982,15 @@ Código: *${roleCode}*`,
         }
         
         console.log('🤖 Processando mensagem de assistente...');
+        console.log('🤖 [DEBUG] jSoNzIn:', JSON.stringify({
+          tem_midia: jSoNzIn.tem_midia,
+          tipo_midia: jSoNzIn.tipo_midia,
+          marcou_mensagem: jSoNzIn.marcou_mensagem,
+          tem_midia_marcada: jSoNzIn.tem_midia_marcada,
+          tipo_midia_marcada: jSoNzIn.tipo_midia_marcada,
+          tem_mencao: jSoNzIn.tem_mencao,
+          primeira_mencao: jSoNzIn.primeira_mencao
+        }));
         
         // Add null check for ia object
         if (!ia || typeof ia.makeAssistentRequest !== 'function') {
