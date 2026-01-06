@@ -3921,6 +3921,9 @@ Código: *${roleCode}*`,
         
         // Detectar menções na mensagem
         const mencoesNaMensagem = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+        // Filtrar menção do bot das menções
+        const mencoesFiltradas = mencoesNaMensagem.filter(m => !m.includes(_botShort));
+        const primeiraMencao = mencoesFiltradas.length > 0 ? mencoesFiltradas[0] : null;
         
         const jSoNzIn = {
           texto: budy2.replaceAll('@' + _botShort, '').trim(),
@@ -3936,7 +3939,9 @@ Código: *${roleCode}*`,
           id_enviou_marcada: false,
           tem_midia_marcada: !!tipoMidiaMarcada,
           tipo_midia_marcada: tipoMidiaMarcada,
-          mencoes: mencoesNaMensagem,
+          mencoes: mencoesFiltradas,
+          primeira_mencao: primeiraMencao,
+          tem_mencao: mencoesFiltradas.length > 0,
           id_mensagem: info.key.id,
           data_atual: new Date().toLocaleString('pt-BR', {
             timeZone: 'America/Sao_Paulo'
@@ -4011,7 +4016,24 @@ Código: *${roleCode}*`,
               
               // Simular execução do comando reutilizando o objeto info original
               const simulatedCommand = respAssist.command.toLowerCase();
-              const simulatedArgs = respAssist.args || '';
+              let simulatedArgs = respAssist.args || '';
+              
+              // Obter menções originais da mensagem
+              const originalMentions = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+              const firstMention = originalMentions.length > 0 ? originalMentions[0] : null;
+              
+              // Lista de comandos que precisam de menção (@user)
+              const commandsNeedMention = ['ban', 'ban2', 'kick', 'promover', 'rebaixar', 'mute', 'desmute', 
+                'mute2', 'desmute2', 'adv', 'rmadv', 'userinfo', 'perfil', 'rep', 'presente', 'denunciar',
+                'blockuser', 'unblockuser', 'addblacklist', 'delblacklist', 'addmod', 'delmod'];
+              
+              // Se o comando precisa de menção e temos uma menção, adiciona ao args
+              if (commandsNeedMention.includes(simulatedCommand) && firstMention && !simulatedArgs.includes('@')) {
+                // Adicionar a menção ao início dos argumentos
+                const mentionNumber = firstMention.split('@')[0];
+                simulatedArgs = `@${mentionNumber} ${simulatedArgs}`.trim();
+              }
+              
               const simulatedBody = `${prefix}${simulatedCommand} ${simulatedArgs}`.trim();
               
               // Clonar o objeto info original mantendo estrutura completa

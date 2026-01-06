@@ -1170,6 +1170,27 @@ Você receberá informações sobre mídia na mensagem:
 - Se marcou vídeo e pede "baixa como mp3" → comando: tomp3
 - Se tem mídia marcada mas pede algo que precisa de URL → falta: "URL do vídeo/áudio"
 
+**👤 CONTEXTO DE MENÇÕES (@usuario):**
+
+Você também receberá informações sobre menções:
+- \`tem_mencao\`: true/false - Se o usuário marcou alguém na mensagem (@fulano)
+- \`primeira_mencao\`: JID do primeiro usuário mencionado (ex: "5511999999999@s.whatsapp.net") ou null
+
+**Comandos que precisam de menção:**
+- ban, ban2, kick - Banir/remover membro
+- promover, rebaixar - Gerenciar admins
+- mute, desmute - Silenciar membro
+- adv, rmadv - Advertências
+- userinfo, perfil - Ver info de alguém
+- rep +/-, presente - Reputação e presentes
+- denunciar - Denunciar usuário
+
+**Use essas informações para:**
+- Se pede "bane ele" e tem_mencao=true → comando: ban (NÃO precisa de args, a menção já está lá)
+- Se pede "promove esse cara" e tem_mencao=true → comando: promover
+- Se pede "bane" sem mencionar ninguém e tem_mencao=false → comando: ban, falta: "marcar o usuário (@)"
+- Se pede "remove o fulano" mas não marcou → falta: "marcar o usuário (@)"
+
 **🎯 COMO IDENTIFICAR PEDIDOS DE COMANDO:**
 
 O usuário pode pedir de várias formas:
@@ -1178,7 +1199,7 @@ O usuário pode pedir de várias formas:
 - "baixa essa música Blinding Lights" → comando: play, args: Blinding Lights
 - "qual o clima em São Paulo" → comando: clima, args: São Paulo
 - "traduz pra inglês: olá mundo" → comando: tradutor, args: en olá mundo
-- "bane ele" / "remove esse cara" → comando: ban
+- "bane ele" → comando: ban (se tem_mencao=true, senão falta: "marcar o usuário")
 - "mostra meu perfil" → comando: perfil
 - "pesquisa sobre gatos no google" → comando: google, args: gatos
 - "baixa esse vídeo do tiktok" → comando: tiktok (se tem URL na mensagem ou marcada)
@@ -1316,11 +1337,53 @@ Usuário: "baixa esse link" (sem URL na mensagem e sem mídia)
 }
 \`\`\`
 
+Usuário: "bane ele" (com tem_mencao=true)
+\`\`\`json
+{
+  "isCommand": true,
+  "command": "ban",
+  "args": "",
+  "confianca": 0.98
+}
+\`\`\`
+
+Usuário: "remove esse cara" (com tem_mencao=false)
+\`\`\`json
+{
+  "isCommand": true,
+  "command": "ban",
+  "args": "",
+  "falta": "marcar o usuário (@)",
+  "confianca": 0.90
+}
+\`\`\`
+
+Usuário: "promove ele pra adm" (com tem_mencao=true)
+\`\`\`json
+{
+  "isCommand": true,
+  "command": "promover",
+  "args": "",
+  "confianca": 0.97
+}
+\`\`\`
+
+Usuário: "muta esse maluco" (com tem_mencao=true)
+\`\`\`json
+{
+  "isCommand": true,
+  "command": "mute",
+  "args": "",
+  "confianca": 0.95
+}
+\`\`\`
+
 **IMPORTANTE:**
 - SEMPRE responda APENAS no formato JSON acima
 - Nunca adicione texto fora do JSON
 - Se tiver dúvida se é comando, use confiança baixa (<0.7) ou isCommand: false
 - Priorize não responder (isCommand: false) quando não tiver certeza
+- Quando tem_mencao=true, comandos que precisam de @ NÃO precisam de falta
 `;
 
 async function makeCognimaRequest(modelo, texto, systemPrompt = null, key, historico = [], retries = 3) {
@@ -1793,7 +1856,7 @@ async function processUserMessages(data, key, nazu = null, ownerNumber = null, p
         selectedPrompt = ASSISTANT_PROMPT_NAZUNA;
       }
       
-      // Para personalidade 'pro', passa contexto simplificado com info de mídia
+      // Para personalidade 'pro', passa contexto simplificado com info de mídia e menções
       // Apenas a mensagem do usuário para identificar comandos
       const userInput = personality === 'pro' ? {
         mensagem: msgValidada.texto,
@@ -1801,7 +1864,9 @@ async function processUserMessages(data, key, nazu = null, ownerNumber = null, p
         tipo_midia: msgValidada.tipo_midia || null,
         marcou_mensagem: msgValidada.marcou_mensagem || false,
         tem_midia_marcada: msgValidada.tem_midia_marcada || false,
-        tipo_midia_marcada: msgValidada.tipo_midia_marcada || null
+        tipo_midia_marcada: msgValidada.tipo_midia_marcada || null,
+        tem_mencao: msgValidada.tem_mencao || false,
+        primeira_mencao: msgValidada.primeira_mencao || null
       } : {
         mensagem_atual: msgValidada.texto,
         nome_usuario: msgValidada.nome_enviou,
