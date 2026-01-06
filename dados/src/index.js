@@ -835,127 +835,221 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
 
   async function handleAutoDownload(nazu, from, url, info) {
     try {
-      // Usa AllDL para detectar mídias de qualquer link
       if (!KeyCog) {
         return false; // Ignora silenciosamente se não tiver API key
       }
       
-      return alldl.getAllMedia(url, KeyCog)
-          .then(async (result) => {
-            if (result.ok && result.totalItems > 0) {
-              const { metadata, media, videoCount, audioCount, imageCount } = result;
-              
-              // Preparar dados para encurtamento (mesmo do comando alldl)
-              const videos = media.filter(m => m.type === 'video').slice(0, 8);
-              const audios = media.filter(m => m.type === 'audio').slice(0, 5);
-              const images = media.filter(m => m.type === 'image').slice(0, 3);
-              
-              const allMediaItems = [...videos, ...audios, ...images];
-              
-              // Função para encurtar com retry
-              const shortenWithRetry = (item, maxRetries = 5) => {
-                return new Promise((resolve) => {
-                  const attempt = (retryCount = 0) => {
-                    axios.post('https://spoo.me/api/v1/shorten', { 
-                      long_url: item.url,
-                      custom_alias: `nazu_${Math.random().toString(36).substring(2, 8)}`
-                    })
-                      .then(res => resolve({ ...item, shortUrl: res.data.short_url }))
-                      .catch(err => {
-                        if (retryCount < maxRetries) {
-                          setTimeout(() => attempt(retryCount + 1), 500);
-                        } else {
-                          resolve({ ...item, shortUrl: null });
-                        }
-                      });
-                  };
-                  attempt();
-                });
-              };
-              
-              // Encurtar todos os links
-              const mediaWithLinks = await Promise.all(allMediaItems.map(item => shortenWithRetry(item)));
-              
-              let message = `💕 Oioi amor! Desculpa a intromissão, mas encontrei algumas mídias no link que você enviou~ ✨\n\n`;
-              message += 'Caso queira baixar, é só clicar em "ler mais" e escolher o formato que preferir! 🎁\‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎\n';
-              message += `━━━━━━━━━━━━━━━\n\n`;
-              message += `📝 *Título:* ${metadata.title || 'Desconhecido'}\n`;
-              if (metadata.uploader) {
-                message += `👤 *Autor:* ${metadata.uploader}\n`;
-              }
-              message += `\n📊 *Formatos Encontrados:*\n`;
-              message += `🎥 Vídeos: ${videoCount}\n`;
-              message += `🎵 Áudios: ${audioCount}\n`;
-              if (imageCount > 0) message += `🖼️ Imagens: ${imageCount}\n`;
-              message += `📦 Total: ${result.totalItems} formatos\n`;
-              
-              // Listar vídeos com links
-              const videosWithLinks = mediaWithLinks.filter(m => m.type === 'video');
-              if (videosWithLinks.length > 0) {
-                message += `\n🎥 *VÍDEOS:*\n`;
-                videosWithLinks.forEach((video, index) => {
-                  message += `\n${index + 1}. ${video.quality || video.resolution || 'N/A'}`;
-                  if (video.filesize) {
-                    const sizeMB = (video.filesize / (1024 * 1024)).toFixed(1);
-                    message += ` (${sizeMB}MB)`;
-                  }
-                  if (video.fps) message += ` ${video.fps}fps`;
-                  if (video.isBest) message += ` ⭐`;
-                  if (video.shortUrl) {
-                    message += `\n   🔗 ${video.shortUrl}`;
-                  } else {
-                    message += `\n   🔗 ${video.url}`;
-                  }
-                });
-              }
-              
-              // Listar áudios com links
-              const audiosWithLinks = mediaWithLinks.filter(m => m.type === 'audio');
-              if (audiosWithLinks.length > 0) {
-                message += `\n\n🎵 *ÁUDIOS:*\n`;
-                audiosWithLinks.forEach((audio, index) => {
-                  message += `\n${index + 1}. ${audio.quality || audio.abr + 'kbps' || 'N/A'}`;
-                  if (audio.filesize) {
-                    const sizeMB = (audio.filesize / (1024 * 1024)).toFixed(1);
-                    message += ` (${sizeMB}MB)`;
-                  }
-                  if (audio.shortUrl) {
-                    message += `\n   🔗 ${audio.shortUrl}`;
-                  } else {
-                    message += `\n   🔗 ${audio.url}`;
-                  }
-                });
-              }
-              
-              // Listar imagens com links
-              const imagesWithLinks = mediaWithLinks.filter(m => m.type === 'image');
-              if (imagesWithLinks.length > 0) {
-                message += `\n\n🖼️ *THUMBNAILS:*\n`;
-                imagesWithLinks.forEach((image, index) => {
-                  message += `\n${index + 1}. ${image.quality || image.width + 'x' + image.height || 'N/A'}`;
-                  if (image.shortUrl) {
-                    message += `\n   🔗 ${image.shortUrl}`;
-                  } else {
-                    message += `\n   🔗 ${image.url}`;
-                  }
-                });
-              }
-              
+      // Detectar tipo de URL e usar o módulo específico
+      const urlLower = url.toLowerCase();
+      let downloadModule = null;
+      let platformName = '';
+      
+      // YouTube
+      if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) {
+        downloadModule = youtube;
+        platformName = 'YouTube';
+      }
+      // TikTok
+      else if (urlLower.includes('tiktok.com') || urlLower.includes('vt.tiktok.com')) {
+        downloadModule = tiktok;
+        platformName = 'TikTok';
+      }
+      // Instagram
+      else if (urlLower.includes('instagram.com') || urlLower.includes('instagr.am')) {
+        downloadModule = igdl;
+        platformName = 'Instagram';
+      }
+      // Facebook
+      else if (urlLower.includes('facebook.com') || urlLower.includes('fb.watch')) {
+        downloadModule = facebook;
+        platformName = 'Facebook';
+      }
+      // Pinterest
+      else if (urlLower.includes('pinterest.com') || urlLower.includes('pin.it')) {
+        downloadModule = pinterest;
+        platformName = 'Pinterest';
+      }
+      // Spotify
+      else if (urlLower.includes('spotify.com') || urlLower.includes('open.spotify.com')) {
+        downloadModule = spotify;
+        platformName = 'Spotify';
+      }
+      // SoundCloud
+      else if (urlLower.includes('soundcloud.com')) {
+        downloadModule = soundcloud;
+        platformName = 'SoundCloud';
+      }
+      // Twitch
+      else if (urlLower.includes('twitch.tv')) {
+        downloadModule = twitch;
+        platformName = 'Twitch';
+      }
+      // Vimeo
+      else if (urlLower.includes('vimeo.com')) {
+        downloadModule = vimeo;
+        platformName = 'Vimeo';
+      }
+      // Dailymotion
+      else if (urlLower.includes('dailymotion.com')) {
+        downloadModule = dailymotion;
+        platformName = 'Dailymotion';
+      }
+      // Streamable
+      else if (urlLower.includes('streamable.com')) {
+        downloadModule = streamable;
+        platformName = 'Streamable';
+      }
+      // Reddit
+      else if (urlLower.includes('reddit.com')) {
+        downloadModule = reddit;
+        platformName = 'Reddit';
+      }
+      // Bandcamp
+      else if (urlLower.includes('bandcamp.com')) {
+        downloadModule = bandcamp;
+        platformName = 'Bandcamp';
+      }
+      else {
+        // URL não suportada
+        return false;
+      }
+      
+      // Processar download baseado na plataforma
+      let result = null;
+      
+      // YouTube - baixar apenas áudio (MP3)
+      if (platformName === 'YouTube') {
+        result = await youtube.mp3(url, 128, KeyCog);
+        if (result && result.ok) {
+          await nazu.sendMessage(from, {
+            audio: result.buffer,
+            mimetype: 'audio/mpeg',
+            fileName: result.filename || 'audio.mp3'
+          }, { quoted: info });
+          return true;
+        }
+      }
+      
+      // TikTok
+      else if (platformName === 'TikTok') {
+        result = await tiktok.download(url, KeyCog);
+        if (result && result.data) {
+          const datinha = result.data;
+          if (datinha.video) {
+            await nazu.sendMessage(from, {
+              video: { url: datinha.video },
+              caption: `📱 *TikTok* - ${datinha.author || 'Autor desconhecido'}`,
+              mimetype: 'video/mp4'
+            }, { quoted: info });
+            return true;
+          }
+        }
+      }
+      
+      // Instagram
+      else if (platformName === 'Instagram') {
+        result = await igdl.download(url, KeyCog);
+        if (result && result.data && result.data.length > 0) {
+          const media = result.data[0];
+          if (media.type === 'video') {
+            await nazu.sendMessage(from, {
+              video: { url: media.url },
+              caption: '📸 *Instagram*',
+              mimetype: 'video/mp4'
+            }, { quoted: info });
+          } else {
+            await nazu.sendMessage(from, {
+              image: { url: media.url },
+              caption: '📸 *Instagram*'
+            }, { quoted: info });
+          }
+          return true;
+        }
+      }
+      
+      // Facebook
+      else if (platformName === 'Facebook') {
+        result = await facebook.download(url, KeyCog);
+        if (result && result.data) {
+          const videoUrl = result.data.video_hd || result.data.video_sd;
+          if (videoUrl) {
+            await nazu.sendMessage(from, {
+              video: { url: videoUrl },
+              caption: '📘 *Facebook*',
+              mimetype: 'video/mp4'
+            }, { quoted: info });
+            return true;
+          }
+        }
+      }
+      
+      // Pinterest
+      else if (platformName === 'Pinterest') {
+        result = await pinterest.download(url, KeyCog);
+        if (result && result.data) {
+          const media = result.data;
+          if (media.type === 'video') {
+            await nazu.sendMessage(from, {
+              video: { url: media.url },
+              caption: '📌 *Pinterest*',
+              mimetype: 'video/mp4'
+            }, { quoted: info });
+          } else {
+            await nazu.sendMessage(from, {
+              image: { url: media.url },
+              caption: '📌 *Pinterest*'
+            }, { quoted: info });
+          }
+          return true;
+        }
+      }
+      
+      // Spotify - baixar áudio
+      else if (platformName === 'Spotify') {
+        result = await spotify.download(url, KeyCog);
+        if (result && result.data && result.data.audioUrl) {
+          await nazu.sendMessage(from, {
+            audio: { url: result.data.audioUrl },
+            mimetype: 'audio/mpeg',
+            fileName: `${result.data.title || 'audio'}.mp3`
+          }, { quoted: info });
+          return true;
+        }
+      }
+      
+      // SoundCloud - baixar áudio
+      else if (platformName === 'SoundCloud') {
+        result = await soundcloud.download(url, KeyCog);
+        if (result && result.data && result.data.audioUrl) {
+          await nazu.sendMessage(from, {
+            audio: { url: result.data.audioUrl },
+            mimetype: 'audio/mpeg',
+            fileName: `${result.data.title || 'audio'}.mp3`
+          }, { quoted: info });
+          return true;
+        }
+      }
+      
+      // Plataformas genéricas (Twitch, Vimeo, Dailymotion, Streamable, Reddit, Bandcamp)
+      else {
+        if (downloadModule && typeof downloadModule.download === 'function') {
+          result = await downloadModule.download(url, KeyCog);
+          if (result && result.data) {
+            const videoUrl = result.data.video || result.data.videoUrl || result.data.url;
+            if (videoUrl) {
               await nazu.sendMessage(from, {
-                text: message
-              }, {
-                quoted: info
-              });
+                video: { url: videoUrl },
+                caption: `🎬 *${platformName}*`,
+                mimetype: 'video/mp4'
+              }, { quoted: info });
               return true;
-            } else {
-              // Ignora silenciosamente se não encontrar nada
-              return false;
             }
-          })
-          .catch((err) => {
-            console.error('Erro no autodl AllDL (promise):', err);
-            return false;
-          });
+          }
+        }
+      }
+      
+      return false;
+      
     } catch (e) {
       console.error('Erro no autodl:', e);
       return false;
@@ -18841,7 +18935,7 @@ case 'spotify':
     }
 
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'Spotify', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
@@ -18851,61 +18945,59 @@ case 'spotify':
 
     await reply('🎵 Baixando do Spotify... Aguarde um momento!');
 
-    spotify.download(q, KeyCog)
-      .then(async (result) => {
-        if (!result.ok) {
-          if (result.msg.includes('API key inválida')) {
-            spotify.notifyOwnerAboutApiKey(nazu, numerodono, result.msg, command);
-            return reply('🤖 *Sistema de Spotify temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
-          }
-          return reply(`❌ Erro: ${result.msg}`);
-        }
+    // Usar rota de download da API Cognima
+    axios.get('https://cog.api.br/api/v1/spotify/download', {
+      params: { url: q },
+      headers: { 'X-API-Key': KeyCog },
+      responseType: 'arraybuffer',
+      timeout: 120000
+    })
+    .then(async (response) => {
+      const audioBuffer = Buffer.from(response.data);
+      
+      // Extrair informações do track ID para mostrar nome
+      const trackId = q.match(/track\/([a-zA-Z0-9]+)/)?.[1];
+      const filename = trackId ? `spotify_${trackId}.mp3` : 'spotify_audio.mp3';
+      
+      const caption = `🎵 *Música Baixada do Spotify!* 🎵\n\n🔗 ${q}\n\n🎧 *Enviando áudio...*`;
 
-        const caption = `🎵 *Música Baixada com Sucesso!* 🎵\n\n` +
-          `📌 *Título:* ${result.title}\n` +
-          `👤 *Artista(s):* ${result.artists.join(', ')}\n` +
-          `📅 *Ano:* ${result.year}\n` +
-          `⏱️ *Duração:* ${result.duration}\n\n` +
-          `🎧 *Enviando áudio...*`;
+      try {
+        await reply(caption);
+      } catch (err) {
+        console.error('Erro ao enviar caption:', err);
+      }
 
-        try {
+      try {
+        await nazu.sendMessage(from, {
+          audio: audioBuffer,
+          mimetype: 'audio/mpeg',
+          fileName: filename
+        }, { quoted: info });
+      } catch (audioError) {
+        if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
+          await reply('📦 Arquivo muito grande, enviando como documento...');
           await nazu.sendMessage(from, {
-            image: { url: result.albumImage },
-            caption
+            document: audioBuffer,
+            fileName: filename,
+            mimetype: 'audio/mpeg'
           }, { quoted: info });
-        } catch (imgErr) {
-          console.error('Erro ao enviar imagem do álbum:', imgErr);
-        }
-
-        try {
-          await nazu.sendMessage(from, {
-            audio: result.buffer,
-            mimetype: 'audio/mpeg',
-            fileName: result.filename
-          }, { quoted: info });
-        } catch (audioError) {
-          if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
-            await reply('📦 Arquivo muito grande, enviando como documento...');
-            await nazu.sendMessage(from, {
-              document: result.buffer,
-              fileName: result.filename,
-              mimetype: 'audio/mpeg'
-            }, { quoted: info });
-          } else {
-            console.error('Erro ao enviar áudio do Spotify:', audioError);
-            reply('❌ Ocorreu um erro ao enviar o áudio.');
-          }
-        }
-      })
-      .catch((error) => {
-        console.error('Erro no download do Spotify:', error);
-        if (error.message?.includes('API key inválida')) {
-          spotify.notifyOwnerAboutApiKey(nazu, numerodono, error.message, command);
-          reply('🤖 *Sistema de Spotify temporariamente indisponível*');
         } else {
-          reply(`❌ Erro ao baixar do Spotify: ${error.message}`);
+          console.error('Erro ao enviar áudio do Spotify:', audioError);
+          reply('❌ Ocorreu um erro ao enviar o áudio.');
         }
-      });
+      }
+    })
+    .catch((error) => {
+      console.error('Erro no download do Spotify:', error);
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida ou expirada', 'Spotify', prefix);
+        reply('🤖 *Sistema de Spotify temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
+      } else if (error.response?.status === 400) {
+        reply('❌ Link inválido ou música não encontrada no Spotify.');
+      } else {
+        reply(`❌ Erro ao baixar do Spotify: ${error.message || 'Erro desconhecido'}`);
+      }
+    });
 
   } catch (error) {
     console.error('Erro no comando spotifydl:', error);
@@ -18929,52 +19021,60 @@ case 'playspotify':
     }
 
     if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'Spotify', prefix);
       return reply(API_KEY_REQUIRED_MESSAGE);
     }
 
     await reply('🔎 Buscando no Spotify... Aguarde!');
 
-    spotify.searchDownload(q, KeyCog)
-      .then(async (result) => {
-        if (!result.ok) {
-          if (result.msg.includes('API key inválida')) {
-            spotify.notifyOwnerAboutApiKey(nazu, numerodono, result.msg, command);
-            return reply('🤖 *Sistema de Spotify temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
-          }
-          return reply(`❌ Erro: ${result.msg}`);
-        }
+    // 1. Primeiro buscar a música usando search-one
+    axios.get('https://cog.api.br/api/v1/spotify/search-one', {
+      params: { q: q },
+      headers: { 'X-API-Key': KeyCog },
+      timeout: 30000
+    })
+    .then(async (searchResponse) => {
+      const searchData = searchResponse.data;
+      
+      if (!searchData.success || !searchData.result) {
+        return reply('❌ Nenhuma música encontrada com esse nome.');
+      }
 
-        const caption = `🎵 *Música Encontrada!* 🎵\n\n` +
-          `🔍 *Busca:* ${result.query}\n\n` +
-          `📌 *Título:* ${result.track.name}\n` +
-          `👤 *Artista(s):* ${result.track.artists}\n` +
-          `📅 *Ano:* ${result.year}\n` +
-          `⏱️ *Duração:* ${result.duration}\n` +
-          `🔗 *Link:* ${result.track.link}\n\n` +
-          `🎧 *Baixando e processando...*`;
+      const track = searchData.result;
+      const trackUrl = track.link;
+      
+      const searchCaption = `🎵 *Música Encontrada!* 🎵\n\n` +
+        `🔍 *Busca:* ${searchData.query}\n\n` +
+        `📌 *Título:* ${track.name}\n` +
+        `👤 *Artista(s):* ${track.artists}\n` +
+        `🔗 *Link:* ${trackUrl}\n\n` +
+        `📥 *Baixando...*`;
+
+      await reply(searchCaption);
+
+      // 2. Agora baixar a música usando o link encontrado
+      axios.get('https://cog.api.br/api/v1/spotify/download', {
+        params: { url: trackUrl },
+        headers: { 'X-API-Key': KeyCog },
+        responseType: 'arraybuffer',
+        timeout: 120000
+      })
+      .then(async (downloadResponse) => {
+        const audioBuffer = Buffer.from(downloadResponse.data);
+        const filename = `${track.name.replace(/[^\w\s]/gi, '_')}.mp3`;
 
         try {
           await nazu.sendMessage(from, {
-            image: { url: result.albumImage },
-            caption
-          }, { quoted: info });
-        } catch (imgErr) {
-          console.error('Erro ao enviar imagem do álbum:', imgErr);
-        }
-
-        try {
-          await nazu.sendMessage(from, {
-            audio: result.buffer,
+            audio: audioBuffer,
             mimetype: 'audio/mpeg',
-            fileName: result.filename
+            fileName: filename
           }, { quoted: info });
         } catch (audioError) {
           if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
             await reply('📦 Arquivo muito grande, enviando como documento...');
             await nazu.sendMessage(from, {
-              document: result.buffer,
-              fileName: result.filename,
+              document: audioBuffer,
+              fileName: filename,
               mimetype: 'audio/mpeg'
             }, { quoted: info });
           } else {
@@ -18983,15 +19083,27 @@ case 'playspotify':
           }
         }
       })
-      .catch((error) => {
-        console.error('Erro na busca/download do Spotify:', error);
-        if (error.message?.includes('API key inválida')) {
-          spotify.notifyOwnerAboutApiKey(nazu, numerodono, error.message, command);
+      .catch((downloadError) => {
+        console.error('Erro no download do Spotify:', downloadError);
+        if (downloadError.response?.status === 401 || downloadError.response?.status === 403) {
+          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida ou expirada', 'Spotify', prefix);
           reply('🤖 *Sistema de Spotify temporariamente indisponível*');
         } else {
-          reply(`❌ Erro ao buscar no Spotify: ${error.message}`);
+          reply(`❌ Erro ao baixar a música: ${downloadError.message || 'Erro desconhecido'}`);
         }
       });
+    })
+    .catch((searchError) => {
+      console.error('Erro na busca do Spotify:', searchError);
+      if (searchError.response?.status === 401 || searchError.response?.status === 403) {
+        notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida ou expirada', 'Spotify', prefix);
+        reply('🤖 *Sistema de Spotify temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
+      } else if (searchError.response?.status === 400) {
+        reply('❌ Não foi possível buscar essa música. Tente com outro nome.');
+      } else {
+        reply(`❌ Erro ao buscar no Spotify: ${searchError.message || 'Erro desconhecido'}`);
+      }
+    });
 
   } catch (error) {
     console.error('Erro no comando play2:', error);
@@ -27375,7 +27487,28 @@ case 'divulgar':
           
           groupData.autodl = !groupData.autodl;
           fs.writeFileSync(groupFile, JSON.stringify(groupData, null, 2));
-          await reply(`✅ Autodl ${groupData.autodl ? 'ativado' : 'desativado'}! Links suportados serão baixados automaticamente.`);
+          
+          const platforms = [
+            '🎥 YouTube',
+            '📱 TikTok', 
+            '📸 Instagram',
+            '📘 Facebook',
+            '📌 Pinterest',
+            '🎵 Spotify',
+            '🔊 SoundCloud',
+            '🎮 Twitch',
+            '🎬 Vimeo',
+            '📹 Dailymotion',
+            '🎞️ Streamable',
+            '🗨️ Reddit',
+            '🎸 Bandcamp'
+          ];
+          
+          const statusMsg = groupData.autodl 
+            ? `✅ *AutoDL Ativado!*\n\n📥 Links das seguintes plataformas serão baixados automaticamente:\n\n${platforms.join('\n')}\n\n💡 Basta enviar o link que eu baixo para você!`
+            : `❌ *AutoDL Desativado*\n\n⏸️ Links não serão mais baixados automaticamente.`;
+          
+          await reply(statusMsg);
         } catch (e) {
           console.error(e);
           await reply("Ocorreu um erro 💔");
@@ -31657,25 +31790,34 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bsjogador':
   case 'bsperfil':
   {
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
     if (!q) {
       return reply(`🎮 *BRAWL STARS - PERFIL DE JOGADOR*\n\n📝 *Como usar:*\n• Digite a TAG do jogador após o comando\n• Exemplo: ${prefix}bsplayer #2PP\n\n💡 *Dica:* Você pode copiar sua tag do jogo`);
     }
 
     let playerTag = q.trim().toUpperCase();
     if (!playerTag.startsWith('#')) playerTag = '#' + playerTag;
-    const tagWithoutHash = playerTag.replace('#', '');
+    const encodedTag = encodeURIComponent(playerTag);
 
     reply('🔍 Buscando informações do jogador...');
 
-    // Usando API pública Brawlify (sem autenticação necessária)
-    axios.get(`https://api.brawlify.com/v1/player/${tagWithoutHash}`, {
-      timeout: 30000
-    }).then((playerRes) => {
+    Promise.all([
+      axios.get(`https://cog.api.br/api/v1/brawlstars/players/${encodedTag}`, {
+        headers: { 'X-API-Key': KeyCog },
+        timeout: 120000
+      }),
+      axios.get('https://api.brawlify.com/v1/icons', { timeout: 30000 }).catch(() => null)
+    ]).then(([playerRes, iconsRes]) => {
       if (!playerRes.data || !playerRes.data.tag) {
         return reply('❌ Jogador não encontrado. Verifique a TAG e tente novamente.');
       }
 
       const player = playerRes.data;
+      const icons = iconsRes?.data?.player || {};
       
       // Calcular estatísticas extras
       const totalVictories = (player['3vs3Victories'] || 0) + (player.soloVictories || 0) + (player.duoVictories || 0);
@@ -31752,10 +31894,11 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
       if (e.response?.status === 404) {
         return reply('❌ Jogador não encontrado. Verifique a TAG e tente novamente.');
       }
-      if (e.response?.status === 403 || e.response?.status === 401) {
-        return reply('❌ Erro de autenticação na API. Tente novamente mais tarde.');
+      if (isApiKeyError(e)) {
+        ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
+        return reply(`❌ Erro na API. O dono foi notificado.`);
       }
-      reply('❌ Erro ao buscar informações do jogador. Verifique a TAG e tente novamente.');
+      reply('❌ Erro ao buscar informações do jogador.');
     });
   }
   break;
@@ -31764,19 +31907,24 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bscla':
   case 'bsclube':
   {
+    if (!KeyCog) {
+      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
+      return reply(API_KEY_REQUIRED_MESSAGE);
+    }
+
     if (!q) {
       return reply(`⚔️ *BRAWL STARS - INFORMAÇÕES DO CLUBE*\n\n📝 *Como usar:*\n• Digite a TAG do clube após o comando\n• Exemplo: ${prefix}bsclub #2PP\n\n💡 *Dica:* Você pode copiar a tag do clube no jogo`);
     }
 
     let clubTag = q.trim().toUpperCase();
     if (!clubTag.startsWith('#')) clubTag = '#' + clubTag;
-    const tagWithoutHash = clubTag.replace('#', '');
+    const encodedTag = encodeURIComponent(clubTag);
 
     reply('🔍 Buscando informações do clube...');
 
-    // Usando API pública Brawlify (sem autenticação necessária)
-    axios.get(`https://api.brawlify.com/v1/club/${tagWithoutHash}`, {
-      timeout: 30000
+    axios.get(`https://cog.api.br/api/v1/brawlstars/clubs/${encodedTag}`, {
+      headers: { 'X-API-Key': KeyCog },
+      timeout: 120000
     }).then(response => {
 
     if (!response.data || !response.data.tag) {
@@ -31858,10 +32006,11 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
       if (e.response?.status === 404) {
         return reply('❌ Clube não encontrado. Verifique a TAG e tente novamente.');
       }
-      if (e.response?.status === 403 || e.response?.status === 401) {
-        return reply('❌ Erro de autenticação na API. Tente novamente mais tarde.');
+      if (isApiKeyError(e)) {
+        ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
+        return reply(`❌ Erro na API. O dono foi notificado.`);
       }
-      reply('❌ Erro ao buscar informações do clube. Verifique a TAG e tente novamente.');
+      reply('❌ Erro ao buscar informações do clube.');
     });
   }
   break;
@@ -32068,10 +32217,15 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   case 'bsrankings':
   case 'bsrank':
   case 'bstop': {
+  if (!KeyCog) {
+    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
+    return reply(API_KEY_REQUIRED_MESSAGE);
+  }
+
   const argsRank = q ? q.trim().toLowerCase().split(/\s+/) : [];
   const country = argsRank[0] || 'global';
   const type = argsRank[1] || 'players';
-  const brawlerName = argsRank[2] || null;
+  const brawlerId = argsRank[2] || null;
 
   const validTypes = ['players', 'clubs', 'brawlers'];
   if (!validTypes.includes(type)) {
@@ -32080,105 +32234,139 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
 
   reply('🔍 Buscando ranking...');
 
-  // Usando API pública Brawlify
-  const countryCode = country === 'global' ? 'global' : country.toUpperCase();
-  
-  const typeNames = {
-    players: '👤 JOGADORES',
-    clubs: '🛡️ CLUBES',
-    brawlers: '👾 BRAWLERS'
-  };
-  
-  const countryNames = {
-    global: '🌍 Global',
-    BR: '🇧🇷 Brasil',
-    US: '🇺🇸 Estados Unidos',
-    PT: '🇵🇹 Portugal',
-    MX: '🇲🇽 México',
-    AR: '🇦🇷 Argentina',
-    ES: '🇪🇸 Espanha',
-    DE: '🇩🇪 Alemanha',
-    FR: '🇫🇷 França',
-    GB: '🇬🇧 Reino Unido',
-    JP: '🇯🇵 Japão',
-    KR: '🇰🇷 Coreia do Sul',
-    CN: '🇨🇳 China',
-    IN: '🇮🇳 Índia',
-    RU: '🇷🇺 Rússia'
-  };
-
-  // Brawlify Rankings API
   let url;
-  if (type === 'players') {
-    url = `https://api.brawlify.com/v1/rankings/${countryCode}/players`;
-  } else if (type === 'clubs') {
-    url = `https://api.brawlify.com/v1/rankings/${countryCode}/clubs`;
-  } else if (type === 'brawlers') {
-    // Primeiro buscar o ID do brawler
-    if (!brawlerName) {
-      return reply(`👾 *RANKING POR BRAWLER*\n\nDigite o nome do brawler!\n\n*Exemplo:* ${prefix}bsrank br brawlers shelly`);
-    }
-    
-    axios.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 })
-      .then(brawlersRes => {
-        const found = brawlersRes.data.list?.find(b => 
-          b.name.toLowerCase() === brawlerName.toLowerCase() ||
-          b.name.toLowerCase().includes(brawlerName.toLowerCase())
-        );
-        
-        if (!found) {
-          return reply(`❌ Brawler "${brawlerName}" não encontrado.\n\n💡 Use ${prefix}bsbrawlers para ver a lista`);
-        }
-        
-        const brawlerUrl = `https://api.brawlify.com/v1/rankings/${countryCode}/brawlers/${found.id}`;
-        
-        axios.get(brawlerUrl, { timeout: 30000 })
-          .then(response => {
-            const items = (response.data.items || response.data.list || []).slice(0, 25);
-            
-            if (items.length === 0) {
-              return reply('❌ Nenhum dado encontrado para este ranking.');
-            }
-            
-            let msg = `🏆 *BRAWL STARS - RANKING*\n${'═'.repeat(30)}\n\n`;
-            msg += `📊 *Tipo:* Top ${found.name}\n`;
-            msg += `🌍 *Região:* ${countryNames[countryCode] || countryCode}\n`;
-            msg += `📋 *Mostrando:* Top ${items.length}\n\n`;
-            
-            items.forEach((item, i) => {
-              const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-              msg += `${medal} *${item.name}*\n`;
-              msg += `   🏷️ ${item.tag}\n`;
-              msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
-              if (item.club?.name) msg += `   🛡️ ${item.club.name}\n`;
-              msg += `\n`;
-            });
-            
-            reply(msg);
-          })
-          .catch(e => {
-            console.error('Erro no bsrankings brawler:', e);
-            reply('❌ Erro ao buscar ranking do brawler.');
-          });
-      })
-      .catch(e => {
-        console.error('Erro ao buscar brawler:', e);
-        reply('❌ Erro ao buscar informações do brawler.');
-      });
-    return;
+  if (country === 'global') {
+    url = `https://cog.api.br/api/v1/brawlstars/rankings/global/${type}`;
+  } else {
+    url = `https://cog.api.br/api/v1/brawlstars/rankings/${country}/${type}`;
   }
-
-  axios.get(url, { timeout: 30000 })
-    .then(response => {
-      const items = (response.data.items || response.data.list || []).slice(0, 25);
-      
-      if (items.length === 0) {
-        return reply('❌ Nenhum dado encontrado para este ranking.');
+  
+  // Se for ranking de brawler específico
+  if (type === 'brawlers' && brawlerId) {
+    // Buscar ID do brawler pelo nome
+    axios.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 }).then(brawlersRes => {
+      const found = brawlersRes.data.list.find(b => b.name.toLowerCase() === brawlerId.toLowerCase());
+      if (found) {
+        url = country === 'global' 
+          ? `https://cog.api.br/api/v1/brawlstars/rankings/global/brawlers/${found.id}`
+          : `https://cog.api.br/api/v1/brawlstars/rankings/${country}/brawlers/${found.id}`;
       }
+
+      axios.get(url, {
+        headers: { 'X-API-Key': KeyCog },
+        timeout: 120000
+      }).then(response => {
+        if (!response.data || !response.data.items) {
+          return reply('❌ Erro ao buscar ranking.');
+        }
+
+        const items = response.data.items.slice(0, 25);
+        const typeNames = {
+          players: '👤 JOGADORES',
+          clubs: '🛡️ CLUBES',
+          brawlers: '👾 BRAWLERS'
+        };
+        
+        const countryNames = {
+          global: '🌍 Global',
+          br: '🇧🇷 Brasil',
+          us: '🇺🇸 Estados Unidos',
+          pt: '🇵🇹 Portugal',
+          mx: '🇲🇽 México',
+          ar: '🇦🇷 Argentina',
+          es: '🇪🇸 Espanha',
+          de: '🇩🇪 Alemanha',
+          fr: '🇫🇷 França',
+          uk: '🇬🇧 Reino Unido',
+          jp: '🇯🇵 Japão',
+          kr: '🇰🇷 Coreia do Sul',
+          cn: '🇨🇳 China',
+          in: '🇮🇳 Índia',
+          ru: '🇷🇺 Rússia'
+        };
+
+        let msg = `🏆 *BRAWL STARS - RANKING*\n${'═'.repeat(30)}\n\n`;
+        msg += `📊 *Tipo:* ${typeNames[type]}\n`;
+        msg += `🌍 *Região:* ${countryNames[country] || country.toUpperCase()}\n`;
+        msg += `📋 *Mostrando:* Top ${items.length}\n\n`;
+
+        items.forEach((item, i) => {
+          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+          
+          if (type === 'players') {
+            msg += `${medal} *${item.name}*\n`;
+            msg += `   🏷️ ${item.tag}\n`;
+            msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
+            if (item.club?.name) msg += `   🛡️ ${item.club.name}\n`;
+            msg += `\n`;
+          } else if (type === 'clubs') {
+            msg += `${medal} *${item.name}*\n`;
+            msg += `   🏷️ ${item.tag}\n`;
+            msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
+            msg += `   👥 ${item.memberCount || 0}/30 membros\n`;
+            msg += `\n`;
+          } else if (type === 'brawlers') {
+            msg += `${medal} *${item.name}*\n`;
+            msg += `   🏷️ ${item.tag}\n`;
+            msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
+            if (item.brawler?.name) msg += `   👾 ${item.brawler.name}\n`;
+            msg += `\n`;
+          }
+        });
+
+        reply(msg);
+      }).catch(e => {
+        console.error('Erro no bsrankings:', e);
+        if (e.response?.status === 404) {
+          return reply('❌ País ou tipo de ranking não encontrado.');
+        }
+        if (isApiKeyError(e)) {
+          ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
+          return reply(`❌ Erro na API. O dono foi notificado.`);
+        }
+        reply('❌ Erro ao buscar ranking.');
+      });
+    }).catch(e => {
+      console.error('Erro ao buscar brawler:', e);
+      reply('❌ Erro ao buscar informações do brawler.');
+    });
+  } else {
+    axios.get(url, {
+      headers: { 'X-API-Key': KeyCog },
+      timeout: 120000
+    }).then(response => {
+      if (!response.data || !response.data.items) {
+        return reply('❌ Erro ao buscar ranking.');
+      }
+
+      const items = response.data.items.slice(0, 25);
+      const typeNames = {
+        players: '👤 JOGADORES',
+        clubs: '🛡️ CLUBES',
+        brawlers: '👾 BRAWLERS'
+      };
+      
+      const countryNames = {
+        global: '🌍 Global',
+        br: '🇧🇷 Brasil',
+        us: '🇺🇸 Estados Unidos',
+        pt: '🇵🇹 Portugal',
+        mx: '🇲🇽 México',
+        ar: '🇦🇷 Argentina',
+        es: '🇪🇸 Espanha',
+        de: '🇩🇪 Alemanha',
+        fr: '🇫🇷 França',
+        uk: '🇬🇧 Reino Unido',
+        jp: '🇯🇵 Japão',
+        kr: '🇰🇷 Coreia do Sul',
+        cn: '🇨🇳 China',
+        in: '🇮🇳 Índia',
+        ru: '🇷🇺 Rússia'
+      };
 
       let msg = `🏆 *BRAWL STARS - RANKING*\n${'═'.repeat(30)}\n\n`;
       msg += `📊 *Tipo:* ${typeNames[type]}\n`;
-      msg += `🌍 *Região:* ${countryNames[countryCode] || countryCode}\n`;
+      msg += `🌍 *Região:* ${countryNames[country] || country.toUpperCase()}\n`;
       msg += `📋 *Mostrando:* Top ${items.length}\n\n`;
 
       items.forEach((item, i) => {
@@ -32196,18 +32384,28 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
           msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
           msg += `   👥 ${item.memberCount || 0}/30 membros\n`;
           msg += `\n`;
+        } else if (type === 'brawlers') {
+          msg += `${medal} *${item.name}*\n`;
+          msg += `   🏷️ ${item.tag}\n`;
+          msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
+          if (item.brawler?.name) msg += `   👾 ${item.brawler.name}\n`;
+          msg += `\n`;
         }
       });
 
       reply(msg);
-    })
-    .catch(e => {
+    }).catch(e => {
       console.error('Erro no bsrankings:', e);
       if (e.response?.status === 404) {
         return reply('❌ País ou tipo de ranking não encontrado.');
       }
-      reply('❌ Erro ao buscar ranking. Verifique o país e tente novamente.');
+      if (isApiKeyError(e)) {
+        ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
+        return reply(`❌ Erro na API. O dono foi notificado.`);
+      }
+      reply('❌ Erro ao buscar ranking.');
     });
+  }
   }
   break;
 
