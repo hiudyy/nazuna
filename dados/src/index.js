@@ -18709,6 +18709,10 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
             reply('Aguarde um momentinho... ☀️').then(() => {
               getFileBuffer(muk, 'audio').then((buffi) => {
                 ia.Shazam(buffi).then((Slakzin) => {
+                  // Validação do resultado do Shazam
+                  if (!Slakzin || !Slakzin.result || !Slakzin.result.title) {
+                    return reply('❌ Não consegui identificar a música. Certifique-se de que o áudio está claro e audível.');
+                  }
                   youtube.search(`${Slakzin.result.title} - ${Slakzin.result.artist}`, KeyCog)
                     .then((videoInfo) => {
                       const views = typeof videoInfo.data.views === 'number' ? videoInfo.data.views.toLocaleString('pt-BR') : videoInfo.data.views;
