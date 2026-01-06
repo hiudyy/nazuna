@@ -3905,6 +3905,23 @@ Código: *${roleCode}*`,
     // Não processar pela assistente se a mensagem veio do PRO (evita loop infinito)
     if (!info.key.fromMe && isAssistente && !isCmd && !info._fromPro && ((_botShort && budy2.includes(_botShort)) || (menc_os2 && menc_os2 == botNumber)) && KeyCog) {
       if (budy2.replaceAll('@' + _botShort, '').length > 2) {
+        // Detectar tipo de mídia da mensagem atual
+        const tipoMidiaAtual = info.message?.imageMessage ? 'imagem' : 
+                              info.message?.videoMessage ? 'video' : 
+                              info.message?.audioMessage ? 'audio' : 
+                              info.message?.stickerMessage ? 'sticker' : 
+                              info.message?.documentMessage ? 'documento' : null;
+        
+        // Detectar tipo de mídia marcada
+        const tipoMidiaMarcada = quotedMessageContent?.imageMessage ? 'imagem' : 
+                                 quotedMessageContent?.videoMessage ? 'video' : 
+                                 quotedMessageContent?.audioMessage ? 'audio' : 
+                                 quotedMessageContent?.stickerMessage ? 'sticker' : 
+                                 quotedMessageContent?.documentMessage ? 'documento' : null;
+        
+        // Detectar menções na mensagem
+        const mencoesNaMensagem = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+        
         const jSoNzIn = {
           texto: budy2.replaceAll('@' + _botShort, '').trim(),
           id_enviou: sender,
@@ -3912,11 +3929,14 @@ Código: *${roleCode}*`,
           id_grupo: isGroup ? from : false,
           nome_grupo: isGroup ? groupName : false,
           tem_midia: isMedia,
+          tipo_midia: tipoMidiaAtual,
           marcou_mensagem: false,
           marcou_sua_mensagem: false,
           mensagem_marcada: false,
           id_enviou_marcada: false,
-          tem_midia_marcada: false,
+          tem_midia_marcada: !!tipoMidiaMarcada,
+          tipo_midia_marcada: tipoMidiaMarcada,
+          mencoes: mencoesNaMensagem,
           id_mensagem: info.key.id,
           data_atual: new Date().toLocaleString('pt-BR', {
             timeZone: 'America/Sao_Paulo'
@@ -3939,6 +3959,11 @@ Código: *${roleCode}*`,
           jSoNzIn.mensagem_marcada = jsonO.texto;
           jSoNzIn.id_enviou_marcada = jsonO.participant;
           jSoNzIn.marcou_sua_mensagem = jsonO.participant == getBotId(nazu);
+        }
+        // Se marcou mensagem com mídia mas sem texto, ainda assim é marcou_mensagem
+        if (jsonO && jsonO.participant && tipoMidiaMarcada && !jSoNzIn.marcou_mensagem) {
+          jSoNzIn.marcou_mensagem = true;
+          jSoNzIn.id_enviou_marcada = jsonO.participant;
         }
         if (!KeyCog) {
           nazu.sendMessage(nmrdn, {
@@ -3989,29 +4014,122 @@ Código: *${roleCode}*`,
               const simulatedArgs = respAssist.args || '';
               const simulatedBody = `${prefix}${simulatedCommand} ${simulatedArgs}`.trim();
               
-              // Clonar o objeto info original e modificar apenas a mensagem
+              // Clonar o objeto info original mantendo estrutura completa
               const fakeMessage = JSON.parse(JSON.stringify(info));
               
-              // Substituir o conteúdo da mensagem pelo comando simulado
-              if (fakeMessage.message) {
-                // Limpar tipos de mensagem anteriores e definir como conversation
-                delete fakeMessage.message.extendedTextMessage;
-                delete fakeMessage.message.imageMessage;
-                delete fakeMessage.message.videoMessage;
-                delete fakeMessage.message.audioMessage;
-                delete fakeMessage.message.documentMessage;
-                delete fakeMessage.message.stickerMessage;
-                fakeMessage.message.conversation = simulatedBody;
-              } else {
-                fakeMessage.message = { conversation: simulatedBody };
-              }
+              // Atualizar timestamp para o momento atual
+              fakeMessage.messageTimestamp = Math.floor(Date.now() / 1000);
               
               // Marcar como mensagem processada pelo PRO para evitar loop infinito
               fakeMessage._fromPro = true;
               
-              // Enviar feedback e executar o comando
+              // Determinar o tipo de mídia original para preservar
+              const hasImage = !!info.message?.imageMessage;
+              const hasVideo = !!info.message?.videoMessage;
+              const hasAudio = !!info.message?.audioMessage;
+              const hasDocument = !!info.message?.documentMessage;
+              const hasSticker = !!info.message?.stickerMessage;
+              const hasQuotedImage = !!quotedMessageContent?.imageMessage;
+              const hasQuotedVideo = !!quotedMessageContent?.videoMessage;
+              const hasQuotedAudio = !!quotedMessageContent?.audioMessage;
+              const hasQuotedSticker = !!quotedMessageContent?.stickerMessage;
+              const hasQuotedDocument = !!quotedMessageContent?.documentMessage;
+              
+              // Preservar contexto de mídia e menções
+              if (fakeMessage.message) {
+                // Se tem imagem com legenda, preservar imagem e mudar legenda
+                if (hasImage && fakeMessage.message.imageMessage) {
+                  fakeMessage.message.imageMessage.caption = simulatedBody;
+                  // Limpar outros tipos de mensagem de texto
+                  delete fakeMessage.message.conversation;
+                  delete fakeMessage.message.extendedTextMessage;
+                }
+                // Se tem vídeo com legenda, preservar vídeo e mudar legenda
+                else if (hasVideo && fakeMessage.message.videoMessage) {
+                  fakeMessage.message.videoMessage.caption = simulatedBody;
+                  delete fakeMessage.message.conversation;
+                  delete fakeMessage.message.extendedTextMessage;
+                }
+                // Se tem áudio, preservar áudio e adicionar comando como extendedTextMessage
+                else if (hasAudio && fakeMessage.message.audioMessage) {
+                  // Áudio não tem caption, então criamos extendedTextMessage junto
+                  fakeMessage.message.extendedTextMessage = {
+                    text: simulatedBody,
+                    contextInfo: info.message?.extendedTextMessage?.contextInfo || {}
+                  };
+                  delete fakeMessage.message.conversation;
+                }
+                // Se tem documento, preservar e mudar caption
+                else if (hasDocument && fakeMessage.message.documentMessage) {
+                  fakeMessage.message.documentMessage.caption = simulatedBody;
+                  delete fakeMessage.message.conversation;
+                  delete fakeMessage.message.extendedTextMessage;
+                }
+                // Se tem sticker, preservar sticker e adicionar texto
+                else if (hasSticker && fakeMessage.message.stickerMessage) {
+                  fakeMessage.message.extendedTextMessage = {
+                    text: simulatedBody,
+                    contextInfo: info.message?.extendedTextMessage?.contextInfo || {}
+                  };
+                  delete fakeMessage.message.conversation;
+                }
+                // Se tem mensagem marcada com mídia, preservar o contextInfo
+                else if (info.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
+                  const originalContext = info.message.extendedTextMessage.contextInfo;
+                  fakeMessage.message.extendedTextMessage = {
+                    text: simulatedBody,
+                    contextInfo: {
+                      ...originalContext,
+                      // Preservar menções se houver
+                      mentionedJid: originalContext.mentionedJid || [],
+                      // Preservar mensagem marcada
+                      quotedMessage: originalContext.quotedMessage,
+                      participant: originalContext.participant,
+                      stanzaId: originalContext.stanzaId
+                    }
+                  };
+                  delete fakeMessage.message.conversation;
+                  delete fakeMessage.message.imageMessage;
+                  delete fakeMessage.message.videoMessage;
+                  delete fakeMessage.message.audioMessage;
+                  delete fakeMessage.message.documentMessage;
+                  delete fakeMessage.message.stickerMessage;
+                }
+                // Mensagem de texto simples
+                else {
+                  // Preservar menções se existirem
+                  const mentionedJid = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+                  
+                  if (mentionedJid.length > 0) {
+                    fakeMessage.message.extendedTextMessage = {
+                      text: simulatedBody,
+                      contextInfo: {
+                        mentionedJid: mentionedJid
+                      }
+                    };
+                    delete fakeMessage.message.conversation;
+                  } else {
+                    fakeMessage.message.conversation = simulatedBody;
+                    delete fakeMessage.message.extendedTextMessage;
+                  }
+                  
+                  delete fakeMessage.message.imageMessage;
+                  delete fakeMessage.message.videoMessage;
+                  delete fakeMessage.message.audioMessage;
+                  delete fakeMessage.message.documentMessage;
+                  delete fakeMessage.message.stickerMessage;
+                }
+              } else {
+                fakeMessage.message = { conversation: simulatedBody };
+              }
+              
+              // Feedback visual antes de executar
+              const mediaInfo = hasImage ? '🖼️' : hasVideo ? '🎬' : hasAudio ? '🎵' : hasSticker ? '🎭' : 
+                               hasQuotedImage ? '🖼️ (marcado)' : hasQuotedVideo ? '🎬 (marcado)' : 
+                               hasQuotedAudio ? '🎵 (marcado)' : hasQuotedSticker ? '🎭 (marcado)' : '';
+              
               nazu.sendMessage(from, { 
-                text: `🤖 *Executando:* ${prefix}${simulatedCommand}${simulatedArgs ? ' ' + simulatedArgs : ''}`
+                text: `🤖 *Executando:* ${prefix}${simulatedCommand}${simulatedArgs ? ' ' + simulatedArgs : ''}${mediaInfo ? '\n📎 Mídia: ' + mediaInfo : ''}`
               }, { quoted: info }).then(() => {
                 // Emitir novamente o evento de mensagem com o objeto completo
                 nazu.ev.emit('messages.upsert', {

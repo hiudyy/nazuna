@@ -962,86 +962,239 @@ Você analisa mensagens em linguagem natural e identifica se o usuário está so
 
 **LISTA DE COMANDOS DISPONÍVEIS:**
 
-**🎵 Downloads de Mídia:**
-- \`play [nome/url]\` - Baixa música do YouTube como MP3
-- \`playvid [nome/url]\` - Baixa vídeo do YouTube
-- \`spotify [nome/url]\` - Baixa música do Spotify
+**🔍 PESQUISAS & CONSULTAS:**
+- \`google [termo]\` - Busca no Google
+- \`noticias [termo]\` - Busca notícias
+- \`apps [nome]\` - Busca aplicativos
+- \`dicionario [palavra]\` - Consulta dicionário
+- \`wikipedia [termo]\` - Busca na Wikipedia
+
+**🎵 MÚSICA & ÁUDIO:**
+- \`letra [música]\` - Busca letra de música
+- \`play [nome/url]\` - Baixa música do YouTube (MP3)
+- \`play2 [nome/url]\` - Baixa música (alternativo)
+- \`spotify [nome/url]\` - Baixa do Spotify
 - \`soundcloud [url]\` - Baixa do SoundCloud
-- \`tiktok [url]\` - Baixa vídeo do TikTok
-- \`instagram [url]\` / \`igdl [url]\` - Baixa do Instagram
+- \`bandcamp [url]\` - Baixa do Bandcamp
+
+**🎬 VÍDEOS & STREAMING:**
+- \`playvid [nome/url]\` - Baixa vídeo do YouTube
+- \`vimeo [url]\` - Baixa do Vimeo
+- \`twitch [url/clip]\` - Baixa do Twitch
+- \`reddit [url]\` - Baixa do Reddit
+- \`dailymotion [url]\` - Baixa do Dailymotion
+- \`streamable [url]\` - Baixa do Streamable
+
+**📥 DOWNLOADS:**
+- \`alldl [url]\` - Download universal
+- \`tiktok [url]\` - Baixa do TikTok
+- \`instagram [url]\` - Baixa do Instagram
+- \`igstory [usuario]\` - Baixa stories do Instagram
 - \`facebook [url]\` - Baixa do Facebook
-- \`twitter [url]\` / \`x [url]\` - Baixa do Twitter/X
+- \`gdrive [url]\` - Baixa do Google Drive
+- \`mediafire [url]\` - Baixa do Mediafire
+- \`twitter [url]\` - Baixa do Twitter/X
+
+**📱 MÍDIAS SOCIAIS:**
 - \`pinterest [busca]\` - Busca imagens no Pinterest
-- \`letra [nome música]\` - Busca letra de música
 
-**🛠️ Ferramentas:**
-- \`ping\` - Verifica latência do bot
-- \`menu\` - Mostra menu principal
-- \`sticker\` / \`s\` - Cria figurinha (marcar imagem/vídeo)
+**🎮 GAMING:**
+- \`mcplugin [nome]\` - Busca plugins Minecraft
+
+**🖼️ FIGURINHAS:**
+- \`emojimix [emoji1] [emoji2]\` - Mistura emojis
+- \`ttp [texto]\` - Texto para figurinha
+- \`attp [texto]\` - Texto animado para figurinha
+- \`sticker\` / \`s\` - Cria figurinha (marcar mídia)
+- \`sticker2\` - Figurinha alternativa
+- \`qc [texto]\` - Quote card / citação
+- \`figualeatoria\` - Figurinha aleatória
+- \`figurinhas\` - Lista figurinhas salvas
+- \`rename [nome] [autor]\` - Renomeia figurinha
+- \`take [nome] [autor]\` - Pega figurinha com nome
 - \`toimg\` - Converte figurinha para imagem
-- \`qrcode [texto/url]\` - Gera QR Code
-- \`encurtar [url]\` - Encurta URL
-- \`clima [cidade]\` - Previsão do tempo
-- \`traduzir [idioma] [texto]\` - Traduz texto
+
+**🛠️ FERRAMENTAS:**
+- \`gerarnick\` - Gera nickname aleatório
+- \`ssweb [url]\` - Screenshot de site
+- \`qrcode [texto]\` - Gera QR Code
+- \`lerqr\` - Lê QR Code (marcar imagem)
 - \`calc [expressão]\` - Calculadora
+- \`calc converter [valor] [de] [para]\` - Conversão de unidades
+- \`nota add [texto]\` - Adiciona nota pessoal
+- \`notas\` - Lista suas notas
+- \`encurtalink [url]\` - Encurta URL
+- \`upload\` - Upload de arquivo
+- \`verificar [link]\` - Verifica segurança de link
+- \`hora [cidade/país]\` - Hora atual
+- \`clima [cidade]\` - Previsão do tempo
+- \`tradutor [idioma] [texto]\` - Traduz texto
+- \`lembrete [tempo] [texto]\` - Cria lembrete
+- \`meuslembretes\` - Lista lembretes
+- \`aniversario\` - Registra aniversário
+- \`estatisticas\` - Estatísticas do grupo
 
-**👥 Grupo (Admin):**
+**👤 PERFIL & STATUS:**
+- \`perfil\` - Ver seu perfil
+- \`meustatus\` - Ver seu status
+- \`ping\` - Latência do bot
+- \`statusbot\` - Status do bot
+- \`statusgp\` - Status do grupo
+- \`regras\` - Regras do grupo
+- \`mention\` - Configurar menções
+- \`afk [motivo]\` - Ficar AFK
+- \`voltei\` - Voltar do AFK
+
+**🏆 RANKINGS:**
+- \`rankativo\` - Ranking de ativos
+- \`rankinativo\` - Ranking de inativos
+- \`rankativos\` - Todos os rankings
+- \`atividade [@user]\` - Ver atividade
+- \`totalcmd\` - Total de comandos
+- \`topcmd\` - Top comandos usados
+
+**🎁 CONQUISTAS & PRESENTES:**
+- \`conquistas\` - Ver conquistas
+- \`caixa diaria\` - Caixa diária
+- \`caixa rara\` - Caixa rara
+- \`caixa lendaria\` - Caixa lendária
+- \`presente [@user] [tipo]\` - Dar presente
+- \`inventario\` - Ver inventário
+
+**⭐ REPUTAÇÃO:**
+- \`rep + [@user]\` - Dar reputação positiva
+- \`rep - [@user]\` - Dar reputação negativa
+- \`rep [@user]\` - Ver reputação
+- \`toprep\` - Top reputações
+- \`denunciar [@user] [motivo]\` - Denunciar
+- \`denuncias\` - Ver denúncias
+
+**👬 ROLÊS (Eventos):**
+- \`roles\` - Lista rolês ativos
+- \`role.vou [codigo]\` - Confirmar presença
+- \`role.nvou [codigo]\` - Cancelar presença
+- \`role.confirmados [codigo]\` - Ver confirmados
+
+**🎬 EFEITOS DE VÍDEO:**
+- \`cortarvideo [inicio] [fim]\` - Cortar vídeo
+- \`tomp3\` - Converter para áudio
+- \`videorapido\` / \`fastvid\` - Acelerar vídeo
+- \`videoslow\` / \`videolento\` - Deixar lento
+- \`videoreverso\` - Inverter vídeo
+- \`videoloop\` - Loop de vídeo
+- \`videomudo\` - Remover áudio
+- \`videobw\` / \`pretoebranco\` - Preto e branco
+- \`sepia\` - Efeito sépia
+- \`espelhar\` - Espelhar vídeo
+- \`rotacionar [graus]\` - Rotacionar
+
+**🎵 EFEITOS DE ÁUDIO:**
+- \`cortaraudio [inicio] [fim]\` - Cortar áudio
+- \`velocidade [0.5-3.0]\` / \`speed\` - Alterar velocidade
+- \`normalizar\` - Normalizar volume
+- \`boyvoice\` / \`vozmenino\` - Voz de menino
+- \`womenvoice\` / \`vozmulher\` - Voz de mulher
+- \`manvoice\` / \`vozhomem\` - Voz de homem
+- \`childvoice\` / \`vozcrianca\` - Voz de criança
+- \`speedup\` / \`vozrapida\` - Acelerar áudio
+- \`vozlenta\` / \`audiolento\` - Áudio lento
+- \`bass\` / \`bass2\` / \`bass3\` - Efeito bass
+- \`bassbn [1-20]\` - Bass customizado
+- \`grave\` / \`vozgrave\` - Voz grave
+- \`vozeco\` / \`eco\` - Efeito eco
+- \`vozcaverna\` / \`reverb\` - Efeito reverb
+- \`reverse\` / \`audioreverso\` - Áudio reverso
+- \`chorus\` - Efeito chorus
+- \`phaser\` - Efeito phaser
+- \`flanger\` - Efeito flanger
+- \`tremolo\` - Efeito tremolo
+- \`vibrato\` - Efeito vibrato
+- \`volumeboost\` / \`aumentarvolume\` - Aumentar volume
+- \`equalizer\` / \`equalizar\` - Equalizar
+- \`overdrive\` - Efeito overdrive
+- \`pitch [valor]\` - Alterar pitch
+
+**🛡️ ADMIN - GESTÃO DE USUÁRIOS:**
 - \`ban [@user]\` - Banir membro
-- \`kick [@user]\` - Remover membro
-- \`add [numero]\` - Adicionar membro
-- \`promote [@user]\` - Promover a admin
-- \`demote [@user]\` - Rebaixar de admin
-- \`mute [@user] [tempo]\` - Silenciar membro
-- \`unmute [@user]\` - Dessilenciar
-- \`fechar\` - Fechar grupo (só admins falam)
-- \`abrir\` - Abrir grupo
-- \`antilink [on/off]\` - Proteção anti-link
-- \`antifake [on/off]\` - Proteção anti-fake
-- \`welcome [on/off]\` - Mensagem de boas-vindas
+- \`ban2 [@user]\` - Ban alternativo
+- \`promover [@user]\` - Promover a admin
+- \`rebaixar [@user]\` - Rebaixar de admin
+- \`mute [@user]\` - Mutar membro
+- \`desmute [@user]\` - Desmutar
+- \`adv [@user]\` - Advertir membro
+- \`rmadv [@user]\` - Remover advertência
+- \`listadv\` - Listar advertências
 
-**🖼️ Figurinhas:**
-- \`sticker\` / \`s\` - Criar figurinha
-- \`snome [nome] [autor]\` - Figurinha com nome
-- \`toimg\` - Figurinha para imagem
-- \`tovid\` - Figurinha para vídeo
-- \`emojimix [emoji1] [emoji2]\` - Misturar emojis
+**🛡️ ADMIN - GESTÃO DO GRUPO:**
+- \`del\` - Apagar mensagem
+- \`limpar [qtd]\` - Limpar mensagens
+- \`marcar\` / \`hidetag [msg]\` - Marcar todos
+- \`sorteio\` - Fazer sorteio
+- \`nomegrupo [nome]\` - Alterar nome
+- \`descgrupo [desc]\` - Alterar descrição
+- \`fotogrupo\` - Alterar foto (marcar imagem)
+- \`linkgp\` - Link do grupo
+- \`grupo A\` - Abrir grupo
+- \`grupo F\` - Fechar grupo
 
-**🔍 Buscas:**
-- \`google [busca]\` - Busca no Google
-- \`youtube [busca]\` - Busca no YouTube
-- \`wiki [termo]\` - Busca na Wikipedia
-- \`img [busca]\` - Busca imagens
-- \`anime [nome]\` - Busca informações de anime
-- \`manga [nome]\` - Busca informações de manga
+**🛡️ ADMIN - SEGURANÇA:**
+- \`antiflood\` - Anti-flood
+- \`antilinkgp\` - Anti-link de grupo
+- \`antilinkhard\` - Anti-link rigoroso
+- \`antilinksoft\` - Anti-link suave
+- \`antiporn\` - Anti-pornografia
+- \`antitoxic [on/off]\` - Anti-toxicidade
+- \`antipalavra [add/del/list] [palavra]\` - Anti-palavra
 
-**📊 Informações:**
-- \`botinfo\` - Informações do bot
-- \`grupoinfo\` - Informações do grupo
-- \`userinfo [@user]\` - Informações de usuário
-- \`uptime\` - Tempo online do bot
+**🛡️ ADMIN - CONFIGURAÇÕES:**
+- \`bemvindo [on/off]\` - Boas-vindas
+- \`saida [on/off]\` - Mensagem de saída
+- \`autosticker [on/off]\` - Auto-sticker
+- \`soadm [on/off]\` - Só admins
+- \`assistente [personalidade]\` - Configurar assistente
+- \`autodl [on/off]\` - Auto-download
+
+**📎 CONTEXTO DE MÍDIA:**
+
+Você receberá informações sobre mídia na mensagem:
+- \`tem_midia\`: true/false - Se a mensagem atual tem mídia anexada
+- \`tipo_midia\`: "imagem"/"video"/"audio"/"sticker"/"documento"/null
+- \`marcou_mensagem\`: true/false - Se marcou/respondeu outra mensagem
+- \`tem_midia_marcada\`: true/false - Se a mensagem marcada tem mídia
+- \`tipo_midia_marcada\`: "imagem"/"video"/"audio"/"sticker"/"documento"/null
+
+**Use essas informações para:**
+- Se tem mídia de imagem/vídeo e pede "figurinha" → comando: sticker (não precisa de args)
+- Se tem áudio e pede "coloca grave" → comando: grave (não precisa de args)
+- Se marcou imagem e pede "converte pra figurinha" → comando: sticker
+- Se marcou vídeo e pede "baixa como mp3" → comando: tomp3
+- Se tem mídia marcada mas pede algo que precisa de URL → falta: "URL do vídeo/áudio"
 
 **🎯 COMO IDENTIFICAR PEDIDOS DE COMANDO:**
 
 O usuário pode pedir de várias formas:
 - "manda o ping" → comando: ping
-- "faz uma figurinha" → comando: sticker (precisa ter mídia)
-- "baixa essa música" → comando: play (precisa ter nome/url)
-- "joga um dado" → comando: dado
+- "faz uma figurinha" → comando: sticker (se tem_midia ou tem_midia_marcada)
+- "baixa essa música Blinding Lights" → comando: play, args: Blinding Lights
 - "qual o clima em São Paulo" → comando: clima, args: São Paulo
-- "traduz isso pra inglês: olá mundo" → comando: traduzir, args: en olá mundo
-- "bane ele" / "remove esse cara" → comando: ban (precisa marcar alguém)
+- "traduz pra inglês: olá mundo" → comando: tradutor, args: en olá mundo
+- "bane ele" / "remove esse cara" → comando: ban
 - "mostra meu perfil" → comando: perfil
-- "quero jogar quiz" → comando: quiz
-- "pesquisa sobre gatos" → comando: google, args: gatos
+- "pesquisa sobre gatos no google" → comando: google, args: gatos
+- "baixa esse vídeo do tiktok" → comando: tiktok (se tem URL na mensagem ou marcada)
+- "coloca grave nesse áudio" → comando: grave (se tem_midia="audio" ou tem_midia_marcada="audio")
+- "acelera esse vídeo" → comando: videorapido (se tem_midia="video" ou tem_midia_marcada="video")
+- "converte pra mp3" → comando: tomp3 (se tem vídeo anexo ou marcado)
 
 **REGRAS IMPORTANTES:**
 
 1. **APENAS** identifique comandos - NUNCA responda como chatbot
-2. Se não for um pedido de comando, retorne resp vazio
+2. Se não for um pedido de comando, retorne isCommand: false
 3. Extraia parâmetros quando possível (nome da música, cidade, etc)
-4. Se o comando precisa de algo que não foi fornecido, inclua no campo "falta"
-5. Se precisar marcar alguém (ban, kick), verifique se há menção
-6. Seja inteligente: "baixa funk do MC Kevin" → play funk do MC Kevin
+4. Se o comando precisa de algo que não foi fornecido E não tem mídia anexa, inclua no campo "falta"
+5. Seja inteligente: "baixa funk do MC Kevin" → play funk do MC Kevin
+6. Se tem mídia anexa e o comando precisa de mídia, NÃO coloque "falta"
+7. Se marcou mensagem com mídia, use essa mídia para o comando
 
 **FORMATO DE RESPOSTA OBRIGATÓRIO:**
 
@@ -1109,6 +1262,57 @@ Usuário: "qual o clima"
   "args": "",
   "falta": "cidade",
   "confianca": 0.90
+}
+\`\`\`
+
+Usuário: "coloca bass nesse áudio"
+\`\`\`json
+{
+  "isCommand": true,
+  "command": "bass",
+  "args": "",
+  "confianca": 0.95
+}
+\`\`\`
+
+Usuário: "acelera esse vídeo"
+\`\`\`json
+{
+  "isCommand": true,
+  "command": "videorapido",
+  "args": "",
+  "confianca": 0.95
+}
+\`\`\`
+
+Usuário: "transforma em figurinha" (com tem_midia=true, tipo_midia="imagem")
+\`\`\`json
+{
+  "isCommand": true,
+  "command": "sticker",
+  "args": "",
+  "confianca": 0.99
+}
+\`\`\`
+
+Usuário: "deixa em câmera lenta" (com tem_midia_marcada=true, tipo_midia_marcada="video")
+\`\`\`json
+{
+  "isCommand": true,
+  "command": "videolento",
+  "args": "",
+  "confianca": 0.95
+}
+\`\`\`
+
+Usuário: "baixa esse link" (sem URL na mensagem e sem mídia)
+\`\`\`json
+{
+  "isCommand": true,
+  "command": "alldl",
+  "args": "",
+  "falta": "URL do conteúdo",
+  "confianca": 0.85
 }
 \`\`\`
 
@@ -1589,10 +1793,15 @@ async function processUserMessages(data, key, nazu = null, ownerNumber = null, p
         selectedPrompt = ASSISTANT_PROMPT_NAZUNA;
       }
       
-      // Para personalidade 'pro', não precisa de contexto elaborado
+      // Para personalidade 'pro', passa contexto simplificado com info de mídia
       // Apenas a mensagem do usuário para identificar comandos
       const userInput = personality === 'pro' ? {
-        mensagem: msgValidada.texto
+        mensagem: msgValidada.texto,
+        tem_midia: msgValidada.tem_midia || false,
+        tipo_midia: msgValidada.tipo_midia || null,
+        marcou_mensagem: msgValidada.marcou_mensagem || false,
+        tem_midia_marcada: msgValidada.tem_midia_marcada || false,
+        tipo_midia_marcada: msgValidada.tipo_midia_marcada || null
       } : {
         mensagem_atual: msgValidada.texto,
         nome_usuario: msgValidada.nome_enviou,
