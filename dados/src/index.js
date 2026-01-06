@@ -3902,7 +3902,8 @@ Código: *${roleCode}*`,
     if (budy2.match(/^(\d+)d(\d+)$/)) reply(+budy2.match(/^(\d+)d(\d+)$/)[1] > 50 || +budy2.match(/^(\d+)d(\d+)$/)[2] > 100 ? "❌ Limite: max 50 dados e 100 lados" : "🎲 Rolando " + budy2.match(/^(\d+)d(\d+)$/)[1] + "d" + budy2.match(/^(\d+)d(\d+)$/)[2] + "...\n🎯 Resultados: " + (r = [...Array(+budy2.match(/^(\d+)d(\d+)$/)[1])].map(_ => 1 + Math.floor(Math.random() * +budy2.match(/^(\d+)d(\d+)$/)[2]))).join(", ") + "\n📊 Total: " + r.reduce((a, b) => a + b, 0));
 
     const _botShort = (nazu && nazu.user && (nazu.user.id || nazu.user.lid)) ? String((nazu.user.id || nazu.user.lid).split(':')[0]) : '';
-    if (!info.key.fromMe && isAssistente && !isCmd && ((_botShort && budy2.includes(_botShort)) || (menc_os2 && menc_os2 == botNumber)) && KeyCog) {
+    // Não processar pela assistente se a mensagem veio do PRO (evita loop infinito)
+    if (!info.key.fromMe && isAssistente && !isCmd && !info._fromPro && ((_botShort && budy2.includes(_botShort)) || (menc_os2 && menc_os2 == botNumber)) && KeyCog) {
       if (budy2.replaceAll('@' + _botShort, '').length > 2) {
         const jSoNzIn = {
           texto: budy2.replaceAll('@' + _botShort, '').trim(),
@@ -3969,6 +3970,57 @@ Código: *${roleCode}*`,
         
           if (respAssist.apiKeyInvalid) {
             reply(respAssist.message || '🤖 Sistema de IA temporariamente indisponível. Tente novamente mais tarde.');
+            return;
+          }
+          
+          // Tratamento especial para personalidade 'pro' (interpretador de comandos)
+          if (respAssist.isPro) {
+            if (respAssist.isCommand && respAssist.command) {
+              // Se falta algo para executar o comando, avisa o usuário
+              if (respAssist.falta) {
+                reply(`⚠️ Para executar *${prefix}${respAssist.command}*, preciso que você informe: ${respAssist.falta}`);
+                return;
+              }
+              
+              console.log(`🤖 [PRO] Comando identificado: ${respAssist.command} ${respAssist.args || ''}`);
+              
+              // Simular execução do comando reutilizando o objeto info original
+              const simulatedCommand = respAssist.command.toLowerCase();
+              const simulatedArgs = respAssist.args || '';
+              const simulatedBody = `${prefix}${simulatedCommand} ${simulatedArgs}`.trim();
+              
+              // Clonar o objeto info original e modificar apenas a mensagem
+              const fakeMessage = JSON.parse(JSON.stringify(info));
+              
+              // Substituir o conteúdo da mensagem pelo comando simulado
+              if (fakeMessage.message) {
+                // Limpar tipos de mensagem anteriores e definir como conversation
+                delete fakeMessage.message.extendedTextMessage;
+                delete fakeMessage.message.imageMessage;
+                delete fakeMessage.message.videoMessage;
+                delete fakeMessage.message.audioMessage;
+                delete fakeMessage.message.documentMessage;
+                delete fakeMessage.message.stickerMessage;
+                fakeMessage.message.conversation = simulatedBody;
+              } else {
+                fakeMessage.message = { conversation: simulatedBody };
+              }
+              
+              // Marcar como mensagem processada pelo PRO para evitar loop infinito
+              fakeMessage._fromPro = true;
+              
+              // Enviar feedback e executar o comando
+              nazu.sendMessage(from, { 
+                text: `🤖 *Executando:* ${prefix}${simulatedCommand}${simulatedArgs ? ' ' + simulatedArgs : ''}`
+              }, { quoted: info }).then(() => {
+                // Emitir novamente o evento de mensagem com o objeto completo
+                nazu.ev.emit('messages.upsert', {
+                  messages: [fakeMessage],
+                  type: 'notify'
+                });
+              });
+            }
+            // Se não é comando, não responde nada (comportamento esperado do pro)
             return;
           }
           
@@ -28494,11 +28546,12 @@ Exemplos:
             
             const statusMsg = groupData.assistente 
               ? `✅ *Assistente ativada com sucesso!*\n\n` +
-                `🤖 *Personalidade atual:* ${groupData.assistentePersonality === 'nazuna' ? 'Nazuna (Padrão)' : groupData.assistentePersonality === 'humana' ? 'Humana' : 'IA Normal'}\n\n` +
+                `🤖 *Personalidade atual:* ${groupData.assistentePersonality === 'nazuna' ? 'Nazuna (Padrão)' : groupData.assistentePersonality === 'humana' ? 'Humana' : groupData.assistentePersonality === 'pro' ? 'Pro (Comandos)' : 'IA Normal'}\n\n` +
                 `💡 *Trocar personalidade:*\n` +
                 `• ${prefix}assistente nazuna - Personalidade padrão Nazuna\n` +
                 `• ${prefix}assistente humana - Age 100% como humana\n` +
-                `• ${prefix}assistente ia - IA normal sem personalidade\n\n` +
+                `• ${prefix}assistente ia - IA normal sem personalidade\n` +
+                `• ${prefix}assistente pro - Interpreta comandos em linguagem natural\n\n` +
                 `🧠 A IA aprende com base nos padrões de conversa para oferecer respostas mais relevantes.`
               : `❌ *Assistente desativada!*`;
             
@@ -28508,12 +28561,13 @@ Exemplos:
           // Se tem argumento, define a personalidade
           const personality = q.toLowerCase().trim();
           
-          if (!['nazuna', 'humana', 'ia'].includes(personality)) {
+          if (!['nazuna', 'humana', 'ia', 'pro'].includes(personality)) {
             return reply(`❌ *Personalidade inválida!*\n\n` +
               `Escolha uma das opções:\n` +
               `• ${prefix}assistente nazuna - Personalidade padrão Nazuna (vampira tsundere)\n` +
               `• ${prefix}assistente humana - Age 100% como uma pessoa real\n` +
-              `• ${prefix}assistente ia - IA normal e objetiva`);
+              `• ${prefix}assistente ia - IA normal e objetiva\n` +
+              `• ${prefix}assistente pro - Interpreta comandos em linguagem natural`);
           }
           
           groupData.assistente = true;
@@ -28523,7 +28577,8 @@ Exemplos:
           const personalityNames = {
             'nazuna': '🌙 *Nazuna* - Vampira moderna com personalidade tsundere',
             'humana': '👤 *Humana* - Age como uma pessoa real, nunca admite ser IA',
-            'ia': '🤖 *IA Normal* - Assistente objetiva e direta'
+            'ia': '🤖 *IA Normal* - Assistente objetiva e direta',
+            'pro': '⚡ *Pro* - Interpreta comandos em linguagem natural (não responde, só executa)'
           };
           
           reply(`✅ *Personalidade alterada!*\n\n` +
