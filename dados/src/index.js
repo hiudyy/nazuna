@@ -26387,7 +26387,38 @@ ${prefix}togglecmdvip premium_ia off`);
           if (!isGroupAdmin) return reply("Comando restrito a Administradores 💔");
           if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
           
-          const requests = await nazu.groupGetRequestParticipants(from);
+          // Função para obter solicitações pendentes (compatível com versões antigas do Baileys)
+          let requests = [];
+          try {
+            // Tenta o método padrão se existir
+            if (typeof nazu.groupGetRequestParticipants === 'function') {
+              requests = await nazu.groupGetRequestParticipants(from);
+            } else if (typeof nazu.groupRequestParticipantsList === 'function') {
+              requests = await nazu.groupRequestParticipantsList(from);
+            } else {
+              // Fallback: fazer a query manualmente
+              const result = await nazu.query({
+                tag: 'iq',
+                attrs: {
+                  type: 'get',
+                  xmlns: 'w:g2',
+                  to: from
+                },
+                content: [{ tag: 'membership_approval_requests', attrs: {} }]
+              });
+              
+              // Extrair participantes do resultado
+              const requestsNode = result?.content?.find(n => n.tag === 'membership_approval_requests');
+              if (requestsNode && requestsNode.content) {
+                requests = requestsNode.content
+                  .filter(n => n.tag === 'membership_approval_request')
+                  .map(n => ({ jid: n.attrs.jid }));
+              }
+            }
+          } catch (queryErr) {
+            console.error('Erro ao buscar solicitações:', queryErr);
+            return reply('❌ Este recurso não está disponível na versão atual do WhatsApp ou não há solicitações pendentes.');
+          }
           
           if (!requests || requests.length === 0) {
             return reply('📭 Não há solicitações pendentes neste grupo.');
@@ -26419,7 +26450,30 @@ ${prefix}togglecmdvip premium_ia off`);
           
           // Verificar se é "all" para aceitar todos
           if (q && q.toLowerCase().trim() === 'all') {
-            const allRequests = await nazu.groupGetRequestParticipants(from);
+            // Função para obter solicitações pendentes (compatível com versões antigas do Baileys)
+            let allRequests = [];
+            try {
+              if (typeof nazu.groupGetRequestParticipants === 'function') {
+                allRequests = await nazu.groupGetRequestParticipants(from);
+              } else if (typeof nazu.groupRequestParticipantsList === 'function') {
+                allRequests = await nazu.groupRequestParticipantsList(from);
+              } else {
+                const result = await nazu.query({
+                  tag: 'iq',
+                  attrs: { type: 'get', xmlns: 'w:g2', to: from },
+                  content: [{ tag: 'membership_approval_requests', attrs: {} }]
+                });
+                const requestsNode = result?.content?.find(n => n.tag === 'membership_approval_requests');
+                if (requestsNode && requestsNode.content) {
+                  allRequests = requestsNode.content
+                    .filter(n => n.tag === 'membership_approval_request')
+                    .map(n => ({ jid: n.attrs.jid }));
+                }
+              }
+            } catch (queryErr) {
+              console.error('Erro ao buscar solicitações:', queryErr);
+              return reply('❌ Erro ao buscar solicitações pendentes.');
+            }
             
             if (!allRequests || allRequests.length === 0) {
               return reply('📭 Não há solicitações pendentes para aprovar.');
