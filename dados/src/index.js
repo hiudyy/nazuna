@@ -26387,7 +26387,7 @@ ${prefix}togglecmdvip premium_ia off`);
           if (!isGroupAdmin) return reply("Comando restrito a Administradores 💔");
           if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
           
-          const requests = await nazu.groupRequestParticipantsList(from);
+          const requests = await nazu.groupGetRequestParticipants(from);
           
           if (!requests || requests.length === 0) {
             return reply('📭 Não há solicitações pendentes neste grupo.');
@@ -26419,7 +26419,7 @@ ${prefix}togglecmdvip premium_ia off`);
           
           // Verificar se é "all" para aceitar todos
           if (q && q.toLowerCase().trim() === 'all') {
-            const allRequests = await nazu.groupRequestParticipantsList(from);
+            const allRequests = await nazu.groupGetRequestParticipants(from);
             
             if (!allRequests || allRequests.length === 0) {
               return reply('📭 Não há solicitações pendentes para aprovar.');
