@@ -2368,48 +2368,6 @@ function getNazunaFarewell(isNightTime) {
   }
 }
 
-async function Shazam(buffer, api_token, filename = "audio.mp3") {
-  if (!api_token) {
-    return { error: true, message: "API token do Shazam (audd.io) não fornecido." };
-  }
-  const boundary = "----AudDBoundary" + (() => {
-    try {
-      return crypto.randomBytes(16).toString("hex");
-    } catch (error) {
-      return Math.random().toString(16).substring(2, 34);
-    }
-  })();
-  const CRLF = "\r\n";
-
-  const payloadParts = [];
-  payloadParts.push(`--${boundary}${CRLF}Content-Disposition: form-data; name="api_token"${CRLF}${CRLF}${api_token}`);
-  payloadParts.push(`--${boundary}${CRLF}Content-Disposition: form-data; name="return"${CRLF}${CRLF}timecode,apple_music,spotify,deezer,lyrics`);
-  payloadParts.push(
-    `--${boundary}${CRLF}Content-Disposition: form-data; name="file"; filename="${filename}"${CRLF}Content-Type: audio/mpeg${CRLF}${CRLF}`
-  );
-
-  const preBuffer = Buffer.from(payloadParts.join(CRLF), "utf-8");
-  const postBuffer = Buffer.from(`${CRLF}--${boundary}--${CRLF}`, "utf-8");
-  const finalBody = Buffer.concat([preBuffer, buffer, postBuffer]);
-
-  try {
-    const response = await axios.post("https://api.audd.io/", finalBody, {
-      headers: {
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
-        "Content-Length": finalBody.length,
-      },
-      timeout: 15000
-    });
-    return response.data;
-  } catch (err) {
-    return {
-      error: true,
-      status: err.response?.status,
-      message: err.response?.data || err.message,
-    };
-  }
-}
-
 function getHistoricoStats() {
   const stats = {
     totalConversas: Object.keys(historico).length,
@@ -2687,7 +2645,6 @@ function getNazunaResponseDelay(grupoUserId) {
 export {
   processUserMessages as makeAssistentRequest,
   makeCognimaRequest,
-  Shazam,
   getHistoricoStats,
   clearOldHistorico,
   getApiKeyStatus,

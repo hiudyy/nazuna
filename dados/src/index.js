@@ -18698,75 +18698,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
           reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         });
         break;
-      case 'shazam':
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
-        try {
-          if (isMedia && !info.message.imageMessage && !info.message.videoMessage || isQuotedAudio) {
-            const muk = isQuotedAudio ? info.message.extendedTextMessage.contextInfo.quotedMessage.audioMessage : info.message.audioMessage;
-            reply('Aguarde um momentinho... ☀️').then(() => {
-              getFileBuffer(muk, 'audio').then((buffi) => {
-                ia.Shazam(buffi).then((Slakzin) => {
-                  // Validação do resultado do Shazam
-                  if (!Slakzin || !Slakzin.result || !Slakzin.result.title) {
-                    return reply('❌ Não consegui identificar a música. Certifique-se de que o áudio está claro e audível.');
-                  }
-                  youtube.search(`${Slakzin.result.title} - ${Slakzin.result.artist}`, KeyCog)
-                    .then((videoInfo) => {
-                      const views = typeof videoInfo.data.views === 'number' ? videoInfo.data.views.toLocaleString('pt-BR') : videoInfo.data.views;
-                      const description = videoInfo.data.description ? videoInfo.data.description.slice(0, 100) + (videoInfo.data.description.length > 100 ? '...' : '') : 'Sem descrição disponível';
-                      const caption = `🎵 *Música Encontrada* 🎵\n\n📌 *Título:* ${videoInfo.data.title}\n👤 *Artista/Canal:* ${videoInfo.data.author.name}\n⏱ *Duração:* ${videoInfo.data.timestamp} (${videoInfo.data.seconds} segundos)\n👀 *Visualizações:* ${views}\n📅 *Publicado:* ${videoInfo.data.ago}\n📜 *Descrição:* ${description}\n🔗 *Link:* ${videoInfo.data.url}\n\n🎧 *Baixando e processando sua música, aguarde...*`;
-                      nazu.sendMessage(from, {
-                        image: { url: videoInfo.data.thumbnail },
-                        caption: caption,
-                        footer: `${nomebot} • Versão ${botVersion}`
-                      }, { quoted: info });
-                      return youtube.mp3(videoInfo.data.url, 128, KeyCog);
-                    })
-                    .then((dlRes) => {
-                      if (!dlRes.ok) {
-                        return reply(`❌ Erro ao baixar o áudio: ${dlRes.msg}`);
-                      }
-                      nazu.sendMessage(from, {
-                        audio: dlRes.buffer,
-                        mimetype: 'audio/mpeg'
-                      }, { quoted: info }).catch((audioError) => {
-                        if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
-                          reply('📦 Arquivo muito grande para enviar como áudio, enviando como documento...');
-                          nazu.sendMessage(from, {
-                            document: dlRes.buffer,
-                            fileName: `${dlRes.filename}`,
-                            mimetype: 'audio/mpeg'
-                          }, { quoted: info });
-                        }
-                      });
-                    })
-                    .catch((err) => {
-                      console.error('Erro no Shazam->YouTube flow (promise):', err);
-                      reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
-                    });
-                }).catch((e) => {
-                  console.error(e);
-                  if (e.message && e.message.includes('API key inválida')) {
-                    ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
-                    reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-                  } else {
-                    reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
-                  }
-                });
-              });
-            });
-          } else {
-            reply('Use o comando marcando um audio... ☀️');
-          }
-        } catch (e) {
-          console.error(e);
-          reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
-        }
-        break;
-case 'play':
+      case 'play':
 case 'ytmp3':
   try {
     if (!q) {

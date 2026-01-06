@@ -34,7 +34,6 @@ ${middleBorder}${menuItemIcon}${prefix}play2
 ${middleBorder}${menuItemIcon}${prefix}spotify
 ${middleBorder}${menuItemIcon}${prefix}soundcloud
 ${middleBorder}${menuItemIcon}${prefix}bandcamp
-${middleBorder}${menuItemIcon}${prefix}shazam
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${videoMenuTitle}*
