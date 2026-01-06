@@ -4018,19 +4018,30 @@ Código: *${roleCode}*`,
               const simulatedCommand = respAssist.command.toLowerCase();
               let simulatedArgs = respAssist.args || '';
               
-              // Obter menções originais da mensagem
+              // Obter menções originais da mensagem e filtrar a menção do bot
               const originalMentions = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-              const firstMention = originalMentions.length > 0 ? originalMentions[0] : null;
+              const mentionsWithoutBot = originalMentions.filter(m => m !== botNumber && !m.includes(_botShort));
+              const targetMention = mentionsWithoutBot.length > 0 ? mentionsWithoutBot[0] : null;
+              
+              // Se não tem menção no texto, pode ter marcado mensagem de alguém (resposta)
+              const quotedParticipant = info.message?.extendedTextMessage?.contextInfo?.participant;
+              const mentionOrQuoted = targetMention || quotedParticipant;
+              
+              console.log(`🤖 [PRO] Menções originais: ${JSON.stringify(originalMentions)}`);
+              console.log(`🤖 [PRO] Menções sem bot: ${JSON.stringify(mentionsWithoutBot)}`);
+              console.log(`🤖 [PRO] Target menção: ${targetMention}`);
+              console.log(`🤖 [PRO] Quoted participant: ${quotedParticipant}`);
+              console.log(`🤖 [PRO] Menção ou quoted final: ${mentionOrQuoted}`);
               
               // Lista de comandos que precisam de menção (@user)
               const commandsNeedMention = ['ban', 'ban2', 'kick', 'promover', 'rebaixar', 'mute', 'desmute', 
                 'mute2', 'desmute2', 'adv', 'rmadv', 'userinfo', 'perfil', 'rep', 'presente', 'denunciar',
                 'blockuser', 'unblockuser', 'addblacklist', 'delblacklist', 'addmod', 'delmod'];
               
-              // Se o comando precisa de menção e temos uma menção, adiciona ao args
-              if (commandsNeedMention.includes(simulatedCommand) && firstMention && !simulatedArgs.includes('@')) {
+              // Se o comando precisa de menção e temos uma menção/quoted, adiciona ao args
+              if (commandsNeedMention.includes(simulatedCommand) && mentionOrQuoted && !simulatedArgs.includes('@')) {
                 // Adicionar a menção ao início dos argumentos
-                const mentionNumber = firstMention.split('@')[0];
+                const mentionNumber = mentionOrQuoted.split('@')[0];
                 simulatedArgs = `@${mentionNumber} ${simulatedArgs}`.trim();
               }
               
@@ -4089,21 +4100,37 @@ Código: *${roleCode}*`,
                 }
                 // Se tem sticker, preservar sticker e adicionar texto
                 else if (hasSticker && fakeMessage.message.stickerMessage) {
+                  const stickerMentions = (info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [])
+                    .filter(m => m !== botNumber && !m.includes(_botShort));
+                  // Adicionar menção do alvo se não estiver na lista
+                  if (mentionOrQuoted && !stickerMentions.includes(mentionOrQuoted)) {
+                    stickerMentions.push(mentionOrQuoted);
+                  }
                   fakeMessage.message.extendedTextMessage = {
                     text: simulatedBody,
-                    contextInfo: info.message?.extendedTextMessage?.contextInfo || {}
+                    contextInfo: {
+                      ...info.message?.extendedTextMessage?.contextInfo,
+                      mentionedJid: stickerMentions
+                    }
                   };
                   delete fakeMessage.message.conversation;
                 }
                 // Se tem mensagem marcada com mídia, preservar o contextInfo
                 else if (info.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
                   const originalContext = info.message.extendedTextMessage.contextInfo;
+                  // Filtrar menção do bot e adicionar menção do alvo
+                  const quotedMentions = (originalContext.mentionedJid || [])
+                    .filter(m => m !== botNumber && !m.includes(_botShort));
+                  // Se temos um alvo e ele não está na lista, adiciona
+                  if (mentionOrQuoted && !quotedMentions.includes(mentionOrQuoted)) {
+                    quotedMentions.push(mentionOrQuoted);
+                  }
                   fakeMessage.message.extendedTextMessage = {
                     text: simulatedBody,
                     contextInfo: {
                       ...originalContext,
-                      // Preservar menções se houver
-                      mentionedJid: originalContext.mentionedJid || [],
+                      // Preservar menções filtradas + alvo
+                      mentionedJid: quotedMentions,
                       // Preservar mensagem marcada
                       quotedMessage: originalContext.quotedMessage,
                       participant: originalContext.participant,
@@ -4119,14 +4146,20 @@ Código: *${roleCode}*`,
                 }
                 // Mensagem de texto simples
                 else {
-                  // Preservar menções se existirem
+                  // Preservar menções se existirem (sem a menção do bot)
                   const mentionedJid = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+                  const filteredMentions = mentionedJid.filter(m => m !== botNumber && !m.includes(_botShort));
                   
-                  if (mentionedJid.length > 0) {
+                  // Se temos menção de um alvo (não bot), adicionar ao mentionedJid
+                  const targetMentionsForContext = mentionOrQuoted && !filteredMentions.includes(mentionOrQuoted) 
+                    ? [...filteredMentions, mentionOrQuoted] 
+                    : filteredMentions;
+                  
+                  if (targetMentionsForContext.length > 0) {
                     fakeMessage.message.extendedTextMessage = {
                       text: simulatedBody,
                       contextInfo: {
-                        mentionedJid: mentionedJid
+                        mentionedJid: targetMentionsForContext
                       }
                     };
                     delete fakeMessage.message.conversation;
