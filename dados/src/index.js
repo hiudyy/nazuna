@@ -1730,19 +1730,32 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     };
     const groupPrefix = groupData.customPrefix || prefixo;
     var isCmd = body.trim().startsWith(groupPrefix);
+    
+    // Suporte para "! comando" (com espaço após o prefixo)
+    const bodyWithoutPrefix = body.trim().slice(groupPrefix.length).trimStart();
+    
     const aliases = loadCommandAliases();
-    const matchedAlias = aliases.find(item => normalizar(budy2.trim().slice(groupPrefix.length).split(/ +/).shift().trim()) === item.alias);
+    const matchedAlias = aliases.find(item => normalizar(bodyWithoutPrefix.split(/ +/).shift().trim()) === item.alias);
     
     // Se encontrou um alias, aplicar parâmetros fixos
     if (matchedAlias && matchedAlias.fixedParams) {
-      const userArgs = body.trim().slice(groupPrefix.length).split(/ +/).slice(1).join(' ');
+      const userArgs = bodyWithoutPrefix.split(/ +/).slice(1).join(' ');
       const combinedParams = matchedAlias.fixedParams + (userArgs ? ' ' + userArgs : '');
       q = combinedParams;
       args.length = 0;
       args.push(...combinedParams.split(/ +/));
     }
     
-    var command = isCmd ? matchedAlias ? matchedAlias.command : normalizar(body.trim().slice(groupPrefix.length).split(/ +/).shift().trim()).replace(/\s+/g, '') : null;
+    var command = isCmd ? matchedAlias ? matchedAlias.command : normalizar(bodyWithoutPrefix.split(/ +/).shift().trim()).replace(/\s+/g, '') : null;
+    
+    // Recalcular args usando bodyWithoutPrefix para suportar "! comando" (com espaço)
+    if (isCmd && !matchedAlias) {
+      const newArgs = bodyWithoutPrefix.split(/ +/).slice(1);
+      args.length = 0;
+      args.push(...newArgs);
+      q = newArgs.join(' ');
+    }
+    
     const isPremium = premiumListaZinha[sender] || premiumListaZinha[from] || isOwner;
     
     // Verificação de captcha para solicitações de entrada em grupos (DEVE vir ANTES de antipv)

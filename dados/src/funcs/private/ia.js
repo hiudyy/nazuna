@@ -1185,11 +1185,16 @@ Você também receberá informações sobre menções:
 - rep +/-, presente - Reputação e presentes
 - denunciar - Denunciar usuário
 
-**Use essas informações para:**
-- Se pede "bane ele" e tem_mencao=true → comando: ban (NÃO precisa de args, a menção já está lá)
-- Se pede "promove esse cara" e tem_mencao=true → comando: promover
-- Se pede "bane" sem mencionar ninguém e tem_mencao=false → comando: ban, falta: "marcar o usuário (@)"
-- Se pede "remove o fulano" mas não marcou → falta: "marcar o usuário (@)"
+**⚠️ REGRA CRÍTICA SOBRE MENÇÕES:**
+- Se \`tem_mencao\` = true → O usuário JÁ MARCOU alguém! NÃO peça menção! O campo \`falta\` deve ser null!
+- Se \`tem_mencao\` = false e o comando precisa de alvo → Aí sim, falta: "marcar o usuário (@)"
+
+**Exemplos CORRETOS:**
+- "rebaixa o @fulano" + tem_mencao=true → {"isCommand": true, "command": "rebaixar", "args": "", "falta": null}
+- "bane ele" + tem_mencao=true → {"isCommand": true, "command": "ban", "args": "", "falta": null}
+- "promove esse cara" + tem_mencao=true → {"isCommand": true, "command": "promover", "args": "", "falta": null}
+- "bane" + tem_mencao=false → {"isCommand": true, "command": "ban", "falta": "marcar o usuário (@)"}
+- "remove o fulano" + tem_mencao=false → {"isCommand": true, "command": "ban", "falta": "marcar o usuário (@)"}
 
 **🎯 COMO IDENTIFICAR PEDIDOS DE COMANDO:**
 
@@ -1343,6 +1348,7 @@ Usuário: "bane ele" (com tem_mencao=true)
   "isCommand": true,
   "command": "ban",
   "args": "",
+  "falta": null,
   "confianca": 0.98
 }
 \`\`\`
@@ -1364,7 +1370,19 @@ Usuário: "promove ele pra adm" (com tem_mencao=true)
   "isCommand": true,
   "command": "promover",
   "args": "",
+  "falta": null,
   "confianca": 0.97
+}
+\`\`\`
+
+Usuário: "rebaixa o @fulano" (com tem_mencao=true, primeira_mencao="123@lid")
+\`\`\`json
+{
+  "isCommand": true,
+  "command": "rebaixar",
+  "args": "",
+  "falta": null,
+  "confianca": 0.98
 }
 \`\`\`
 
