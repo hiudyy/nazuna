@@ -1915,6 +1915,8 @@ async function processUserMessages(data, key, nazu = null, ownerNumber = null, p
 
         const content = response.choices[0].message.content;
         result = extractJSON(content);
+        
+        console.log(`[${personality}] Resultado extraído:`, JSON.stringify(result).substring(0, 300));
 
         // Tratamento especial para personalidade 'pro' (interpretador de comandos)
         if (personality === 'pro') {
@@ -1952,19 +1954,68 @@ async function processUserMessages(data, key, nazu = null, ownerNumber = null, p
         }
 
         // Processar respostas
-        if (result.resp && Array.isArray(result.resp)) {
+        // Verificar se result.resp existe e é um array válido
+        if (result && result.resp && Array.isArray(result.resp) && result.resp.length > 0) {
           result.resp.forEach(resposta => {
-            if (resposta.resp) {
-              resposta.resp = cleanWhatsAppFormatting(resposta.resp);
-              updateHistorico(userId, 'assistant', resposta.resp);
+            // Garantir que a resposta tem a estrutura esperada
+            if (resposta && typeof resposta === 'object') {
+              // Se resposta.resp existe e é string válida
+              if (resposta.resp && typeof resposta.resp === 'string' && resposta.resp.trim().length > 0) {
+                resposta.resp = cleanWhatsAppFormatting(resposta.resp);
+                updateHistorico(userId, 'assistant', resposta.resp);
+                
+                // Garantir que tem react
+                if (!resposta.react) {
+                  resposta.react = getNazunaReact(isNightTime);
+                }
+                
+                respostas.push(resposta);
+              }
+              // Se a resposta tem outro formato (ex: só texto direto no objeto)
+              else if (resposta.text && typeof resposta.text === 'string' && resposta.text.trim().length > 0) {
+                respostas.push({
+                  resp: cleanWhatsAppFormatting(resposta.text),
+                  react: resposta.react || getNazunaReact(isNightTime)
+                });
+              }
             }
-            
-            if (!resposta.react) {
-              resposta.react = getNazunaReact(isNightTime);
+            // Se a resposta é uma string diretamente
+            else if (typeof resposta === 'string' && resposta.trim().length > 0) {
+              respostas.push({
+                resp: cleanWhatsAppFormatting(resposta),
+                react: getNazunaReact(isNightTime)
+              });
             }
           });
+        } 
+        // Se não tem respostas válidas, tentar criar uma resposta padrão
+        else {
+          console.warn(`⚠️ [${personality}] Resposta da IA não tem formato esperado:`, JSON.stringify(result).substring(0, 300));
           
-          respostas.push(...result.resp);
+          // Tentar diferentes formatos de fallback
+          if (result && result.resp && typeof result.resp === 'string' && result.resp.trim().length > 0) {
+            respostas.push({
+              resp: cleanWhatsAppFormatting(result.resp),
+              react: getNazunaReact(isNightTime)
+            });
+          } else if (result && result.message && typeof result.message === 'string' && result.message.trim().length > 0) {
+            respostas.push({
+              resp: cleanWhatsAppFormatting(result.message),
+              react: getNazunaReact(isNightTime)
+            });
+          } else if (result && result.text && typeof result.text === 'string' && result.text.trim().length > 0) {
+            respostas.push({
+              resp: cleanWhatsAppFormatting(result.text),
+              react: getNazunaReact(isNightTime)
+            });
+          } else if (typeof result === 'string' && result.trim().length > 0) {
+            respostas.push({
+              resp: cleanWhatsAppFormatting(result),
+              react: getNazunaReact(isNightTime)
+            });
+          } else {
+            console.error(`❌ [${personality}] Não foi possível extrair resposta válida do resultado`);
+          }
         }
       } catch (apiError) {
         console.error('Erro na API Cognima:', apiError.message);

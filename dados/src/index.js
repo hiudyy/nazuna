@@ -4040,6 +4040,7 @@ Código: *${roleCode}*`,
           }
           
           console.log('✅ Assistente processado com sucesso');
+          console.log(`[${personality}] Resposta recebida:`, JSON.stringify(respAssist).substring(0, 500));
         
           if (respAssist.apiKeyInvalid) {
             reply(respAssist.message || '🤖 Sistema de IA temporariamente indisponível. Tente novamente mais tarde.');
@@ -4258,29 +4259,39 @@ Código: *${roleCode}*`,
             return;
           }
           
-          if (respAssist.resp && respAssist.resp.length > 0) {
+          if (respAssist.resp && Array.isArray(respAssist.resp) && respAssist.resp.length > 0) {
             const processResponses = (index) => {
               if (index >= respAssist.resp.length) return;
               const msgza = respAssist.resp[index];
               const processNext = () => processResponses(index + 1);
               
-              if (msgza.react) {
+              if (msgza && msgza.react) {
                 nazu.react(msgza.react.replaceAll(' ', '').replaceAll('\n', ''), {
                   key: info.key
                 }).then(() => {
-                  if (msgza.resp && msgza.resp.length > 0) {
+                  if (msgza.resp && typeof msgza.resp === 'string' && msgza.resp.length > 0) {
+                    reply(msgza.resp).then(processNext);
+                  } else {
+                    processNext();
+                  }
+                }).catch(err => {
+                  console.error('Erro ao reagir:', err);
+                  if (msgza.resp && typeof msgza.resp === 'string' && msgza.resp.length > 0) {
                     reply(msgza.resp).then(processNext);
                   } else {
                     processNext();
                   }
                 });
-              } else if (msgza.resp && msgza.resp.length > 0) {
+              } else if (msgza && msgza.resp && typeof msgza.resp === 'string' && msgza.resp.length > 0) {
                 reply(msgza.resp).then(processNext);
               } else {
+                console.warn(`⚠️ [${personality}] Resposta inválida no índice ${index}:`, JSON.stringify(msgza));
                 processNext();
               }
             };
             processResponses(0);
+          } else {
+            console.warn(`⚠️ [${personality}] Nenhuma resposta válida retornada pela IA. respAssist.resp:`, respAssist.resp);
           }
         }).catch((assistentError) => {
           console.error('Erro no assistente virtual:', assistentError.message);
