@@ -798,14 +798,14 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       const item = econ.shop?.[itemKey];
       if (!item || !item.effect) continue;
 
-      // Aplica efeitos dos itens
-      if (item.effect.mineBonus) mineBonus += item.effect.mineBonus;
-      if (item.effect.workBonus) workBonus += item.effect.workBonus;
-      if (item.effect.bankCapacity) bankCapacity += item.effect.bankCapacity;
-      if (item.effect.fishBonus) fishBonus += item.effect.fishBonus;
-      if (item.effect.exploreBonus) exploreBonus += item.effect.exploreBonus;
-      if (item.effect.huntBonus) huntBonus += item.effect.huntBonus;
-      if (item.effect.forgeBonus) forgeBonus += item.effect.forgeBonus;
+      // Aplica efeitos dos itens (multiplicando pela quantidade)
+      if (item.effect.mineBonus) mineBonus += item.effect.mineBonus * qty;
+      if (item.effect.workBonus) workBonus += item.effect.workBonus * qty;
+      if (item.effect.bankCapacity) bankCapacity += item.effect.bankCapacity * qty;
+      if (item.effect.fishBonus) fishBonus += item.effect.fishBonus * qty;
+      if (item.effect.exploreBonus) exploreBonus += item.effect.exploreBonus * qty;
+      if (item.effect.huntBonus) huntBonus += item.effect.huntBonus * qty;
+      if (item.effect.forgeBonus) forgeBonus += item.effect.forgeBonus * qty;
     }
 
     // Verifica ferramenta equipada (picareta)
@@ -9261,7 +9261,7 @@ Entre em contato com o dono do bot:
         if (me.quests.daily.length === 0) {
           const allQuests = [
             { id: 'duel_3', name: '⚔️ Duelar 3 vezes', reward: 5000, exp: 200, progress: 0, goal: 3, claimed: false },
-            { id: 'dungeon_2', name: '🗺️ Completar 2 masmorras', reward: 8000, exp: 300, progress: 0, goal: 2, claimed: false },
+            { id: 'dungeon_2', name: '🗺️ Completar 2 dungeons', reward: 8000, exp: 300, progress: 0, goal: 2, claimed: false },
             { id: 'gather_10', name: '🌾 Coletar 10 recursos', reward: 3000, exp: 150, progress: 0, goal: 10, claimed: false },
             { id: 'cook_5', name: '👨‍🍳 Cozinhar 5 receitas', reward: 4000, exp: 180, progress: 0, goal: 5, claimed: false },
             { id: 'train_pet', name: '🐾 Treinar pet 5 vezes', reward: 6000, exp: 250, progress: 0, goal: 5, claimed: false }

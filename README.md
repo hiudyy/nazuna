@@ -1,22 +1,3 @@
-### 🚀 Oferta Especial (Plano Premium nazuna Bot)
-
-Ative **todas as funções avançadas** do nazuna Bot + **Hospedagem 24/7** (seu bot sempre online, sem depender do seu PC ou celular) por apenas **R$ 25 / mês**.
-
-Benefícios incluídos no combo:
-- ✅ Combo API Key exclusiva (desbloqueia todas as features premium compatíveis)
-- ✅ Hospedagem estável e monitorada 24/7
-- ✅ Atualizações automáticas e manutenção preventiva
-- ✅ Suporte direto comigo no WhatsApp
-- ✅ Ajuda na configuração inicial e otimização
-- ✅ Menos risco de queda ou ban por má configuração
-
-👉 Garante agora: [Falar no WhatsApp](https://wa.me/5533999285117)  
-Ou copie e abra: `https://wa.me/5533999285117`
-
-> Vagas promocionais limitadas. Ideal para quem quer profissionalizar o uso do bot sem dor de cabeça!
-
----
-
 # 🤖 nazuna Bot: Seu Assistente Completo para WhatsApp
 
 ![nazuna Bot Banner](https://raw.githubusercontent.com/hiudyy/nazuna/main/dados/midias/menu.jpg)
