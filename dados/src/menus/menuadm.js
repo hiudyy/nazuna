@@ -58,7 +58,7 @@ ${middleBorder}${menuItemIcon}${prefix}limpar
 ${middleBorder}${menuItemIcon}${prefix}marcar
 ${middleBorder}${menuItemIcon}${prefix}hidetag
 ${middleBorder}${menuItemIcon}${prefix}sorteio
-${middleBorder}${menuItemIcon}${prefix}nomegrupo
+${middleBorder}${menuItemIcon}${prefix}nomegp
 ${middleBorder}${menuItemIcon}${prefix}descgrupo
 ${middleBorder}${menuItemIcon}${prefix}fotogrupo
 ${middleBorder}${menuItemIcon}${prefix}addregra
@@ -168,7 +168,7 @@ ${middleBorder}${menuItemIcon}${prefix}autosticker
 ${middleBorder}${menuItemIcon}${prefix}soadm
 ${middleBorder}${menuItemIcon}${prefix}cmdlimit
 ${middleBorder}${menuItemIcon}${prefix}fotomenugrupo
-${middleBorder}${menuItemIcon}${prefix}nomegrupo
+${middleBorder}${menuItemIcon}${prefix}nomegp
 ${middleBorder}${menuItemIcon}${prefix}infoperso
 ${bottomBorder}
 `;

@@ -26726,7 +26726,7 @@ ${prefix}togglecmdvip premium_ia off`);
         }
         break;
       case 'setname':
-      case 'nomegrupo':
+      case 'nomegp':
       case 'mudarnome':
       case 'alterarnome':
       case 'renomeargrupo':
@@ -26735,7 +26735,7 @@ ${prefix}togglecmdvip premium_ia off`);
           if (!isGroupAdmin) return reply("Comando restrito a Administradores ou Moderadores com permissão. 💔");
           if (!isBotAdmin) return reply("Eu preciso ser adm 💔");
           const newName = q.trim();
-          if (!newName) return reply('❌ Digite um novo nome para o grupo.\n\n📝 *Uso:* ' + groupPrefix + 'nomegrupo Nome do Grupo');
+          if (!newName) return reply('❌ Digite um novo nome para o grupo.\n\n📝 *Uso:* ' + groupPrefix + 'nomegp Nome do Grupo');
           
           const oldName = groupMetadata?.subject || 'Nome anterior';
           await nazu.groupUpdateSubject(from, newName);

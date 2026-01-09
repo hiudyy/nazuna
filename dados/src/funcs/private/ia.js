@@ -1130,7 +1130,7 @@ Você analisa mensagens em linguagem natural e identifica se o usuário está so
 - \`limpar [qtd]\` - Limpar mensagens
 - \`marcar\` / \`hidetag [msg]\` - Marcar todos
 - \`sorteio\` - Fazer sorteio
-- \`nomegrupo [nome]\` - Alterar nome
+- \`nomegp [nome]\` - Alterar nome
 - \`descgrupo [desc]\` - Alterar descrição
 - \`fotogrupo\` - Alterar foto (marcar imagem)
 - \`linkgp\` - Link do grupo
