@@ -309,6 +309,10 @@ const PARAM_ALIASES = {
   'diamante': ['diamante', 'diamond', 'diamant', 'brilhante'],
   'madeira': ['madeira', 'wood', 'lenha'],
   'carvao': ['carvao', 'carvão', 'coal'],
+  'corda': ['corda', 'rope'],
+  'couro': ['couro', 'leather'],
+  'linha': ['linha', 'thread', 'fio'],
+  'cristal': ['cristal', 'crystal'],
   // Empregos
   'estagiario': ['estagiario', 'estagiário', 'estag', 'intern'],
   'designer': ['designer', 'design', 'grafico', 'gráfico'],

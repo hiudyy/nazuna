@@ -932,13 +932,13 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       
       // TikTok
       else if (platformName === 'TikTok') {
-        result = await tiktok.download(url, KeyCog);
-        if (result && result.data) {
-          const datinha = result.data;
-          if (datinha.video) {
+        result = await tiktok.dl(url, KeyCog);
+        if (result && result.ok && result.urls && result.urls.length > 0) {
+          const videoUrl = result.urls[0];
+          if (videoUrl) {
             await nazu.sendMessage(from, {
-              video: { url: datinha.video },
-              caption: `📱 *TikTok* - ${datinha.author || 'Autor desconhecido'}`,
+              video: { url: videoUrl },
+              caption: `📱 *TikTok*`,
               mimetype: 'video/mp4'
             }, { quoted: info });
             return true;
@@ -948,18 +948,18 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       
       // Instagram
       else if (platformName === 'Instagram') {
-        result = await igdl.download(url, KeyCog);
-        if (result && result.data && result.data.length > 0) {
+        result = await igdl.dl(url, KeyCog);
+        if (result && result.ok && result.data && result.data.length > 0) {
           const media = result.data[0];
           if (media.type === 'video') {
             await nazu.sendMessage(from, {
-              video: { url: media.url },
+              video: media.buff,
               caption: '📸 *Instagram*',
               mimetype: 'video/mp4'
             }, { quoted: info });
           } else {
             await nazu.sendMessage(from, {
-              image: { url: media.url },
+              image: media.buff,
               caption: '📸 *Instagram*'
             }, { quoted: info });
           }
@@ -969,34 +969,31 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       
       // Facebook
       else if (platformName === 'Facebook') {
-        result = await facebook.download(url, KeyCog);
-        if (result && result.data) {
-          const videoUrl = result.data.video_hd || result.data.video_sd;
-          if (videoUrl) {
-            await nazu.sendMessage(from, {
-              video: { url: videoUrl },
-              caption: '📘 *Facebook*',
-              mimetype: 'video/mp4'
-            }, { quoted: info });
-            return true;
-          }
+        result = await facebook.downloadHD(url, KeyCog);
+        if (result && result.ok && result.buffer) {
+          await nazu.sendMessage(from, {
+            video: result.buffer,
+            caption: `📘 *Facebook* - ${result.resolution || 'HD'}`,
+            mimetype: 'video/mp4'
+          }, { quoted: info });
+          return true;
         }
       }
       
       // Pinterest
       else if (platformName === 'Pinterest') {
-        result = await pinterest.download(url, KeyCog);
-        if (result && result.data) {
-          const media = result.data;
-          if (media.type === 'video') {
+        result = await pinterest.dl(url, KeyCog);
+        if (result && result.ok && result.urls && result.urls.length > 0) {
+          const mediaUrl = result.urls[0];
+          if (result.type === 'video') {
             await nazu.sendMessage(from, {
-              video: { url: media.url },
+              video: { url: mediaUrl },
               caption: '📌 *Pinterest*',
               mimetype: 'video/mp4'
             }, { quoted: info });
           } else {
             await nazu.sendMessage(from, {
-              image: { url: media.url },
+              image: { url: mediaUrl },
               caption: '📌 *Pinterest*'
             }, { quoted: info });
           }
@@ -1007,11 +1004,11 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       // Spotify - baixar áudio
       else if (platformName === 'Spotify') {
         result = await spotify.download(url, KeyCog);
-        if (result && result.data && result.data.audioUrl) {
+        if (result && result.ok && result.buffer) {
           await nazu.sendMessage(from, {
-            audio: { url: result.data.audioUrl },
+            audio: result.buffer,
             mimetype: 'audio/mpeg',
-            fileName: `${result.data.title || 'audio'}.mp3`
+            fileName: result.filename || `${result.title || 'audio'}.mp3`
           }, { quoted: info });
           return true;
         }
@@ -1020,11 +1017,11 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       // SoundCloud - baixar áudio
       else if (platformName === 'SoundCloud') {
         result = await soundcloud.download(url, KeyCog);
-        if (result && result.data && result.data.audioUrl) {
+        if (result && result.ok && result.buffer) {
           await nazu.sendMessage(from, {
-            audio: { url: result.data.audioUrl },
+            audio: result.buffer,
             mimetype: 'audio/mpeg',
-            fileName: `${result.data.title || 'audio'}.mp3`
+            fileName: result.filename || `${result.title || 'audio'}.mp3`
           }, { quoted: info });
           return true;
         }
@@ -1892,6 +1889,13 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       if (!name) return '';
       const n = name.normalize('NFD').replace(/\p{Diacritic}/gu, '');
       return n.replace(/[^a-zA-Z0-9 ]/g, '').trim().toLowerCase();
+    }
+    
+    // Helper para normalizar comandos - remove acentos mas mantém espaços
+    function normalizeCommand(cmd) {
+      if (!cmd) return '';
+      const n = cmd.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+      return n.replace(/[^a-zA-Z0-9\s]/g, '').trim().toLowerCase();
     }
 
     // Extrai IDs dos membros (pode estar em JID)
@@ -6214,6 +6218,16 @@ Entre em contato com o dono do bot:
           if (!me.stats) me.stats = {};
           me.stats.totalExplore = (me.stats.totalExplore || 0) + 1;
           me.stats.exploreCount = (me.stats.exploreCount || 0) + 1;
+          
+          // Adiciona materiais da exploração
+          const matsGain = {};
+          if (Math.random() < 0.6) matsGain.madeira = 1 + Math.floor(Math.random() * 3); // 60% chance, 1-3 madeira
+          if (Math.random() < 0.3) matsGain.corda = 1; // 30% chance, 1 corda
+          if (Math.random() < 0.4) matsGain.linha = 1 + Math.floor(Math.random() * 2); // 40% chance, 1-2 linha
+          if (Math.random() < 0.2) matsGain.cristal = 1; // 20% chance, 1 cristal (raro)
+          
+          for (const [mk,mq] of Object.entries(matsGain)) giveMaterial(me, mk, mq);
+          
           saveEconomy(econ);
           
           let exploreText = `╭━━━⊱ 🧭 *EXPLOROU!* 🧭 ⊱━━━╮\n`;
@@ -6221,6 +6235,9 @@ Entre em contato com o dono do bot:
           exploreText += `│ 💰 Ganhou: *${fmt(total)}*\n`;
           if (bonus > 0) {
             exploreText += `│ ✨ Bônus: *+${fmt(bonus)}*\n`;
+          }
+          if (Object.keys(matsGain).length > 0) {
+            exploreText += `│ 📦 Materiais: ` + Object.entries(matsGain).map(([k,q])=>`${k} x${q}`).join(', ') + `\n`;
           }
           exploreText += `│\n`;
           exploreText += `╰━━━━━━━━━━━━━━━━━━━━━╯`;
@@ -6241,6 +6258,12 @@ Entre em contato com o dono do bot:
           const meatQty = 1 + (Math.random() < 0.25 ? 1 : 0); // 1-2 carnes (25% chance de pegar 2)
           me.ingredients.carne = (me.ingredients.carne || 0) + meatQty;
           
+          // Adiciona materiais da caça
+          const huntMats = {};
+          if (Math.random() < 0.5) huntMats.couro = 1 + Math.floor(Math.random() * 2); // 50% chance, 1-2 couro
+          
+          for (const [mk,mq] of Object.entries(huntMats)) giveMaterial(me, mk, mq);
+          
           saveEconomy(econ);
           
           let huntText = `╭━━━⊱ 🏹 *CAÇOU!* 🏹 ⊱━━━╮\n`;
@@ -6250,6 +6273,9 @@ Entre em contato com o dono do bot:
             huntText += `│ ✨ Bônus: *+${fmt(bonus)}*\n`;
           }
           huntText += `│ 🥩 Carne: *+${meatQty}*\n`;
+          if (Object.keys(huntMats).length > 0) {
+            huntText += `│ 📦 Materiais: ` + Object.entries(huntMats).map(([k,q])=>`${k} x${q}`).join(', ') + `\n`;
+          }
           huntText += `│\n`;
           huntText += `╰━━━━━━━━━━━━━━━━━━━━━╯`;
           
@@ -6257,8 +6283,38 @@ Entre em contato com o dono do bot:
         }
 
         if (sub === 'forjar' || sub === 'forge') {
-          // Modo 1: craft a partir de receitas
+          // Mostra receitas disponíveis se não especificar item
           const rawCraftKey = (args[0]||'');
+          if (!rawCraftKey) {
+            let text = `╭━━━⊱ ⚒️ *RECEITAS DE FORJA* ⊱━━━╮\n`;
+            text += `│ 💰 Seu gold: ${fmt(me.wallet)}\n`;
+            text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+            
+            const recipes = econ.recipes || {};
+            if (Object.keys(recipes).length === 0) {
+              text += `❌ Nenhuma receita disponível no momento.`;
+            } else {
+              text += `📜 *RECEITAS DISPONÍVEIS*\n\n`;
+              for (const [key, recipe] of Object.entries(recipes)) {
+                const item = econ.shop[key];
+                if (!item) continue;
+                
+                text += `🔸 *${item.name || key}*\n`;
+                text += `   💰 Custo: ${fmt(recipe.gold || 0)}\n`;
+                
+                if (recipe.requires && Object.keys(recipe.requires).length > 0) {
+                  const materials = Object.entries(recipe.requires).map(([mat, qty]) => `${mat} x${qty}`).join(', ');
+                  text += `   📦 Materiais: ${materials}\n`;
+                }
+                text += `   💡 Forjar: ${prefix}forjar ${key}\n\n`;
+              }
+            }
+            
+            text += `💡 *Dica:* Use ${prefix}materiais para ver seus materiais disponíveis`;
+            return reply(text);
+          }
+          
+          // Modo 1: craft a partir de receitas
           // Normaliza o nome da receita ignorando acentos
           const craftKey = findKeyIgnoringAccents(econ.recipes || {}, rawCraftKey) || normalizeParam(rawCraftKey);
           if (craftKey && (econ.recipes||{})[craftKey]) {
@@ -6744,10 +6800,12 @@ Entre em contato com o dono do bot:
           let drops = { pedra: 2 + Math.floor(Math.random()*3) }; // 2-4
           if (pk.tier==='ferro' || pk.tier==='diamante') {
             drops.ferro = (drops.ferro||0) + 1 + Math.floor(Math.random()*2); // 1-2
+            drops.carvao = (drops.carvao||0) + (Math.random() < 0.4 ? 1 : 0); // 40% chance
           }
           if (pk.tier==='diamante') {
             drops.ferro = (drops.ferro||0) + (Math.random() < 0.7 ? 1 : 0); // 70% chance de +1
             drops.ouro = (drops.ouro||0) + (Math.random() < 0.3 ? 1 : 0); // 30% chance
+            drops.carvao = (drops.carvao||0) + (Math.random() < 0.6 ? 1 : 0); // 60% chance
             if (Math.random()<0.1) drops.diamante = (drops.diamante||0) + 1; // 10% chance
           }
           for (const [mk,mq] of Object.entries(drops)) if (mq>0) giveMaterial(me, mk, mq);
@@ -7096,7 +7154,7 @@ Entre em contato com o dono do bot:
         const econ = loadEconomy();
         const me = getEcoUser(econ, sender);
         
-        if (!me.equipment) me.equipment = { weapon: null, armor: null, helmet: null, boots: null, accessory: null };
+        if (!me.equipment) me.equipment = { weapon: null, armor: null, helmet: null, boots: null, shield: null, accessory: null };
         
         const eq = me.equipment;
         let text = `╭━━━⊱ ⚔️ *EQUIPAMENTOS* ⊱━━━╮\n`;
@@ -7106,6 +7164,7 @@ Entre em contato com o dono do bot:
         text += `🛡️ *Armadura:* ${eq.armor || '❌ Nenhuma'}\n`;
         text += `⛑️ *Capacete:* ${eq.helmet || '❌ Nenhum'}\n`;
         text += `👢 *Botas:* ${eq.boots || '❌ Nenhuma'}\n`;
+        text += `🛡️ *Escudo:* ${eq.shield || '❌ Nenhum'}\n`;
         text += `💍 *Acessório:* ${eq.accessory || '❌ Nenhum'}\n\n`;
         text += `╭━━━⊱ 📊 *ESTATÍSTICAS* ⊱━━━╮\n`;
         text += `│ ⚔️ Poder de Ataque: +${me.attackBonus || 0}\n`;
@@ -8035,6 +8094,117 @@ Entre em contato com o dono do bot:
         return reply(`✅ *${item}* foi removido de ${pet.emoji} *${pet.name}* e devolvido ao inventário!`);
       }
 
+      // Equipar item para o Jogador
+      case 'equipar':
+      case 'equip': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.equipment) me.equipment = { weapon: null, armor: null, helmet: null, boots: null, shield: null, accessory: null };
+        if (!me.inventory) me.inventory = {};
+        
+        const itemId = q?.toLowerCase().trim();
+        if (!itemId) {
+          return reply(`❌ Informe o item para equipar!\n\n💡 Uso: ${prefix}equipar <item>\n📦 Veja seus itens: ${prefix}inventario`);
+        }
+        
+        // Procura o item no inventário
+        let foundItemId = null;
+        for (const [key, qty] of Object.entries(me.inventory)) {
+          if (qty > 0 && (key.toLowerCase().includes(itemId) || key === itemId)) {
+            foundItemId = key;
+            break;
+          }
+        }
+        
+        if (!foundItemId) {
+          return reply(`❌ Item não encontrado no inventário!\n\n💡 Use ${prefix}inventario para ver seus itens`);
+        }
+        
+        const item = econ.shop[foundItemId];
+        if (!item || item.type !== 'equipment') {
+          return reply('❌ Este item não pode ser equipado!');
+        }
+        
+        const slot = item.slot;
+        if (!slot) {
+          return reply('❌ Item sem slot definido!');
+        }
+        
+        // Se já tem item no slot, devolve ao inventário
+        if (me.equipment[slot]) {
+          me.inventory[me.equipment[slot]] = (me.inventory[me.equipment[slot]] || 0) + 1;
+        }
+        
+        // Equipa o novo item
+        me.equipment[slot] = foundItemId;
+        me.inventory[foundItemId]--;
+        
+        saveEconomy(econ);
+        
+        let text = `✅ Você equipou *${item.name}*!\n\n`;
+        text += `📦 *Slot:* ${slot === 'weapon' ? '⚔️ Arma' : slot === 'armor' ? '🛡️ Armadura' : slot === 'helmet' ? '🎩 Elmo' : slot === 'boots' ? '👢 Botas' : slot === 'shield' ? '🛡️ Escudo' : '💍 Acessório'}\n\n`;
+        
+        if (item.attackBonus) text += `⚔️ Ataque: +${item.attackBonus}\n`;
+        if (item.defenseBonus) text += `🛡️ Defesa: +${item.defenseBonus}\n`;
+        if (item.hpBonus) text += `❤️ Vida: +${item.hpBonus}\n`;
+        
+        return reply(text);
+      }
+
+      // Desequipar item do Jogador
+      case 'desequipar':
+      case 'unequip': {
+        if (!isGroup) return reply('⚔️ Este comando funciona apenas em grupos com Modo RPG ativo.');
+        if (!groupData.modorpg) return reply(`⚔️ Modo RPG desativado! Use ${prefix}modorpg para ativar.`);
+        
+        const econ = loadEconomy();
+        const me = getEcoUser(econ, sender);
+        
+        if (!me.equipment) me.equipment = { weapon: null, armor: null, helmet: null, boots: null, shield: null, accessory: null };
+        if (!me.inventory) me.inventory = {};
+        
+        const slotName = q?.toLowerCase().trim();
+        if (!slotName) {
+          let text = `❌ Informe o slot para desequipar!\n\n💡 Uso: ${prefix}desequipar <slot>\n`;
+          text += `📦 Slots disponíveis: arma, armadura, elmo, botas, escudo, acessório`;
+          return reply(text);
+        }
+        
+        // Mapeia nomes de slot
+        let slot = null;
+        if (slotName.includes('arma') || slotName.includes('weapon')) slot = 'weapon';
+        else if (slotName.includes('armadura') || slotName.includes('armor')) slot = 'armor';
+        else if (slotName.includes('elmo') || slotName.includes('helmet')) slot = 'helmet';
+        else if (slotName.includes('botas') || slotName.includes('boots')) slot = 'boots';
+        else if (slotName.includes('escudo') || slotName.includes('shield')) slot = 'shield';
+        else if (slotName.includes('acessório') || slotName.includes('accessory') || slotName.includes('anel')) slot = 'accessory';
+        
+        if (!slot) {
+          return reply(`❌ Slot inválido!\n\n💡 Use: arma, armadura, elmo, botas, escudo ou acessório`);
+        }
+        
+        if (!me.equipment[slot]) {
+          return reply(`❌ Você não tem nada equipado no slot ${slotName}!`);
+        }
+        
+        const itemId = me.equipment[slot];
+        const item = econ.shop[itemId];
+        if (!item) {
+          return reply('❌ Item inválido!');
+        }
+        
+        // Devolve ao inventário
+        me.inventory[itemId] = (me.inventory[itemId] || 0) + 1;
+        me.equipment[slot] = null;
+        
+        saveEconomy(econ);
+        return reply(`✅ *${item.name}* foi removido e devolvido ao inventário!`);
+      }
+
       // Sistema de Dungeons/Masmorras Solo
       case 'masmorrasolo':
       case 'dungeonsolo':
@@ -8374,6 +8544,12 @@ Entre em contato com o dono do bot:
           opponent.wallet = Math.max(0, opponent.wallet - reward);
           me.exp = (me.exp || 0) + 150;
           
+          // Incrementar estatísticas de batalha
+          if (!me.battlesWon) me.battlesWon = 0;
+          if (!opponent.battlesLost) opponent.battlesLost = 0;
+          me.battlesWon++;
+          opponent.battlesLost++;
+          
           // Verifica level up
           if (!me.level) me.level = 1;
           const nextLevelXp = 100 * Math.pow(1.5, me.level - 1);
@@ -8416,6 +8592,12 @@ Entre em contato com o dono do bot:
           me.wallet = Math.max(0, me.wallet - loss);
           opponent.wallet += loss;
           opponent.exp = (opponent.exp || 0) + 150;
+          
+          // Incrementar estatísticas de batalha
+          if (!me.battlesLost) me.battlesLost = 0;
+          if (!opponent.battlesWon) opponent.battlesWon = 0;
+          me.battlesLost++;
+          opponent.battlesWon++;
           
           // Atualiza missão de duelo mesmo em derrota
           updateQuestProgress(me, 'duel', 1);
@@ -8493,6 +8675,10 @@ Entre em contato com o dono do bot:
           me.wallet += reward;
           me.exp = (me.exp || 0) + (arena.enemies * 50);
           
+          // Incrementar estatísticas de batalha (vitória na arena conta como batalhas ganhas)
+          if (!me.battlesWon) me.battlesWon = 0;
+          me.battlesWon += Math.floor(arena.enemies * 0.7); // Conta o número de inimigos derrotados
+          
           let text = `╭━━━⊱ 🏆 *VITÓRIA NA ARENA!* 🏆 ⊱━━━╮\n`;
           text += `│\n`;
           text += `│ 🏟️ Arena: *${arena.name}*\n`;
@@ -8512,6 +8698,10 @@ Entre em contato com o dono do bot:
         } else {
           const loss = Math.floor(me.wallet * 0.08);
           me.wallet = Math.max(0, me.wallet - loss);
+          
+          // Incrementar estatísticas de batalha (derrota na arena conta como batalha perdida)
+          if (!me.battlesLost) me.battlesLost = 0;
+          me.battlesLost++;
           
           let text = `╭━━━⊱ 💀 *DERROTA NA ARENA* 💀 ⊱━━━╮\n`;
           text += `│\n`;
@@ -29124,7 +29314,7 @@ Exemplos:
         if (!isGroup) return reply("❌ Este comando só pode ser usado em grupos!");
         if (!uno) return reply("Sistema UNO temporariamente indisponível.");
         
-        const subCmdUno = args[0]?.toLowerCase();
+        const subCmdUno = normalizeCommand(args[0]);
         
         if (!subCmdUno || subCmdUno === 'help' || subCmdUno === 'ajuda') {
             return reply(`🎴 *UNO - Comandos*
@@ -29348,14 +29538,14 @@ Use ${prefix}inventario para ver seus itens!`);
           resultBox = gifts.openDailyBox(sender);
         } else if (tipoBox === 'rara' || tipoBox === 'rare') {
           if (userEco.gold < 500) return reply("❌ Você precisa de 500 gold para abrir uma caixa rara!");
-          resultBox = gifts.openPaidBox(sender, 'rara');
+          resultBox = gifts.openBox(sender, 'rara');
           if (resultBox.success) {
             userEco.gold -= 500;
             saveEconomy();
           }
         } else if (tipoBox === 'lendaria' || tipoBox === 'legendary') {
           if (userEco.gold < 2000) return reply("❌ Você precisa de 2000 gold para abrir uma caixa lendária!");
-          resultBox = gifts.openPaidBox(sender, 'lendaria');
+          resultBox = gifts.openBox(sender, 'lendaria');
           if (resultBox.success) {
             userEco.gold -= 2000;
             saveEconomy();

@@ -117,8 +117,33 @@ ensureJsonFileExists(ECONOMY_FILE, {
     "rod": { name: "Vara de Pesca", price: 400, type: "tool", effect: { fishBonus: 0.2 } },
     "lamp": { name: "Lanterna", price: 600, type: "tool", effect: { exploreBonus: 0.2 } },
     "bow": { name: "Arco de Caça", price: 800, type: "tool", effect: { huntBonus: 0.25 } },
-    "forge": { name: "Kit de Forja", price: 1200, type: "tool", effect: { forgeBonus: 0.25 } }
-    ,
+    "forge": { name: "Kit de Forja", price: 1200, type: "tool", effect: { forgeBonus: 0.25 } },
+    // Player Equipment - Weapons
+    "espada_ferro": { name: "Espada de Ferro", price: 800, type: "equipment", slot: "weapon", attackBonus: 10, durability: 50 },
+    "espada_aco": { name: "Espada de Aço", price: 1500, type: "equipment", slot: "weapon", attackBonus: 18, durability: 80 },
+    "espada_diamante": { name: "Espada de Diamante", price: 3000, type: "equipment", slot: "weapon", attackBonus: 30, durability: 120 },
+    "arco_basico": { name: "Arco Básico", price: 600, type: "equipment", slot: "weapon", attackBonus: 8, durability: 40 },
+    "arco_reforcado": { name: "Arco Reforçado", price: 1800, type: "equipment", slot: "weapon", attackBonus: 20, durability: 70 },
+    // Player Equipment - Armor
+    "armadura_couro": { name: "Armadura de Couro", price: 900, type: "equipment", slot: "armor", defenseBonus: 8, durability: 60 },
+    "armadura_ferro": { name: "Armadura de Ferro", price: 2400, type: "equipment", slot: "armor", defenseBonus: 20, durability: 100 },
+    "armadura_aco": { name: "Armadura de Aço", price: 3600, type: "equipment", slot: "armor", defenseBonus: 32, durability: 140 },
+    "escudo_madeira": { name: "Escudo de Madeira", price: 450, type: "equipment", slot: "shield", defenseBonus: 5, durability: 30 },
+    "escudo_ferro": { name: "Escudo de Ferro", price: 1350, type: "equipment", slot: "shield", defenseBonus: 15, durability: 60 },
+    // Player Equipment - Helmets
+    "elmo_couro": { name: "Elmo de Couro", price: 600, type: "equipment", slot: "helmet", defenseBonus: 4, durability: 40 },
+    "elmo_ferro": { name: "Elmo de Ferro", price: 1200, type: "equipment", slot: "helmet", defenseBonus: 12, durability: 70 },
+    "elmo_aco": { name: "Elmo de Aço", price: 2100, type: "equipment", slot: "helmet", defenseBonus: 20, durability: 100 },
+    // Player Equipment - Boots
+    "botas_couro": { name: "Botas de Couro", price: 750, type: "equipment", slot: "boots", defenseBonus: 3, durability: 45 },
+    "botas_ferro": { name: "Botas de Ferro", price: 1500, type: "equipment", slot: "boots", defenseBonus: 10, durability: 80 },
+    "botas_aco": { name: "Botas de Aço", price: 2700, type: "equipment", slot: "boots", defenseBonus: 18, durability: 120 },
+    // Player Equipment - Accessories
+    "anel_ferro": { name: "Anel de Ferro", price: 1050, type: "equipment", slot: "accessory", attackBonus: 5, defenseBonus: 3, durability: 50 },
+    "anel_ouro": { name: "Anel de Ouro", price: 2400, type: "equipment", slot: "accessory", attackBonus: 12, defenseBonus: 8, durability: 80 },
+    "amuleto_protecao": { name: "Amuleto de Proteção", price: 3000, type: "equipment", slot: "accessory", defenseBonus: 15, hpBonus: 20, durability: 100 },
+    "luvas_ferro": { name: "Luvas de Ferro", price: 900, type: "equipment", slot: "accessory", attackBonus: 4, defenseBonus: 4, durability: 40 },
+    "luvas_aco": { name: "Luvas de Aço", price: 1800, type: "equipment", slot: "accessory", attackBonus: 10, defenseBonus: 10, durability: 70 },
     // Equipamentos para pets
     "pet_sword": { name: "Espada para Pet", price: 1200, type: "pet_equipment", slot: "weapon", attackBonus: 15, durability: 30 },
     "pet_armor": { name: "Armadura para Pet", price: 1500, type: "pet_equipment", slot: "armor", defenseBonus: 12, durability: 40 },
@@ -139,12 +164,44 @@ ensureJsonFileExists(ECONOMY_FILE, {
     pedra: 2,
     ferro: 6,
     ouro: 12,
-    diamante: 30
+    diamante: 30,
+    madeira: 1,
+    corda: 3,
+    couro: 4,
+    linha: 2,
+    carvao: 5,
+    cristal: 25
   },
   recipes: {
     pickaxe_bronze: { requires: { pedra: 10, ferro: 2 }, gold: 100 },
     pickaxe_ferro: { requires: { ferro: 10, ouro: 2 }, gold: 300 },
-    pickaxe_diamante: { requires: { ouro: 10, diamante: 4 }, gold: 1200 }
+    pickaxe_diamante: { requires: { ouro: 10, diamante: 4 }, gold: 1200 },
+    // Weapons
+    espada_ferro: { requires: { ferro: 15, madeira: 5 }, gold: 250 },
+    espada_aco: { requires: { ferro: 25, carvao: 10 }, gold: 500 },
+    espada_diamante: { requires: { diamante: 8, ferro: 20 }, gold: 1500 },
+    arco_basico: { requires: { madeira: 10, corda: 3 }, gold: 200 },
+    arco_reforcado: { requires: { madeira: 15, ferro: 12 }, gold: 600 },
+    // Armor
+    armadura_couro: { requires: { couro: 20, linha: 5 }, gold: 300 },
+    armadura_ferro: { requires: { ferro: 30, couro: 15 }, gold: 800 },
+    armadura_aco: { requires: { ferro: 40, carvao: 15 }, gold: 1200 },
+    escudo_madeira: { requires: { madeira: 15, ferro: 5 }, gold: 150 },
+    escudo_ferro: { requires: { ferro: 25, madeira: 10 }, gold: 450 },
+    // Helmets
+    elmo_couro: { requires: { couro: 10, linha: 3 }, gold: 200 },
+    elmo_ferro: { requires: { ferro: 15, couro: 8 }, gold: 400 },
+    elmo_aco: { requires: { ferro: 20, carvao: 8 }, gold: 700 },
+    // Boots
+    botas_couro: { requires: { couro: 12, linha: 4 }, gold: 250 },
+    botas_ferro: { requires: { ferro: 18, couro: 10 }, gold: 500 },
+    botas_aco: { requires: { ferro: 25, carvao: 10 }, gold: 900 },
+    // Accessories
+    anel_ferro: { requires: { ferro: 8, ouro: 2 }, gold: 350 },
+    anel_ouro: { requires: { ouro: 12, diamante: 2 }, gold: 800 },
+    amuleto_protecao: { requires: { cristal: 5, ouro: 8 }, gold: 1000 },
+    luvas_ferro: { requires: { ferro: 10, couro: 5 }, gold: 300 },
+    luvas_aco: { requires: { ferro: 15, carvao: 6 }, gold: 600 }
   },
   jobCatalog: {
     "estagiario": { name: "Estagiário", min: 80, max: 140 },
@@ -1280,6 +1337,10 @@ function createDefaultEcoUser() {
     totalExplore: 0,
     totalCrime: 0,
     
+    // Estatísticas de batalha
+    battlesWon: 0,
+    battlesLost: 0,
+    
     // Loteria
     lotteryTickets: 0,
     
@@ -1382,6 +1443,10 @@ function migrateAndValidateEcoUser(user) {
   user.totalHunt = validateNumber(user.totalHunt, 0);
   user.totalExplore = validateNumber(user.totalExplore, 0);
   user.totalCrime = validateNumber(user.totalCrime, 0);
+  
+  // === ESTATÍSTICAS DE BATALHA ===
+  user.battlesWon = validateNumber(user.battlesWon, 0);
+  user.battlesLost = validateNumber(user.battlesLost, 0);
   
   // === LOTERIA ===
   user.lotteryTickets = validateNumber(user.lotteryTickets, 0);
@@ -1614,11 +1679,40 @@ function ensureEconomyDefaults(econ) {
   }
   
   // === MATERIAIS E RECEITAS ===
-  econ.materialsPrices = econ.materialsPrices || { pedra: 2, ferro: 6, ouro: 12, diamante: 30 };
+  econ.materialsPrices = econ.materialsPrices || { 
+    pedra: 2, ferro: 6, ouro: 12, diamante: 30,
+    madeira: 1, corda: 3, couro: 4, linha: 2, carvao: 5, cristal: 25
+  };
   econ.recipes = econ.recipes || {
     pickaxe_bronze: { requires: { pedra: 10, ferro: 2 }, gold: 100 },
     pickaxe_ferro: { requires: { ferro: 10, ouro: 2 }, gold: 300 },
-    pickaxe_diamante: { requires: { ouro: 10, diamante: 4 }, gold: 1200 }
+    pickaxe_diamante: { requires: { ouro: 10, diamante: 4 }, gold: 1200 },
+    // Weapons
+    espada_ferro: { requires: { ferro: 15, madeira: 5 }, gold: 250 },
+    espada_aco: { requires: { ferro: 25, carvao: 10 }, gold: 500 },
+    espada_diamante: { requires: { diamante: 8, ferro: 20 }, gold: 1500 },
+    arco_basico: { requires: { madeira: 10, corda: 3 }, gold: 200 },
+    arco_reforcado: { requires: { madeira: 15, ferro: 12 }, gold: 600 },
+    // Armor
+    armadura_couro: { requires: { couro: 20, linha: 5 }, gold: 300 },
+    armadura_ferro: { requires: { ferro: 30, couro: 15 }, gold: 800 },
+    armadura_aco: { requires: { ferro: 40, carvao: 15 }, gold: 1200 },
+    escudo_madeira: { requires: { madeira: 15, ferro: 5 }, gold: 150 },
+    escudo_ferro: { requires: { ferro: 25, madeira: 10 }, gold: 450 },
+    // Helmets
+    elmo_couro: { requires: { couro: 10, linha: 3 }, gold: 200 },
+    elmo_ferro: { requires: { ferro: 15, couro: 8 }, gold: 400 },
+    elmo_aco: { requires: { ferro: 20, carvao: 8 }, gold: 700 },
+    // Boots
+    botas_couro: { requires: { couro: 12, linha: 4 }, gold: 250 },
+    botas_ferro: { requires: { ferro: 18, couro: 10 }, gold: 500 },
+    botas_aco: { requires: { ferro: 25, carvao: 10 }, gold: 900 },
+    // Accessories
+    anel_ferro: { requires: { ferro: 8, ouro: 2 }, gold: 350 },
+    anel_ouro: { requires: { ouro: 12, diamante: 2 }, gold: 800 },
+    amuleto_protecao: { requires: { cristal: 5, ouro: 8 }, gold: 1000 },
+    luvas_ferro: { requires: { ferro: 10, couro: 5 }, gold: 300 },
+    luvas_aco: { requires: { ferro: 15, carvao: 6 }, gold: 600 }
   };
   
   // === MERCADO ===
