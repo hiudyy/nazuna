@@ -3433,46 +3433,6 @@ Código: *${roleCode}*`,
         console.error("Erro ao converter mídia em figurinha automática:", e);
       }
     }
-    
-    // AntiLink Hard - Remove qualquer link compartilhado
-    if (isGroup && groupData.antilinkhard && !isGroupAdmin && !isOwner) {
-      const linkRegex = /(https?:\/\/|www\.)[^\s]+|([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/[^\s]*)?/gi;
-      const hasLink = linkRegex.test(budy2);
-      
-      if (hasLink && !isUserWhitelisted(sender, 'antilinkhard')) {
-        try {
-          if (isBotAdmin) {
-            await nazu.groupParticipantsUpdate(from, [sender], 'remove');
-            await nazu.sendMessage(from, {
-              delete: {
-                remoteJid: from,
-                fromMe: false,
-                id: info.key.id,
-                participant: sender
-              }
-            });
-            await reply(`🔗 @${getUserName(sender)}, links não são permitidos. Você foi removido do grupo.`, {
-              mentions: [sender]
-            });
-          } else {
-            await nazu.sendMessage(from, {
-              delete: {
-                remoteJid: from,
-                fromMe: false,
-                id: info.key.id,
-                participant: sender
-              }
-            });
-            await reply(`🔗 Atenção, @${getUserName(sender)}! Links não são permitidos. Não consigo remover você, mas evite enviar links.`, {
-              mentions: [sender]
-            });
-          }
-          return;
-        } catch (error) {
-          console.error("Erro no sistema antilink hard:", error);
-        }
-      }
-    }
     let quotedMessageContent = null;
     if (type === 'extendedTextMessage' && info.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
       quotedMessageContent = info.message.extendedTextMessage.contextInfo.quotedMessage;
@@ -3544,7 +3504,10 @@ Código: *${roleCode}*`,
       }
     }
 
-    if (isGroup && isAntiLinkGp && !isGroupAdmin) {
+    // Verifica se o usuário é um parceiro registrado
+    const isParceiro = parceriasData && parceriasData.partners && parceriasData.partners[sender];
+
+    if (isGroup && isAntiLinkGp && !isGroupAdmin && !isParceiro) {
       if (!isUserWhitelisted(sender, 'antilinkgp')) {
         let foundGroupLink = false;
         let link_dgp = null;
@@ -3598,7 +3561,7 @@ Código: *${roleCode}*`,
         }
       }
     }
-    if (isGroup && isAntiLinkCanal && !isGroupAdmin) {
+    if (isGroup && isAntiLinkCanal && !isGroupAdmin && !isParceiro) {
       if (!isUserWhitelisted(sender, 'antilinkcanal')) {
         let foundChannelLink = false;
         try {
@@ -3647,7 +3610,7 @@ Código: *${roleCode}*`,
         }
       }
     }
-    if (isGroup && isAntiLinkSoft && !isGroupAdmin && budy2.includes('http') && !isOwner) {
+    if (isGroup && isAntiLinkSoft && !isGroupAdmin && !isParceiro && budy2.includes('http') && !isOwner) {
       if (!isUserWhitelisted(sender, 'antilinksoft')) {
         try {
           await nazu.sendMessage(from, {
@@ -3661,6 +3624,45 @@ Código: *${roleCode}*`,
           return;
         } catch (error) {
           console.error("Erro no sistema antilinksoft:", error);
+        }
+      }
+    }
+    // AntiLink Hard - Remove qualquer link compartilhado
+    if (isGroup && groupData.antilinkhard && parceriasData.active && !isGroupAdmin && !isOwner && !isParceiro) {
+      const linkRegex = /(https?:\/\/|www\.)[^\s]+|([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/[^\s]*)?/gi;
+      const hasLink = linkRegex.test(budy2);
+      
+      if (hasLink && !isUserWhitelisted(sender, 'antilinkhard')) {
+        try {
+          if (isBotAdmin) {
+            await nazu.groupParticipantsUpdate(from, [sender], 'remove');
+            await nazu.sendMessage(from, {
+              delete: {
+                remoteJid: from,
+                fromMe: false,
+                id: info.key.id,
+                participant: sender
+              }
+            });
+            await reply(`🔗 @${getUserName(sender)}, links não são permitidos. Você foi removido do grupo.`, {
+              mentions: [sender]
+            });
+          } else {
+            await nazu.sendMessage(from, {
+              delete: {
+                remoteJid: from,
+                fromMe: false,
+                id: info.key.id,
+                participant: sender
+              }
+            });
+            await reply(`🔗 Atenção, @${getUserName(sender)}! Links não são permitidos. Não consigo remover você, mas evite enviar links.`, {
+              mentions: [sender]
+            });
+          }
+          return;
+        } catch (error) {
+          console.error("Erro no sistema antilink hard:", error);
         }
       }
     }
