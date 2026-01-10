@@ -11682,14 +11682,23 @@ Entre em contato com o dono do bot:
           return reply(`💼 Você precisa trabalhar ${requiredWorkTimes} vezes!\n📊 Atual: ${currentWorkTimes}`);
         }
         
-        // Resetar com penalidades maiores
+        // Resetar com penalidades maiores (preservando estatísticas de batalha e trabalho)
         me.level = 1;
         me.exp = 0;
         me.wallet = 0;
         me.bank = Math.floor((me.bank || 0) * 0.5); // Mantém 50% do banco
+        // Preservar estatísticas de batalha e trabalho para progressão de prestige
+        const preservedBattlesWon = me.battlesWon || 0;
+        const preservedStats = me.stats ? { ...me.stats } : {};
+        
         me.prestige.level++;
         me.prestige.totalResets++;
         me.prestige.bonusMultiplier = 1 + (me.prestige.level * 0.15);
+        
+        // Restaurar estatísticas preservadas
+        me.battlesWon = preservedBattlesWon;
+        if (!me.stats) me.stats = {};
+        me.stats = { ...preservedStats };
         
         // Bônus especiais por prestige
         if (!me.prestigeRewards) me.prestigeRewards = {};
