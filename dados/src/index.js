@@ -24,6 +24,7 @@ import cron from 'node-cron';
 import { fileURLToPath } from 'url';
 
 import { PerformanceOptimizer, getPerformanceOptimizer } from './utils/performanceOptimizer.js';
+import { recalcEquipmentBonuses } from './utils/equipment.js';
 import * as ia from './funcs/private/ia.js';
 import * as vipCommandsManager from './utils/vipCommandsManager.js';
 import { notifyOwnerAboutApiKey, isApiKeyError } from './funcs/utils/apiKeyNotifier.js';
@@ -1029,8 +1030,18 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       
       // Plataformas genéricas (Twitch, Vimeo, Dailymotion, Streamable, Reddit, Bandcamp)
       else {
-        if (downloadModule && typeof downloadModule.download === 'function') {
-          result = await downloadModule.download(url, KeyCog);
+        // Mapeamento de métodos para cada plataforma
+        const methodMap = {
+          'Instagram': 'dl',
+          'Facebook': 'downloadHD',
+          'TikTok': 'dl',
+          'Pinterest': 'dl'
+        };
+        
+        const methodName = methodMap[platformName] || 'download';
+        
+        if (downloadModule && typeof downloadModule[methodName] === 'function') {
+          result = await downloadModule[methodName](url, KeyCog);
           if (result && result.data) {
             const videoUrl = result.data.video || result.data.videoUrl || result.data.url;
             if (videoUrl) {
@@ -6285,6 +6296,8 @@ Entre em contato com o dono do bot:
         }
 
         if (sub === 'forjar' || sub === 'forge') {
+          if (!me.materials) me.materials = {};
+          if (!me.inventory) me.inventory = {};
           // Mostra receitas disponíveis se não especificar item
           const rawCraftKey = (args[0]||'');
           if (!rawCraftKey) {
@@ -7159,6 +7172,9 @@ Entre em contato com o dono do bot:
         if (!me.equipment) me.equipment = { weapon: null, armor: null, helmet: null, boots: null, shield: null, accessory: null };
         
         const eq = me.equipment;
+        // Recalcula os bônus a partir dos itens equipados
+        recalcEquipmentBonuses(me, econ.shop);
+
         let text = `╭━━━⊱ ⚔️ *EQUIPAMENTOS* ⊱━━━╮\n`;
         text += `│ 👤 Aventureiro: *${pushname}*\n`;
         text += `╰━━━━━━━━━━━━━━━━━━━━╯\n\n`;
@@ -8145,6 +8161,8 @@ Entre em contato com o dono do bot:
         me.equipment[slot] = foundItemId;
         me.inventory[foundItemId]--;
         
+        // Recalcula bônus dos equipamentos e salva
+        recalcEquipmentBonuses(me, econ.shop);
         saveEconomy(econ);
         
         let text = `✅ Você equipou *${item.name}*!\n\n`;

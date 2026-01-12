@@ -47,9 +47,26 @@ const apiClient = axios.create({
     'Accept': 'application/json',
     'User-Agent': 'NazunaBot/2.0'
   },
-  // Não lançar erro para status >= 400 (tratamos manualmente)
+  // Mantemos <500 para não explodir tudo, mas trataremos 401/403/429 manualmente no interceptor
   validateStatus: (status) => status < 500
 });
+
+/**
+ * Força erro quando a Cognima responde com 401/403/429 para ativar o fluxo
+ * de notificação de API Key expirada/ inválida.
+ */
+apiClient.interceptors.response.use(
+  (response) => {
+    const isCognima = typeof response?.config?.url === 'string' && response.config.url.includes('cog.api.br');
+    if (isCognima && [401, 403, 429].includes(response.status)) {
+      const error = new Error(response.data?.message || 'Erro de autenticação na Cognima (API key pode estar expirada)');
+      error.response = response;
+      throw error;
+    }
+    return response;
+  },
+  (error) => Promise.reject(error)
+);
 
 /**
  * Cliente HTTP para download de mídia (buffers, streams)

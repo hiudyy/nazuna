@@ -43,14 +43,22 @@ function isApiKeyError(error) {
   const keyErrorMessages = [
     'api key',
     'unauthorized',
+    'unauthenticated',
     'invalid token',
+    'invalid key',
+    'invalid credentials',
     'authentication failed',
     'access denied',
     'quota exceeded',
     'rate limit',
     'forbidden',
     'token expired',
-    'invalid credentials'
+    'token invalid',
+    'expired token',
+    'key expired',
+    'chave expirada',
+    'chave inválida',
+    'acesso negado'
   ];
   
   if (authErrorCodes.includes(statusCode)) {
@@ -63,6 +71,12 @@ function isApiKeyError(error) {
   
   if (responseData && typeof responseData === 'object') {
     const responseString = JSON.stringify(responseData).toLowerCase();
+    if (typeof responseData.error === 'string' && keyErrorMessages.some(msg => responseData.error.toLowerCase().includes(msg))) {
+      return true;
+    }
+    if (typeof responseData.message === 'string' && keyErrorMessages.some(msg => responseData.message.toLowerCase().includes(msg))) {
+      return true;
+    }
     if (keyErrorMessages.some(msg => responseString.includes(msg))) {
       return true;
     }
