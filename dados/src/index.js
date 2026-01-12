@@ -25827,31 +25827,41 @@ ${prefix}togglecmdvip premium_ia off`);
           
           let statusEmoji = '🟢';
           let statusTexto = 'Excelente';
+          let statusCor = '🟩';
           if (speedConverted > 2) {
             statusEmoji = '🟡';
             statusTexto = 'Bom';
+            statusCor = '🟨';
           }
           if (speedConverted > 5) {
             statusEmoji = '🟠';
             statusTexto = 'Médio';
+            statusCor = '🟧';
           }
           if (speedConverted > 8) {
             statusEmoji = '🔴';
             statusTexto = 'Ruim';
+            statusCor = '🟥';
           }
           
-          const mensagem = `╭━━━⊱ ⚡ *STATUS* ⚡ ⊱━━━╮
-│
-│ 📡 *Conexão*
-│ ├─ ${statusEmoji} Latência: *${speedConverted.toFixed(3)}s*
-│ └─ 📊 Status: *${statusTexto}*
-│
-│ ⏱️ *Tempo Online*
-│ └─ 🟢 Uptime: *${uptimeBot}*
-│
-╰━━━━━━━━━━━━━━━━━━━━━╯`;
+          const bannerUrl = `https://nazu-banner.vercel.app/api/banner?theme=miku&num=${speedConverted.toFixed(3)}`;
           
-          await reply(mensagem);
+          await nazu.sendMessage(from, {
+            image: { url: bannerUrl },
+            caption: `╭━━━⊱ ⚡ *STATUS DA CONEXÃO* ⚡ ⊱━━━╮
+│
+│ 📡 *Informações de Latência*
+│ ├─ ${statusEmoji} Velocidade: *${speedConverted.toFixed(3)}s*
+│ ├─ ${statusCor} Qualidade: *${statusTexto}*
+│ └─ 📊 Status: *${speedConverted <= 2 ? 'Ótima' : speedConverted <= 5 ? 'Boa' : speedConverted <= 8 ? 'Regular' : 'Precisa Melhorar'}*
+│
+│ ⏱️ *Informações do Sistema*
+│ ├─ 🟢 Tempo Online: *${uptimeBot}*
+│ ├─ 📈 Resposta: *${speedConverted <= 1 ? 'Instantânea' : speedConverted <= 3 ? 'Rápida' : 'Lenta'}*
+│ └─ 🌐 Servidor: *Online*
+│
+╰━━━━━━━━━━━━━━━━━━━━━━━━╯`
+          }, { quoted: info });
         } catch (e) {
           console.error("Erro no comando ping:", e);
           await reply("❌ Ocorreu um erro ao processar o comando ping");
