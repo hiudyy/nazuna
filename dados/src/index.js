@@ -18162,7 +18162,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
 
           reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
 
-          axios.get('https://cog.api.br/api/v1/consulta/', {
+          axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
             params: {
               type: consultaInfo.type,
               dados: cpf
@@ -18288,7 +18288,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
 
           reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
 
-          axios.get('https://cog.api.br/api/v1/consulta/', {
+          axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
             params: {
               type: consultaInfo.type,
               dados: nome
@@ -18412,7 +18412,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
 
           reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
 
-          axios.get('https://cog.api.br/api/v1/consulta/', {
+          axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
             params: {
               type: consultaInfo.type,
               dados: telefone
@@ -18473,7 +18473,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
 
         reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
 
-        axios.get('https://cog.api.br/api/v1/consulta/', {
+        axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
           params: {
             type: consultaInfo.type,
             dados: placa
@@ -18547,7 +18547,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
 
         reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
 
-        axios.get('https://cog.api.br/api/v1/consulta/', {
+        axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
           params: {
             type: consultaInfo.type,
             dados: chassi
@@ -18623,7 +18623,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
 
         reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
 
-        axios.get('https://cog.api.br/api/v1/consulta/', {
+        axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
           params: {
             type: consultaInfo.type,
             dados: cnpj
@@ -18697,7 +18697,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
 
         reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
 
-        axios.get('https://cog.api.br/api/v1/consulta/', {
+        axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
           params: {
             type: consultaInfo.type,
             dados: cep
@@ -18772,7 +18772,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
 
         reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
 
-        axios.get('https://cog.api.br/api/v1/consulta/', {
+        axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
           params: {
             type: consultaInfo.type,
             dados: email
@@ -18846,7 +18846,7 @@ As consultas de dados estão disponíveis apenas no *plano ilimitado*.
 
         reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
 
-        axios.get('https://cog.api.br/api/v1/consulta/', {
+        axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
           params: {
             type: consultaInfo.type,
             dados: titulo
