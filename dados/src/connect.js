@@ -365,15 +365,37 @@ const ask = (question) => {
     }));
 };
 
-async function clearAuthDir() {
+async function clearAuthDir(dirToRemove = AUTH_DIR) {
+    // Mantém compatibilidade com múltiplas instâncias (ex: sub-bots) e com versões antigas do Node.
     try {
-        await fs.rm(AUTH_DIR, {
-            recursive: true,
-            force: true
-        });
-        console.log(`🗑️ Pasta de autenticação (${AUTH_DIR}) excluída com sucesso.`);
+        const normalized = path.resolve(dirToRemove);
+
+        // Guardrails: evita apagar diretórios perigosos.
+        const rootPath = path.parse(normalized).root;
+        if (normalized === rootPath) {
+            console.error(`❌ Abortando limpeza: caminho inválido (${normalized})`);
+            return;
+        }
+
+        const normalizedParts = normalized.split(path.sep).filter(Boolean);
+        const looksLikeAuthDir = normalizedParts.includes('qr-code') || normalizedParts.includes('auth');
+        if (!looksLikeAuthDir) {
+            console.error(`❌ Abortando limpeza: caminho não parece diretório de auth/qr-code (${normalized})`);
+            return;
+        }
+
+        if (typeof fs.rm === 'function') {
+            await fs.rm(normalized, { recursive: true, force: true });
+        } else if (typeof fs.rmdir === 'function') {
+            // Node antigo: rmdir recursivo
+            await fs.rmdir(normalized, { recursive: true }).catch(() => {});
+        } else {
+            throw new Error('API de remoção de diretório não disponível (fs.rm/fs.rmdir)');
+        }
+
+        console.log(`🗑️ Pasta de autenticação (${normalized}) excluída com sucesso.`);
     } catch (err) {
-        console.error(`❌ Erro ao excluir pasta de autenticação: ${err.message}`);
+        console.error(`❌ Erro ao excluir pasta de autenticação (${dirToRemove}): ${err.message}`);
     }
 }
 
@@ -1303,7 +1325,7 @@ async function createBotSocket(authDir) {
                     
                     if (forbidden403Attempts >= MAX_403_ATTEMPTS) {
                         console.log('❌ Máximo de tentativas para erro 403 atingido. Apagando QR code e parando...');
-                        await clearAuthDir();
+                        await clearAuthDir(authDir);
                         console.log('🗑️ Autenticação removida. Reinicie o bot para gerar um novo QR code.');
                         process.exit(1);
                     }
@@ -1323,7 +1345,7 @@ async function createBotSocket(authDir) {
                 forbidden403Attempts = 0;
                 
                 if (reason === DisconnectReason.badSession || reason === DisconnectReason.loggedOut) {
-                    await clearAuthDir();
+                    await clearAuthDir(authDir);
                     console.log('🔄 Nova autenticação será necessária na próxima inicialização.');
                 }
                 
