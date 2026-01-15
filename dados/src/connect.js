@@ -1,5 +1,11 @@
 import a, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } from 'whaileys';
 const makeWASocket = a.default;
+import makeWASocketBaileys, {
+    useMultiFileAuthState as useMultiFileAuthStateBaileys,
+    DisconnectReason as DisconnectReasonBaileys,
+    fetchLatestBaileysVersion as fetchLatestBaileysVersionBaileys,
+    makeCacheableSignalKeyStore as makeCacheableSignalKeyStoreBaileys
+} from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import NodeCache from 'node-cache';
 import readline from 'readline';
@@ -364,6 +370,101 @@ const ask = (question) => {
         resolve(answer.trim());
     }));
 };
+
+async function isRegisteredAuth(authDir) {
+    try {
+        const credsPath = path.join(authDir, 'creds.json');
+        const raw = await fs.readFile(credsPath, 'utf-8');
+        const creds = JSON.parse(raw);
+        return Boolean(creds?.registered);
+    } catch {
+        return false;
+    }
+}
+
+async function bootstrapAuthWithBaileys(authDir) {
+    // Usa o Baileys oficial somente para criar a sessão inicial (QR/código).
+    // Após salvar as credenciais, o fluxo normal continua com whaileys.
+    const alreadyRegistered = await isRegisteredAuth(authDir);
+    if (alreadyRegistered) return;
+
+    console.log('🧩 Sessão não encontrada. Gerando autenticação inicial via Baileys...');
+
+    await fs.mkdir(authDir, { recursive: true });
+    const { state, saveCreds } = await useMultiFileAuthStateBaileys(authDir);
+
+    const bootstrapLogger = pino({ level: 'silent' });
+    const { version } = await fetchLatestBaileysVersionBaileys();
+
+    const sock = makeWASocketBaileys({
+        version,
+        emitOwnEvents: true,
+        markOnlineOnConnect: true,
+        connectTimeoutMs: 120000,
+        qrTimeout: 180000,
+        keepAliveIntervalMs: 30_000,
+        browser: ['Windows', 'Edge', '143.0.3650.66'],
+        auth: state,
+        logger: bootstrapLogger
+    });
+
+    sock.ev.on('creds.update', saveCreds);
+
+    if (codeMode && !state.creds?.registered) {
+        console.log('📱 Insira o número de telefone (com código de país, ex: +14155552671 ou +551199999999): ');
+        let phoneNumber = await ask('--> ');
+        phoneNumber = phoneNumber.replace(/\D/g, '');
+        if (!/^\d{10,15}$/.test(phoneNumber)) {
+            console.log('⚠️ Número inválido! Use um número válido com código de país (ex: +14155552671 ou +551199999999).');
+            // Fecha o socket antes de sair
+            try { sock.end?.(); } catch {}
+            process.exit(1);
+        }
+        const code = await sock.requestPairingCode(phoneNumber);
+        console.log(`🔑 Código de pareamento: ${code}`);
+        console.log('📲 Envie este código no WhatsApp para autenticar o bot.');
+    }
+
+    await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            cleanup();
+            reject(new Error('Timeout aguardando autenticação inicial (Baileys)'));
+        }, 5 * 60 * 1000);
+
+        const cleanup = () => {
+            clearTimeout(timeout);
+            try { sock.ev.removeAllListeners('connection.update'); } catch {}
+            try { sock.ev.removeAllListeners('creds.update'); } catch {}
+        };
+
+        sock.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect, qr } = update;
+
+            if (qr && !codeMode && !(await isRegisteredAuth(authDir))) {
+                console.log('🔗 QR Code gerado para autenticação (Baileys):');
+                qrcode.generate(qr, { small: true }, (qrcodeText) => console.log(qrcodeText));
+                console.log('📱 Escaneie o QR code acima com o WhatsApp para autenticar o bot.');
+            }
+
+            if (connection === 'open') {
+                cleanup();
+                console.log('✅ Autenticação inicial concluída. Iniciando bot com whaileys...');
+                try { sock.end?.(); } catch { try { sock.ws?.close?.(); } catch {} }
+                resolve();
+                return;
+            }
+
+            if (connection === 'close') {
+                const status = new Boom(lastDisconnect?.error)?.output?.statusCode;
+                const isLoggedOut = status === DisconnectReasonBaileys?.loggedOut || status === 401;
+                if (isLoggedOut) {
+                    cleanup();
+                    reject(new Error('Baileys: sessão deslogada durante bootstrap'));
+                }
+            }
+        });
+    });
+}
 
 async function clearAuthDir(dirToRemove = AUTH_DIR) {
     // Mantém compatibilidade com múltiplas instâncias (ex: sub-bots) e com versões antigas do Node.
@@ -1399,6 +1500,12 @@ async function startNazu() {
         reconnectAttempts = 0; // Reset contador ao conectar com sucesso
         forbidden403Attempts = 0; // Reset contador de erro 403
         console.log('🚀 Iniciando Nazuna...');
+
+        // Se ainda não existe autenticação salva, gera a sessão via Baileys (somente bootstrap).
+        if (!(await isRegisteredAuth(AUTH_DIR))) {
+            await bootstrapAuthWithBaileys(AUTH_DIR);
+        }
+
         await createBotSocket(AUTH_DIR);
         isReconnecting = false; // Conexão estabelecida com sucesso
     } catch (err) {
