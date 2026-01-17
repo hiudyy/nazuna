@@ -390,6 +390,10 @@ async function bootstrapAuthWithBaileys(authDir) {
 
     console.log('🧩 Sessão não encontrada. Gerando autenticação inicial via Baileys...');
 
+    // IMPORTANTE: a pasta do QR/auth vazia (ou com restos) pode bugar o fluxo.
+    // Sempre começa do zero antes de gerar um novo QR/código.
+    await clearAuthDir(authDir);
+
     await fs.mkdir(authDir, { recursive: true });
 
     const maxBootstrapAttempts = 6;
