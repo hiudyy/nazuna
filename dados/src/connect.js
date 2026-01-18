@@ -1257,30 +1257,6 @@ async function createBotSocket(authDir) {
                 attachMessagesListener();
                 startCacheCleanup(); // Inicia o sistema de limpeza de cache
                 
-                // Envia mensagem de boas-vindas para o dono
-                try {
-                    const msgBotOnConfig = loadMsgBotOn();
-                    
-                    if (msgBotOnConfig.enabled) {
-                        // Aguarda 3 segundos para garantir que o bot está totalmente conectado
-                        setTimeout(async () => {
-                            try {
-                                const ownerJid = buildUserId(numerodono, config);
-                                await NazunaSock.sendMessage(ownerJid, { 
-                                    text: msgBotOnConfig.message 
-                                });
-                                console.log('✅ Mensagem de inicialização enviada para o dono');
-                            } catch (sendError) {
-                                console.error('❌ Erro ao enviar mensagem de inicialização:', sendError.message);
-                            }
-                        }, 3000);
-                    } else {
-                        console.log('ℹ️ Mensagem de inicialização desativada');
-                    }
-                } catch (msgError) {
-                    console.error('❌ Erro ao processar mensagem de inicialização:', msgError.message);
-                }
-                
                 // Inicializa sub-bots automaticamente
                 try {
                     const subBotManagerModule = await import('./utils/subBotManager.js');

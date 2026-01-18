@@ -3967,7 +3967,6 @@ Código: *${roleCode}*`,
                               info.message?.documentMessage ? 'documento' : null;
         
         // Detectar tipo de mídia marcada
-        console.log('🤖 [DEBUG] quotedMessageContent:', quotedMessageContent ? Object.keys(quotedMessageContent) : 'null');
         // Checar também pttMessage (mensagem de voz) que pode vir separado
         const tipoMidiaMarcada = quotedMessageContent?.imageMessage ? 'imagem' : 
                                  quotedMessageContent?.videoMessage ? 'video' : 
@@ -3975,7 +3974,6 @@ Código: *${roleCode}*`,
                                  quotedMessageContent?.pttMessage ? 'audio' :
                                  quotedMessageContent?.stickerMessage ? 'sticker' : 
                                  quotedMessageContent?.documentMessage ? 'documento' : null;
-        console.log('🤖 [DEBUG] tipoMidiaMarcada:', tipoMidiaMarcada);
         
         // Detectar menções na mensagem
         const mencoesNaMensagem = info.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
@@ -3985,8 +3983,6 @@ Código: *${roleCode}*`,
         const botJid = nazu.user?.id ? nazu.user.id.split(':')[0] : null;
         const botIdentifiers = [_botShort, botLid, botJid, botNumber].filter(Boolean);
         
-        console.log('🤖 [DEBUG] Bot identifiers:', botIdentifiers);
-        console.log('🤖 [DEBUG] Menções originais:', mencoesNaMensagem);
         
         // Filtrar menção do bot das menções (usando todos os identificadores possíveis)
         const mencoesFiltradas = mencoesNaMensagem.filter(m => {
@@ -3997,7 +3993,6 @@ Código: *${roleCode}*`,
           });
         });
         
-        console.log('🤖 [DEBUG] Menções filtradas:', mencoesFiltradas);
         const primeiraMencao = mencoesFiltradas.length > 0 ? mencoesFiltradas[0] : null;
         
         const jSoNzIn = {
@@ -4052,16 +4047,6 @@ Código: *${roleCode}*`,
           return;
         }
         
-        console.log('🤖 Processando mensagem de assistente...');
-        console.log('🤖 [DEBUG] jSoNzIn:', JSON.stringify({
-          tem_midia: jSoNzIn.tem_midia,
-          tipo_midia: jSoNzIn.tipo_midia,
-          marcou_mensagem: jSoNzIn.marcou_mensagem,
-          tem_midia_marcada: jSoNzIn.tem_midia_marcada,
-          tipo_midia_marcada: jSoNzIn.tipo_midia_marcada,
-          tem_mencao: jSoNzIn.tem_mencao,
-          primeira_mencao: jSoNzIn.primeira_mencao
-        }));
         
         // Add null check for ia object
         if (!ia || typeof ia.makeAssistentRequest !== 'function') {
@@ -4080,8 +4065,6 @@ Código: *${roleCode}*`,
             return;
           }
           
-          console.log('✅ Assistente processado com sucesso');
-          console.log(`[${personality}] Resposta recebida:`, JSON.stringify(respAssist).substring(0, 500));
         
           if (respAssist.apiKeyInvalid) {
             reply(respAssist.message || '🤖 Sistema de IA temporariamente indisponível. Tente novamente mais tarde.');
@@ -25872,7 +25855,7 @@ ${prefix}togglecmdvip premium_ia off`);
           
           await nazu.sendMessage(from, {
             image: { url: bannerUrl },
-            caption: `╭━━━⊱ ⚡ *STATUS DA CONEXÃO* ⚡ ⊱━━━╮
+            caption: `╭⊱ ⚡ *STATUS DA CONEXÃO* ⚡ ⊱╮
 │
 │ 📡 *Informações de Latência*
 │ ├─ ${statusEmoji} Velocidade: *${speedConverted.toFixed(3)}s*
