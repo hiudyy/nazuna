@@ -669,11 +669,12 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
 
   function isValidApiKey(key) {
     if (!key || typeof key !== 'string') return false;
-    if (key.trim() === '') return false;
-    if (key.length < 10) return false;
+    const trimmed = key.trim();
+    if (trimmed === '') return false;
+    if (trimmed.length < 10) return false;
     
-    const validChars = /^[a-zA-Z0-9\-_]+$/;
-    return validChars.test(key.trim());
+    // Permite qualquer caractere não-espaço (evita invalidar keys com pontos, etc.)
+    return /^\S+$/.test(trimmed);
   }
 
   if (!KeyCog || KeyCog.trim() === '') {
@@ -1736,6 +1737,29 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       
       return userWhitelist.antis.includes(antiType);
     };
+    
+    // Helpers para mutar usuários (suporte a LID/JID)
+    const isUserInMap = (map, userId) => {
+      if (!map || !userId) return false;
+      if (map[userId]) return true;
+      const keys = Object.keys(map);
+      return keys.some(key => idsMatch(key, userId));
+    };
+    const removeUserFromMap = (map, userId) => {
+      if (!map || !userId) return false;
+      let removed = false;
+      if (map[userId]) {
+        delete map[userId];
+        removed = true;
+      }
+      for (const key of Object.keys(map)) {
+        if (idsMatch(key, userId)) {
+          delete map[key];
+          removed = true;
+        }
+      }
+      return removed;
+    };
     const groupPrefix = groupData.customPrefix || prefixo;
     var isCmd = body.trim().startsWith(groupPrefix);
     
@@ -1998,8 +2022,8 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     }
     
     const isAntiPorn = groupData.antiporn;
-    const isMuted = groupData.mutedUsers?.[sender];
-    const isMuted2 = groupData.mutedUsers2?.[sender];
+    const isMuted = isUserInMap(groupData.mutedUsers, sender);
+    const isMuted2 = isUserInMap(groupData.mutedUsers2, sender);
     const isAntiLinkGp = groupData.antilinkgp;
     const isAntiLinkCanal = groupData.antilinkcanal;
     const isAntiLinkSoft = groupData.antilinksoft;
@@ -2238,7 +2262,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         } else {
           await reply("⚠️ Não posso remover o usuário porque não sou administrador.");
         }
-        delete groupData.mutedUsers[sender];
+        removeUserFromMap(groupData.mutedUsers, sender);
         writeJsonFile(groupFile, groupData);
         // Otimização: Invalida cache quando groupData é salvo
         if (isGroup) {
@@ -29168,8 +29192,11 @@ Exemplos:
           };
           
           groupData.mutedUsers = groupData.mutedUsers || {};
-          
-          groupData.mutedUsers[menc_os2] = true;
+          const targetId = await normalizeUserId(nazu, menc_os2);
+          groupData.mutedUsers[targetId] = true;
+          if (targetId !== menc_os2) {
+            groupData.mutedUsers[menc_os2] = true;
+          }
           fs.writeFileSync(groupFilePath, JSON.stringify(groupData));
           await nazu.sendMessage(from, {
             text: `✅ @${getUserName(menc_os2)} foi mutado. Se enviar mensagens, será banido.`,
@@ -29195,8 +29222,9 @@ Exemplos:
           };
           
           groupData.mutedUsers = groupData.mutedUsers || {};
-          if (groupData.mutedUsers[menc_os2]) {
-            delete groupData.mutedUsers[menc_os2];
+          const targetId = await normalizeUserId(nazu, menc_os2);
+          const removed = removeUserFromMap(groupData.mutedUsers, targetId) || removeUserFromMap(groupData.mutedUsers, menc_os2);
+          if (removed) {
             fs.writeFileSync(groupFilePath, JSON.stringify(groupData));
             await nazu.sendMessage(from, {
               text: `✅ @${getUserName(menc_os2)} foi desmutado e pode enviar mensagens novamente.`,
@@ -29224,8 +29252,11 @@ Exemplos:
           };
           
           groupData.mutedUsers2 = groupData.mutedUsers2 || {};
-          
-          groupData.mutedUsers2[menc_os2] = true;
+          const targetId = await normalizeUserId(nazu, menc_os2);
+          groupData.mutedUsers2[targetId] = true;
+          if (targetId !== menc_os2) {
+            groupData.mutedUsers2[menc_os2] = true;
+          }
           fs.writeFileSync(groupFilePath, JSON.stringify(groupData));
           await nazu.sendMessage(from, {
             text: `✅ @${getUserName(menc_os2)} foi mutado. Suas mensagens serão apagadas automaticamente.`,
@@ -29251,8 +29282,9 @@ Exemplos:
           };
           
           groupData.mutedUsers2 = groupData.mutedUsers2 || {};
-          if (groupData.mutedUsers2[menc_os2]) {
-            delete groupData.mutedUsers2[menc_os2];
+          const targetId = await normalizeUserId(nazu, menc_os2);
+          const removed = removeUserFromMap(groupData.mutedUsers2, targetId) || removeUserFromMap(groupData.mutedUsers2, menc_os2);
+          if (removed) {
             fs.writeFileSync(groupFilePath, JSON.stringify(groupData));
             await nazu.sendMessage(from, {
               text: `✅ @${getUserName(menc_os2)} foi desmutado e pode enviar mensagens novamente.`,
