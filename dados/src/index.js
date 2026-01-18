@@ -3437,7 +3437,11 @@ Código: *${roleCode}*`,
       if (urlMatch && urlMatch.length > 0) {
         // Processa apenas o primeiro link encontrado
         try {
-          await handleAutoDownload(nazu, from, urlMatch[0], info);
+          handleAutoDownload(nazu, from, urlMatch[0], info)
+            .then(() => null)
+            .catch((e) => {
+              console.error('Erro no autodl:', e);
+            });
         } catch (e) {
           console.error('Erro no autodl:', e);
         }
