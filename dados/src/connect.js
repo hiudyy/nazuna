@@ -399,14 +399,64 @@ async function clearAuthDir(dirToRemove = AUTH_DIR) {
     }
 }
 
+const DEFAULT_GROUP_SETTINGS = {
+    bemvindo: false,
+    welcome: {},
+    textbv: '',
+    exit: {
+        enabled: false,
+        text: '',
+        image: ''
+    },
+    blacklist: {},
+    autoAcceptRequests: false,
+    captchaEnabled: false,
+    x9: false,
+    pendingCaptchas: {}
+};
+
+function normalizeGroupSettings(data) {
+    const merged = data && typeof data === 'object'
+        ? { ...DEFAULT_GROUP_SETTINGS, ...data }
+        : { ...DEFAULT_GROUP_SETTINGS };
+
+    if (!merged.welcome || typeof merged.welcome !== 'object') merged.welcome = {};
+    if (!merged.exit || typeof merged.exit !== 'object') merged.exit = { enabled: false, text: '', image: '' };
+    if (!merged.blacklist || typeof merged.blacklist !== 'object') merged.blacklist = {};
+    if (!merged.pendingCaptchas || typeof merged.pendingCaptchas !== 'object') merged.pendingCaptchas = {};
+
+    if (typeof merged.textbv !== 'string') merged.textbv = '';
+    if (typeof merged.bemvindo !== 'boolean') merged.bemvindo = false;
+    if (typeof merged.autoAcceptRequests !== 'boolean') merged.autoAcceptRequests = false;
+    if (typeof merged.captchaEnabled !== 'boolean') merged.captchaEnabled = false;
+    if (typeof merged.x9 !== 'boolean') merged.x9 = false;
+
+    if (typeof merged.exit.enabled !== 'boolean') merged.exit.enabled = false;
+    if (typeof merged.exit.text !== 'string') merged.exit.text = '';
+    if (typeof merged.exit.image !== 'string') merged.exit.image = '';
+
+    return merged;
+}
+
 async function loadGroupSettings(groupId) {
     const groupFilePath = path.join(DATABASE_DIR, 'grupos', `${groupId}.json`);
     try {
         const data = await fs.readFile(groupFilePath, 'utf-8');
-        return JSON.parse(data);
+        return normalizeGroupSettings(JSON.parse(data));
     } catch (e) {
+        if (e?.code === 'ENOENT') {
+            try {
+                await fs.mkdir(path.dirname(groupFilePath), { recursive: true });
+                const defaults = normalizeGroupSettings();
+                await fs.writeFile(groupFilePath, JSON.stringify(defaults, null, 2));
+                return defaults;
+            } catch (writeErr) {
+                console.error(`❌ Erro ao criar configurações do grupo ${groupId}: ${writeErr.message}`);
+                return normalizeGroupSettings();
+            }
+        }
         console.error(`❌ Erro ao ler configurações do grupo ${groupId}: ${e.message}`);
-        return {};
+        return normalizeGroupSettings();
     }
 }
 
