@@ -7455,8 +7455,7 @@ Entre em contato com o dono do bot:
           if (pet.equipment && Object.keys(pet.equipment).length > 0) {
             text += `│ 📦 Equipado:\n`;
             Object.entries(pet.equipment).forEach(([slot, itemId]) => {
-              const shopData = require('./utils/database.js');
-              const item = shopData.SHOP_ITEMS[itemId];
+              const item = SHOP_ITEMS[itemId];
               if (item) {
                 const slotIcon = slot === 'weapon' ? '⚔️' : slot === 'armor' ? '🛡️' : slot === 'shield' ? '🛡️' : slot === 'accessory' ? '💍' : '🧪';
                 text += `│   ${slotIcon} ${item.name}\n`;
