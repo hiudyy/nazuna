@@ -12,6 +12,7 @@ import {
   LEVELING_FILE,
   CUSTOM_AUTORESPONSES_FILE,
   DIVULGACAO_FILE,
+  DONO_DIVULGACAO_FILE,
   NO_PREFIX_COMMANDS_FILE,
   COMMAND_ALIASES_FILE,
   GLOBAL_BLACKLIST_FILE,
@@ -96,6 +97,21 @@ ensureJsonFileExists(CUSTOM_COMMANDS_FILE, {
 ensureJsonFileExists(GLOBAL_BLACKLIST_FILE, {
   users: {},
   groups: {}
+});
+ensureJsonFileExists(DONO_DIVULGACAO_FILE, {
+  groups: [],
+  message: '',
+  schedule: {
+    enabled: false,
+    time: null,
+    lastRun: null
+  },
+  stats: {
+    totalSent: 0,
+    lastManual: null,
+    lastAuto: null
+  },
+  createdAt: new Date().toISOString()
 });
 ensureJsonFileExists(MENU_DESIGN_FILE, {
   header: `╭┈⊰ 🌸 『 *{botName}* 』\n┊Olá, {userName}!\n╰─┈┈┈┈┈◜❁◞┈┈┈┈┈─╯`,
@@ -838,6 +854,35 @@ const saveDivulgacao = (data) => {
     return true;
   } catch (error) {
     console.error('❌ Erro ao salvar divulgação.json:', error);
+    return false;
+  }
+};
+
+const loadDonoDivulgacao = () => {
+  return loadJsonFile(DONO_DIVULGACAO_FILE, {
+    groups: [],
+    message: '',
+    schedule: {
+      enabled: false,
+      time: null,
+      lastRun: null
+    },
+    stats: {
+      totalSent: 0,
+      lastManual: null,
+      lastAuto: null
+    },
+    createdAt: new Date().toISOString()
+  });
+};
+
+const saveDonoDivulgacao = (data) => {
+  try {
+    ensureDirectoryExists(DONO_DIR);
+    fs.writeFileSync(DONO_DIVULGACAO_FILE, JSON.stringify(data, null, 2));
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao salvar divulgacao_dono.json:', error);
     return false;
   }
 };
@@ -2976,6 +3021,8 @@ export {
   deleteCustomReact,
   loadDivulgacao,
   saveDivulgacao,
+  loadDonoDivulgacao,
+  saveDonoDivulgacao,
   loadSubdonos,
   saveSubdonos,
   isSubdono,

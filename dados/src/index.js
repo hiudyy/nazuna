@@ -69,6 +69,8 @@ import {
   deleteCustomReact,
   loadDivulgacao,
   saveDivulgacao,
+  loadDonoDivulgacao,
+  saveDonoDivulgacao,
   loadSubdonos,
   saveSubdonos,
   isSubdono,
@@ -3192,6 +3194,119 @@ Código: *${roleCode}*`,
     };
     
     startAutoMensagensWorker(nazu);
+
+    // ============== DIVULGAÇÃO DO DONO (NOVO SISTEMA) ==============
+    let donoDivulgacaoWorkerStarted = global.donoDivulgacaoWorkerStarted || false;
+    let donoDivulgacaoCronJob = global.donoDivulgacaoCronJob || null;
+
+    const unscheduleDonoDivulgacaoJob = () => {
+      if (donoDivulgacaoCronJob && typeof donoDivulgacaoCronJob.stop === 'function') {
+        try { donoDivulgacaoCronJob.stop(); } catch (e) {}
+      }
+      donoDivulgacaoCronJob = null;
+      global.donoDivulgacaoCronJob = null;
+    };
+
+    const runDonoDivulgacaoSend = async (nazuInstance, messageText, source = 'manual') => {
+      const config = loadDonoDivulgacao();
+      const groups = Array.isArray(config.groups) ? config.groups : [];
+      const text = (messageText || config.message || '').trim();
+
+      if (!text) {
+        return { success: false, message: '❌ Nenhuma mensagem configurada para divulgar.' };
+      }
+      if (groups.length === 0) {
+        return { success: false, message: '❌ Nenhum grupo registrado para divulgação.' };
+      }
+
+      let sent = 0;
+      let failed = 0;
+
+      for (const groupId of groups) {
+        if (!isGroupId(groupId)) {
+          failed++;
+          continue;
+        }
+        try {
+          await nazuInstance.sendMessage(groupId, { text });
+          sent++;
+        } catch (e) {
+          failed++;
+        }
+      }
+
+      config.stats = config.stats || { totalSent: 0, lastManual: null, lastAuto: null };
+      config.stats.totalSent = (config.stats.totalSent || 0) + sent;
+      if (source === 'auto') {
+        config.stats.lastAuto = new Date().toISOString();
+      } else {
+        config.stats.lastManual = new Date().toISOString();
+      }
+
+      saveDonoDivulgacao(config);
+
+      return { success: true, sent, failed };
+    };
+
+    const scheduleDonoDivulgacaoJob = (timeStr, nazuInstance) => {
+      const normalized = normalizeScheduleTime(timeStr);
+      if (!normalized) return false;
+      const [hh, mm] = normalized.split(':');
+      if (typeof hh === 'undefined' || typeof mm === 'undefined') return false;
+
+      unscheduleDonoDivulgacaoJob();
+
+      const cronExpr = `${parseInt(mm, 10)} ${parseInt(hh, 10)} * * *`;
+      try {
+        const task = cron.schedule(cronExpr, async () => {
+          try {
+            const config = loadDonoDivulgacao();
+            const schedule = config.schedule || {};
+
+            if (!schedule.enabled || !schedule.time) return;
+            const targetTime = normalizeScheduleTime(schedule.time);
+            if (!targetTime) return;
+
+            const today = getTodayStr();
+            if (hasRunForScheduleToday(schedule.lastRun, today, targetTime)) return;
+
+            const result = await runDonoDivulgacaoSend(nazuInstance, null, 'auto');
+            if (result.success) {
+              schedule.lastRun = { date: today, time: targetTime };
+              config.schedule = schedule;
+              saveDonoDivulgacao(config);
+            }
+          } catch (e) {
+            console.error('[DivDono] Erro no agendamento:', e);
+          }
+        }, { timezone: 'America/Sao_Paulo' });
+
+        task.start();
+        donoDivulgacaoCronJob = task;
+        global.donoDivulgacaoCronJob = task;
+        return true;
+      } catch (e) {
+        console.error('[DivDono] Falha ao agendar job', cronExpr, e);
+        return false;
+      }
+    };
+
+    const startDonoDivulgacaoWorker = (nazuInstance) => {
+      try {
+        if (donoDivulgacaoWorkerStarted) return;
+        donoDivulgacaoWorkerStarted = true;
+        global.donoDivulgacaoWorkerStarted = true;
+
+        const config = loadDonoDivulgacao();
+        if (config.schedule?.enabled && config.schedule?.time) {
+          scheduleDonoDivulgacaoJob(config.schedule.time, nazuInstance);
+        }
+      } catch (e) {
+        console.error('[DivDono] Erro ao iniciar worker:', e);
+      }
+    };
+
+    startDonoDivulgacaoWorker(nazu);
 
     const getFileBuffer = async (mediakey, mediaType, options = {}) => {
       try {
@@ -27879,7 +27994,161 @@ A mensagem será enviada todos os dias às ${normalizedTime} (horário de São P
         }
         break;
 
-case 'setdiv':
+      case 'divdono':
+        try {
+          if (!isOwner) return reply("Apenas o dono do bot pode usar este comando.");
+
+          const sub = (args[0] || '').toLowerCase();
+          const rest = args.slice(1).join(' ').trim();
+          const config = loadDonoDivulgacao();
+          const groups = Array.isArray(config.groups) ? config.groups : [];
+
+          const helpText = `📣 *DIVULGAÇÃO DO DONO (NOVO)*\n\n` +
+            `• ${prefix}divdono add [id] (no grupo ou com ID)\n` +
+            `• ${prefix}divdono rem <id>\n` +
+            `• ${prefix}divdono list\n` +
+            `• ${prefix}divdono msg <texto>\n` +
+            `• ${prefix}divdono send [texto] (usa msg salva)\n` +
+            `• ${prefix}divdono time <HH:MM|off>\n` +
+            `• ${prefix}divdono status`;
+
+          if (!sub || sub === 'help') {
+            return reply(helpText);
+          }
+
+          if (sub === 'add' || sub === 'registrar' || sub === 'register') {
+            let targetGroupId = rest;
+            if (!targetGroupId && isGroup) targetGroupId = from;
+            if (!targetGroupId) return reply(`💡 Use: ${prefix}divdono add [id_do_grupo]`);
+
+            if (!targetGroupId.includes('@g.us')) {
+              targetGroupId += '@g.us';
+            }
+            if (!isGroupId(targetGroupId)) {
+              return reply('❌ ID de grupo inválido! Deve terminar com @g.us');
+            }
+
+            if (!groups.includes(targetGroupId)) {
+              groups.push(targetGroupId);
+              config.groups = groups;
+              saveDonoDivulgacao(config);
+              return reply(`✅ Grupo registrado para divulgação.\n📌 Total: ${groups.length}`);
+            }
+            return reply('⚠️ Este grupo já está registrado.');
+          }
+
+          if (sub === 'rem' || sub === 'remove' || sub === 'del') {
+            if (!rest) return reply(`💡 Use: ${prefix}divdono rem <id_do_grupo>`);
+            let targetGroupId = rest.trim();
+            if (!targetGroupId.includes('@g.us')) {
+              targetGroupId += '@g.us';
+            }
+            const newGroups = groups.filter(id => id !== targetGroupId);
+            if (newGroups.length === groups.length) {
+              return reply('⚠️ Grupo não encontrado na lista.');
+            }
+            config.groups = newGroups;
+            saveDonoDivulgacao(config);
+            return reply(`✅ Grupo removido da divulgação.\n📌 Total: ${newGroups.length}`);
+          }
+
+          if (sub === 'list' || sub === 'lista') {
+            if (!groups.length) return reply('⚠️ Nenhum grupo registrado para divulgação.');
+
+            let text = `📣 *GRUPOS REGISTRADOS (${groups.length})*\n`;
+            let index = 1;
+            for (const groupId of groups) {
+              let groupName = null;
+              try {
+                const meta = await nazu.groupMetadata(groupId).catch(() => null);
+                groupName = meta?.subject || null;
+              } catch (e) {}
+              text += `\n${index}. ${groupName ? groupName + ' - ' : ''}${groupId}`;
+              index++;
+              if (index > 30) {
+                text += `\n\n...e mais ${groups.length - 30} grupo(s).`;
+                break;
+              }
+            }
+            return reply(text);
+          }
+
+          if (sub === 'msg' || sub === 'mensagem') {
+            if (!rest) {
+              const current = (config.message || '').trim() || 'Nenhuma mensagem salva.';
+              return reply(`📝 *Mensagem atual:*\n${current}`);
+            }
+            config.message = rest;
+            saveDonoDivulgacao(config);
+            return reply('✅ Mensagem de divulgação salva com sucesso.');
+          }
+
+          if (sub === 'send' || sub === 'enviar') {
+            const customText = rest || null;
+            const result = await runDonoDivulgacaoSend(nazu, customText, 'manual');
+            if (!result.success) return reply(result.message);
+            return reply(`✅ Divulgação enviada.\n📨 Enviadas: ${result.sent}\n⚠️ Falhas: ${result.failed}`);
+          }
+
+          if (sub === 'time' || sub === 'hora' || sub === 'agendar') {
+            if (!rest) {
+              const status = config.schedule?.enabled ? 'ativado' : 'desativado';
+              const time = config.schedule?.time || '—';
+              return reply(`⏰ *Agendamento:* ${status}\n🕒 Horário: ${time}\n💡 Use ${prefix}divdono time HH:MM ou off`);
+            }
+
+            if (['off', 'desligar', 'desativar'].includes(rest.toLowerCase())) {
+              config.schedule = config.schedule || {};
+              config.schedule.enabled = false;
+              config.schedule.time = null;
+              config.schedule.lastRun = null;
+              saveDonoDivulgacao(config);
+              unscheduleDonoDivulgacaoJob();
+              return reply('✅ Agendamento diário desativado.');
+            }
+
+            const normalized = normalizeScheduleTime(rest);
+            if (!normalized) {
+              return reply('❌ Formato inválido. Use HH:MM (ex: 09:30).');
+            }
+
+            config.schedule = config.schedule || {};
+            config.schedule.enabled = true;
+            config.schedule.time = normalized;
+            config.schedule.lastRun = null;
+            saveDonoDivulgacao(config);
+            scheduleDonoDivulgacaoJob(normalized, nazu);
+
+            return reply(`✅ Agendamento diário definido para ${normalized} (horário de São Paulo).`);
+          }
+
+          if (sub === 'status') {
+            const schedule = config.schedule || {};
+            const status = schedule.enabled ? 'ativado' : 'desativado';
+            const time = schedule.time || '—';
+            const msgPreview = (config.message || '').trim();
+            const lastAuto = config.stats?.lastAuto ? new Date(config.stats.lastAuto).toLocaleString('pt-BR') : '—';
+            const lastManual = config.stats?.lastManual ? new Date(config.stats.lastManual).toLocaleString('pt-BR') : '—';
+
+            let text = `📣 *STATUS DIVULGAÇÃO DO DONO*\n\n`;
+            text += `📌 Grupos: ${groups.length}\n`;
+            text += `🕒 Agendamento: ${status}\n`;
+            text += `⏰ Horário: ${time}\n`;
+            text += `🧾 Mensagem: ${msgPreview ? msgPreview.slice(0, 120) + (msgPreview.length > 120 ? '...' : '') : 'Nenhuma'}\n`;
+            text += `📨 Total enviado: ${config.stats?.totalSent || 0}\n`;
+            text += `🗓️ Último manual: ${lastManual}\n`;
+            text += `🤖 Último automático: ${lastAuto}`;
+            return reply(text);
+          }
+
+          return reply(helpText);
+        } catch (e) {
+          console.error('Erro no comando divdono:', e);
+          await reply('💔 Ocorreu um erro ao processar o comando.');
+        }
+        break;
+
+      case 'setdiv':
         try {
           if (!isOwner) return reply("Apenas o dono do bot pode usar este comando.");
 

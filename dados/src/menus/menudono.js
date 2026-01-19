@@ -202,6 +202,15 @@ ${middleBorder}${menuItemIcon}${prefix}statustm
 ${middleBorder}
 ${middleBorder}📝 Usuários inscrevem com:
 ${middleBorder}   ${prefix}inscrevertm (no PV)
+${middleBorder}
+${middleBorder}${menuTitleIcon} *Divulgação do Dono (novo):*
+${middleBorder}${menuItemIcon}${prefix}divdono add
+${middleBorder}${menuItemIcon}${prefix}divdono rem
+${middleBorder}${menuItemIcon}${prefix}divdono list
+${middleBorder}${menuItemIcon}${prefix}divdono msg
+${middleBorder}${menuItemIcon}${prefix}divdono send
+${middleBorder}${menuItemIcon}${prefix}divdono time
+${middleBorder}${menuItemIcon}${prefix}divdono status
 ${bottomBorder}
 `;
 }
