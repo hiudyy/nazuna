@@ -644,6 +644,79 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       console.log(`[DEBUG] ${msg}`, data || '');
     }
   };
+
+  const normalizeMessageTimestamp = (timestamp) => {
+    if (!timestamp) return null;
+    if (typeof timestamp === 'number') return timestamp;
+    if (typeof timestamp === 'string') {
+      const parsed = Number(timestamp);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    if (typeof timestamp === 'object') {
+      if (typeof timestamp.toNumber === 'function') return timestamp.toNumber();
+      if (typeof timestamp.low === 'number') return timestamp.low;
+    }
+    return null;
+  };
+
+  const getLastMessageInChat = (jid) => {
+    if (!messagesCache || messagesCache.size === 0) return null;
+
+    let lastMsg = null;
+    let lastTimestamp = 0;
+
+    for (const cachedMsg of messagesCache.values()) {
+      if (!cachedMsg?.key?.remoteJid || cachedMsg.key.remoteJid !== jid) continue;
+      const ts = normalizeMessageTimestamp(cachedMsg.messageTimestamp);
+      if (!ts) continue;
+
+      if (!lastMsg || ts > lastTimestamp) {
+        lastMsg = cachedMsg;
+        lastTimestamp = ts;
+      }
+    }
+
+    if (!lastMsg?.key || !lastTimestamp) return null;
+    return {
+      key: lastMsg.key,
+      messageTimestamp: lastTimestamp
+    };
+  };
+
+  const deleteChatByLastMessage = async (jid) => {
+    if (!nazu?.chatModify) return false;
+
+    const lastMsgInChat = getLastMessageInChat(jid);
+    if (lastMsgInChat?.key && lastMsgInChat?.messageTimestamp) {
+      await nazu.chatModify({
+        delete: true,
+        lastMessages: [
+          {
+            key: lastMsgInChat.key,
+            messageTimestamp: lastMsgInChat.messageTimestamp
+          }
+        ]
+      }, jid);
+      return true;
+    }
+
+    await nazu.chatModify({ delete: true }, jid);
+    return true;
+  };
+
+  const clearChatHistorySafe = async (jid) => {
+    if (!nazu?.chatModify) return false;
+    try {
+      await nazu.chatModify({ clear: 'all' }, jid);
+      return true;
+    } catch (e) {
+      if (typeof e?.message === 'string' && e.message.toLowerCase().includes('not supported')) {
+        await deleteChatByLastMessage(jid);
+        return true;
+      }
+      throw e;
+    }
+  };
   
   async function getCachedGroupMetadata(groupId) {
     try {
@@ -16809,7 +16882,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
               // Deleta o chat do grupo
               try {
                 if (nazu.chatModify) {
-                  await nazu.chatModify({ delete: true }, groupId);
+                  await deleteChatByLastMessage(groupId);
                   chatsDeleted++;
                 }
               } catch (e) {
@@ -16819,7 +16892,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
               // Limpa conversa do grupo
               try {
                 if (nazu.chatModify) {
-                  await nazu.chatModify({ clear: 'all' }, groupId);
+                  await clearChatHistorySafe(groupId);
                   groupConversationsCleared++;
                 }
               } catch (e) {
@@ -16852,7 +16925,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
                 // Deleta o chat do grupo
                 try {
                   if (nazu.chatModify) {
-                    await nazu.chatModify({ delete: true }, groupId);
+                    await deleteChatByLastMessage(groupId);
                     chatsDeleted++;
                   }
                 } catch (e) {
@@ -16862,7 +16935,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
                 // Limpa conversa do grupo
                 try {
                   if (nazu.chatModify) {
-                    await nazu.chatModify({ clear: 'all' }, groupId);
+                    await clearChatHistorySafe(groupId);
                     groupConversationsCleared++;
                   }
                 } catch (e) {
@@ -16884,7 +16957,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
               const remainingGroups = await nazu.groupFetchAllParticipating();
               for (const groupId of Object.keys(remainingGroups)) {
                 try {
-                  await nazu.chatModify({ clear: 'all' }, groupId);
+                  await clearChatHistorySafe(groupId);
                   groupConversationsCleared++;
                   await new Promise(resolve => setTimeout(resolve, 500));
                 } catch (e) {
