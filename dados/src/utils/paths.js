@@ -51,6 +51,7 @@ const MASS_MENTION_CONFIG_FILE = path.join(DONO_DIR, 'massMentionConfig.json');
 const GROUP_CUSTOMIZATION_FILE = path.join(DONO_DIR, 'groupCustomization.json');
 const MENU_AUDIO_FILE = path.join(DONO_DIR, 'menuAudio.json');
 const MENU_LERMAIS_FILE = path.join(DONO_DIR, 'menuLerMais.json');
+const SUPPORT_TICKETS_FILE = path.join(DATABASE_DIR, 'supportTickets.json');
 
 // Detecta se é sub-bot e ajusta o caminho do config
 const CONFIG_FILE = process.env.CONFIG_PATH || path.join(SRC_DIR, 'config.json');
@@ -100,6 +101,7 @@ export {
   GROUP_CUSTOMIZATION_FILE,
   MENU_AUDIO_FILE,
   MENU_LERMAIS_FILE,
+  SUPPORT_TICKETS_FILE,
   CONFIG_FILE,
   PACKAGE_JSON_PATH
 };

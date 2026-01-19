@@ -149,6 +149,10 @@ import {
   loadMenuDesign,
   saveMenuDesign,
   getMenuDesignWithDefaults,
+  setSupportMode,
+  findSupportTicketById,
+  createSupportTicket,
+  acceptSupportTicket,
   loadCommandLimits,
   saveCommandLimits,
   addCommandLimit,
@@ -1882,7 +1886,9 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     if (!isGroup) {
       // Exceção para comandos de transmissão que devem funcionar no PV
       const tm2Commands = ['inscrevertm', 'inscrevertm2', 'desinscrever', 'desinscrevertm', 'cancelartm'];
-      const isTm2Command = tm2Commands.some(cmd => command === cmd);
+      const supportAdminCommands = ['ticketaceitar', 'aceitarticket', 'suporteaceitar', 'ticket.aceitar'];
+      const isSupportAdminCommand = supportAdminCommands.some(cmd => command === cmd);
+      const isTm2Command = tm2Commands.some(cmd => command === cmd) || isSupportAdminCommand;
       
       if (antipvData.mode === 'antipv' && !isOwner && !isPremium && !isTm2Command) {
         return;
@@ -2015,6 +2021,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     }
     const isModoBn = groupData.modobrincadeira;
     const isOnlyAdmin = groupData.soadm;
+    const soadmBypassCommands = ['suporte', 'ticketsuporte', 'suporteticket'];
     
     // Se modo soadm ativo e não é admin, ignorar aliases silenciosamente
     if (isGroup && isOnlyAdmin && !isGroupAdmin && !isOwner && matchedAlias) {
@@ -2103,7 +2110,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         }
       }
     }
-    if (isGroup && isCmd && isOnlyAdmin && !isGroupAdmin) {
+    if (isGroup && isCmd && isOnlyAdmin && !isGroupAdmin && !soadmBypassCommands.includes(command)) {
       return;
     }
     if (isGroup && info.message.protocolMessage && info.message.protocolMessage.type === 0 && isAntiDel) {
@@ -28870,6 +28877,112 @@ Exemplos:
         } catch (e) {
           console.error(e);
           reply("Ocorreu um erro 💔");
+        }
+        break;
+      case 'suporte':
+      case 'ticketsuporte':
+      case 'suporteticket':
+        try {
+          if (!isGroup) return reply('Use este comando no grupo para abrir um ticket.');
+
+          const action = (args[0] || '').toLowerCase();
+          const enableActions = ['on', 'ativar', 'ligar', 'enable'];
+          const disableActions = ['off', 'desativar', 'desligar', 'disable'];
+
+          if (enableActions.includes(action)) {
+            if (!isGroupAdmin) return reply('Você precisa ser administrador 💔');
+            setSupportMode(from, true);
+            return reply('✅ *Modo suporte ativado!* Agora membros podem solicitar tickets.');
+          }
+
+          if (disableActions.includes(action)) {
+            if (!isGroupAdmin) return reply('Você precisa ser administrador 💔');
+            setSupportMode(from, false);
+            return reply('⚠️ *Modo suporte desativado!*');
+          }
+
+          const reason = q?.trim() || '';
+          const createResult = createSupportTicket({
+            groupId: from,
+            groupName: groupName || null,
+            userId: sender,
+            userName: getUserName(sender),
+            message: reason
+          });
+
+          if (!createResult.success) {
+            if (createResult.existingTicket?.id) {
+              return reply(`⚠️ Você já tem um ticket pendente: *${createResult.existingTicket.id}*`);
+            }
+            return reply(`⚠️ ${createResult.message || 'Não foi possível criar o ticket.'}`);
+          }
+
+          const { ticket, ahead } = createResult;
+          const aheadText = ahead > 0 ? `Há ${ahead} ticket(s) na fila na sua frente.` : 'Você é o próximo da fila.';
+          await reply(`✅ Ticket criado! ID: *${ticket.id}*\n${aheadText}\nUm admin vai falar com você no privado.`);
+
+          const adminMessage =
+            `🧾 *Novo Ticket de Suporte*\n\n` +
+            `ID: *${ticket.id}*\n` +
+            `Grupo: ${groupName || from}\n` +
+            `Usuário: ${ticket.userName || getUserName(sender)} (${ticket.userId})\n` +
+            (reason ? `Mensagem: ${reason}\n` : '') +
+            `Fila: ${ahead} na frente\n\n` +
+            `Para aceitar, envie no meu PV:\n${prefix}ticketaceitar ${ticket.id}`;
+
+          const adminsToNotify = Array.isArray(groupAdmins) ? groupAdmins : [];
+          for (const adminId of adminsToNotify) {
+            await nazu.sendMessage(adminId, { text: adminMessage }).catch(err => {
+              console.error(`Erro ao notificar admin ${adminId}:`, err.message || err);
+            });
+          }
+        } catch (e) {
+          console.error(e);
+          reply('Ocorreu um erro 💔');
+        }
+        break;
+      case 'ticketaceitar':
+      case 'aceitarticket':
+      case 'suporteaceitar':
+      case 'ticket.aceitar':
+        try {
+          if (isGroup) return reply('Use este comando no meu privado.');
+          if (!q) return reply('Informe o ID do ticket.');
+
+          const ticketId = q.trim().split(/\s+/)[0];
+          const found = findSupportTicketById(ticketId);
+          if (!found || !found.ticket) return reply('❌ Ticket não encontrado.');
+
+          const ticket = found.ticket;
+          const groupMeta = await getCachedGroupMetadata(ticket.groupId).catch(() => null);
+          if (!groupMeta || !groupMeta.participants) {
+            return reply('❌ Não consegui validar o grupo deste ticket.');
+          }
+
+          const rawAdmins = groupMeta.participants
+            .filter(p => p.admin === 'admin' || p.admin === 'superadmin' || p.admin === true)
+            .map(p => p.lid || p.id)
+            .filter(Boolean);
+
+          const adminIds = await convertIdsToLid(nazu, rawAdmins);
+          const isTicketAdmin = idInArray(sender, adminIds) || isOwner || isSubOwner;
+          if (!isTicketAdmin) return reply('❌ Apenas admins do grupo podem aceitar este ticket.');
+
+          const acceptResult = acceptSupportTicket(ticketId, sender);
+          if (!acceptResult.success) {
+            if (acceptResult.alreadyAccepted && acceptResult.ticket?.acceptedBy) {
+              return reply(`⚠️ Ticket já aceito por ${getUserName(acceptResult.ticket.acceptedBy)}.`);
+            }
+            return reply(`⚠️ ${acceptResult.message || 'Não foi possível aceitar o ticket.'}`);
+          }
+
+          return reply(
+            `✅ Ticket *${ticketId}* aceito!\n` +
+            `Entre em contato manualmente com ${ticket.userName || getUserName(ticket.userId)} (${ticket.userId}).`
+          );
+        } catch (e) {
+          console.error(e);
+          reply('Ocorreu um erro 💔');
         }
         break;
       case 'soadm':
