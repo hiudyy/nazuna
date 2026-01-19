@@ -634,9 +634,22 @@ const createSupportTicket = ({ groupId, groupName, userId, userName, message }) 
     };
   }
 
-  groupData.lastId += 1;
-  const groupPrefix = String(groupId).split('@')[0];
-  const ticketId = `SUP-${groupPrefix}-${groupData.lastId}`;
+  const MAX_TICKET_ID = 99999;
+  let nextId = Number.isFinite(groupData.lastId) ? groupData.lastId + 1 : 1;
+  if (nextId < 1) nextId = 1;
+  if (nextId > MAX_TICKET_ID) nextId = 1;
+
+  let ticketId = String(nextId);
+  const attemptsLimit = MAX_TICKET_ID;
+  let attempts = 0;
+  while (groupData.tickets?.[ticketId] && attempts < attemptsLimit) {
+    nextId += 1;
+    if (nextId > MAX_TICKET_ID) nextId = 1;
+    ticketId = String(nextId);
+    attempts += 1;
+  }
+
+  groupData.lastId = Number(ticketId);
   const ticket = {
     id: ticketId,
     groupId,

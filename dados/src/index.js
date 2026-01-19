@@ -28921,18 +28921,19 @@ Exemplos:
           const aheadText = ahead > 0 ? `Há ${ahead} ticket(s) na fila na sua frente.` : 'Você é o próximo da fila.';
           await reply(`✅ Ticket criado! ID: *${ticket.id}*\n${aheadText}\nUm admin vai falar com você no privado.`);
 
+          const userMention = `@${String(ticket.userId).split('@')[0]}`;
           const adminMessage =
             `🧾 *Novo Ticket de Suporte*\n\n` +
             `ID: *${ticket.id}*\n` +
             `Grupo: ${groupName || from}\n` +
-            `Usuário: ${ticket.userName || getUserName(sender)} (${ticket.userId})\n` +
+            `Usuário: ${userMention}\n` +
             (reason ? `Mensagem: ${reason}\n` : '') +
             `Fila: ${ahead} na frente\n\n` +
             `Para aceitar, envie no meu PV:\n${prefix}ticketaceitar ${ticket.id}`;
 
           const adminsToNotify = Array.isArray(groupAdmins) ? groupAdmins : [];
           for (const adminId of adminsToNotify) {
-            await nazu.sendMessage(adminId, { text: adminMessage }).catch(err => {
+            await nazu.sendMessage(adminId, { text: adminMessage, mentions: [ticket.userId] }).catch(err => {
               console.error(`Erro ao notificar admin ${adminId}:`, err.message || err);
             });
           }
@@ -28971,14 +28972,21 @@ Exemplos:
           const acceptResult = acceptSupportTicket(ticketId, sender);
           if (!acceptResult.success) {
             if (acceptResult.alreadyAccepted && acceptResult.ticket?.acceptedBy) {
-              return reply(`⚠️ Ticket já aceito por ${getUserName(acceptResult.ticket.acceptedBy)}.`);
+              const acceptedBy = acceptResult.ticket.acceptedBy;
+              const acceptedByMention = `@${String(acceptedBy).split('@')[0]}`;
+              return reply(
+                `⚠️ Ticket já aceito por ${acceptedByMention}.`,
+                { mentions: [acceptedBy] }
+              );
             }
             return reply(`⚠️ ${acceptResult.message || 'Não foi possível aceitar o ticket.'}`);
           }
 
+          const acceptedMention = `@${String(ticket.userId).split('@')[0]}`;
           return reply(
             `✅ Ticket *${ticketId}* aceito!\n` +
-            `Entre em contato manualmente com ${ticket.userName || getUserName(ticket.userId)} (${ticket.userId}).`
+            `Entre em contato manualmente com ${acceptedMention}.`,
+            { mentions: [ticket.userId] }
           );
         } catch (e) {
           console.error(e);
