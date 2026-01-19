@@ -3349,6 +3349,12 @@ export {
   getMenuDesignWithDefaults,
   loadRelationships,
   saveRelationships,
+  loadSupportTicketsData,
+  saveSupportTicketsData,
+  setSupportMode,
+  findSupportTicketById,
+  createSupportTicket,
+  acceptSupportTicket,
   // Command limiting functions
   loadCommandLimits,
   saveCommandLimits,
