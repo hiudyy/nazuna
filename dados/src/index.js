@@ -2096,7 +2096,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     }
     const isModoBn = groupData.modobrincadeira;
     const isOnlyAdmin = groupData.soadm;
-    const soadmBypassCommands = ['suporte', 'ticketsuporte', 'suporteticket'];
+    const soadmBypassCommands = ['suporte', 'ticketsuporte', 'suporteticket', 'ticket'];
     
     // Se modo soadm ativo e não é admin, ignorar aliases silenciosamente
     if (isGroup && isOnlyAdmin && !isGroupAdmin && !isOwner && matchedAlias) {
@@ -29276,6 +29276,7 @@ Exemplos:
       case 'suporte':
       case 'ticketsuporte':
       case 'suporteticket':
+      case 'ticket':
         try {
           if (!isGroup) return reply('Use este comando no grupo para abrir um ticket.');
 
