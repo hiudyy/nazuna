@@ -15643,6 +15643,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
         break;
       case 'remsubdono':
       case 'rmsubdono':
+      case 'delsubdono':
         if (!isOwner) return reply("🚫 Apenas o Dono principal pode remover subdonos!");
         if (isSubOwner && !isOwner) return reply("🚫 Subdonos não podem remover outros subdonos!");
         try {
@@ -18211,17 +18212,17 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
               }
 
               if (!targetUser) {
-                // Tenta usar cache/onWhatsApp
+                // Tenta usar cache/onWhatsApp, mas permite JID como fallback
                 try {
                   const lid = await getLidFromJidCached(nazu, candidateJid);
                   if (lid && lid.includes('@lid')) {
                     targetUser = lid;
                   } else {
-                    return reply('❌ Não foi possível obter o LID desse número. Marque o usuário ou tente novamente quando o LID estiver disponível.');
+                    targetUser = candidateJid;
                   }
                 } catch (err) {
                   console.log('Erro ao obter LID via onWhatsApp:', err?.message || err);
-                  return reply('❌ Erro ao obter LID do número fornecido. Tente marcar o usuário.');
+                  targetUser = candidateJid;
                 }
               }
             } else {
@@ -18258,11 +18259,11 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
                   if (lid && lid.includes('@lid')) {
                     targetUser = lid;
                   } else {
-                    return reply('❌ Não foi possível obter o LID desse número. Marque o usuário ou tente novamente quando o LID estiver disponível.');
+                    targetUser = candidateJid;
                   }
                 } catch (err) {
                   console.log('Erro ao obter LID via onWhatsApp:', err?.message || err);
-                  return reply('❌ Erro ao obter LID do número fornecido. Tente marcar o usuário.');
+                  targetUser = candidateJid;
                 }
               }
             } else {
@@ -22508,7 +22509,9 @@ ${prefix}addautomidia <palavra> | <legenda>
 
 🚫 *Blacklist Global*
 • Banir: ${prefix}addblackglobal @usuario | motivo
+  ou: ${prefix}addblackglobal 5511999999999 | motivo
 • Desbanir: ${prefix}rmblackglobal @usuario
+  ou: ${prefix}rmblackglobal 5511999999999
 • Listar: ${prefix}listblackglobal
 • Usuário banido é removido automaticamente dos grupos
 
@@ -29051,23 +29054,48 @@ Exemplos:
         try {
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Você precisa ser administrador 💔");
-          if (!menc_os2) return reply("Marque um usuário 🙄");
-          const reason = q.includes(' ') ? q.split(' ').slice(1).join(' ') : "Motivo não informado";
+          let targetUser = menc_os2 || null;
+          if (!targetUser && q && q.trim()) {
+            const firstArg = q.trim().split(/\s+/)[0];
+            if ((isValidJid(firstArg) || isValidLid(firstArg)) && firstArg.includes('@')) {
+              targetUser = firstArg;
+            } else {
+              const cleanNumber = firstArg.replace(/\D/g, '');
+              if (cleanNumber.length >= 10) {
+                const candidateJid = buildUserId(cleanNumber, config);
+                if (groupMetadata?.participants) {
+                  const participant = groupMetadata.participants.find(p => p.id === candidateJid || p.lid === candidateJid || (p.lid && p.lid.includes(cleanNumber)));
+                  if (participant?.lid) targetUser = participant.lid;
+                  else if (participant?.id) targetUser = participant.id;
+                }
+                if (!targetUser) {
+                  try {
+                    const lid = await getLidFromJidCached(nazu, candidateJid);
+                    targetUser = lid && lid.includes('@lid') ? lid : candidateJid;
+                  } catch (err) {
+                    targetUser = candidateJid;
+                  }
+                }
+              }
+            }
+          }
+          if (!targetUser) return reply(`Marque o usuário ou forneça o número (ex: ${prefix}addblacklist 5511999998888 motivo).`);
+          const reason = args.length > 1 ? args.slice(1).join(' ') : "Motivo não informado";
           const groupFilePath = buildGroupFilePath(from);
           let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
             blacklist: {}
           };
           
           groupData.blacklist = groupData.blacklist || {};
-          if (groupData.blacklist[menc_os2]) return reply("❌ Este usuário já está na blacklist.");
+          if (groupData.blacklist[targetUser]) return reply("❌ Este usuário já está na blacklist.");
           
-          groupData.blacklist[menc_os2] = {
+          groupData.blacklist[targetUser] = {
             reason,
             timestamp: Date.now()
           };
           fs.writeFileSync(groupFilePath, JSON.stringify(groupData, null, 2));
-          reply(`✅ @${getUserName(menc_os2)} foi adicionado à blacklist.\nMotivo: ${reason}`, {
-            mentions: [menc_os2]
+          reply(`✅ @${getUserName(targetUser)} foi adicionado à blacklist.\nMotivo: ${reason}`, {
+            mentions: [targetUser]
           });
         } catch (e) {
           console.error(e);
@@ -29079,18 +29107,43 @@ Exemplos:
         try {
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Você precisa ser administrador 💔");
-          if (!menc_os2) return reply("Marque um usuário 🙄");
+          let targetUser = menc_os2 || null;
+          if (!targetUser && q && q.trim()) {
+            const firstArg = q.trim().split(/\s+/)[0];
+            if ((isValidJid(firstArg) || isValidLid(firstArg)) && firstArg.includes('@')) {
+              targetUser = firstArg;
+            } else {
+              const cleanNumber = firstArg.replace(/\D/g, '');
+              if (cleanNumber.length >= 10) {
+                const candidateJid = buildUserId(cleanNumber, config);
+                if (groupMetadata?.participants) {
+                  const participant = groupMetadata.participants.find(p => p.id === candidateJid || p.lid === candidateJid || (p.lid && p.lid.includes(cleanNumber)));
+                  if (participant?.lid) targetUser = participant.lid;
+                  else if (participant?.id) targetUser = participant.id;
+                }
+                if (!targetUser) {
+                  try {
+                    const lid = await getLidFromJidCached(nazu, candidateJid);
+                    targetUser = lid && lid.includes('@lid') ? lid : candidateJid;
+                  } catch (err) {
+                    targetUser = candidateJid;
+                  }
+                }
+              }
+            }
+          }
+          if (!targetUser) return reply(`Marque o usuário ou forneça o número (ex: ${prefix}delblacklist 5511999998888).`);
           const groupFilePath = buildGroupFilePath(from);
           let groupData = fs.existsSync(groupFilePath) ? JSON.parse(fs.readFileSync(groupFilePath)) : {
             blacklist: {}
           };
           
           groupData.blacklist = groupData.blacklist || {};
-          if (!groupData.blacklist[menc_os2]) return reply("❌ Este usuário não está na blacklist.");
-          delete groupData.blacklist[menc_os2];
+          if (!groupData.blacklist[targetUser]) return reply("❌ Este usuário não está na blacklist.");
+          delete groupData.blacklist[targetUser];
           fs.writeFileSync(groupFilePath, JSON.stringify(groupData, null, 2));
-          reply(`✅ @${getUserName(menc_os2)} foi removido da blacklist.`, {
-            mentions: [menc_os2]
+          reply(`✅ @${getUserName(targetUser)} foi removido da blacklist.`, {
+            mentions: [targetUser]
           });
         } catch (e) {
           console.error(e);
