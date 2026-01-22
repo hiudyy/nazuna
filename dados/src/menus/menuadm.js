@@ -100,7 +100,7 @@ ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *🛡️ WHITELIST DE ANTIS*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}wl.add
+${middleBorder}${menuItemIcon}${prefix}wladd
 ${middleBorder}${menuItemIcon}${prefix}wl.remove
 ${middleBorder}${menuItemIcon}${prefix}wl.lista
 ${bottomBorder}

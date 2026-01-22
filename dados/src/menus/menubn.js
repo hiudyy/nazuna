@@ -182,7 +182,6 @@ ${middleBorder}${menuItemIcon}${prefix}online
 ${middleBorder}${menuItemIcon}${prefix}otimista
 ${middleBorder}${menuItemIcon}${prefix}padrao
 ${middleBorder}${menuItemIcon}${prefix}patriotico
-${middleBorder}${menuItemIcon}${prefix}pesquisador
 ${middleBorder}${menuItemIcon}${prefix}pessimista
 ${middleBorder}${menuItemIcon}${prefix}pratico
 ${middleBorder}${menuItemIcon}${prefix}programador
@@ -218,7 +217,7 @@ ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${femaleFunMenuTitle}*
 ${middleBorder}
-${isLiteMode ? '' : `${middleBorder}${menuItemIcon}${prefix}lésbica\n`}${middleBorder}${menuItemIcon}${prefix}burra
+${isLiteMode ? '' : `${middleBorder}${menuItemIcon}${prefix}lesbica\n`}${middleBorder}${menuItemIcon}${prefix}burra
 ${middleBorder}${menuItemIcon}${prefix}inteligente
 ${middleBorder}${menuItemIcon}${prefix}otaku
 ${middleBorder}${menuItemIcon}${prefix}fiel
@@ -230,23 +229,23 @@ ${middleBorder}${menuItemIcon}${prefix}rica
 ${middleBorder}${menuItemIcon}${prefix}pobre${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}bucetuda${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}nazista${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}ladra`}`}`}
 ${middleBorder}${menuItemIcon}${prefix}safada
 ${middleBorder}${menuItemIcon}${prefix}vesga
-${middleBorder}${menuItemIcon}${prefix}bêbada${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}machista${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}homofóbica${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}racista`}`}`}
+${middleBorder}${menuItemIcon}${prefix}bebada${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}machista${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}homofobica${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}racista`}`}`}
 ${middleBorder}${menuItemIcon}${prefix}chata
 ${middleBorder}${menuItemIcon}${prefix}sortuda
 ${middleBorder}${menuItemIcon}${prefix}azarada
 ${middleBorder}${menuItemIcon}${prefix}forte
 ${middleBorder}${menuItemIcon}${prefix}fraca
 ${middleBorder}${menuItemIcon}${prefix}pegadora
-${middleBorder}${menuItemIcon}${prefix}otária
+${middleBorder}${menuItemIcon}${prefix}otaria
 ${middleBorder}${menuItemIcon}${prefix}boba
 ${middleBorder}${menuItemIcon}${prefix}nerd
-${middleBorder}${menuItemIcon}${prefix}preguiçosa
+${middleBorder}${menuItemIcon}${prefix}preguicosa
 ${middleBorder}${menuItemIcon}${prefix}trabalhadora
 ${middleBorder}${menuItemIcon}${prefix}braba
 ${middleBorder}${menuItemIcon}${prefix}linda
 ${middleBorder}${menuItemIcon}${prefix}malandra
-${middleBorder}${menuItemIcon}${prefix}simpática
-${middleBorder}${menuItemIcon}${prefix}engraçada
+${middleBorder}${menuItemIcon}${prefix}simpatica
+${middleBorder}${menuItemIcon}${prefix}engracada
 ${middleBorder}${menuItemIcon}${prefix}charmosa
 ${middleBorder}${menuItemIcon}${prefix}misteriosa
 ${middleBorder}${menuItemIcon}${prefix}carinhosa
@@ -259,8 +258,8 @@ ${middleBorder}${menuItemIcon}${prefix}esperta${isLiteMode ? '' : `\n${middleBor
 ${middleBorder}${menuItemIcon}${prefix}chorona
 ${middleBorder}${menuItemIcon}${prefix}brincalhona${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}bolsonarista${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}petista${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}comunista${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}lulista${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}traidora${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}bandida${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}cachorra${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}vagabunda${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}pilantra`}`}`}`}`}`}`}`}`}
 ${middleBorder}${menuItemIcon}${prefix}mito
-${middleBorder}${menuItemIcon}${prefix}padrão
-${middleBorder}${menuItemIcon}${prefix}comédia${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}psicopata`}
+${middleBorder}${menuItemIcon}${prefix}padrao
+${middleBorder}${menuItemIcon}${prefix}comedia${isLiteMode ? '' : `\n${middleBorder}${menuItemIcon}${prefix}psicopata`}
 ${middleBorder}${menuItemIcon}${prefix}ateia
 ${middleBorder}${menuItemIcon}${prefix}aventureira
 ${middleBorder}${menuItemIcon}${prefix}bagunceira
@@ -305,9 +304,8 @@ ${middleBorder}${menuItemIcon}${prefix}nervosa
 ${middleBorder}${menuItemIcon}${prefix}offline
 ${middleBorder}${menuItemIcon}${prefix}online
 ${middleBorder}${menuItemIcon}${prefix}otimista
-${middleBorder}${menuItemIcon}${prefix}padrão
+${middleBorder}${menuItemIcon}${prefix}padrao
 ${middleBorder}${menuItemIcon}${prefix}patriotica
-${middleBorder}${menuItemIcon}${prefix}pesquisadora
 ${middleBorder}${menuItemIcon}${prefix}pessimista
 ${middleBorder}${menuItemIcon}${prefix}pratica
 ${middleBorder}${menuItemIcon}${prefix}programadora
@@ -333,11 +331,11 @@ ${middleBorder}${menuItemIcon}${prefix}vencedora
 ${middleBorder}${menuItemIcon}${prefix}viajante
 ${middleBorder}${menuItemIcon}${prefix}visionaria
 ${middleBorder}${menuItemIcon}${prefix}zueira
-${middleBorder}${menuItemIcon}${prefix}bilionária
+${middleBorder}${menuItemIcon}${prefix}bilionaria
 ${middleBorder}${menuItemIcon}${prefix}gamer
 ${middleBorder}${menuItemIcon}${prefix}programadora
-${middleBorder}${menuItemIcon}${prefix}visionária
-${middleBorder}${menuItemIcon}${prefix}bilionária
+${middleBorder}${menuItemIcon}${prefix}visionaria
+${middleBorder}${menuItemIcon}${prefix}bilionaria
 ${middleBorder}${menuItemIcon}${prefix}poderosa
 ${middleBorder}${menuItemIcon}${prefix}vencedora
 ${middleBorder}${menuItemIcon}${prefix}senhora

@@ -5686,11 +5686,15 @@ Entre em contato com o dono do bot:
   case 'mercado':
   case 'listar':
   case 'comprarmercado':
+  case 'cmerc':
   case 'meusanuncios':
+  case 'meusan':
   case 'cancelar':
   case 'propriedades':
   case 'comprarpropriedade':
+  case 'cprop':
   case 'coletarpropriedades':
+  case 'cprops':
   case 'habilidades':
   case 'desafiosemanal':
   case 'desafiomensal':
@@ -7108,7 +7112,7 @@ Entre em contato com o dono do bot:
             return reply(`📢 Anúncio #${id} criado: ${mat} x${qty} por ${fmt(price)}.`);
           }
         }
-        if (sub === 'meusanuncios') {
+        if (sub === 'meusanuncios' || sub === 'meusan') {
           const mine = (econ.market||[]).filter(o=>o.seller===sender);
           if (mine.length===0) return reply('Você não tem anúncios.');
           let text='📋 Seus anúncios\n\n';
@@ -7126,7 +7130,7 @@ Entre em contato com o dono do bot:
           econ.market.splice(idx,1); saveEconomy(econ);
           return reply(`❌ Anúncio #${id} cancelado e itens devolvidos.`);
         }
-        if (sub === 'comprarmercado') {
+        if (sub === 'comprarmercado' || sub === 'cmerc') {
           const id = parseInt(args[0]); if (!isFinite(id)) return reply('Informe o ID do anúncio.');
           const ofr = (econ.market||[]).find(o=>o.id===id);
           if (!ofr) return reply('Anúncio não encontrado.');
@@ -7164,7 +7168,7 @@ Entre em contato com o dono do bot:
           }
           return reply(text);
         }
-        if (sub === 'comprarpropriedade') {
+        if (sub === 'comprarpropriedade' || sub === 'cprop') {
           const key = (args[0]||'').toLowerCase(); if (!key) return reply(`Use: ${prefix}comprarpropriedade <tipo>`);
           const prop = (econ.propertiesCatalog||{})[key]; if (!prop) return reply('Propriedade inexistente.');
           if (me.properties?.[key]?.owned) return reply('Você já possui essa propriedade.');
@@ -7174,7 +7178,7 @@ Entre em contato com o dono do bot:
           saveEconomy(econ);
           return reply(`🏠 Você comprou ${prop.name}!`);
         }
-        if (sub === 'coletarpropriedades') {
+        if (sub === 'coletarpropriedades' || sub === 'cprops') {
           const props = me.properties || {}; const keys = Object.keys(props).filter(k=>props[k].owned);
           if (keys.length===0) return reply('Você não possui propriedades.');
           let totalGold = 0; const matsGain = {};
@@ -24186,6 +24190,39 @@ Precisa de ajuda? Entre em contato:
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         }
         break;
+      case 'listbangp':
+        try {
+          if (!isOwner) return reply('⛔ Desculpe, este comando é exclusivo para o meu dono!');
+
+          const bannedGroups = Object.keys(banGpIds || {}).filter(id => banGpIds[id]);
+          if (bannedGroups.length === 0) {
+            return reply('✅ Nenhum grupo banido no momento.');
+          }
+
+          const maxItems = 50;
+          let teks = `🚫 *Grupos Banidos* (${bannedGroups.length})\n\n`;
+
+          for (let i = 0; i < Math.min(bannedGroups.length, maxItems); i++) {
+            const groupId = bannedGroups[i];
+            let subject = 'Desconhecido';
+            try {
+              const meta = await getCachedGroupMetadata(groupId);
+              subject = meta?.subject || subject;
+            } catch {}
+
+            teks += `${i + 1}. ${subject}\n🆔 ${groupId}\n\n`;
+          }
+
+          if (bannedGroups.length > maxItems) {
+            teks += `... e mais ${bannedGroups.length - maxItems} grupo(s).`;
+          }
+
+          await reply(teks);
+        } catch (e) {
+          console.error(e);
+          await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
+        }
+        break;
       case 'bangp':
       case 'unbangp':
       case 'desbangp':
@@ -24286,6 +24323,7 @@ Precisa de ajuda? Entre em contato:
       case 'listavip':
       case 'premiumlist':
       case 'listpremium':
+      case 'listprem':
         try {
           if (!isOwner) return reply('⛔ Desculpe, este comando é exclusivo para o meu dono!');
           const premiumList = premiumListaZinha || {};
@@ -24330,6 +24368,29 @@ Precisa de ajuda? Entre em contato:
         } catch (e) {
           console.error(e);
           await reply('😔 Ops, algo deu errado. Tente novamente mais tarde!');
+        }
+        break;
+      case 'resetgold':
+        try {
+          if (!isOwner) return reply('⛔ Desculpe, este comando é exclusivo para o meu dono!');
+          if (!menc_os2) return reply('Marque alguém 🙄');
+
+          const econ = loadEconomy();
+          const targetData = getEcoUser(econ, menc_os2);
+
+          targetData.wallet = 0;
+          targetData.bank = 0;
+          saveEconomy(econ);
+
+          await nazu.sendMessage(from, {
+            text: `🧹 @${getUserName(menc_os2)} teve o gold resetado (carteira e banco).`,
+            mentions: [menc_os2]
+          }, {
+            quoted: info
+          });
+        } catch (e) {
+          console.error(e);
+          await reply('❌ Ocorreu um erro interno. Tente novamente em alguns minutos.');
         }
         break;
       

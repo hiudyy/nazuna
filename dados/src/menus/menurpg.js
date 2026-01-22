@@ -34,8 +34,8 @@ ${middleBorder}${menuItemIcon}${prefix}perfilrpg
 ${middleBorder}${menuItemIcon}${prefix}carteira
 ${middleBorder}${menuItemIcon}${prefix}toprpg
 ${middleBorder}${menuItemIcon}${prefix}rankglobal
-${middleBorder}${menuItemIcon}${prefix}ranklevel
-${middleBorder}${menuItemIcon}${prefix}inventario
+${middleBorder}${menuItemIcon}${prefix}ranklvl
+${middleBorder}${menuItemIcon}${prefix}inv
 ${middleBorder}${menuItemIcon}${prefix}equipamentos
 ${middleBorder}${menuItemIcon}${prefix}conquistas
 ${bottomBorder}
@@ -51,9 +51,8 @@ ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${economyMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}depositar <valor|all>
+${middleBorder}${menuItemIcon}${prefix}dep <valor|all>
 ${middleBorder}${menuItemIcon}${prefix}sacar <valor|all>
-${middleBorder}${menuItemIcon}${prefix}transferir @user <valor>
 ${middleBorder}${menuItemIcon}${prefix}pix @user <valor>
 ${middleBorder}${menuItemIcon}${prefix}loja
 ${middleBorder}${menuItemIcon}${prefix}comprar <item>
@@ -70,7 +69,7 @@ ${menuTopBorder}${separatorIcon} *${investmentMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}investir
 ${middleBorder}${menuItemIcon}${prefix}investir <ação> <qtd>
-${middleBorder}${menuItemIcon}${prefix}vender <ação> <qtd>
+${middleBorder}${menuItemIcon}${prefix}sell <ação> <qtd>
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${gamblingMenuTitle}*
@@ -92,28 +91,28 @@ ${bottomBorder}
 ${menuTopBorder}${separatorIcon} *${activitiesMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}diario
-${middleBorder}${menuItemIcon}${prefix}trabalhar
-${middleBorder}${menuItemIcon}${prefix}minerar
-${middleBorder}${menuItemIcon}${prefix}pescar
+${middleBorder}${menuItemIcon}${prefix}work
+${middleBorder}${menuItemIcon}${prefix}mine
+${middleBorder}${menuItemIcon}${prefix}fish
 ${middleBorder}${menuItemIcon}${prefix}coletar
 ${middleBorder}${menuItemIcon}${prefix}colher
 ${middleBorder}${menuItemIcon}${prefix}caçar
 ${middleBorder}${menuItemIcon}${prefix}plantar <planta>
 ${middleBorder}${menuItemIcon}${prefix}cultivar <planta>
 ${middleBorder}${menuItemIcon}${prefix}plantacao
-${middleBorder}${menuItemIcon}${prefix}cozinhar <receita>
+${middleBorder}${menuItemIcon}${prefix}cook <receita>
 ${middleBorder}${menuItemIcon}${prefix}receitas
 ${middleBorder}${menuItemIcon}${prefix}ingredientes
-${middleBorder}${menuItemIcon}${prefix}comer <comida>
+${middleBorder}${menuItemIcon}${prefix}eat <comida>
 ${middleBorder}${menuItemIcon}${prefix}vendercomida <item>
 ${middleBorder}${menuItemIcon}${prefix}sementes
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${adventureMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}explorar
+${middleBorder}${menuItemIcon}${prefix}explore
 ${middleBorder}${menuItemIcon}${prefix}masmorra
-${middleBorder}${menuItemIcon}${prefix}cheferpg
+${middleBorder}${menuItemIcon}${prefix}bossrpg
 ${middleBorder}${menuItemIcon}${prefix}eventos
 ${bottomBorder}
 
@@ -128,8 +127,8 @@ ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *⚔️ CLASSES & PROFISSÕES*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}classe - Ver classes
-${middleBorder}${menuItemIcon}${prefix}classe <nome> - Escolher
+${middleBorder}${menuItemIcon}${prefix}class - Ver classes
+${middleBorder}${menuItemIcon}${prefix}class <nome> - Escolher
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *🏠 HOUSING*
@@ -142,23 +141,23 @@ ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *🛒 MERCADO DE JOGADORES*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}mercadoplayer - Ver itens
-${middleBorder}${menuItemIcon}${prefix}mercadoplayer vender <item> <preço>
-${middleBorder}${menuItemIcon}${prefix}mercadoplayer comprar <nº>
-${middleBorder}${menuItemIcon}${prefix}mercadoplayer meus
-${middleBorder}${menuItemIcon}${prefix}mercadoplayer cancelar <nº>
+${middleBorder}${menuItemIcon}${prefix}auction - Ver itens
+${middleBorder}${menuItemIcon}${prefix}auction vender <item> <preço>
+${middleBorder}${menuItemIcon}${prefix}auction comprar <nº>
+${middleBorder}${menuItemIcon}${prefix}auction meus
+${middleBorder}${menuItemIcon}${prefix}auction cancelar <nº>
 ${middleBorder}
 ${middleBorder}${menuTitleIcon} *MERCADO GERAL* ${menuTitleIcon}
 ${middleBorder}${menuItemIcon}${prefix}mercado
 ${middleBorder}${menuItemIcon}${prefix}listar <item> <preço>
-${middleBorder}${menuItemIcon}${prefix}comprarmercado <nº>
-${middleBorder}${menuItemIcon}${prefix}meusanuncios
+${middleBorder}${menuItemIcon}${prefix}cmerc <nº>
+${middleBorder}${menuItemIcon}${prefix}meusan
 ${middleBorder}${menuItemIcon}${prefix}cancelar <nº>
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${combatMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}duelarrpg @user
+${middleBorder}${menuItemIcon}${prefix}duelrpg @user
 ${middleBorder}${menuItemIcon}${prefix}arena
 ${middleBorder}${menuItemIcon}${prefix}torneio
 ${middleBorder}${menuItemIcon}${prefix}assaltar @user
@@ -169,9 +168,9 @@ ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${craftingMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}forjar <item>
-${middleBorder}${menuItemIcon}${prefix}encantar
-${middleBorder}${menuItemIcon}${prefix}desmontar <item>
+${middleBorder}${menuItemIcon}${prefix}forge <item>
+${middleBorder}${menuItemIcon}${prefix}enchant
+${middleBorder}${menuItemIcon}${prefix}dismantle <item>
 ${middleBorder}${menuItemIcon}${prefix}reparar <item>
 ${middleBorder}${menuItemIcon}${prefix}materiais
 ${middleBorder}${menuItemIcon}${prefix}precos
@@ -221,20 +220,20 @@ ${menuTopBorder}${separatorIcon} *${petsMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}pets
 ${middleBorder}${menuItemIcon}${prefix}adotar <pet>
-${middleBorder}${menuItemIcon}${prefix}alimentar <nº>
-${middleBorder}${menuItemIcon}${prefix}treinar <nº>
-${middleBorder}${menuItemIcon}${prefix}evoluirpet <nº>
-${middleBorder}${menuItemIcon}${prefix}batalhapet <nº>
-${middleBorder}${menuItemIcon}${prefix}renomearpet <nº> <nome>
-${middleBorder}${menuItemIcon}${prefix}apostarpet <valor> <nº> @user
+${middleBorder}${menuItemIcon}${prefix}feed <nº>
+${middleBorder}${menuItemIcon}${prefix}train <nº>
+${middleBorder}${menuItemIcon}${prefix}evolve <nº>
+${middleBorder}${menuItemIcon}${prefix}petbattle <nº>
+${middleBorder}${menuItemIcon}${prefix}renamepet <nº> <nome>
+${middleBorder}${menuItemIcon}${prefix}petbet <valor> <nº> @user
 ${middleBorder}${menuItemIcon}${prefix}equippet <nº> <nome do item>
 ${middleBorder}${menuItemIcon}${prefix}unequippet <nº> <slot?>
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${reputationMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}reputacao
-${middleBorder}${menuItemIcon}${prefix}votar @user
+${middleBorder}${menuItemIcon}${prefix}rep
+${middleBorder}${menuItemIcon}${prefix}vote @user
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${eventsMenuTitle}*
@@ -248,8 +247,8 @@ ${middleBorder}${menuItemIcon}${prefix}lojapremium
 ${middleBorder}${menuItemIcon}${prefix}comprarpremium <item>
 ${middleBorder}${menuItemIcon}${prefix}boost
 ${middleBorder}${menuItemIcon}${prefix}propriedades
-${middleBorder}${menuItemIcon}${prefix}comprarpropriedade <id>
-${middleBorder}${menuItemIcon}${prefix}coletarpropriedades
+${middleBorder}${menuItemIcon}${prefix}cprop <id>
+${middleBorder}${menuItemIcon}${prefix}cprops
 ${middleBorder}${menuItemIcon}${prefix}tributos
 ${middleBorder}${menuItemIcon}${prefix}meustats
 ${middleBorder}${menuItemIcon}${prefix}doar <valor>

@@ -64,7 +64,7 @@ ${middleBorder}${menuItemIcon}${prefix}caixa diaria
 ${middleBorder}${menuItemIcon}${prefix}caixa rara
 ${middleBorder}${menuItemIcon}${prefix}caixa lendaria
 ${middleBorder}${menuItemIcon}${prefix}presente @user <tipo>
-${middleBorder}${menuItemIcon}${prefix}inventario
+${middleBorder}${menuItemIcon}${prefix}inv
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *⭐ REPUTAÇÃO & DENÚNCIAS*
