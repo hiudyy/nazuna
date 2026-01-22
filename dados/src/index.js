@@ -3261,6 +3261,17 @@ Código: *${roleCode}*`,
         
         // Carregar mensagens existentes e criar cron jobs
         loadAllAutoMessages(nazuInstance);
+
+        // Recarregar periodicamente para garantir que os agendamentos permaneçam ativos
+        if (!global.autoMensagensRefreshTimer) {
+          global.autoMensagensRefreshTimer = setInterval(() => {
+            try {
+              loadAllAutoMessages(nazuInstance);
+            } catch (e) {
+              console.error('[AutoMsg] refresh error:', e);
+            }
+          }, 6 * 60 * 60 * 1000); // a cada 6 horas
+        }
       } catch (e) {
         console.error('[AutoMsg] startAutoMensagensWorker error:', e);
       }
@@ -3862,7 +3873,7 @@ Código: *${roleCode}*`,
       }
     }
     // AntiLink Hard - Remove qualquer link compartilhado
-    if (isGroup && groupData.antilinkhard && parceriasData.active && !isGroupAdmin && !isOwner && !isParceiro) {
+    if (isGroup && groupData.antilinkhard && !isGroupAdmin && !isOwner && !isParceiro) {
       const linkRegex = /(https?:\/\/|www\.)[^\s]+|([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/[^\s]*)?/gi;
       const hasLink = linkRegex.test(budy2);
       
@@ -10786,7 +10797,7 @@ Entre em contato com o dono do bot:
         const target = (menc_jid2 && menc_jid2[0]) || null;
         if (!target) return reply(`❌ Marque um usuário!\n\n💡 Uso: ${prefix}rpgadditem @user <item> <quantidade>`);
         
-        const itemArgs = args.slice(0, -1).join('_').toLowerCase();
+        const itemArgs = args.filter(a => !a.startsWith('@')).slice(0, -1).join('_').toLowerCase();
         const qty = parseInt(args[args.length - 1]) || 1;
         
         if (!itemArgs) return reply('❌ Informe o nome do item!');
@@ -12011,7 +12022,7 @@ Entre em contato com o dono do bot:
           }
           
           text += `💡 Use ${prefix}investir <ação> <quantidade>\n`;
-          text += `💡 Use ${prefix}vender <ação> <quantidade>`;
+          text += `💡 Use ${prefix}sell <ação> <quantidade>`;
           
           saveEconomy(econ);
           return reply(text);
@@ -25841,7 +25852,8 @@ ${prefix}togglecmdvip premium_ia off`);
           const isPremGp = !!premiumListaZinha[from] ? "✅" : "❌";
           const secFlags = [
             ["Antiporn", !!isAntiPorn],
-            ["AntiLink", !!isAntiLinkGp],
+            ["AntiLink GP", !!isAntiLinkGp],
+            ["AntiLink Canal", !!isAntiLinkCanal],
             ["AntiLinkHard", !!groupData.antilinkhard],
             ["AntiLinkSoft", !!groupData.antilinksoft],
             ["AntiDoc", !!groupData.antidoc],
