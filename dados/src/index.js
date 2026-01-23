@@ -26170,6 +26170,63 @@ ${prefix}togglecmdvip premium_ia off`);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         }
         break;
+      case 'rmbg':
+      case 'sbg':
+      case 'sfundo':
+        try {
+          if (!KeyCog) {
+            notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'RM BG', prefix);
+            return reply('⚠️ API key não configurada. Use o comando apikey.');
+          }
+
+          const imgMsg = quotedMessageContent?.imageMessage ||
+            quotedMessageContent?.viewOnceMessage?.message?.imageMessage ||
+            quotedMessageContent?.viewOnceMessageV2?.message?.imageMessage ||
+            info.message?.imageMessage ||
+            info.message?.viewOnceMessage?.message?.imageMessage ||
+            info.message?.viewOnceMessageV2?.message?.imageMessage;
+
+          if (!imgMsg) {
+            return reply(`❌ Marque uma imagem para remover o fundo.\n\n💡 Uso: ${prefix}${command}`);
+          }
+
+          const imageBuffer = await getFileBuffer(imgMsg, 'image');
+          const imageUrl = await upload(imageBuffer, true);
+
+          if (!imageUrl) {
+            return reply('❌ Falha ao fazer upload da imagem.');
+          }
+
+          const response = await axios.post('https://cog.api.br/api/v1/image/remove-bg', { url: imageUrl }, {
+            headers: { 'X-API-Key': KeyCog }
+          });
+
+          const resultUrl = response?.data?.result?.download;
+          if (!response?.data?.status || !resultUrl) {
+            return reply('❌ Não foi possível remover o fundo da imagem.');
+          }
+
+          if (command === 'sbg' || command === 'sfundo') {
+            await sendSticker(nazu, from, {
+              sticker: { url: resultUrl },
+              author: `『${pushname}』\n『${nomebot}』\n『${nomedono}』\n『cognima.com.br』`,
+              packname: '👤 Usuario(a)ᮀ۟❁’￫\n🤖 Botᮀ۟❁’￫\n👑 Donoᮀ۟❁’￫\n🌐 Siteᮀ۟❁’￫',
+              type: 'image'
+            }, {
+              quoted: info
+            });
+          } else {
+            await nazu.sendMessage(from, { image: { url: resultUrl } }, { quoted: info });
+          }
+        } catch (e) {
+          if (isApiKeyError(e)) {
+            notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'RM BG', prefix);
+            return reply('⚠️ Problema com a API key da Cognima.');
+          }
+          console.error(e);
+          await reply('❌ Ocorreu um erro interno. Tente novamente em alguns minutos.');
+        }
+        break;
       case 'qc':
         try {
           if (!q) return reply('Falta o texto.');

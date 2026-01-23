@@ -19,6 +19,9 @@ ${middleBorder}${menuItemIcon}${prefix}ttp
 ${middleBorder}${menuItemIcon}${prefix}attp
 ${middleBorder}${menuItemIcon}${prefix}sticker
 ${middleBorder}${menuItemIcon}${prefix}sticker2
+${middleBorder}${menuItemIcon}${prefix}rmbg
+${middleBorder}${menuItemIcon}${prefix}sbg
+${middleBorder}${menuItemIcon}${prefix}sfundo
 ${middleBorder}${menuItemIcon}${prefix}qc
 ${bottomBorder}
 
