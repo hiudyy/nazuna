@@ -3750,7 +3750,7 @@ Código: *${roleCode}*`,
     }
 
     // Verifica se o usuário é um parceiro registrado
-    const isParceiro = parceriasData && parceriasData.partners && parceriasData.partners[sender];
+    const isParceiro = !!(parceriasData?.active && parceriasData?.partners?.[sender]);
 
     if (isGroup && isAntiLinkGp && !isGroupAdmin && !isParceiro) {
       if (!isUserWhitelisted(sender, 'antilinkgp')) {
