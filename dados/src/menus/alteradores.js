@@ -7,7 +7,8 @@ export default async function menuAlterador(prefix, botName = "MeuBot", userName
     separatorIcon = "❁",
     middleBorder = "┊",
     videoMenuTitle = "🎬 EFEITOS DE VÍDEO",
-    audioMenuTitle = "🎵 EFEITOS DE ÁUDIO"
+    audioMenuTitle = "🎵 EFEITOS DE ÁUDIO",
+    imageMenuTitle = "🖼️ ALTERAR IMAGEM"
 } = {}) {
     const formattedHeader = header.replace(/#user#/g, userName);
     return `${formattedHeader}
@@ -33,6 +34,12 @@ ${middleBorder}${menuItemIcon}${prefix}pretoebranco
 ${middleBorder}${menuItemIcon}${prefix}sepia
 ${middleBorder}${menuItemIcon}${prefix}espelhar
 ${middleBorder}${menuItemIcon}${prefix}rotacionar
+${bottomBorder}
+
+${menuTopBorder}${separatorIcon} *${imageMenuTitle}*
+${middleBorder}
+${middleBorder}${menuItemIcon}${prefix}rmbg
+${middleBorder}${menuItemIcon}${prefix}upscale
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${audioMenuTitle}*

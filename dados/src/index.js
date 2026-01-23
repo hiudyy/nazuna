@@ -26226,6 +26226,49 @@ ${prefix}togglecmdvip premium_ia off`);
             console.error(e);
             return reply('❌ Ocorreu um erro interno. Tente novamente em alguns minutos.');
           });
+      case 'upscale':
+        if (!KeyCog) {
+          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'UPSCALE', prefix);
+          return reply('⚠️ API key não configurada. Use o comando apikey.');
+        }
+
+        const upscaleImgMsg = quotedMessageContent?.imageMessage ||
+          quotedMessageContent?.viewOnceMessage?.message?.imageMessage ||
+          quotedMessageContent?.viewOnceMessageV2?.message?.imageMessage ||
+          info.message?.imageMessage ||
+          info.message?.viewOnceMessage?.message?.imageMessage ||
+          info.message?.viewOnceMessageV2?.message?.imageMessage;
+
+        if (!upscaleImgMsg) {
+          return reply(`❌ Marque uma imagem para melhorar a qualidade.\n\n💡 Uso: ${prefix}${command}`);
+        }
+
+        reply('⏳ Melhorando a imagem, aguarde...');
+
+        return getFileBuffer(upscaleImgMsg, 'image')
+          .then((imageBuffer) => upload(imageBuffer, true))
+          .then((imageUrl) => {
+            if (!imageUrl) throw new Error('Falha ao fazer upload da imagem.');
+            return axios.post('https://cog.api.br/api/v1/image/upscale', { url: imageUrl }, {
+              headers: { 'X-API-Key': KeyCog }
+            });
+          })
+          .then((response) => {
+            const resultUrl = response?.data?.result?.download;
+            if (!response?.data?.status || !resultUrl) {
+              throw new Error('Não foi possível melhorar a imagem.');
+            }
+
+            return nazu.sendMessage(from, { image: { url: resultUrl } }, { quoted: info });
+          })
+          .catch((e) => {
+            if (isApiKeyError(e)) {
+              notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'UPSCALE', prefix);
+              return reply('⚠️ Problema com a API key da Cognima.');
+            }
+            console.error(e);
+            return reply('❌ Ocorreu um erro interno. Tente novamente em alguns minutos.');
+          });
       case 'qc':
         try {
           if (!q) return reply('Falta o texto.');
