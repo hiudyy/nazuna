@@ -317,8 +317,8 @@ try {
   console.error('Erro ao ler config.json para msgboton:', e.message);
 }
 
-// Se o número do dono for 553399285117, a mensagem vem desativada por padrão
-const defaultMsgBotOnEnabled = configForMsgBotOn.numerodono === '553399285117' ? false : true;
+// Se o número do dono for 553391967445, a mensagem vem desativada por padrão
+const defaultMsgBotOnEnabled = configForMsgBotOn.numerodono === '553391967445' ? false : true;
 
 ensureJsonFileExists(MSGBOTON_FILE, { 
   enabled: defaultMsgBotOnEnabled,
@@ -496,7 +496,7 @@ const loadMsgBotOn = () => {
     console.error('Erro ao ler config.json em loadMsgBotOn:', e.message);
   }
   
-  const defaultEnabled = currentOwner === '553399285117' ? false : true;
+  const defaultEnabled = currentOwner === '553391967445' ? false : true;
   
   const data = loadJsonFile(MSGBOTON_FILE, { 
     enabled: defaultEnabled,

@@ -4252,7 +4252,7 @@ Código: *${roleCode}*`,
         }
         if (!KeyCog) {
           nazu.sendMessage(nmrdn, {
-            text: `🤖 *Sistema de IA desativado*\n\n😅 O sistema de IA está desativado porque a API key não foi configurada.\n\n⚙️ Para configurar, use o comando: ${prefix}apikey SUA_API_KEY\n📞 Suporte: wa.me/553399285117`
+            text: `🤖 *Sistema de IA desativado*\n\n😅 O sistema de IA está desativado porque a API key não foi configurada.\n\n⚙️ Para configurar, use o comando: ${prefix}apikey SUA_API_KEY\n📞 Suporte: wa.me/553391967445`
           });
           return;
         }
@@ -21925,7 +21925,7 @@ case 'streamabledl':
 │ • Repo: ${repo.html_url}
 │ • Clone: ${repo.clone_url}
 │
-│ 📞 *Suporte:* wa.me/553399285117
+│ 📞 *Suporte:* wa.me/553391967445
 │
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
@@ -21934,7 +21934,7 @@ case 'streamabledl':
               reply(gitInfo);
             }).catch((e) => {
               console.error('Erro ao buscar info do GitHub:', e);
-              reply(`❌ Erro ao buscar informações. Acesse diretamente:\n🔗 https://github.com/hiudyy/nazuna\n📞 Suporte: wa.me/553399285117`);
+              reply(`❌ Erro ao buscar informações. Acesse diretamente:\n🔗 https://github.com/hiudyy/nazuna\n📞 Suporte: wa.me/553391967445`);
             });
           });
         } catch (e) {
@@ -23591,7 +23591,7 @@ Precisa de ajuda? Entre em contato:
       case 'numero-dono':
         try {
           if (!isOwner) return reply("Este comando é exclusivo para o meu dono!");
-          if (!q) return reply(`Por favor, digite o novo número do dono.\nExemplo: ${prefix}${command} +553399285117`);
+          if (!q) return reply(`Por favor, digite o novo número do dono.\nExemplo: ${prefix}${command} +553391967445`);
           let config = JSON.parse(fs.readFileSync(CONFIG_FILE));
           config.numerodono = q;
           writeJsonFile(CONFIG_FILE, config);
@@ -26021,7 +26021,7 @@ ${prefix}togglecmdvip premium_ia off`);
           const TextinCriadorInfo = `╭━━━⊱ 👨‍💻 *CRIADOR* 👨‍💻 ⊱━━━╮
 │
 │ 💎 *Nome:* Hiudy
-│ 📱 *WhatsApp:* wa.me/553399285117
+│ 📱 *WhatsApp:* wa.me/553391967445
 │ 🌐 *GitHub:* github.com/hiudyy
 │ 📸 *Instagram:* instagram.com/hiudyyy_
 │
