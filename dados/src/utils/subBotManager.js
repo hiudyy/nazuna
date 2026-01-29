@@ -150,7 +150,7 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber, generatePairing
         const { config, dirs } = createSubBotConfig(botId, phoneNumber, ownerNumber);
         
         const { state, saveCreds } = await useMultiFileAuthState(dirs.authDir, makeCacheableSignalKeyStore);
-        const version = [2, 3000, 1030831524];
+        const version = [2, 3000, 1031821793];
 
         const msgRetryCounterCache = new NodeCache();
 
@@ -170,6 +170,7 @@ async function initializeSubBot(botId, phoneNumber, ownerNumber, generatePairing
             defaultQueryTimeoutMs: undefined,
             msgRetryCounterCache,
             auth: state,
+            shouldResendMessageOn475AckError: true
         });
 
         let pairingCode = null;

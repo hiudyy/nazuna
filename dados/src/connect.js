@@ -1076,8 +1076,8 @@ async function createBotSocket(authDir) {
             signalRepository
         } = await useMultiFileAuthState(authDir, makeCacheableSignalKeyStore);
         
-        // Busca a versão mais recente do WhatsApp
-        const { version } = await fetchLatestBaileysVersion();
+        // Versão manual do WhatsApp
+        const version = [2, 3000, 1031821793];
         console.log(`📱 Usando versão do WhatsApp: ${version.join('.')}`);
         
         const NazunaSock = makeWASocket({
@@ -1096,7 +1096,8 @@ async function createBotSocket(authDir) {
             msgRetryCounterCache,
             auth: state,
             signalRepository,
-            logger
+            logger,
+            shouldResendMessageOn475AckError: true
         });
 
         if (codeMode && !NazunaSock.authState.creds.registered) {
