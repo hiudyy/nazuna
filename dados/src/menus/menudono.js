@@ -33,7 +33,7 @@ ${middleBorder}${menuItemIcon}${prefix}prefixo
 ${middleBorder}${menuItemIcon}${prefix}numerodono
 ${middleBorder}${menuItemIcon}${prefix}nomedono
 ${middleBorder}${menuItemIcon}${prefix}nomebot
-${middleBorder}${menuItemIcon}${prefix}apikey
+
 ${middleBorder}${menuItemIcon}${prefix}configcmdnotfound
 ${middleBorder}${menuItemIcon}${prefix}setcmdmsg
 ${middleBorder}${menuItemIcon}${prefix}fotobot
@@ -181,8 +181,6 @@ ${middleBorder}${menuItemIcon}${prefix}viewmsg
 ${middleBorder}${menuItemIcon}${prefix}cases
 ${middleBorder}${menuItemIcon}${prefix}getcase
 ${middleBorder}${menuItemIcon}${prefix}modoliteglobal
-${middleBorder}${menuItemIcon}${prefix}iastatus
-${middleBorder}${menuItemIcon}${prefix}iarecovery
 ${middleBorder}${menuItemIcon}${prefix}iaclear
 ${middleBorder}${menuItemIcon}${prefix}limpardb
 ${middleBorder}${menuItemIcon}${prefix}limparrankg

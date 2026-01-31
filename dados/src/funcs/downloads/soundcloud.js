@@ -1,39 +1,66 @@
-import axios from 'axios';
+/**
+ * SoundCloud Download - Implementação direta sem API externa
+ * Usa nayan-video-downloader como fonte
+ */
 
-const BASE_URL = 'https://cog.api.br/api/v1/soundcloud';
+import axios from 'axios';
+import { mediaClient } from '../../utils/httpClient.js';
+
+const BASE_URL = 'https://nayan-video-downloader.vercel.app';
+
+// Cache simples para evitar requisições duplicadas
+const cache = new Map();
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutos
+
+function getCached(key) {
+  const item = cache.get(key);
+  if (!item) return null;
+  if (Date.now() - item.ts > CACHE_TTL) {
+    cache.delete(key);
+    return null;
+  }
+  return item.val;
+}
+
+function setCache(key, val) {
+  if (cache.size >= 500) {
+    const oldestKey = cache.keys().next().value;
+    cache.delete(oldestKey);
+  }
+  cache.set(key, { val, ts: Date.now() });
+}
 
 /**
  * Faz download direto de uma música do SoundCloud via URL
  * @param {string} url - URL do track do SoundCloud
- * @param {string} apiKey - Chave de API da Cognima
  * @returns {Promise<Object>} Dados do download
  */
-async function download(url, apiKey) {
+async function download(url) {
   try {
-    const response = await axios.get(`${BASE_URL}/download`, {
+    // Verificar cache
+    const cached = getCached(`download:${url}`);
+    if (cached) return cached;
+
+    const response = await axios.get(`${BASE_URL}/soundcloud`, {
       params: { url },
-      headers: {
-        'x-api-key': apiKey
-      },
       timeout: 120000
     });
 
-    if (!response.data || !response.data.success) {
+    if (response.data.status !== 200 || !response.data.data) {
       return {
         ok: false,
-        msg: response.data?.message || 'Erro ao processar download do SoundCloud'
+        msg: 'Erro ao processar download do SoundCloud'
       };
     }
 
-    const { data } = response.data;
+    const data = response.data.data;
     
     // Baixar o arquivo de áudio
-    const audioResponse = await axios.get(data.downloadUrl, {
-      responseType: 'arraybuffer',
+    const audioResponse = await mediaClient.get(data.download_url, {
       timeout: 120000
     });
 
-    return {
+    const result = {
       ok: true,
       buffer: Buffer.from(audioResponse.data),
       title: data.title,
@@ -41,15 +68,11 @@ async function download(url, apiKey) {
       thumbnail: data.thumbnail,
       filename: `${data.title}.mp3`
     };
+
+    setCache(`download:${url}`, result);
+    return result;
   } catch (error) {
-    console.error('Erro no download do SoundCloud:', error);
-    
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      return {
-        ok: false,
-        msg: 'API key inválida ou expirada'
-      };
-    }
+    console.error('Erro no download do SoundCloud:', error.message);
     
     if (error.response?.status === 404) {
       return {
@@ -67,7 +90,64 @@ async function download(url, apiKey) {
 
     return {
       ok: false,
-      msg: error.response?.data?.message || error.message || 'Erro ao baixar do SoundCloud'
+      msg: error.message || 'Erro ao baixar do SoundCloud'
+    };
+  }
+}
+
+/**
+ * Busca músicas no SoundCloud
+ * @param {string} query - Nome da música ou artista
+ * @param {number} limit - Número de resultados
+ * @returns {Promise<Object>} Resultados da busca
+ */
+async function search(query, limit = 10) {
+  try {
+    const cached = getCached(`search:${query}:${limit}`);
+    if (cached) return cached;
+
+    const response = await axios.get(`${BASE_URL}/soundcloud-search`, {
+      params: {
+        name: query,
+        limit: Math.min(limit, 50)
+      },
+      timeout: 120000
+    });
+
+    if (response.data.status !== 200 || !response.data.results) {
+      return {
+        ok: false,
+        msg: 'Nenhum resultado encontrado'
+      };
+    }
+
+    const results = response.data.results.map(track => ({
+      id: track.id,
+      title: track.title,
+      artist: track.user_id,
+      artwork: track.artwork_url,
+      duration: Math.floor(track.duration / 1000),
+      permalink_url: track.permalink_url,
+      playback_count: track.playback_count,
+      likes_count: track.likes_count,
+      genre: track.genre || 'Unknown',
+      created_at: track.created_at
+    }));
+
+    const result = {
+      ok: true,
+      query,
+      total: results.length,
+      results
+    };
+
+    setCache(`search:${query}:${limit}`, result);
+    return result;
+  } catch (error) {
+    console.error('Erro na busca do SoundCloud:', error.message);
+    return {
+      ok: false,
+      msg: 'Erro ao buscar no SoundCloud'
     };
   }
 }
@@ -75,38 +155,33 @@ async function download(url, apiKey) {
 /**
  * Busca e faz download de uma música do SoundCloud
  * @param {string} query - Nome da música ou artista
- * @param {string} apiKey - Chave de API da Cognima
  * @returns {Promise<Object>} Dados da busca e download
  */
-async function searchDownload(query, apiKey) {
+async function searchDownload(query) {
   try {
-    const response = await axios.get(`${BASE_URL}/search-download`, {
-      params: { q: query },
-      headers: {
-        'x-api-key': apiKey
-      },
-      timeout: 120000
-    });
-
-    if (!response.data || !response.data.success) {
+    // Buscar primeiro resultado
+    const searchResult = await search(query, 1);
+    
+    if (!searchResult.ok || !searchResult.results?.length) {
       return {
         ok: false,
-        msg: response.data?.message || 'Erro ao buscar música no SoundCloud'
+        msg: 'Nenhuma música encontrada com esse nome'
       };
     }
 
-    const { track, download: downloadData } = response.data;
+    const track = searchResult.results[0];
     
-    // Baixar o arquivo de áudio
-    const audioResponse = await axios.get(downloadData.downloadUrl, {
-      responseType: 'arraybuffer',
-      timeout: 120000
-    });
+    // Fazer download
+    const downloadResult = await download(track.permalink_url);
+    
+    if (!downloadResult.ok) {
+      return downloadResult;
+    }
 
     return {
       ok: true,
-      buffer: Buffer.from(audioResponse.data),
-      query: response.data.query || query,
+      buffer: downloadResult.buffer,
+      query,
       track: {
         id: track.id,
         title: track.title,
@@ -119,61 +194,22 @@ async function searchDownload(query, apiKey) {
         genre: track.genre,
         created_at: track.created_at
       },
-      title: downloadData.title,
-      artist: downloadData.artist,
-      thumbnail: downloadData.thumbnail,
-      filename: `${downloadData.title}.mp3`
+      title: downloadResult.title,
+      artist: downloadResult.artist,
+      thumbnail: downloadResult.thumbnail,
+      filename: downloadResult.filename
     };
   } catch (error) {
-    console.error('Erro na busca/download do SoundCloud:', error);
-    
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      return {
-        ok: false,
-        msg: 'API key inválida ou expirada'
-      };
-    }
-    
-    if (error.response?.status === 404) {
-      return {
-        ok: false,
-        msg: 'Nenhuma música encontrada com esse nome'
-      };
-    }
-    
-    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
-      return {
-        ok: false,
-        msg: 'Timeout ao buscar/baixar a música. Tente novamente.'
-      };
-    }
-
+    console.error('Erro na busca/download do SoundCloud:', error.message);
     return {
       ok: false,
-      msg: error.response?.data?.message || error.message || 'Erro ao buscar no SoundCloud'
+      msg: error.message || 'Erro ao buscar no SoundCloud'
     };
-  }
-}
-
-/**
- * Notifica o dono sobre problemas com a API key
- */
-async function notifyOwnerAboutApiKey(nazu, ownerNumber, errorMessage, command = '') {
-  try {
-    const message = `🚨 *ALERTA - API SoundCloud*\n\n` +
-      `⚠️ *Problema detectado:*\n${errorMessage}\n\n` +
-      (command ? `📝 *Comando:* ${command}\n\n` : '') +
-      `🔧 *Ação necessária:*\nVerifique sua chave de API da Cognima em config.json\n\n` +
-      `⏰ ${new Date().toLocaleString('pt-BR')}`;
-
-    await nazu.sendMessage(ownerNumber + '@s.whatsapp.net', { text: message });
-  } catch (error) {
-    console.error('Erro ao notificar dono sobre API key do SoundCloud:', error);
   }
 }
 
 export default {
   download,
-  searchDownload,
-  notifyOwnerAboutApiKey
+  search,
+  searchDownload
 };

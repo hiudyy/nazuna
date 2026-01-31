@@ -17,7 +17,6 @@ import PerformanceOptimizer from './utils/performanceOptimizer.js';
 import RentalExpirationManager from './utils/rentalExpirationManager.js';
 import { loadMsgBotOn } from './utils/database.js';
 import { buildUserId } from './utils/helpers.js';
-import { initCaptchaIndex } from './utils/captchaIndex.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -309,9 +308,6 @@ async function initializeOptimizedCaches() {
     try {
         await performanceOptimizer.initialize();
         
-        // Inicializa índice de captcha para busca rápida
-        await initCaptchaIndex();
-        
         msgRetryCounterCache = {
             get: (key) => performanceOptimizer.cacheGet('msgRetry', key),
             set: (key, value, ttl) => performanceOptimizer.cacheSet('msgRetry', key, value, ttl),
@@ -409,10 +405,7 @@ const DEFAULT_GROUP_SETTINGS = {
         image: ''
     },
     blacklist: {},
-    autoAcceptRequests: false,
-    captchaEnabled: false,
-    x9: false,
-    pendingCaptchas: {}
+    x9: false
 };
 
 function normalizeGroupSettings(data) {
@@ -423,12 +416,9 @@ function normalizeGroupSettings(data) {
     if (!merged.welcome || typeof merged.welcome !== 'object') merged.welcome = {};
     if (!merged.exit || typeof merged.exit !== 'object') merged.exit = { enabled: false, text: '', image: '' };
     if (!merged.blacklist || typeof merged.blacklist !== 'object') merged.blacklist = {};
-    if (!merged.pendingCaptchas || typeof merged.pendingCaptchas !== 'object') merged.pendingCaptchas = {};
 
     if (typeof merged.textbv !== 'string') merged.textbv = '';
     if (typeof merged.bemvindo !== 'boolean') merged.bemvindo = false;
-    if (typeof merged.autoAcceptRequests !== 'boolean') merged.autoAcceptRequests = false;
-    if (typeof merged.captchaEnabled !== 'boolean') merged.captchaEnabled = false;
     if (typeof merged.x9 !== 'boolean') merged.x9 = false;
 
     if (typeof merged.exit.enabled !== 'boolean') merged.exit.enabled = false;
@@ -624,84 +614,6 @@ async function handleGroupParticipantsUpdate(NazunaSock, inf) {
 }
 
 // Handler para solicitações de entrada em grupos
-// Evento 'group.join-request' emitido pelo Baileys
-async function handleGroupJoinRequest(NazunaSock, inf) {
-    try {
-        const from = inf.id;
-        
-        if (DEBUG_MODE) {
-            console.log('🐛 [handleGroupJoinRequest] Processando solicitação...');
-            console.log('🐛 Group ID:', from);
-            console.log('🐛 Action:', inf.action);
-            console.log('🐛 Participant (LID):', inf.participant);
-            console.log('🐛 Participant Phone:', inf.participantPn);
-            console.log('🐛 Author:', inf.author);
-            console.log('🐛 Method:', inf.method);
-        }
-        
-        if (!from) {
-            if (DEBUG_MODE) console.log('🐛 Group ID não encontrado, abortando');
-            return;
-        }
-        
-        const groupSettings = await loadGroupSettings(from);
-        
-        if (DEBUG_MODE) {
-            console.log('🐛 Group settings:');
-            console.log('  - autoAcceptRequests:', groupSettings.autoAcceptRequests);
-            console.log('  - captchaEnabled:', groupSettings.captchaEnabled);
-            console.log('  - x9:', groupSettings.x9);
-        }
-        
-        // O participante pode vir como LID ou phone number
-        const participantJid = inf.participantPn || inf.participant;
-        const participantDisplay = participantJid ? participantJid.split('@')[0] : 'Desconhecido';
-        
-        // Auto-aceitar se configurado e for uma nova solicitação
-        if (groupSettings.autoAcceptRequests && inf.action === 'created' && participantJid) {
-            try {
-                // Se captcha estiver ativado
-                if (groupSettings.captchaEnabled) {
-                    const num1 = Math.floor(Math.random() * 10) + 1;
-                    const num2 = Math.floor(Math.random() * 10) + 1;
-                    const answer = num1 + num2;
-                    
-                    // Salvar captcha pendente
-                    if (!groupSettings.pendingCaptchas) groupSettings.pendingCaptchas = {};
-                    groupSettings.pendingCaptchas[participantJid] = {
-                        answer,
-                        groupId: from,
-                        timestamp: Date.now()
-                    };
-                    await saveGroupSettings(from, groupSettings);
-                    
-                    // Enviar captcha no PV
-                    await NazunaSock.sendMessage(participantJid, {
-                        text: `🔐 *Verificação de Segurança*\n\nVocê solicitou entrar no grupo. Para ser aprovado, resolva esta conta:\n\n❓ Quanto é *${num1} + ${num2}*?\n\n⏱️ Você tem 5 minutos para responder.\n\n💡 Responda apenas com o número.`
-                    }).catch(err => console.error(`❌ Erro ao enviar captcha: ${err.message}`));
-                    
-                    // Auto-rejeitar após 5 minutos se não responder
-                    setTimeout(async () => {
-                        const currentSettings = await loadGroupSettings(from);
-                        if (currentSettings.pendingCaptchas?.[participantJid]) {
-                            delete currentSettings.pendingCaptchas[participantJid];
-                            await saveGroupSettings(from, currentSettings);
-                            await NazunaSock.groupRequestParticipantsUpdate(from, [participantJid], 'reject').catch(() => {});
-                        }
-                    }, 5 * 60 * 1000);
-                } else {
-                    // Auto-aceitar direto sem captcha
-                    await NazunaSock.groupRequestParticipantsUpdate(from, [participantJid], 'approve');
-                }
-            } catch (err) {
-                console.error(`Erro ao processar auto-aceitar: ${err.message}`);
-            }
-        }
-    } catch (error) {
-        console.error(`❌ Erro em handleGroupJoinRequest: ${error.message}`);
-    }
-}
-
 const isValidJid = (str) => /^\d+@s\.whatsapp\.net$/.test(str);
 const isValidLid = (str) => /^[a-zA-Z0-9_]+@lid$/.test(str);
 const isValidUserId = (str) => isValidJid(str) || isValidLid(str);
@@ -1161,23 +1073,6 @@ async function createBotSocket(authDir) {
                 console.log('🐛 ================================================\n');
             }
             await handleGroupParticipantsUpdate(NazunaSock, inf);
-        });
-        
-        // Listener para solicitações de entrada em grupos (join requests)
-        NazunaSock.ev.on('group.join-request', async (inf) => {
-            if (DEBUG_MODE) {
-                console.log('\n🐛 ========== GROUP JOIN REQUEST ==========');
-                console.log('📅 Timestamp:', new Date().toISOString());
-                console.log('🆔 Group ID:', inf.id);
-                console.log('⚡ Action:', inf.action);
-                console.log('👤 Participant:', inf.participant);
-                console.log('📱 Participant Phone:', inf.participantPn);
-                console.log('👮 Author:', inf.author);
-                console.log('📝 Method:', inf.method);
-                console.log('📦 Full event data:', JSON.stringify(inf, null, 2));
-                console.log('🐛 ===========================================\n');
-            }
-            await handleGroupJoinRequest(NazunaSock, inf);
         });
 
         let messagesListenerAttached = false;

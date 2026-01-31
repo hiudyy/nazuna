@@ -84,8 +84,6 @@ ${middleBorder}${menuItemIcon}${prefix}solicitacoes
 ${middleBorder}${menuItemIcon}${prefix}aprovar
 ${middleBorder}${menuItemIcon}${prefix}aprovar all
 ${middleBorder}${menuItemIcon}${prefix}recusarsolic
-${middleBorder}${menuItemIcon}${prefix}autoaceitarsolic
-${middleBorder}${menuItemIcon}${prefix}captchasolic
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${moderatorsMenuTitle}*

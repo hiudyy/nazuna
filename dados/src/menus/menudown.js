@@ -33,22 +33,15 @@ ${middleBorder}${menuItemIcon}${prefix}play2
 
 ${middleBorder}${menuItemIcon}${prefix}spotify
 ${middleBorder}${menuItemIcon}${prefix}soundcloud
-${middleBorder}${menuItemIcon}${prefix}bandcamp
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${videoMenuTitle}*
 ${middleBorder}
 ${middleBorder}${menuItemIcon}${prefix}playvid
-${middleBorder}${menuItemIcon}${prefix}vimeo
-${middleBorder}${menuItemIcon}${prefix}twitch
-${middleBorder}${menuItemIcon}${prefix}reddit
-${middleBorder}${menuItemIcon}${prefix}dailymotion
-${middleBorder}${menuItemIcon}${prefix}streamable
 ${bottomBorder}
 
 ${menuTopBorder}${separatorIcon} *${downloadMenuTitle}*
 ${middleBorder}
-${middleBorder}${menuItemIcon}${prefix}alldl
 ${middleBorder}${menuItemIcon}${prefix}tiktok
 ${middleBorder}${menuItemIcon}${prefix}instagram
 ${middleBorder}${menuItemIcon}${prefix}igstory

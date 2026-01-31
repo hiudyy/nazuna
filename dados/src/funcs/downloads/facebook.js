@@ -1,42 +1,74 @@
-import axios from 'axios';
+/**
+ * Facebook Download - Implementação direta sem API externa
+ * Usa nayan-video-downloader como fonte
+ */
 
-const BASE_URL = 'https://cog.api.br/api/v1/facebook';
+import axios from 'axios';
+import { mediaClient } from '../../utils/httpClient.js';
+
+const BASE_URL = 'https://nayan-video-downloader.vercel.app';
+
+// Cache simples
+const cache = new Map();
+const CACHE_TTL = 30 * 60 * 1000;
+
+function getCached(key) {
+  const item = cache.get(key);
+  if (!item) return null;
+  if (Date.now() - item.ts > CACHE_TTL) {
+    cache.delete(key);
+    return null;
+  }
+  return item.val;
+}
+
+function setCache(key, val) {
+  if (cache.size >= 500) {
+    const oldestKey = cache.keys().next().value;
+    cache.delete(oldestKey);
+  }
+  cache.set(key, { val, ts: Date.now() });
+}
 
 /**
  * Faz download de vídeo do Facebook em HD
  * @param {string} url - URL do vídeo do Facebook
- * @param {string} apiKey - Chave de API da Cognima
  * @returns {Promise<Object>} Dados do download
  */
-async function downloadHD(url, apiKey) {
+async function downloadHD(url) {
   try {
-    const response = await axios.get(`${BASE_URL}/download-hd`, {
+    // Verificar cache
+    const cached = getCached(`download:${url}`);
+    if (cached) return cached;
+
+    const response = await axios.get(`${BASE_URL}/ndown`, {
       params: { url },
-      headers: {
-        'x-api-key': apiKey
-      },
       timeout: 120000
     });
 
-    if (!response.data || !response.data.success) {
+    if (!response.data.status || !response.data.data) {
       return {
         ok: false,
-        msg: response.data?.message || 'Erro ao processar download do Facebook'
+        msg: 'Erro ao processar download do Facebook'
       };
     }
 
-    const { video, allQualities } = response.data;
-    
+    const videos = response.data.data.map(video => ({
+      resolution: video.resolution,
+      thumbnail: video.thumbnail,
+      url: video.url,
+      shouldRender: video.shouldRender
+    }));
+
     // Procurar por vídeo válido (que não use render.php)
     let selectedVideo = null;
-    const allVideos = allQualities && allQualities.length > 0 ? allQualities : [video];
     
     // Ordem de prioridade de qualidade
     const priorities = ['1080p', '720p (HD)', '720p', '480p', '360p'];
     
     // Primeiro tenta pelas prioridades
     for (const priority of priorities) {
-      const found = allVideos.find(v => 
+      const found = videos.find(v => 
         v.resolution === priority && 
         !v.url.startsWith('/') && 
         !v.shouldRender
@@ -49,7 +81,7 @@ async function downloadHD(url, apiKey) {
     
     // Se não encontrou pela prioridade, pega qualquer um válido
     if (!selectedVideo) {
-      selectedVideo = allVideos.find(v => !v.url.startsWith('/') && !v.shouldRender);
+      selectedVideo = videos.find(v => !v.url.startsWith('/') && !v.shouldRender);
     }
     
     // Se não encontrou nenhum vídeo válido
@@ -60,37 +92,29 @@ async function downloadHD(url, apiKey) {
       };
     }
 
-    // Construir a URL completa do download
-    let downloadUrl = selectedVideo.url;
-
-    console.log(`[Facebook] Baixando de: ${downloadUrl}`);
+    console.log(`[Facebook] Baixando de: ${selectedVideo.url}`);
     console.log(`[Facebook] Qualidade: ${selectedVideo.resolution}`);
 
     // Baixar o vídeo
-    const videoResponse = await axios.get(downloadUrl, {
-      responseType: 'arraybuffer',
-      timeout: 180000, // 3 minutos para vídeos maiores
+    const videoResponse = await mediaClient.get(selectedVideo.url, {
+      timeout: 180000,
       maxContentLength: Infinity,
       maxBodyLength: Infinity
     });
 
-    return {
+    const result = {
       ok: true,
       buffer: Buffer.from(videoResponse.data),
       resolution: selectedVideo.resolution,
       thumbnail: selectedVideo.thumbnail,
-      allQualities: allQualities || [],
+      allQualities: videos,
       filename: `facebook_video_${selectedVideo.resolution}.mp4`
     };
+
+    setCache(`download:${url}`, result);
+    return result;
   } catch (error) {
-    console.error('Erro no download do Facebook:', error);
-    
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      return {
-        ok: false,
-        msg: 'API key inválida ou expirada'
-      };
-    }
+    console.error('Erro no download do Facebook:', error.message);
     
     if (error.response?.status === 404) {
       return {
@@ -108,29 +132,11 @@ async function downloadHD(url, apiKey) {
 
     return {
       ok: false,
-      msg: error.response?.data?.message || error.message || 'Erro ao baixar do Facebook'
+      msg: error.message || 'Erro ao baixar do Facebook'
     };
   }
 }
 
-/**
- * Notifica o dono sobre problemas com a API key
- */
-async function notifyOwnerAboutApiKey(nazu, ownerNumber, errorMessage, command = '') {
-  try {
-    const message = `🚨 *ALERTA - API Facebook*\n\n` +
-      `⚠️ *Problema detectado:*\n${errorMessage}\n\n` +
-      (command ? `📝 *Comando:* ${command}\n\n` : '') +
-      `🔧 *Ação necessária:*\nVerifique sua chave de API da Cognima em config.json\n\n` +
-      `⏰ ${new Date().toLocaleString('pt-BR')}`;
-
-    await nazu.sendMessage(ownerNumber + '@s.whatsapp.net', { text: message });
-  } catch (error) {
-    console.error('Erro ao notificar dono sobre API key do Facebook:', error);
-  }
-}
-
 export default {
-  downloadHD,
-  notifyOwnerAboutApiKey
+  downloadHD
 };

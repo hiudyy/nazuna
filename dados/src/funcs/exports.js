@@ -50,13 +50,6 @@ async function loadModules() {
             spotifyMod,
             soundcloudMod,
             facebookMod,
-            vimeoMod,
-            twitchMod,
-            redditMod,
-            dailymotionMod,
-            streamableMod,
-            bandcampMod,
-            alldlMod,
         ] = await Promise.all([
             import('./downloads/youtube.js'),
             import('./downloads/tiktok.js'),
@@ -67,13 +60,6 @@ async function loadModules() {
             import('./downloads/spotify.js'),
             import('./downloads/soundcloud.js'),
             import('./downloads/facebook.js'),
-            import('./downloads/vimeo.js'),
-            import('./downloads/twitch.js'),
-            import('./downloads/reddit.js'),
-            import('./downloads/dailymotion.js'),
-            import('./downloads/streamable.js'),
-            import('./downloads/bandcamp.js'),
-            import('./downloads/alldl.js'),
         ]);
 
         // Download modules with null checking
@@ -99,13 +85,6 @@ async function loadModules() {
         modules.spotify = spotifyMod.default ?? spotifyMod;
         modules.soundcloud = soundcloudMod.default ?? soundcloudMod;
         modules.facebook = facebookMod.default ?? facebookMod;
-        modules.vimeo = vimeoMod.default ?? vimeoMod;
-        modules.twitch = twitchMod.default ?? twitchMod;
-        modules.reddit = redditMod.default ?? redditMod;
-        modules.dailymotion = dailymotionMod.default ?? dailymotionMod;
-        modules.streamable = streamableMod.default ?? streamableMod;
-        modules.bandcamp = bandcampMod.default ?? bandcampMod;
-        modules.alldl = alldlMod.default ?? alldlMod;
         
         // Enhanced null checking and error handling for all modules
         if (modules.youtube) {
@@ -144,6 +123,13 @@ async function loadModules() {
             calculatorMod,
             audioEditMod,
             transmissaoMod,
+            // Novos módulos de serviços
+            gdriveMod,
+            mediafireMod,
+            twitterMod,
+            searchMod,
+            imagetoolsMod,
+            freefireMod,
         ] = await Promise.all([
             import('./utils/gerarnick.js'),
             import('./utils/update-verify.js'),
@@ -164,6 +150,13 @@ async function loadModules() {
             import('./utils/calculator.js'),
             import('./utils/audioEdit.js'),
             import('./utils/transmissao.js'),
+            // Novos módulos de serviços
+            import('./utils/gdrive.js'),
+            import('./utils/mediafire.js'),
+            import('./utils/twitter.js'),
+            import('./utils/search.js'),
+            import('./utils/imagetools.js'),
+            import('./utils/freefire.js'),
         ]);
 
         // Utils modules with null checking
@@ -188,6 +181,14 @@ async function loadModules() {
         modules.calculator = calculatorMod.default ?? calculatorMod;
         modules.audioEdit = audioEditMod.default ?? audioEditMod;
         modules.transmissao = transmissaoMod.default ?? transmissaoMod;
+        
+        // Novos módulos de serviços (implementações locais sem cog.api.br)
+        modules.gdrive = gdriveMod.default ?? gdriveMod;
+        modules.mediafire = mediafireMod.default ?? mediafireMod;
+        modules.twitter = twitterMod.default ?? twitterMod;
+        modules.search = searchMod.default ?? searchMod;
+        modules.imagetools = imagetoolsMod.default ?? imagetoolsMod;
+        modules.freefire = freefireMod.default ?? freefireMod;
 
         // expose sendSticker directly (preserving previous API shape) with null check
         if (modules.stickerModule && modules.stickerModule.sendSticker) {
@@ -222,7 +223,6 @@ async function loadModules() {
             modules.ia = {
                 makeAssistentRequest: iaMod.makeAssistentRequest || iaMod.processUserMessages,
                 makeCognimaRequest: iaMod.makeCognimaRequest,
-                notifyOwnerAboutApiKey: iaMod.notifyOwnerAboutApiKey,
                 ...(iaMod.default || iaMod)
             };
             // Add null checks for IA functions

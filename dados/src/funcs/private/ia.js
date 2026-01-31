@@ -5,7 +5,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import userContextDB from '../../utils/userContextDB.js';
-import { notifyOwnerAboutApiKey, isApiKeyError } from '../utils/apiKeyNotifier.js';
+
+// Chave de IA hardcoded
+const IA_API_KEY = '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';
 
 // Função para obter data/hora no fuso horário do Brasil (GMT-3)
 function getBrazilDateTime() {
@@ -25,12 +27,7 @@ function getFormattedBrazilDateTime() {
   });
 }
 
-let apiKeyStatus = {
-  isValid: true,
-  lastError: null,
-  notificationSent: false,
-  lastCheck: Date.now()
-};
+// Estado de API key removido — armazenamento/checagens centralizadas foram removidas.
 
 let historico = {};
 
@@ -39,32 +36,9 @@ let conversationStates = {};
 let userPreferences = {};
 let userInteractions = {};
 
-function updateApiKeyStatus(error = null) {
-  if (error && isApiKeyError(error)) {
-    apiKeyStatus.isValid = false;
-    apiKeyStatus.lastError = error.message || 'Erro na API key';
-    apiKeyStatus.lastCheck = Date.now();
-    console.error('🔑 API Key inválida detectada:', apiKeyStatus.lastError);
-    return false;
-  } else if (!error) {
-    const wasInvalid = !apiKeyStatus.isValid;
-    apiKeyStatus.isValid = true;
-    apiKeyStatus.lastError = null;
-    apiKeyStatus.notificationSent = false;
-    apiKeyStatus.lastCheck = Date.now();
-    
-    if (wasInvalid) {
-      console.log('✅ API Key voltou a funcionar normalmente');
-    }
-    return true;
-  }
-  
-  return apiKeyStatus.isValid;
-}
-
-function getApiKeyStatus() {
-  return { ...apiKeyStatus };
-}
+// Funções de compatibilidade (no-op). Atribua/chame `IA_API_KEY` diretamente para requisições.
+function updateApiKeyStatus() { return true; }
+function getApiKeyStatus() { return { isValid: true }; }
 
 // ========== PERSONALIDADES DISPONÍVEIS ==========
 
@@ -975,18 +949,11 @@ Você analisa mensagens em linguagem natural e identifica se o usuário está so
 - \`play2 [nome/url]\` - Baixa música (alternativo)
 - \`spotify [nome/url]\` - Baixa do Spotify
 - \`soundcloud [url]\` - Baixa do SoundCloud
-- \`bandcamp [url]\` - Baixa do Bandcamp
 
 **🎬 VÍDEOS & STREAMING:**
 - \`playvid [nome/url]\` - Baixa vídeo do YouTube
-- \`vimeo [url]\` - Baixa do Vimeo
-- \`twitch [url/clip]\` - Baixa do Twitch
-- \`reddit [url]\` - Baixa do Reddit
-- \`dailymotion [url]\` - Baixa do Dailymotion
-- \`streamable [url]\` - Baixa do Streamable
 
 **📥 DOWNLOADS:**
-- \`alldl [url]\` - Download universal
 - \`tiktok [url]\` - Baixa do TikTok
 - \`instagram [url]\` - Baixa do Instagram
 - \`igstory [usuario]\` - Baixa stories do Instagram
@@ -1404,26 +1371,17 @@ Usuário: "muta esse maluco" (com tem_mencao=true)
 - Quando tem_mencao=true, comandos que precisam de @ NÃO precisam de falta
 `;
 
-async function makeCognimaRequest(modelo, texto, systemPrompt = null, key, historico = [], retries = 3) {
+async function makeCognimaRequest(modelo, texto, systemPrompt = null, historico = [], retries = 3) {
   if (!modelo || !texto) {
     throw new Error('Parâmetros obrigatórios ausentes: modelo e texto');
   }
 
-  if (!key) {
-    throw new Error('API key não fornecida');
-  }
-
-  if (!apiKeyStatus.isValid) {
-    const timeSinceLastCheck = Date.now() - apiKeyStatus.lastCheck;
-    if (timeSinceLastCheck < 5 * 60 * 1000) {
-      throw new Error(`API key inválida. Último erro: ${apiKeyStatus.lastError}`);
-    }
-  }
+  // Note: parametro `key` é ignorado; usar `IA_API_KEY` hardcoded definido no topo.
 
   const messages = [];
   
   if (systemPrompt) {
-    messages.push({ role: 'user', content: systemPrompt });
+    messages.push({ role: 'system', content: systemPrompt });
   }
   
   if (historico && historico.length > 0) {
@@ -1434,8 +1392,9 @@ async function makeCognimaRequest(modelo, texto, systemPrompt = null, key, histo
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
+      // Usar API da NVIDIA diretamente
       const response = await axios.post(
-        `https://cog.api.br/api/v1/completion`,
+        'https://integrate.api.nvidia.com/v1/chat/completions',
         {
           messages,
           model: modelo,
@@ -1445,33 +1404,33 @@ async function makeCognimaRequest(modelo, texto, systemPrompt = null, key, histo
         {
           headers: {
             'Content-Type': 'application/json',
-            'X-API-Key': key
+            'Authorization': `Bearer ${IA_API_KEY}`
           },
           timeout: 120000
         }
       );
 
-      if (!response.data.data || !response.data.data.choices || !response.data.data.choices[0]) {
+      if (!response.data || !response.data.choices || !response.data.choices[0]) {
         throw new Error('Resposta da API inválida');
       }
 
-      updateApiKeyStatus();
-      return response.data;
+      // sucesso — sem checagem de API key centralizada
+      
+      // Formatar resposta para manter compatibilidade
+      return {
+        success: true,
+        data: response.data
+      };
 
     } catch (error) {
       console.warn(`Tentativa ${attempt + 1} falhou:`, {
         status: error.response?.status,
-        message: error.response?.data?.message || error.message,
-        key: key ? `${key.substring(0, 8)}...` : 'undefined'
+        message: error.response?.data?.message || error.message
       });
 
-      if (isApiKeyError(error)) {
-        updateApiKeyStatus(error);
-        throw new Error(`API key inválida ou expirada: ${error.response?.data?.message || error.message}`);
-      }
-
+      // retry handling — sem marcar status de API key
       if (attempt === retries - 1) {
-        throw new Error(`Falha na requisição após ${retries} tentativas: ${error.message}`);
+        throw new Error(`Falha na requisição após ${retries} tentativas: ${error.response?.data?.message || error.message}`);
       }
 
       await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
@@ -1806,25 +1765,13 @@ function clearConversationData(maxAge = 7 * 24 * 60 * 60 * 1000) {
   });
 }
 
-async function processUserMessages(data, key, nazu = null, ownerNumber = null, personality = 'nazuna') {
+async function processUserMessages(data, nazu = null, ownerNumber = null, personality = 'nazuna') {
   try {
     const { mensagens } = data;
     if (!mensagens || !Array.isArray(mensagens)) {
       throw new Error('Mensagens são obrigatórias e devem ser um array');
     }
-
-    if (!key) {
-      throw new Error('API key não fornecida');
-    }
-
-    if (!apiKeyStatus.isValid) {
-      return {
-        resp: [],
-        erro: 'Sistema de IA temporariamente desativado',
-        apiKeyInvalid: true,
-        message: '🌙 *Desculpa, tô com um problema técnico aqui...*\n\n😅 N-Não é nada demais! Só... tipo... preciso de um tempo pra me recuperar.\n\n⏰ Volta daqui a pouco? 💕'
-      };
-    }
+    // NOTE: parâmetro `key` é ignorado aqui; `IA_API_KEY` é usado internamente nas requisições.
 
     const mensagensValidadas = [];
     for (let i = 0; i < mensagens.length; i++) {
@@ -2019,17 +1966,6 @@ async function processUserMessages(data, key, nazu = null, ownerNumber = null, p
         }
       } catch (apiError) {
         console.error('Erro na API Cognima:', apiError.message);
-        
-        if (isApiKeyError(apiError) && nazu && ownerNumber) {
-          notifyOwnerAboutApiKey(nazu, ownerNumber?.replace(/[^\d]/g, '') + '@s.whatsapp.net', apiError.message, 'Sistema IA');
-          
-          return {
-            resp: [],
-            erro: 'Sistema de IA temporariamente desativado',
-            apiKeyInvalid: true,
-            message: '🌙 *Desculpa, tô com um problema técnico aqui...*\n\n😅 N-Não é nada demais! Só... tipo... preciso de um tempo pra me recuperar.\n\n⏰ Volta daqui a pouco? 💕'
-          };
-        }
         
         return {
           resp: [],
@@ -2867,21 +2803,11 @@ function enhanceNazunaResponse(response, greeting, isNightTime) {
 }
 
 function getNazunaErrorResponse(error, nazu, ownerNumber) {
-  if (isApiKeyError(error) && nazu && ownerNumber) {
-    notifyOwnerAboutApiKey(nazu, ownerNumber?.replace(/[^\d]/g, '') + '@s.whatsapp.net', error.message, 'Sistema IA');
-    
-    return {
-      resp: [],
-      erro: 'Sistema de IA temporariamente desativado',
-      apiKeyInvalid: true,
-      message: '🌙 *Sistema de IA temporariamente indisponível*\n\n😅 N-Não é como se eu estivesse com problemas técnicos ou coisa assim! Apenas... um pouco instável no momento.\n\n⏰ V-Você pode tentar novamente daqui a pouco?'
-    };
-  }
-  
+  // Resposta genérica de erro na IA (removida diferenciação por API key)
   return {
     resp: [],
     erro: 'Erro temporário na IA',
-    message: '🌙 *Ops! Estou com um probleminha técnico...*\n\n😢 E-eh! Não foi minha culpa! A tecnologia as vezes é complicada...\n\n⏰ Tente novamente em instantes, por favor?'
+    message: '🌙 *Ops! Estou com um probleminha técnico...*\n\n😢 E-eh! Não foi minha culpa! A tecnologia às vezes é complicada...\n\n⏰ Tente novamente em instantes, por favor?'
   };
 }
 
@@ -3184,7 +3110,7 @@ export {
   clearOldHistorico,
   getApiKeyStatus,
   updateApiKeyStatus,
-  notifyOwnerAboutApiKey,
+  // notifyOwnerAboutApiKey removed
   // Sistema de logging e análise
   logConversation,
   getConversationAnalytics,

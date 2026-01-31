@@ -27,7 +27,12 @@ import { PerformanceOptimizer, getPerformanceOptimizer } from './utils/performan
 import { recalcEquipmentBonuses } from './utils/equipment.js';
 import * as ia from './funcs/private/ia.js';
 import * as vipCommandsManager from './utils/vipCommandsManager.js';
-import { notifyOwnerAboutApiKey, isApiKeyError } from './funcs/utils/apiKeyNotifier.js';
+import { getInfo as gdriveGetInfo } from './funcs/utils/gdrive.js';
+import { getInfo as mediafireGetInfo } from './funcs/utils/mediafire.js';
+import { getInfo as twitterGetInfo } from './funcs/utils/twitter.js';
+import { search, searchNews } from './funcs/utils/search.js';
+import { removeBg, upscale } from './funcs/utils/imagetools.js';
+import spotifyModule from './funcs/downloads/spotify.js';
 import captchaIndex, { initCaptchaIndex, addCaptcha, removeCaptcha, getCaptcha, hasPendingCaptcha } from './utils/captchaIndex.js';
 import fsPromises from 'fs/promises';
 import {
@@ -236,7 +241,6 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathz.dirname(__filename);
-const API_KEY_REQUIRED_MESSAGE = 'Este comando precisa de API key para funcionar. Meu dono já foi notificado! 😺';
 const OWNER_ONLY_MESSAGE = '🚫 Este comando é apenas para o dono do bot!';
 
 // Função para formatar respostas de IA para WhatsApp (converte ** para *)
@@ -744,23 +748,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
   const prefixo = config.prefixo;
   const debug = config.debug;
   const lidowner = config.lidowner;
-  let KeyCog = config.apikey || '';
-
-  function isValidApiKey(key) {
-    if (!key || typeof key !== 'string') return false;
-    const trimmed = key.trim();
-    if (trimmed === '') return false;
-    if (trimmed.length < 10) return false;
-    
-    // Permite qualquer caractere não-espaço (evita invalidar keys com pontos, etc.)
-    return /^\S+$/.test(trimmed);
-  }
-
-  if (!KeyCog || KeyCog.trim() === '') {
-    KeyCog = false;
-  } else if (!isValidApiKey(KeyCog)) {
-    KeyCog = false;
-  }
 
   // Sistema de degradação automática de pets
   function applyPetDegradation(pets) {
@@ -916,9 +903,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
 
   async function handleAutoDownload(nazu, from, url, info) {
     try {
-      if (!KeyCog) {
-        return false; // Ignora silenciosamente se não tiver API key
-      }
       
       // Detectar tipo de URL e usar o módulo específico
       const urlLower = url.toLowerCase();
@@ -960,36 +944,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         downloadModule = soundcloud;
         platformName = 'SoundCloud';
       }
-      // Twitch
-      else if (urlLower.includes('twitch.tv')) {
-        downloadModule = twitch;
-        platformName = 'Twitch';
-      }
-      // Vimeo
-      else if (urlLower.includes('vimeo.com')) {
-        downloadModule = vimeo;
-        platformName = 'Vimeo';
-      }
-      // Dailymotion
-      else if (urlLower.includes('dailymotion.com')) {
-        downloadModule = dailymotion;
-        platformName = 'Dailymotion';
-      }
-      // Streamable
-      else if (urlLower.includes('streamable.com')) {
-        downloadModule = streamable;
-        platformName = 'Streamable';
-      }
-      // Reddit
-      else if (urlLower.includes('reddit.com')) {
-        downloadModule = reddit;
-        platformName = 'Reddit';
-      }
-      // Bandcamp
-      else if (urlLower.includes('bandcamp.com')) {
-        downloadModule = bandcamp;
-        platformName = 'Bandcamp';
-      }
       else {
         // URL não suportada
         return false;
@@ -1000,7 +954,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       
       // YouTube - baixar apenas áudio (MP3)
       if (platformName === 'YouTube') {
-        result = await youtube.mp3(url, 128, KeyCog);
+        result = await youtube.mp3(url, 128);
         if (result && result.ok) {
           await nazu.sendMessage(from, {
             audio: result.buffer,
@@ -1013,7 +967,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       
       // TikTok
       else if (platformName === 'TikTok') {
-        result = await tiktok.dl(url, KeyCog);
+        result = await tiktok.dl(urls);
         if (result && result.ok && result.urls && result.urls.length > 0) {
           const videoUrl = result.urls[0];
           if (videoUrl) {
@@ -1029,7 +983,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       
       // Instagram
       else if (platformName === 'Instagram') {
-        result = await igdl.dl(url, KeyCog);
+        result = await igdl.dl(url);
         if (result && result.ok && result.data && result.data.length > 0) {
           const media = result.data[0];
           if (media.type === 'video') {
@@ -1050,7 +1004,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       
       // Facebook
       else if (platformName === 'Facebook') {
-        result = await facebook.downloadHD(url, KeyCog);
+        result = await facebook.downloadHD(url);
         if (result && result.ok && result.buffer) {
           await nazu.sendMessage(from, {
             video: result.buffer,
@@ -1063,7 +1017,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       
       // Pinterest
       else if (platformName === 'Pinterest') {
-        result = await pinterest.dl(url, KeyCog);
+        result = await pinterest.dl(url);
         if (result && result.ok && result.urls && result.urls.length > 0) {
           const mediaUrl = result.urls[0];
           if (result.type === 'video') {
@@ -1084,7 +1038,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       
       // Spotify - baixar áudio
       else if (platformName === 'Spotify') {
-        result = await spotify.download(url, KeyCog);
+        result = await spotify.download(url);
         if (result && result.ok && result.buffer) {
           await nazu.sendMessage(from, {
             audio: result.buffer,
@@ -1097,7 +1051,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
       
       // SoundCloud - baixar áudio
       else if (platformName === 'SoundCloud') {
-        result = await soundcloud.download(url, KeyCog);
+        result = await soundcloud.download(url);
         if (result && result.ok && result.buffer) {
           await nazu.sendMessage(from, {
             audio: result.buffer,
@@ -1108,7 +1062,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         }
       }
       
-      // Plataformas genéricas (Twitch, Vimeo, Dailymotion, Streamable, Reddit, Bandcamp)
       else {
         // Mapeamento de métodos para cada plataforma
         const methodMap = {
@@ -1121,7 +1074,7 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
         const methodName = methodMap[platformName] || 'download';
         
         if (downloadModule && typeof downloadModule[methodName] === 'function') {
-          result = await downloadModule[methodName](url, KeyCog);
+          result = await downloadModule[methodName](url);
           if (result && result.data) {
             const videoUrl = result.data.video || result.data.videoUrl || result.data.url;
             if (videoUrl) {
@@ -1187,13 +1140,6 @@ async function NazuninhaBotExec(nazu, info, store, messagesCache, rentalExpirati
     spotify,
     soundcloud,
     facebook,
-    vimeo,
-    twitch,
-    reddit,
-    dailymotion,
-    streamable,
-    bandcamp,
-    alldl,
     // Novos módulos
     connect4,
     uno,
@@ -4050,10 +3996,10 @@ Código: *${roleCode}*`,
         }
 
         // Processamento do antitoxic
-        if (antitoxic && antitoxic.isEnabled && antitoxic.isEnabled(from) && body && ia && KeyCog) {
+        if (antitoxic && antitoxic.isEnabled && antitoxic.isEnabled(from) && body && ia) {
           // Função wrapper para a IA do antitoxic
           const aiFunction = (prompt) => {
-            return ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog)
+            return ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null)
               .then(response => response?.data?.choices?.[0]?.message?.content || '');
           };
           
@@ -4167,7 +4113,7 @@ Código: *${roleCode}*`,
 
     const _botShort = (nazu && nazu.user && (nazu.user.id || nazu.user.lid)) ? String((nazu.user.id || nazu.user.lid).split(':')[0]) : '';
     // Não processar pela assistente se a mensagem veio do PRO (evita loop infinito)
-    if (!info.key.fromMe && isAssistente && !isCmd && !info._fromPro && ((_botShort && budy2.includes(_botShort)) || (menc_os2 && menc_os2 == botNumber)) && KeyCog) {
+    if (!info.key.fromMe && isAssistente && !isCmd && !info._fromPro && ((_botShort && budy2.includes(_botShort)) || (menc_os2 && menc_os2 == botNumber))) {
       if (budy2.replaceAll('@' + _botShort, '').length > 2) {
         // Detectar tipo de mídia da mensagem atual
         const tipoMidiaAtual = info.message?.imageMessage ? 'imagem' : 
@@ -4250,13 +4196,6 @@ Código: *${roleCode}*`,
           jSoNzIn.marcou_mensagem = true;
           jSoNzIn.id_enviou_marcada = jsonO.participant;
         }
-        if (!KeyCog) {
-          nazu.sendMessage(nmrdn, {
-            text: `🤖 *Sistema de IA desativado*\n\n😅 O sistema de IA está desativado porque a API key não foi configurada.\n\n⚙️ Para configurar, use o comando: ${prefix}apikey SUA_API_KEY\n📞 Suporte: wa.me/553391967445`
-          });
-          return;
-        }
-        
         
         // Add null check for ia object
         if (!ia || typeof ia.makeAssistentRequest !== 'function') {
@@ -4270,14 +4209,8 @@ Código: *${roleCode}*`,
         
         ia.makeAssistentRequest({
           mensagens: [jSoNzIn]
-        }, KeyCog, nazu, nmrdn, personality).then((respAssist) => {
+        }, nazu, nmrdn, personality).then((respAssist) => {
           if (respAssist.erro === 'Sistema de IA temporariamente desativado') {
-            return;
-          }
-          
-        
-          if (respAssist.apiKeyInvalid) {
-            reply(respAssist.message || '🤖 Sistema de IA temporariamente indisponível. Tente novamente mais tarde.');
             return;
           }
           
@@ -12686,17 +12619,13 @@ Entre em contato com o dono do bot:
       //INTELIGENCIA ARTIFICIAL
       case 'gemma':
         if (!q) return reply(`🤔 Qual sua dúvida para o Gemma? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
         reply(`⏳ Só um segundinho, estou consultando o Gemma... ✨`).then(() => {
-          ia.makeCognimaRequest('google/gemma-7b', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('google/gemma-7b', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Gemma:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Gemma! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12707,17 +12636,13 @@ Entre em contato com o dono do bot:
       case 'phi':
       case 'phi3':
         if (!q) return reply(`🤔 Qual sua dúvida para o Phi? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
         reply(`⏳ Só um segundinho, estou consultando o Phi... ✨`).then(() => {
-          ia.makeCognimaRequest('microsoft/phi-3-medium-4k-instruct', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('microsoft/phi-3-medium-4k-instruct', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Phi:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Phi! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12727,17 +12652,13 @@ Entre em contato com o dono do bot:
         break;
       case 'qwen2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Qwen2? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
         reply(`⏳ Só um segundinho, estou consultando o Qwen2... ✨`).then(() => {
-          ia.makeCognimaRequest('qwen/qwen2-7b-instruct', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('qwen/qwen2-7b-instruct', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Qwen2:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Qwen2! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12748,17 +12669,13 @@ Entre em contato com o dono do bot:
       case 'qwen':
       case 'qwen3':
         if (!q) return reply(`🤔 Qual sua dúvida para o Qwen? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
         reply(`⏳ Só um segundinho, estou consultando o Qwen... ✨`).then(() => {
-          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Qwen:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Qwen! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12769,17 +12686,12 @@ Entre em contato com o dono do bot:
       case 'llama':
       case 'llama3':
         if (!q) return reply(`🤔 Qual sua dúvida para o Llama? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
         reply(`⏳ Só um segundinho, estou consultando o Llama... ✨`).then(() => {
-          ia.makeCognimaRequest('abacusai/dracarys-llama-3.1-70b-instruct', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('abacusai/dracarys-llama-3.1-70b-instruct', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Llama:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Llama! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12790,17 +12702,12 @@ Entre em contato com o dono do bot:
       case 'baichuan':
       case 'baichuan2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Baichuan? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
         reply(`⏳ Só um segundinho, estou consultando o Baichuan... ✨`).then(() => {
-          ia.makeCognimaRequest('baichuan-inc/baichuan2-13b-chat', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('baichuan-inc/baichuan2-13b-chat', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Baichuan:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Baichuan! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12810,17 +12717,13 @@ Entre em contato com o dono do bot:
         break;
       case 'marin':
         if (!q) return reply(`🤔 Qual sua dúvida para o Marin? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply(`⏳ Só um segundinho, estou consultando o Marin... ✨`).then(() => {
-          ia.makeCognimaRequest('marin/marin-8b-instruct', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('marin/marin-8b-instruct', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Marin:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Marin! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12831,17 +12734,14 @@ Entre em contato com o dono do bot:
       case 'kimi':
       case 'kimik2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Kimi? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply(`⏳ Só um segundinho, estou consultando o Kimi... ✨`).then(() => {
-          ia.makeCognimaRequest('moonshotai/kimi-k2-instruct', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('moonshotai/kimi-k2-instruct', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Kimi:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Kimi! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12851,17 +12751,14 @@ Entre em contato com o dono do bot:
         break;
       case 'mistral':
         if (!q) return reply(`🤔 Qual sua dúvida para o Mistral? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply(`⏳ Só um segundinho, estou consultando o Mistral... ✨`).then(() => {
-          ia.makeCognimaRequest('mistralai/mistral-small-24b-instruct', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('mistralai/mistral-small-24b-instruct', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Mistral:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Mistral! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12871,17 +12768,14 @@ Entre em contato com o dono do bot:
         break;
       case 'magistral':
         if (!q) return reply(`🤔 Qual sua dúvida para o Magistral? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply(`⏳ Só um segundinho, estou consultando o Magistral... ✨`).then(() => {
-          ia.makeCognimaRequest('mistralai/magistral-small-2506', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('mistralai/magistral-small-2506', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Magistral:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Magistral! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12892,17 +12786,14 @@ Entre em contato com o dono do bot:
       case 'rakutenai':
       case 'rocket':
         if (!q) return reply(`🤔 Qual sua dúvida para o RakutenAI? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply(`⏳ Só um segundinho, estou consultando o RakutenAI... ✨`).then(() => {
-          ia.makeCognimaRequest('rakuten/rakutenai-7b-instruct', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('rakuten/rakutenai-7b-instruct', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API RakutenAI:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o RakutenAI! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12912,17 +12803,14 @@ Entre em contato com o dono do bot:
         break;
       case 'yi':
         if (!q) return reply(`🤔 Qual sua dúvida para o Yi? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply(`⏳ Só um segundinho, estou consultando o Yi... ✨`).then(() => {
-          ia.makeCognimaRequest('01-ai/yi-large', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('01-ai/yi-large', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Yi:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Yi! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12932,17 +12820,14 @@ Entre em contato com o dono do bot:
         break;
       case 'gemma2':
         if (!q) return reply(`🤔 Qual sua dúvida para o Gemma2? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply(`⏳ Só um segundinho, estou consultando o Gemma2... ✨`).then(() => {
-          ia.makeCognimaRequest('google/gemma-2-27b-it', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('google/gemma-2-27b-it', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Gemma2:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Gemma2! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12952,17 +12837,14 @@ Entre em contato com o dono do bot:
         break;
       case 'swallow':
         if (!q) return reply(`🤔 Qual sua dúvida para o Swallow? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply(`⏳ Só um segundinho, estou consultando o Swallow... ✨`).then(() => {
-          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Swallow:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Swallow! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12972,17 +12854,14 @@ Entre em contato com o dono do bot:
         break;
       case 'falcon':
         if (!q) return reply(`🤔 Qual sua dúvida para o Falcon? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply(`⏳ Só um segundinho, estou consultando o Falcon... ✨`).then(() => {
-          ia.makeCognimaRequest('tiiuae/falcon3-7b-instruct', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('tiiuae/falcon3-7b-instruct', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Falcon:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Falcon! Tente novamente em alguns instantes, tá? 🌈`);
@@ -12992,17 +12871,14 @@ Entre em contato com o dono do bot:
         break;
       case 'qwencoder':
         if (!q) return reply(`🤔 Qual sua dúvida para o Qwencoder? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply(`⏳ Só um segundinho, estou consultando o Qwencoder... ✨`).then(() => {
-          ia.makeCognimaRequest('qwen/qwen2.5-coder-32b-instruct', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('qwen/qwen2.5-coder-32b-instruct', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API Qwencoder:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o Qwencoder! Tente novamente em alguns instantes, tá? 🌈`);
@@ -13012,17 +12888,14 @@ Entre em contato com o dono do bot:
         break;
       case 'codegemma':
         if (!q) return reply(`🤔 Qual sua dúvida para o CodeGemma? Informe a pergunta após o comando! Exemplo: ${prefix}${command} quem descobriu o Brasil? 🌍`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply(`⏳ Só um segundinho, estou consultando o CodeGemma... ✨`).then(() => {
-          ia.makeCognimaRequest('google/codegemma-7b', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('google/codegemma-7b', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API CodeGemma:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply(`😓 Poxa, algo deu errado com o CodeGemma! Tente novamente em alguns instantes, tá? 🌈`);
@@ -13032,18 +12905,15 @@ Entre em contato com o dono do bot:
         break;
       case 'resumir':
         if (!q) return reply(`📝 *Resumidor de Texto*\n\n💡 *Como usar:*\n• Envie o texto que deseja resumir após o comando\n• Ex: ${prefix}resumir [seu texto aqui]\n\n✨ O texto será resumido de forma clara e objetiva!`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply('⏳ Aguarde enquanto preparo um resumo bem caprichado... ✨').then(() => {
           const prompt = `Resuma o seguinte texto em poucos parágrafos, de forma clara e objetiva, destacando as informações mais importantes:\n\n${q}`;
-          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro ao resumir texto:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply('😓 Ops, não consegui resumir agora! Que tal tentar de novo? 🌟');
@@ -13053,10 +12923,7 @@ Entre em contato com o dono do bot:
         break;
       case 'resumirurl':
         if (!q) return reply(`🌐 Quer resumir uma página? Envie a URL após o comando ${prefix}resumirurl! Exemplo: ${prefix}resumirurl https://exemplo.com/artigo 😊`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         if (!q.startsWith('http://') && !q.startsWith('https://')) {
           return reply(`🚫 Ops, parece que a URL é inválida! Certifique-se de incluir http:// ou https://. Exemplo: ${prefix}resumirurl https://exemplo.com/artigo 😊`);
         }
@@ -13075,12 +12942,12 @@ Entre em contato com o dono do bot:
               return;
             }
             const prompt = `Resuma o seguinte conteúdo extraído de uma página web em poucos parágrafos, de forma clara e objetiva, destacando os pontos principais:\n\n${cleanText.substring(0, 5000)}`;
-            ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((iaResponse) => {
+            ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null).then((iaResponse) => {
               reply(formatAIResponse(iaResponse.data.choices[0].message.content));
             }).catch((e) => {
               console.error('Erro ao resumir URL (IA):', e.message);
               if (e.message && e.message.includes('API key inválida')) {
-                ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+                
                 reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
               } else {
                 reply('😓 Vixe, algo deu errado ao resumir a página! Tente novamente em breve, combinado? 🌈');
@@ -13101,18 +12968,15 @@ Entre em contato com o dono do bot:
       case 'ideias':
       case 'ideia':
         if (!q) return reply(`💡 Quer ideias criativas? Diga o tema após o comando ${prefix}ideias! Exemplo: ${prefix}ideias nomes para um aplicativo de receitas 😊`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply('⏳ Um segundinho, estou pensando em ideias incríveis... ✨').then(() => {
           const prompt = `Gere 15 ideias criativas e detalhadas para o seguinte tema: ${q}`;
-          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro ao gerar ideias:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply('😓 Poxa, não consegui gerar ideias agora! Tente de novo em breve, tá? 🌈');
@@ -13123,18 +12987,15 @@ Entre em contato com o dono do bot:
       case 'explicar':
       case 'explique':
         if (!q) return reply(`🤓 Quer entender algo? Diga o que deseja explicar após o comando ${prefix}explicar! Exemplo: ${prefix}explicar o que é inteligência artificial 😊`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply('⏳ Um momentinho, estou preparando uma explicação bem clara... ✨').then(() => {
           const prompt = `Explique o seguinte conceito de forma simples e clara, como se fosse para alguém sem conhecimento prévio: ${q}`;
-          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro ao explicar conceito:', e);
             if (e.message && e.message.includes('API key inválida')) {
-              ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+              
               reply('🤖 *Sistema de IA temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
             } else {
               reply('😓 Vixe, não consegui explicar agora! Tente de novo em alguns instantes, tá? 🌈');
@@ -13145,13 +13006,10 @@ Entre em contato com o dono do bot:
       case 'corrigir':
       case 'correcao':
         if (!q) return reply(`✍️ Quer corrigir um texto? Envie o texto após o comando ${prefix}corrigir! Exemplo: ${prefix}corrigir Eu foi no mercado e comprei frutas. 😊`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply('⏳ Aguarde enquanto dou um polimento no seu texto... ✨').then(() => {
           const prompt = `Corrija os erros gramaticais, ortográficos e de estilo no seguinte texto, mantendo o significado original: ${q}`;
-          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro ao corrigir texto:', e);
@@ -13170,10 +13028,7 @@ Entre em contato com o dono do bot:
           return reply('⚠️ Este comando só pode ser usado em grupos!');
         }
         
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
 
         const quantidade = parseInt(args[0]) || 50;
         const limite = Math.min(Math.max(quantidade, 10), 200); // Entre 10 e 200 mensagens
@@ -13244,13 +13099,13 @@ ${conversaTexto.substring(0, 8000)}
 
 Faça um resumo conciso mas completo, destacando o que é mais relevante.`;
 
-          return ia.makeCognimaRequest('abacusai/dracarys-llama-3.1-70b-instruct', prompt, null, KeyCog);
+          return ia.makeCognimaRequest('abacusai/dracarys-llama-3.1-70b-instruct', prompt, null);
         }).then(response => {
           return reply(`💬 *Resumo da Conversa* (últimas mensagens)\n\n${formatAIResponse(response.data.choices[0].message.content)}`);
         }).catch(e => {
           console.error('Erro ao resumir conversa:', e);
           if (e.message?.includes('API key inválida')) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+            
             return reply('🤖 *Sistema de IA temporariamente indisponível*\n\nO administrador já foi notificado!');
           } else {
             return reply('😓 Não consegui resumir a conversa agora! Tente novamente em breve. 🌈');
@@ -13265,10 +13120,7 @@ Faça um resumo conciso mas completo, destacando o que é mais relevante.`;
       case 'historia':
       case 'story':
       case 'gerarhistoria': {
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         
         if (!q) {
           return reply(`📖 *Gerador de Histórias*\n\n💡 *Como usar:*\n• ${prefix}historia <gênero> <tema opcional>\n\n📚 *Gêneros disponíveis:*\n• fantasia, terror, romance, ficção científica, aventura, mistério, comédia, drama, ação, suspense\n\n✨ *Exemplos:*\n• ${prefix}historia fantasia dragões\n• ${prefix}historia terror casa abandonada\n• ${prefix}historia romance escola\n• ${prefix}historia ficção científica viagem no tempo`);
@@ -13311,12 +13163,12 @@ Faça um resumo conciso mas completo, destacando o que é mais relevante.`;
 
 Seja criativo e original. Não use clichês. A história deve ser envolvente do início ao fim.`;
 
-          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog);
+          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null);
           await reply(`📖✨ *Sua História*\n\n${formatAIResponse(response.data.choices[0].message.content)}`);
         } catch (e) {
           console.error('Erro ao gerar história:', e);
           if (e.message?.includes('API key inválida')) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+            
             await reply('🤖 *Sistema de IA temporariamente indisponível*\n\nO administrador já foi notificado!');
           } else {
             await reply('😓 Não consegui escrever a história agora! Tente novamente em breve. 🌈');
@@ -13332,10 +13184,7 @@ Seja criativo e original. Não use clichês. A história deve ser envolvente do 
       case 'recomendacao':
       case 'recomendação':
       case 'suggest': {
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         
         if (!q) {
           return reply(`🎬 *Recomendador de Mídia*\n\n💡 *Como usar:*\n• ${prefix}recomendar <tipo> <gênero/preferência>\n\n📺 *Tipos disponíveis:*\n• anime, jogo, musica, livro\n\n✨ *Exemplos:*\n• ${prefix}recomendar anime ação\n• ${prefix}recomendar jogo rpg\n• ${prefix}recomendar musica rock\n• ${prefix}recomendar livro fantasia`);
@@ -13371,12 +13220,12 @@ Para cada recomendação, forneça:
 
 Seja específico e recomende opções variadas (populares e menos conhecidas). Formate de forma clara e organizada.`;
 
-          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog);
+          const response = await ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null);
           await reply(`${tipoInfo.emoji} *Recomendações de ${tipoInfo.nome.charAt(0).toUpperCase() + tipoInfo.nome.slice(1)}*\n\n${formatAIResponse(response.data.choices[0].message.content)}`);
         } catch (e) {
           console.error('Erro ao gerar recomendações:', e);
           if (e.message?.includes('API key inválida')) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'IA', prefix);
+            
             await reply('🤖 *Sistema de IA temporariamente indisponível*\n\nO administrador já foi notificado!');
           } else {
             await reply('😓 Não consegui buscar recomendações agora! Tente novamente em breve. 🌈');
@@ -15385,12 +15234,9 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
 
       case 'cog':
         if (!q) return reply(`📢 Ei, falta a pergunta! Me diga o que quer saber após o comando ${prefix}cog! 😴`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply('⏳ Um momentinho, estou pensando na melhor resposta... 🌟').then(() => {
-          ia.makeCognimaRequest('cognima/CognimAI', q, null, KeyCog || null).then((response) => {
+          ia.makeCognimaRequest('cognima/CognimAI', q, null).then((response) => {
             reply(formatAIResponse(response.data.choices[0].message.content));
           }).catch((e) => {
             console.error('Erro na API CognimAI:', e);
@@ -15402,10 +15248,7 @@ Seja específico e recomende opções variadas (populares e menos conhecidas). F
       case 'translator':
         if (!q) return reply(`🌍 Quer traduzir algo? Me diga o idioma e o texto assim: ${prefix}${command} idioma | texto
 Exemplo: ${prefix}tradutor inglês | Bom dia! 😊`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         {
           const partes = q.split('|');
           if (partes.length < 2) {
@@ -15416,7 +15259,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           const texto = partes.slice(1).join('|').trim();
           reply('Aguarde um momentinho... ☀️').then(() => {
             const prompt = `Traduza o seguinte texto para ${idioma}:\n\n${texto}\n\nForneça apenas a tradução, sem explicações adicionais.`;
-            ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((bahz) => {
+            ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null).then((bahz) => {
               reply(`🌐✨ *Prontinho! Sua tradução para ${idioma.toUpperCase()} está aqui:*\n\n${formatAIResponse(bahz.data.choices[0].message.content)}`);
             }).catch((e) => {
               console.error("Erro ao traduzir texto:", e);
@@ -15524,10 +15367,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
       case 'dicionario':
       case 'dictionary':
         if (!q) return reply(`📔 Qual palavra você quer procurar no dicionário? Me diga após o comando ${prefix}${command}! 😊`);
-        if (!KeyCog) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
+        
         reply("📔 Procurando no dicionário... Aguarde um pouquinho! ⏳").then(() => {
           const palavra = q.trim().toLowerCase();
           axios.get(`https://significado.herokuapp.com/${encodeURIComponent(palavra)}`).then((resp) => {
@@ -15554,7 +15394,7 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           }).catch(() => {
             console.log("API primária do dicionário falhou, tentando IA...");
             const prompt = `Defina a palavra "${palavra}" em português de forma completa e fofa. Inclua a classe gramatical, os principais significados e um exemplo de uso em uma frase curta e bonitinha.`;
-            ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog || null).then((bahz) => {
+            ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null).then((bahz) => {
               reply(formatAIResponse(bahz.data.choices[0].message.content));
             }).catch((e) => {
               console.error("Erro geral ao buscar no dicionário:", e);
@@ -18329,791 +18169,6 @@ Exemplo: ${prefix}tradutor espanhol | Olá mundo! ✨`);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         }
         break;
-      case 'cpf':
-      case 'vizinhos':
-      case 'proprietario':
-      case 'empregos':
-      case 'vacinas':
-      case 'beneficios':
-      case 'internet':
-      case 'parentes':
-      case 'enderecos':
-      case 'obito':
-      case 'score':
-      case 'compras':
-      case 'cnh':
-        {
-          // Mapeamento de comandos para tipos de consulta
-          const consultaTypes = {
-            'cpf': { type: 'cpf', name: 'CPF', exemplo: `${prefix}cpf 12345678900` },
-            'vizinhos': { type: 'vizinhos', name: 'Vizinhos', exemplo: `${prefix}vizinhos 12345678900` },
-            'proprietario': { type: 'proprietario', name: 'Proprietário', exemplo: `${prefix}proprietario 12345678900` },
-            'empregos': { type: 'empregos', name: 'Empregos', exemplo: `${prefix}empregos 12345678900` },
-            'vacinas': { type: 'vacinas', name: 'Vacinas', exemplo: `${prefix}vacinas 12345678900` },
-            'beneficios': { type: 'beneficios', name: 'Benefícios', exemplo: `${prefix}beneficios 12345678900` },
-            'internet': { type: 'internet', name: 'Internet', exemplo: `${prefix}internet 12345678900` },
-            'parentes': { type: 'parentes', name: 'Parentes', exemplo: `${prefix}parentes 12345678900` },
-            'enderecos': { type: 'enderecos', name: 'Endereços', exemplo: `${prefix}enderecos 12345678900` },
-            'obito': { type: 'obito', name: 'Óbito', exemplo: `${prefix}obito 12345678900` },
-            'score': { type: 'score', name: 'Score', exemplo: `${prefix}score 12345678900` },
-            'compras': { type: 'compras', name: 'Compras', exemplo: `${prefix}compras 12345678900` },
-            'cnh': { type: 'cnh', name: 'CNH', exemplo: `${prefix}cnh 12345678900` }
-          };
-
-          const consultaInfo = consultaTypes[command.toLowerCase()];
-          
-          if (!consultaInfo) {
-            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-          }
-          
-          // Verificar API key
-          if (!KeyCog) {
-            notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-
-          if (!q) {
-            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o CPF após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços`);
-          }
-
-          const cpf = q.replace(/\D/g, '');
-          if (cpf.length !== 11) {
-            return reply(`❌ *CPF inválido!*\n\n📝 O CPF deve conter exatamente 11 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
-          }
-
-          reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-          axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
-            params: {
-              type: consultaInfo.type,
-              dados: cpf
-            },
-            headers: {
-              'Authorization': `Bearer ${KeyCog}`
-            },
-            timeout: 120000
-          }).then(response => {
-            // Verificar se a resposta indica erro de limite
-            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-              const errorData = response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                // Notificar dono sobre necessidade de plano ilimitado
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados (CPF, Vizinhos, Proprietário, Empregos, Vacinas, Benefícios, Internet, Parentes, Endereços, Óbito, Score, Compras, CNH) estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade
-
-⚙️ *Como atualizar API key:*
-• Use o comando: !apikey suachave
-• Reinicie o bot após configurar`;
-
-                nazu.sendMessage(nmrdn, { text: ownerMessage }).catch(notifyErr => {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                });
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-              reply(`✅ *Consulta realizada com sucesso!*\n\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-            } else {
-              reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CPF consultado.\n\n💡 *Possíveis motivos:*\n• CPF não cadastrado na base de dados\n• Dados não disponíveis no momento\n\n🔄 Tente novamente mais tarde.`);
-            }
-          }).catch(apiError => {
-            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-            // Verificar se é erro de API key
-            if (isApiKeyError(apiError)) {
-              notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
-            }
-
-            // Verificar se é erro de limite
-            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-              const errorData = apiError.response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade`;
-
-                nazu.sendMessage(nmrdn, { text: ownerMessage }).catch(notifyErr => {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                });
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            // Erro genérico
-            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-              reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CPF consultado.\n\n💡 *Possíveis motivos:*\n• CPF não cadastrado na base de dados\n• Dados não disponíveis no momento\n\n🔄 Tente novamente mais tarde.`);
-            } else {
-              reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
-            }
-          });
-        }
-        break;
-      case 'nome':
-      case 'pai':
-      case 'mae':
-        {
-          // Mapeamento de comandos para tipos de consulta
-          const consultaTypes = {
-            'nome': { type: 'nome', name: 'Nome', exemplo: `${prefix}nome João Silva Santos` },
-            'pai': { type: 'pai', name: 'Pai', exemplo: `${prefix}pai João Silva Santos` },
-            'mae': { type: 'mae', name: 'Mãe', exemplo: `${prefix}mae Maria Silva Santos` }
-          };
-
-          const consultaInfo = consultaTypes[command.toLowerCase()];
-          
-          if (!consultaInfo) {
-            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-          }
-          
-          // Verificar API key
-          if (!KeyCog) {
-            notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-
-          if (!q) {
-            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o nome completo após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Dica:* Use o nome completo para melhores resultados`);
-          }
-
-          const nome = q.trim();
-          if (nome.length < 3) {
-            return reply(`❌ *Nome muito curto!*\n\n📝 O nome deve conter pelo menos 3 caracteres.\n💡 Exemplo: ${consultaInfo.exemplo}`);
-          }
-
-          reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-          axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
-            params: {
-              type: consultaInfo.type,
-              dados: nome
-            },
-            headers: {
-              'Authorization': `Bearer ${KeyCog}`
-            },
-            timeout: 120000
-          }).then(response => {
-            // Verificar se a resposta indica erro de limite
-            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-              const errorData = response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                // Notificar dono sobre necessidade de plano ilimitado
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados (Nome, Pai, Mãe) estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade
-
-⚙️ *Como atualizar API key:*
-• Use o comando: !apikey suachave
-• Reinicie o bot após configurar`;
-
-                nazu.sendMessage(nmrdn, { text: ownerMessage }).catch(notifyErr => {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                });
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-              reply(`✅ *Consulta realizada com sucesso!*\n\n👤 *${consultaInfo.name} consultado(a):* ${nome}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-            } else {
-              reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o ${consultaInfo.name.toLowerCase()} consultado.\n\n💡 *Possíveis motivos:*\n• ${consultaInfo.name} não cadastrado na base de dados\n• Dados não disponíveis no momento\n• ${consultaInfo.name} digitado incorretamente\n\n🔄 Tente verificar a grafia e tentar novamente.`);
-            }
-          }).catch(apiError => {
-            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-            // Verificar se é erro de API key
-            if (isApiKeyError(apiError)) {
-              notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-              return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
-            }
-
-            // Verificar se é erro de limite
-            if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-              const errorData = apiError.response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA CONSULTAS DE DADOS* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de consulta:* ${consultaInfo.name}
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-As consultas de dados estão disponíveis apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade`;
-
-                nazu.sendMessage(nmrdn, { text: ownerMessage }).catch(notifyErr => {
-                  console.error('Erro ao notificar dono:', notifyErr.message);
-                });
-
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-              }
-            }
-
-            // Erro genérico
-            if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-              reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o ${consultaInfo.name.toLowerCase()} consultado.\n\n💡 *Possíveis motivos:*\n• ${consultaInfo.name} não cadastrado na base de dados\n• Dados não disponíveis no momento\n• ${consultaInfo.name} digitado incorretamente\n\n🔄 Tente verificar a grafia e tentar novamente.`);
-            } else {
-              reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente em alguns minutos.`);
-            }
-          });
-        }
-        break;
-      case 'telefone':
-      case 'tel':
-        {
-          // Mapeamento de comandos para tipos de consulta
-          const consultaTypes = {
-            'telefone': { type: 'telefone', name: 'Telefone', exemplo: `${prefix}telefone 11987654321` },
-            'tel': { type: 'telefone', name: 'Telefone', exemplo: `${prefix}tel 11987654321` }
-          };
-
-          const consultaInfo = consultaTypes[command.toLowerCase()];
-          
-          if (!consultaInfo) {
-            return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-          }
-          
-          // Verificar API key
-          if (!KeyCog) {
-            notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-
-          if (!q) {
-            return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o telefone após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* DDD + número com o 9 da operadora\n💡 Exemplo: 11987654321 (11 = DDD, 9 = operadora, 87654321 = número)`);
-          }
-
-          const telefone = q.replace(/\D/g, '');
-          if (telefone.length < 10 || telefone.length > 11) {
-            return reply(`❌ *Telefone inválido!*\n\n📝 O telefone deve conter 10 ou 11 dígitos (com DDD e o 9 da operadora).\n💡 Exemplo: ${consultaInfo.exemplo}\n\n📋 *Formato esperado:*\n• DDD (2 dígitos)\n• 9 (operadora)\n• Número (8 dígitos)`);
-          }
-
-          reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-          axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
-            params: {
-              type: consultaInfo.type,
-              dados: telefone
-            },
-            headers: {
-              'Authorization': `Bearer ${KeyCog}`
-            },
-            timeout: 120000
-          }).then(response => {
-            // Verificar se a resposta indica erro de limite
-            if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-              const errorData = response.data;
-              if (errorData.required_limit && errorData.required_limit > 500) {
-                nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE* 🚨\n\nConsulta: ${consultaInfo.name}\nLimite necessário: ${errorData.required_limit}` }).catch(() => {});
-                return reply(`❌ *Plano insuficiente*\n\n⚠️ As consultas de dados estão disponíveis apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado.`);
-              }
-            }
-
-            if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-              reply(`✅ *Consulta realizada com sucesso!*\n\n📱 *Telefone consultado:* ${telefone}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n📋 *Acesse o link acima para visualizar os dados completos.*\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-            } else {
-              reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o telefone consultado.`);
-            }
-          }).catch(apiError => {
-            console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-            if (isApiKeyError(apiError)) {
-              notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-              return reply(`❌ *Erro na API Key*\n\n⚠️ O dono do bot foi notificado.`);
-            }
-            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno.`);
-          });
-        }
-        break;
-      case 'placa': {
-        const consultaTypes = {
-          'placa': { type: 'placa', name: 'Placa', exemplo: `${prefix}placa ABC1234` }
-        };
-
-        const consultaInfo = consultaTypes[command.toLowerCase()];
-        
-        if (!consultaInfo) {
-          return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-        }
-        
-        if (!KeyCog) {
-          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
-
-        if (!q) {
-          return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite a placa após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* 3 letras e 4 números (ex: ABC1234)`);
-        }
-
-        const placa = q.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-        if (placa.length !== 7 || (!/^[A-Z]{3}[0-9]{4}$/.test(placa) && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(placa))) {
-          return reply(`❌ *Placa inválida!*\n\n📝 A placa deve ter 7 caracteres.\n💡 Formato antigo: ABC1234\n💡 Formato Mercosul: ABC1D23\n💡 Exemplo: ${consultaInfo.exemplo}`);
-        }
-
-        reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-        axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
-          params: {
-            type: consultaInfo.type,
-            dados: placa
-          },
-          headers: {
-            'Authorization': `Bearer ${KeyCog}`
-          },
-          timeout: 120000
-        }).then(response => {
-          if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-            const errorData = response.data;
-            if (errorData.required_limit && errorData.required_limit > 500) {
-              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
-              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
-            }
-          }
-
-          if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-            reply(`✅ *Consulta realizada com sucesso!*\n\n🚗 *Placa consultada:* ${placa}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-          } else {
-            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para a placa consultada.\n\n🔄 Verifique a placa e tente novamente.`);
-          }
-        }).catch(apiError => {
-          console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-          if (isApiKeyError(apiError)) {
-            notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-            return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key. O dono foi notificado.`);
-          }
-
-          if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-            const errorData = apiError.response.data;
-            if (errorData.required_limit && errorData.required_limit > 500) {
-              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
-              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
-            }
-          }
-
-          if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para a placa consultada.\n\n🔄 Verifique a placa e tente novamente.`);
-          } else {
-            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente.`);
-          }
-        });
-      }
-        break;
-      case 'chassi': {
-        const consultaTypes = {
-          'chassi': { type: 'chassi', name: 'Chassi', exemplo: `${prefix}chassi 9BW11111111111111` }
-        };
-
-        const consultaInfo = consultaTypes[command.toLowerCase()];
-        
-        if (!consultaInfo) {
-          return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-        }
-        
-        if (!KeyCog) {
-          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
-
-        if (!q) {
-          return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o chassi após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* 17 caracteres alfanuméricos`);
-        }
-
-        const chassi = q.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-        if (chassi.length !== 17) {
-          return reply(`❌ *Chassi inválido!*\n\n📝 O chassi deve conter exatamente 17 caracteres alfanuméricos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
-        }
-
-        reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-        axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
-          params: {
-            type: consultaInfo.type,
-            dados: chassi
-          },
-          headers: {
-            'Authorization': `Bearer ${KeyCog}`
-          },
-          timeout: 120000
-        }).then(response => {
-          if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-            const errorData = response.data;
-            if (errorData.required_limit && errorData.required_limit > 500) {
-              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
-              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
-            }
-          }
-
-          if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-            reply(`✅ *Consulta realizada com sucesso!*\n\n🔧 *Chassi consultado:* ${chassi}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-          } else {
-            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o chassi consultado.\n\n🔄 Verifique o chassi e tente novamente.`);
-          }
-        }).catch(apiError => {
-          console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-          if (isApiKeyError(apiError)) {
-            notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-            return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key. O dono foi notificado.`);
-          }
-
-          if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-            const errorData = apiError.response.data;
-            if (errorData.required_limit && errorData.required_limit > 500) {
-              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
-              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
-            }
-          }
-
-          if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o chassi consultado.\n\n🔄 Verifique o chassi e tente novamente.`);
-          } else {
-            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente.`);
-          }
-        });
-      }
-        break;
-      case 'cnpj':
-      case 'funcionarios': {
-        const consultaTypes = {
-          'cnpj': { type: 'cnpj', name: 'CNPJ', exemplo: `${prefix}cnpj 12345678000190` },
-          'funcionarios': { type: 'funcionarios', name: 'Funcionários', exemplo: `${prefix}funcionarios 12345678000190` }
-        };
-
-        const consultaInfo = consultaTypes[command.toLowerCase()];
-        
-        if (!consultaInfo) {
-          return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-        }
-        
-        if (!KeyCog) {
-          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
-
-        if (!q) {
-          return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o CNPJ após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços (14 dígitos)`);
-        }
-
-        const cnpj = q.replace(/\D/g, '');
-        if (cnpj.length !== 14) {
-          return reply(`❌ *CNPJ inválido!*\n\n📝 O CNPJ deve conter exatamente 14 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
-        }
-
-        reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-        axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
-          params: {
-            type: consultaInfo.type,
-            dados: cnpj
-          },
-          headers: {
-            'Authorization': `Bearer ${KeyCog}`
-          },
-          timeout: 120000
-        }).then(response => {
-          if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-            const errorData = response.data;
-            if (errorData.required_limit && errorData.required_limit > 500) {
-              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
-              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
-            }
-          }
-
-          if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-            reply(`✅ *Consulta realizada com sucesso!*\n\n🏢 *CNPJ consultado:* ${cnpj}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-          } else {
-            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CNPJ consultado.\n\n🔄 Verifique o CNPJ e tente novamente.`);
-          }
-        }).catch(apiError => {
-          console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-          if (isApiKeyError(apiError)) {
-            notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-            return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key. O dono foi notificado.`);
-          }
-
-          if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-            const errorData = apiError.response.data;
-            if (errorData.required_limit && errorData.required_limit > 500) {
-              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
-              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
-            }
-          }
-
-          if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CNPJ consultado.\n\n🔄 Verifique o CNPJ e tente novamente.`);
-          } else {
-            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente.`);
-          }
-        });
-      }
-        break;
-      case 'cep': {
-        const consultaTypes = {
-          'cep': { type: 'cep', name: 'CEP', exemplo: `${prefix}cep 12345678` }
-        };
-
-        const consultaInfo = consultaTypes[command.toLowerCase()];
-        
-        if (!consultaInfo) {
-          return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-        }
-        
-        if (!KeyCog) {
-          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
-
-        if (!q) {
-          return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o CEP após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços (8 dígitos)`);
-        }
-
-        const cep = q.replace(/\D/g, '');
-        if (cep.length !== 8) {
-          return reply(`❌ *CEP inválido!*\n\n📝 O CEP deve conter exatamente 8 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
-        }
-
-        reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-        axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
-          params: {
-            type: consultaInfo.type,
-            dados: cep
-          },
-          headers: {
-            'Authorization': `Bearer ${KeyCog}`
-          },
-          timeout: 120000
-        }).then(response => {
-          if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-            const errorData = response.data;
-            if (errorData.required_limit && errorData.required_limit > 500) {
-              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
-              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
-            }
-          }
-
-          if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-            reply(`✅ *Consulta realizada com sucesso!*\n\n📍 *CEP consultado:* ${cep}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-          } else {
-            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CEP consultado.\n\n🔄 Verifique o CEP e tente novamente.`);
-          }
-        }).catch(apiError => {
-          console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-          if (isApiKeyError(apiError)) {
-            notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-            return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key. O dono foi notificado.`);
-          }
-
-          if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-            const errorData = apiError.response.data;
-            if (errorData.required_limit && errorData.required_limit > 500) {
-              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
-              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
-            }
-          }
-
-          if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o CEP consultado.\n\n🔄 Verifique o CEP e tente novamente.`);
-          } else {
-            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente.`);
-          }
-        });
-      }
-        break;
-      case 'email': {
-        const consultaTypes = {
-          'email': { type: 'email', name: 'Email', exemplo: `${prefix}email exemplo@email.com` }
-        };
-
-        const consultaInfo = consultaTypes[command.toLowerCase()];
-        
-        if (!consultaInfo) {
-          return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-        }
-        
-        if (!KeyCog) {
-          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
-
-        if (!q) {
-          return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o email após o comando\n• Exemplo: ${consultaInfo.exemplo}`);
-        }
-
-        const email = q.trim().toLowerCase();
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-          return reply(`❌ *Email inválido!*\n\n📝 O email deve ter um formato válido.\n💡 Exemplo: ${consultaInfo.exemplo}`);
-        }
-
-        reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-        axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
-          params: {
-            type: consultaInfo.type,
-            dados: email
-          },
-          headers: {
-            'Authorization': `Bearer ${KeyCog}`
-          },
-          timeout: 120000
-        }).then(response => {
-          if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-            const errorData = response.data;
-            if (errorData.required_limit && errorData.required_limit > 500) {
-              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
-              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
-            }
-          }
-
-          if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-            reply(`✅ *Consulta realizada com sucesso!*\n\n📧 *Email consultado:* ${email}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-          } else {
-            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o email consultado.\n\n🔄 Verifique o email e tente novamente.`);
-          }
-        }).catch(apiError => {
-          console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-          if (isApiKeyError(apiError)) {
-            notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-            return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key. O dono foi notificado.`);
-          }
-
-          if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-            const errorData = apiError.response.data;
-            if (errorData.required_limit && errorData.required_limit > 500) {
-              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
-              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
-            }
-          }
-
-          if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o email consultado.\n\n🔄 Verifique o email e tente novamente.`);
-          } else {
-            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente.`);
-          }
-        });
-      }
-        break;
-      case 'titulo': {
-        const consultaTypes = {
-          'titulo': { type: 'titulo', name: 'Título de Eleitor', exemplo: `${prefix}titulo 123456789012` }
-        };
-
-        const consultaInfo = consultaTypes[command.toLowerCase()];
-        
-        if (!consultaInfo) {
-          return reply(`❌ *Comando inválido*\n\n⚠️ Erro interno ao processar comando.`);
-        }
-        
-        if (!KeyCog) {
-          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', `Consulta de ${consultaInfo.name}`);
-          return reply(API_KEY_REQUIRED_MESSAGE);
-        }
-
-        if (!q) {
-          return reply(`🔍 *CONSULTA DE ${consultaInfo.name.toUpperCase()}*\n\n📝 *Como usar:*\n• Digite o título de eleitor após o comando\n• Exemplo: ${consultaInfo.exemplo}\n\n⚠️ *Formato:* Apenas números, sem pontos ou traços (12 dígitos)`);
-        }
-
-        const titulo = q.replace(/\D/g, '');
-        if (titulo.length !== 12) {
-          return reply(`❌ *Título de eleitor inválido!*\n\n📝 O título de eleitor deve conter exatamente 12 dígitos.\n💡 Exemplo: ${consultaInfo.exemplo}`);
-        }
-
-        reply(`🔍 *Consultando ${consultaInfo.name}...*\n⏳ Aguarde um momento...`);
-
-        axios.get('https://consultas.cog.api.br/api/v1/consulta/', {
-          params: {
-            type: consultaInfo.type,
-            dados: titulo
-          },
-          headers: {
-            'Authorization': `Bearer ${KeyCog}`
-          },
-          timeout: 120000
-        }).then(response => {
-          if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-            const errorData = response.data;
-            if (errorData.required_limit && errorData.required_limit > 500) {
-              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
-              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
-            }
-          }
-
-          if (response.data && response.data.success && response.data.data && response.data.data.publicUrl) {
-            reply(`✅ *Consulta realizada com sucesso!*\n\n🗳️ *Título de eleitor consultado:* ${titulo}\n🔗 *Link do resultado:*\n${response.data.data.publicUrl}\n\n⏰ *Expira em:* ${response.data.data.expiresAt ? new Date(response.data.data.expiresAt).toLocaleString('pt-BR') : 'N/A'}`);
-          } else {
-            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o título de eleitor consultado.\n\n🔄 Verifique o título e tente novamente.`);
-          }
-        }).catch(apiError => {
-          console.error(`Erro no comando ${consultaInfo.name}:`, apiError.message);
-
-          if (isApiKeyError(apiError)) {
-            notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, `Consulta de ${consultaInfo.name}`);
-            return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key. O dono foi notificado.`);
-          }
-
-          if (apiError.response?.data && apiError.response.data.success === false && apiError.response.data.error === "Acesso negado") {
-            const errorData = apiError.response.data;
-            if (errorData.required_limit && errorData.required_limit > 500) {
-              nazu.sendMessage(nmrdn, { text: `🚨 *ALERTA - PLANO INSUFICIENTE*\n\n• Consulta: ${consultaInfo.name}\n• Limite necessário: ${errorData.required_limit}\n• Limite atual: ${errorData.current_limit || 'N/A'}\n\n💳 Acesse: https://cog.api.br/plans` }).catch(() => {});
-              return reply(`❌ *Plano insuficiente*\n\n⚠️ Consultas de dados disponíveis apenas no plano ilimitado.\n\n📞 O dono foi notificado.`);
-            }
-          }
-
-          if (apiError.response?.status === 404 || (apiError.response?.data && !apiError.response.data.success)) {
-            reply(`❌ *Resultado não encontrado*\n\n🔍 Não foi possível encontrar informações para o título de eleitor consultado.\n\n🔄 Verifique o título e tente novamente.`);
-          } else {
-            reply(`❌ *Erro ao consultar ${consultaInfo.name}*\n\n⚠️ Ocorreu um erro interno. Tente novamente.`);
-          }
-        });
-      }
-        break;
       case 'nick':
       case 'gerarnick':
       case 'nickgenerator':
@@ -19451,11 +18506,6 @@ case 'ytmp3':
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
     }
 
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
     let videoUrl;
     let videoInfo;
 
@@ -19463,7 +18513,7 @@ case 'ytmp3':
       videoUrl = q;
       await reply('Aguarde um momentinho... ☀️');
 
-      youtube.mp3(videoUrl, 128, KeyCog)
+      youtube.mp3(videoUrl, 128)
         .then(async (dlRes) => {
           if (!dlRes.ok)
             return nazu.sendMessage(from, { text: `❌ Erro ao baixar o áudio: ${dlRes.msg}` }, { quoted: info });
@@ -19489,10 +18539,7 @@ case 'ytmp3':
         })
         .catch((downloadError) => {
           console.error('Erro no download (link direto):', downloadError);
-          if (downloadError.message?.includes('API key inválida')) {
-            notifyOwnerAboutApiKey(nazu, nmrdn, downloadError.message, "YouTube", prefix);
-            nazu.sendMessage(from, { text: '🤖 *Sistema de YouTube temporariamente indisponível*' }, { quoted: info });
-          } else if (String(downloadError).includes("age")) {
+          if (String(downloadError).includes("age")) {
             nazu.sendMessage(from, { text: `🔞 Este conteúdo possui restrição de idade e não pode ser baixado.` }, { quoted: info });
           } else {
             nazu.sendMessage(from, { text: `❌ Ocorreu um erro ao baixar o áudio: ${downloadError.message}` }, { quoted: info });
@@ -19511,7 +18558,7 @@ case 'ytmp3':
     await reply(`🔍 *Pesquisando no YouTube...*\n\n🎵 Música: *${q}*\n\n⏳ Aguarde um momento...`);
 
     // Usando .then em vez de await para a pesquisa do YouTube
-    youtube.search(q, KeyCog)
+    youtube.search(q)
         .then((result) => {
           if (!result.ok) return reply(`❌ Erro na pesquisa: ${result.msg}`);
           videoInfo = result;
@@ -19535,7 +18582,7 @@ case 'ytmp3':
             footer: `${nomebot} • Versão ${botVersion}`
           }, { quoted: info }).catch((sendErr) => console.error('Erro ao enviar mensagem de resultado (busca):', sendErr));
 
-          youtube.mp3(videoUrl, 128, KeyCog)
+          youtube.mp3(videoUrl, 128)
             .then(async (dlRes) => {
               if (!dlRes.ok) return nazu.sendMessage(from, { text: `❌ Erro ao baixar o áudio: ${dlRes.msg}` }, { quoted: info });
 
@@ -19561,7 +18608,6 @@ case 'ytmp3':
             .catch((downloadError) => {
               console.error('Erro no download (busca):', downloadError);
               if (downloadError.message?.includes('API key inválida')) {
-                notifyOwnerAboutApiKey(nazu, nmrdn, downloadError.message, "YouTube", prefix);
                 nazu.sendMessage(from, { text: '🤖 *Sistema de YouTube temporariamente indisponível*' }, { quoted: info });
               } else if (String(downloadError).includes("age")) {
                 nazu.sendMessage(from, { text: `🔞 Este conteúdo possui restrição de idade e não pode ser baixado.` }, { quoted: info });
@@ -19580,11 +18626,6 @@ case 'ytmp3':
 
   } catch (error) {
     console.error('Erro no comando play/ytmp3 (bloco principal):', error);
-
-    if (error.message?.includes('API key inválida')) {
-      await notifyOwnerAboutApiKey(nazu, nmrdn, error.message, "YouTube", prefix);
-      return reply('🤖 *Sistema de YouTube temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-    }
 
     if (String(error).includes("age"))
       return reply(`🔞 Este conteúdo possui restrição de idade e não pode ser processado.`);
@@ -19607,70 +18648,49 @@ case 'spotify':
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
     }
 
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'Spotify', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
     if (!q.includes('open.spotify.com/track/')) {
       return reply('❌ Por favor, envie um link válido do Spotify.\n\n💡 Dica: Use o comando play2 para buscar por nome!');
     }
 
     await reply('🎵 Baixando do Spotify... Aguarde um momento!');
 
-    // Usar rota de download da API Cognima
-    axios.get('https://cog.api.br/api/v1/spotify/download', {
-      params: { url: q },
-      headers: { 'X-API-Key': KeyCog },
-      responseType: 'arraybuffer',
-      timeout: 120000
-    })
-    .then(async (response) => {
-      const audioBuffer = Buffer.from(response.data);
-      
-      // Extrair informações do track ID para mostrar nome
-      const trackId = q.match(/track\/([a-zA-Z0-9]+)/)?.[1];
-      const filename = trackId ? `spotify_${trackId}.mp3` : 'spotify_audio.mp3';
-      
-      const caption = `🎵 *Música Baixada do Spotify!* 🎵\n\n🔗 ${q}\n\n🎧 *Enviando áudio...*`;
+    const downloadResult = await spotifyModule.download(q);
 
-      try {
-        await reply(caption);
-      } catch (err) {
-        console.error('Erro ao enviar caption:', err);
-      }
+    if (!downloadResult.ok) {
+      return reply(`❌ ${downloadResult.msg}`);
+    }
 
-      try {
+    const caption = `🎵 *Música Baixada do Spotify!* 🎵\n\n` +
+      `📌 *Título:* ${downloadResult.title}\n` +
+      `👤 *Artista(s):* ${Array.isArray(downloadResult.artists) ? downloadResult.artists.join(', ') : downloadResult.artists}\n` +
+      `${downloadResult.year ? `📅 *Ano:* ${downloadResult.year}\n` : ''}` +
+      `🎧 *Enviando áudio...*`;
+
+    try {
+      await reply(caption);
+    } catch (err) {
+      console.error('Erro ao enviar caption:', err);
+    }
+
+    try {
+      await nazu.sendMessage(from, {
+        audio: downloadResult.buffer,
+        mimetype: 'audio/mpeg',
+        fileName: downloadResult.filename
+      }, { quoted: info });
+    } catch (audioError) {
+      if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
+        await reply('📦 Arquivo muito grande, enviando como documento...');
         await nazu.sendMessage(from, {
-          audio: audioBuffer,
-          mimetype: 'audio/mpeg',
-          fileName: filename
+          document: downloadResult.buffer,
+          fileName: downloadResult.filename,
+          mimetype: 'audio/mpeg'
         }, { quoted: info });
-      } catch (audioError) {
-        if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
-          await reply('📦 Arquivo muito grande, enviando como documento...');
-          await nazu.sendMessage(from, {
-            document: audioBuffer,
-            fileName: filename,
-            mimetype: 'audio/mpeg'
-          }, { quoted: info });
-        } else {
-          console.error('Erro ao enviar áudio do Spotify:', audioError);
-          reply('❌ Ocorreu um erro ao enviar o áudio.');
-        }
-      }
-    })
-    .catch((error) => {
-      console.error('Erro no download do Spotify:', error);
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida ou expirada', 'Spotify', prefix);
-        reply('🤖 *Sistema de Spotify temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
-      } else if (error.response?.status === 400) {
-        reply('❌ Link inválido ou música não encontrada no Spotify.');
       } else {
-        reply(`❌ Erro ao baixar do Spotify: ${error.message || 'Erro desconhecido'}`);
+        console.error('Erro ao enviar áudio do Spotify:', audioError);
+        reply('❌ Ocorreu um erro ao enviar o áudio.');
       }
-    });
+    }
 
   } catch (error) {
     console.error('Erro no comando spotifydl:', error);
@@ -19693,90 +18713,51 @@ case 'playspotify':
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
     }
 
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'Spotify', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
     await reply('🔎 Buscando no Spotify... Aguarde!');
 
-    // 1. Primeiro buscar a música usando search-one
-    axios.get('https://cog.api.br/api/v1/spotify/search-one', {
-      params: { q: q },
-      headers: { 'X-API-Key': KeyCog },
-      timeout: 30000
-    })
-    .then(async (searchResponse) => {
-      const searchData = searchResponse.data;
-      
-      if (!searchData.success || !searchData.result) {
-        return reply('❌ Nenhuma música encontrada com esse nome.');
-      }
+    // 1. Buscar a música
+    const searchResult = await spotifyModule.search(q, 1);
 
-      const track = searchData.result;
-      const trackUrl = track.link;
-      
-      const searchCaption = `🎵 *Música Encontrada!* 🎵\n\n` +
-        `🔍 *Busca:* ${searchData.query}\n\n` +
-        `📌 *Título:* ${track.name}\n` +
-        `👤 *Artista(s):* ${track.artists}\n` +
-        `🔗 *Link:* ${trackUrl}\n\n` +
-        `📥 *Baixando...*`;
+    if (!searchResult.ok || !searchResult.results?.length) {
+      return reply('❌ Nenhuma música encontrada com esse nome.');
+    }
 
-      await reply(searchCaption);
+    const track = searchResult.results[0];
 
-      // 2. Agora baixar a música usando o link encontrado
-      axios.get('https://cog.api.br/api/v1/spotify/download', {
-        params: { url: trackUrl },
-        headers: { 'X-API-Key': KeyCog },
-        responseType: 'arraybuffer',
-        timeout: 120000
-      })
-      .then(async (downloadResponse) => {
-        const audioBuffer = Buffer.from(downloadResponse.data);
-        const filename = `${track.name.replace(/[^\w\s]/gi, '_')}.mp3`;
+    const searchCaption = `🎵 *Música Encontrada!* 🎵\n\n` +
+      `🔍 *Busca:* ${q}\n\n` +
+      `📌 *Título:* ${track.name}\n` +
+      `🔗 *Link:* ${track.link}\n\n` +
+      `📥 *Baixando...*`;
 
-        try {
-          await nazu.sendMessage(from, {
-            audio: audioBuffer,
-            mimetype: 'audio/mpeg',
-            fileName: filename
-          }, { quoted: info });
-        } catch (audioError) {
-          if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
-            await reply('📦 Arquivo muito grande, enviando como documento...');
-            await nazu.sendMessage(from, {
-              document: audioBuffer,
-              fileName: filename,
-              mimetype: 'audio/mpeg'
-            }, { quoted: info });
-          } else {
-            console.error('Erro ao enviar áudio do Spotify:', audioError);
-            reply('❌ Ocorreu um erro ao enviar o áudio.');
-          }
-        }
-      })
-      .catch((downloadError) => {
-        console.error('Erro no download do Spotify:', downloadError);
-        if (downloadError.response?.status === 401 || downloadError.response?.status === 403) {
-          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida ou expirada', 'Spotify', prefix);
-          reply('🤖 *Sistema de Spotify temporariamente indisponível*');
-        } else {
-          reply(`❌ Erro ao baixar a música: ${downloadError.message || 'Erro desconhecido'}`);
-        }
-      });
-    })
-    .catch((searchError) => {
-      console.error('Erro na busca do Spotify:', searchError);
-      if (searchError.response?.status === 401 || searchError.response?.status === 403) {
-        notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida ou expirada', 'Spotify', prefix);
-        reply('🤖 *Sistema de Spotify temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
-      } else if (searchError.response?.status === 400) {
-        reply('❌ Não foi possível buscar essa música. Tente com outro nome.');
+    await reply(searchCaption);
+
+    // 2. Baixar a música
+    const downloadResult = await spotifyModule.download(track.link);
+
+    if (!downloadResult.ok) {
+      return reply(`❌ ${downloadResult.msg}`);
+    }
+
+    try {
+      await nazu.sendMessage(from, {
+        audio: downloadResult.buffer,
+        mimetype: 'audio/mpeg',
+        fileName: downloadResult.filename
+      }, { quoted: info });
+    } catch (audioError) {
+      if (String(audioError).includes("ENOSPC") || String(audioError).includes("size")) {
+        await reply('📦 Arquivo muito grande, enviando como documento...');
+        await nazu.sendMessage(from, {
+          document: downloadResult.buffer,
+          fileName: downloadResult.filename,
+          mimetype: 'audio/mpeg'
+        }, { quoted: info });
       } else {
-        reply(`❌ Erro ao buscar no Spotify: ${searchError.message || 'Erro desconhecido'}`);
+        console.error('Erro ao enviar áudio do Spotify:', audioError);
+        reply('❌ Ocorreu um erro ao enviar o áudio.');
       }
-    });
+    }
 
   } catch (error) {
     console.error('Erro no comando play2:', error);
@@ -19798,10 +18779,6 @@ case 'soundcloud':
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
     }
 
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
 
     if (!q.includes('soundcloud.com/')) {
       return reply('❌ Por favor, envie um link válido do SoundCloud.\n\n💡 Dica: Use o comando play3 para buscar por nome!');
@@ -19809,13 +18786,9 @@ case 'soundcloud':
 
     await reply('🎵 Baixando do SoundCloud... Aguarde um momento!');
 
-    soundcloud.download(q, KeyCog)
+    soundcloud.download(q)
       .then(async (result) => {
         if (!result.ok) {
-          if (result.msg.includes('API key inválida')) {
-            soundcloud.notifyOwnerAboutApiKey(nazu, numerodono, result.msg, command);
-            return reply('🤖 *Sistema de SoundCloud temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
-          }
           return reply(`❌ Erro: ${result.msg}`);
         }
 
@@ -19855,12 +18828,7 @@ case 'soundcloud':
       })
       .catch((error) => {
         console.error('Erro no download do SoundCloud:', error);
-        if (error.message?.includes('API key inválida')) {
-          soundcloud.notifyOwnerAboutApiKey(nazu, numerodono, error.message, command);
-          reply('🤖 *Sistema de SoundCloud temporariamente indisponível*');
-        } else {
           reply(`❌ Erro ao baixar do SoundCloud: ${error.message}`);
-        }
       });
 
   } catch (error) {
@@ -19884,18 +18852,14 @@ case 'playsoundcloud':
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
     }
 
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
+
 
     await reply('🔎 Buscando no SoundCloud... Aguarde!');
 
-    soundcloud.searchDownload(q, KeyCog)
+    soundcloud.searchDownload(q)
       .then(async (result) => {
         if (!result.ok) {
           if (result.msg.includes('API key inválida')) {
-            soundcloud.notifyOwnerAboutApiKey(nazu, numerodono, result.msg, command);
             return reply('🤖 *Sistema de SoundCloud temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
           }
           return reply(`❌ Erro: ${result.msg}`);
@@ -19956,7 +18920,6 @@ case 'playsoundcloud':
       .catch((error) => {
         console.error('Erro na busca/download do SoundCloud:', error);
         if (error.message?.includes('API key inválida')) {
-          soundcloud.notifyOwnerAboutApiKey(nazu, numerodono, error.message, command);
           reply('🤖 *Sistema de SoundCloud temporariamente indisponível*');
         } else {
           reply(`❌ Erro ao buscar no SoundCloud: ${error.message}`);
@@ -19973,19 +18936,13 @@ case 'playsoundcloud':
       case 'ytmp4':
         try {
           if (!q) return reply(`Digite o nome do vídeo ou um link do YouTube.\n> Ex: ${prefix + command} Back to Black`);
-          
-          // Verificar se tem API key
-          if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
 
           let videoUrl;
           
           if (q.includes('youtube.com') || q.includes('youtu.be')) {
             videoUrl = q;
             reply('Aguarde um momentinho... ☀️');
-            youtube.mp4(videoUrl, 360, KeyCog)
+            youtube.mp4(videoUrl, 360)
               .then(async (dlRes) => {
                 if (!dlRes.ok) return reply(dlRes.msg);
 
@@ -20014,16 +18971,12 @@ case 'playsoundcloud':
               })
               .catch((e) => {
                 console.error('Erro ao baixar/enviar vídeo direto (promise):', e);
-                if (e.message?.includes('API key inválida')) {
-                  notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "YouTube", prefix);
-                  return reply('🤖 *Sistema de YouTube temporariamente indisponível*');
-                }
                 reply('❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.');
               });
             return;
           } else {
             // Use Promise .then for search
-            youtube.search(q, KeyCog)
+            youtube.search(q)
               .then((videoInfo) => {
                 if (!videoInfo.ok) return reply(videoInfo.msg);
                 videoUrl = videoInfo.data.url;
@@ -20036,7 +18989,7 @@ case 'playsoundcloud':
                   footer: `By: ${nomebot}`
                 }, { quoted: info }).catch((sendErr) => console.error('Erro ao enviar mensagem de resultado (playvid):', sendErr));
 
-                return youtube.mp4(videoUrl, 360, KeyCog);
+                return youtube.mp4(videoUrl, 360);
               })
               .then(async (dlRes) => {
                 if (!dlRes.ok) return reply(dlRes.msg);
@@ -20062,10 +19015,6 @@ case 'playsoundcloud':
               })
               .catch((e) => {
                 console.error('Erro no download/playvid:', e);
-                if (e.message && e.message.includes('API key inválida')) {
-                  notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "YouTube", prefix);
-                  return reply('🤖 *Sistema de YouTube temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-                }
                 reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
               });
 
@@ -20075,12 +19024,6 @@ case 'playsoundcloud':
           // O fluxo de busca/baixar já foi tratado via promessas acima.
         } catch (e) {
           console.error('Erro no comando playvid/ytmp4:', e);
-          
-          // Verificar se é erro de API key e notificar o dono
-          if (e.message && e.message.includes('API key inválida')) {
-            await notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "YouTube", prefix);
-            return reply('🤖 *Sistema de YouTube temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          }
           
           reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
         }
@@ -20097,327 +19040,6 @@ case 'playsoundcloud':
         }
         break;
 
-case 'bandcamp':
-case 'bandcampdl':
-  try {
-    if (!q) return reply(`Digite um link do Bandcamp.\n> Ex: ${prefix}${command} https://artist.bandcamp.com/track/song-name`);
-    
-    // Verificar se tem API key
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
-    // Verificar se é um link válido do Bandcamp
-    if (!q.includes('bandcamp.com')) {
-      return reply('❌ Por favor, forneça um link válido do Bandcamp.');
-    }
-
-    reply('Aguarde um momentinho... ☀️');
-
-    // Helper para formatação de duração
-    const formatDuration = (seconds) => {
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    bandcamp.download(q, KeyCog).then(result => {
-      if (!result.ok) {
-        return reply(result.message || '❌ Erro ao baixar do Bandcamp.');
-      }
-
-      const {
-        title,
-        artist,
-        album,
-        thumbnail,
-        duration,
-        genre,
-        releaseDate,
-        trackNumber,
-        buffer,
-        filename
-      } = result;
-
-      // Preparar a mensagem com informações da música
-      let caption = `╭━━━⊱🎵 BANDCAMP ⊱━━━╮\n\n`;
-      caption += `📝 *Título:* ${title}\n`;
-      caption += `👤 *Artista:* ${artist}\n`;
-      
-      if (album) {
-        caption += `💿 *Álbum:* ${album}\n`;
-      }
-      
-      if (trackNumber) {
-        caption += `🔢 *Faixa:* ${trackNumber}\n`;
-      }
-      
-      if (duration) {
-        caption += `⏱️ *Duração:* ${formatDuration(duration)}\n`;
-      }
-      
-      if (genre) {
-        caption += `🎼 *Gênero:* ${genre}\n`;
-      }
-      
-      if (releaseDate) {
-        caption += `📅 *Lançamento:* ${releaseDate}\n`;
-      }
-      
-      caption += `\n╰━━━━━━━━━━━━━━━━━━━╯`;
-
-      // Enviar thumbnail primeiro
-      if (thumbnail) {
-        nazu.sendMessage(from, {
-          image: { url: thumbnail },
-          caption: caption
-        }).catch(err => {
-          console.error('Erro ao enviar thumbnail do Bandcamp:', err);
-        });
-      }
-
-      // Enviar o áudio
-      const fileSize = buffer.length;
-      const fileSizeMB = (fileSize / (1024 * 1024)).toFixed(2);
-
-      nazu.sendMessage(from, {
-        audio: buffer,
-        mimetype: 'audio/mpeg',
-        fileName: filename,
-        ptt: false
-      }, { quoted: info }).then(() => {
-        reply(`✅ Música do Bandcamp baixada com sucesso! (${fileSizeMB}MB)`);
-      }).catch(err => {
-        console.error('Erro ao enviar áudio do Bandcamp:', err);
-        // Tentar enviar como documento se falhar
-        nazu.sendMessage(from, {
-          document: buffer,
-          mimetype: 'audio/mpeg',
-          fileName: filename
-        }, { quoted: info }).then(() => {
-          reply(`✅ Música enviada como documento (${fileSizeMB}MB).`);
-        }).catch(docErr => {
-          console.error('Erro ao enviar documento do Bandcamp:', docErr);
-          reply('❌ Erro ao enviar o áudio. Tente novamente.');
-        });
-      });
-    }).catch(error => {
-      console.error('Erro ao baixar do Bandcamp:', error);
-      
-      if (error.message?.includes('401') || error.message?.includes('403')) {
-        ia.notifyOwnerAboutApiKey(nazu, nmrdn, `Erro de autenticação na API: ${error.message}`);
-        return reply('❌ Erro de autenticação da API. O dono foi notificado.');
-      }
-      
-      if (error.message?.includes('404')) {
-        return reply('❌ Música não encontrada. Verifique se o link está correto e se a música ainda está disponível.');
-      }
-      
-      if (error.message?.includes('timeout')) {
-        return reply('❌ O download demorou muito tempo. Tente novamente.');
-      }
-      
-      reply('❌ Erro ao baixar do Bandcamp. Tente novamente mais tarde.');
-    });
-  } catch (error) {
-    console.error('Erro no comando bandcamp:', error);
-    reply("❌ Ocorreu um erro ao processar sua solicitação.");
-  }
-  break;
-
-case 'alldl':
-case 'alldownload':
-case 'getallmedia':
-  try {
-    if (!q) return reply(`Digite uma URL para extrair todos os formatos disponíveis.\n> Ex: ${prefix}${command} https://www.youtube.com/watch?v=dQw4w9WgXcQ\n\n✨ Suporta 1000+ sites!`);
-    
-    // Verificar se tem API key
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
-    reply('🔍 Analisando URL e extraindo todos os formatos disponíveis...\n⏳ Isso pode levar alguns segundos...');
-
-    alldl.getAllMedia(q, KeyCog).then(result => {
-      if (!result.ok) {
-        return reply(result.message || '❌ Erro ao extrair informações da mídia.');
-      }
-
-      const {
-        metadata,
-        media,
-        totalItems,
-        videoCount,
-        audioCount,
-        imageCount
-      } = result;
-
-      // Preparar mensagem com informações
-      let message = `╭━━━⊱🎬 ALL DOWNLOAD ⊱━━━╮\n\n`;
-      message += `📝 *Título:* ${metadata.title || 'Desconhecido'}\n`;
-      
-      if (metadata.uploader) {
-        message += `👤 *Autor:* ${metadata.uploader}\n`;
-      }
-      
-      if (metadata.platform) {
-        message += `🌐 *Plataforma:* ${metadata.platform.toUpperCase()}\n`;
-      }
-      
-      if (metadata.duration) {
-        const mins = Math.floor(metadata.duration / 60);
-        const secs = metadata.duration % 60;
-        message += `⏱️ *Duração:* ${mins}:${secs.toString().padStart(2, '0')}\n`;
-      }
-      
-      if (metadata.views) {
-        const formatNumber = (num) => {
-          if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-          if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-          return num.toString();
-        };
-        message += `👁️ *Visualizações:* ${formatNumber(metadata.views)}\n`;
-      }
-      
-      message += `\n📊 *Formatos Encontrados:*\n`;
-      message += `🎥 Vídeos: ${videoCount}\n`;
-      message += `🎵 Áudios: ${audioCount}\n`;
-      message += `🖼️ Imagens: ${imageCount}\n`;
-      message += `📦 Total: ${totalItems} formatos\n`;
-      message += `\n╰━━━━━━━━━━━━━━━━━━━╯\n\n`;
-
-      // Preparar dados para encurtamento
-      const videos = media.filter(m => m.type === 'video').slice(0, 8);
-      const audios = media.filter(m => m.type === 'audio').slice(0, 5);
-      const images = media.filter(m => m.type === 'image').slice(0, 3);
-      
-      const allMediaItems = [...videos, ...audios, ...images];
-      
-      // Função para encurtar com retry (máximo 5 tentativas)
-      const shortenWithRetry = (item, maxRetries = 5) => {
-        return new Promise((resolve) => {
-          const attempt = (retryCount = 0) => {
-            axios.post('https://spoo.me/api/v1/shorten', { 
-              long_url: item.url,
-              custom_alias: `nazu_${Math.random().toString(36).substring(2, 8)}`
-            })
-              .then(res => {
-                resolve({ ...item, shortUrl: res.data.short_url });
-              })
-              .catch(err => {
-                if (retryCount < maxRetries) {
-                  console.warn(`⚠️ Tentativa ${retryCount + 1}/${maxRetries} de encurtar falhou, retentando...`);
-                  setTimeout(() => attempt(retryCount + 1), 500); // Aguarda 500ms antes de tentar novamente
-                } else {
-                  console.warn(`❌ Falha ao encurtar após ${maxRetries} tentativas`);
-                  resolve({ ...item, shortUrl: null });
-                }
-              });
-          };
-          attempt();
-        });
-      };
-      
-      // Encurtar todos os links com retry
-      Promise.all(allMediaItems.map(item => shortenWithRetry(item))).then(mediaWithLinks => {
-        let finalMessage = message;
-        
-        // Listar vídeos com links
-        const videosWithLinks = mediaWithLinks.filter(m => m.type === 'video');
-        if (videosWithLinks.length > 0) {
-          finalMessage += `\n🎥 *VÍDEOS DISPONÍVEIS:*\n`;
-          videosWithLinks.forEach((video, index) => {
-            finalMessage += `\n${index + 1}. ${video.quality || video.resolution || 'N/A'}`;
-            if (video.filesize) {
-              const sizeMB = (video.filesize / (1024 * 1024)).toFixed(1);
-              finalMessage += ` (${sizeMB}MB)`;
-            }
-            if (video.fps) finalMessage += ` ${video.fps}fps`;
-            if (video.isBest) finalMessage += ` ⭐`;
-            if (video.shortUrl) {
-              finalMessage += `\n   🔗 ${video.shortUrl}`;
-            } else {
-              finalMessage += `\n   � ${video.url}`;
-            }
-          });
-          if (videos.length > videosWithLinks.length) {
-            finalMessage += `\n... e mais ${videos.length - videosWithLinks.length} formatos de vídeo`;
-          }
-        }
-        
-        // Listar áudios com links
-        const audiosWithLinks = mediaWithLinks.filter(m => m.type === 'audio');
-        if (audiosWithLinks.length > 0) {
-          finalMessage += `\n\n🎵 *ÁUDIOS DISPONÍVEIS:*\n`;
-          audiosWithLinks.forEach((audio, index) => {
-            finalMessage += `\n${index + 1}. ${audio.quality || audio.abr + 'kbps' || 'N/A'}`;
-            if (audio.filesize) {
-              const sizeMB = (audio.filesize / (1024 * 1024)).toFixed(1);
-              finalMessage += ` (${sizeMB}MB)`;
-            }
-            if (audio.shortUrl) {
-              finalMessage += `\n   🔗 ${audio.shortUrl}`;
-            } else {
-              finalMessage += `\n   🔗 ${audio.url}`;
-            }
-          });
-          if (audios.length > audiosWithLinks.length) {
-            finalMessage += `\n... e mais ${audios.length - audiosWithLinks.length} formatos de áudio`;
-          }
-        }
-        
-        // Listar imagens com links
-        const imagesWithLinks = mediaWithLinks.filter(m => m.type === 'image');
-        if (imagesWithLinks.length > 0) {
-          finalMessage += `\n\n🖼️ *THUMBNAILS DISPONÍVEIS:*\n`;
-          imagesWithLinks.forEach((image, index) => {
-            finalMessage += `\n${index + 1}. ${image.quality || image.width + 'x' + image.height || 'N/A'}`;
-            if (image.shortUrl) {
-              finalMessage += `\n   🔗 ${image.shortUrl}`;
-            } else {
-              finalMessage += `\n   🔗 ${image.url}`;
-            }
-          });
-          if (images.length > imagesWithLinks.length) {
-            finalMessage += `\n... e mais ${images.length - imagesWithLinks.length} thumbnails`;
-          }
-        }
-        
-        finalMessage += `\n\n💡 *Dica:* Copie o link desejado e cole no navegador ou no seu dispositivo!`;
-        reply(finalMessage);
-      }).catch(() => {
-        // Se falhar em encurtar, mostra sem os links
-        reply(message);
-
-      });
-
-
-    }).catch(error => {
-      console.error('Erro ao extrair formatos:', error);
-      
-      if (error.message?.includes('401') || error.message?.includes('403')) {
-        ia.notifyOwnerAboutApiKey(nazu, nmrdn, `Erro de autenticação na API: ${error.message}`);
-        return reply('❌ Erro de autenticação da API. O dono foi notificado.');
-      }
-      
-      if (error.message?.includes('404')) {
-        return reply('❌ Conteúdo não encontrado. Verifique se o link está correto.');
-      }
-      
-      if (error.message?.includes('timeout')) {
-        return reply('❌ A solicitação demorou muito tempo. Tente novamente.');
-      }
-      
-      reply('❌ Erro ao extrair formatos da mídia. Tente novamente mais tarde.');
-    });
-  } catch (error) {
-    console.error('Erro no comando alldl:', error);
-    reply("❌ Ocorreu um erro ao processar sua solicitação.");
-  }
-  break;
-
       case 'tiktok':
       case 'tiktokaudio':
       case 'tiktokvideo':
@@ -20429,14 +19051,11 @@ case 'getallmedia':
           if (!q) return reply(`Digite um nome ou o link de um vídeo.\n> Ex: ${prefix}${command} Gato`);
           
           // Verificar se tem API key
-          if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
+          
 
           reply('Aguarde um momentinho... ☀️');
           let isTikTokUrl = q.includes('tiktok');
-          const tiktokPromise = isTikTokUrl ? tiktok.dl(q, KeyCog) : tiktok.search(q, KeyCog);
+          const tiktokPromise = isTikTokUrl ? tiktok.dl(q) : tiktok.search(q);
 
           tiktokPromise
             .then(async (datinha) => {
@@ -20463,23 +19082,12 @@ case 'getallmedia':
             })
             .catch(async (e) => {
               console.error('Erro no comando TikTok (promise):', e);
-              if (e.message && e.message.includes('API key inválida')) {
-                await notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "TikTok", prefix);
-                return reply('🤖 *Sistema de TikTok temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-              }
-
               reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
             });
 
           return;
         } catch (e) {
           console.error('Erro no comando TikTok:', e);
-          
-          // Verificar se é erro de API key e notificar o dono
-          if (e.message && e.message.includes('API key inválida')) {
-            await notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "TikTok", prefix);
-            return reply('🤖 *Sistema de TikTok temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          }
           
           reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
         }
@@ -20501,24 +19109,15 @@ case 'facebookdl':
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
     }
 
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
     if (!q.includes('facebook.com/')) {
       return reply('❌ Por favor, envie um link válido do Facebook.');
     }
 
     await reply('📹 Baixando vídeo do Facebook em HD... Aguarde!');
 
-    facebook.downloadHD(q, KeyCog)
+    facebook.downloadHD(q)
       .then(async (result) => {
         if (!result.ok) {
-          if (result.msg.includes('API key inválida')) {
-            facebook.notifyOwnerAboutApiKey(nazu, numerodono, result.msg, command);
-            return reply('🤖 *Sistema de Facebook temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
-          }
           return reply(`❌ Erro: ${result.msg}`);
         }
 
@@ -20562,669 +19161,11 @@ case 'facebookdl':
       })
       .catch((error) => {
         console.error('Erro no download do Facebook:', error);
-        if (error.message?.includes('API key inválida')) {
-          facebook.notifyOwnerAboutApiKey(nazu, numerodono, error.message, command);
-          reply('🤖 *Sistema de Facebook temporariamente indisponível*');
-        } else {
-          reply(`❌ Erro ao baixar do Facebook: ${error.message}`);
-        }
+        reply(`❌ Erro ao baixar do Facebook: ${error.message}`);
       });
 
   } catch (error) {
     console.error('Erro no comando facebook:', error);
-    reply("❌ Ocorreu um erro ao processar sua solicitação.");
-  }
-  break;
-
-case 'vimeo':
-case 'vimeodl':
-  try {
-    if (!q) {
-      return reply(`╭━━━⊱ 🎬 *VIMEO DOWNLOAD* 🎬 ⊱━━━╮
-│
-│ 📝 Digite o link do vídeo do Vimeo
-│
-│  *Exemplo:*
-│  ${prefix + command} https://vimeo.com/...
-│
-╰━━━━━━━━━━━━━━━━━━━━━━━━━╯`);
-    }
-
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
-    if (!q.includes('vimeo.com/')) {
-      return reply('❌ Por favor, envie um link válido do Vimeo.');
-    }
-
-    await reply('🎬 Baixando vídeo do Vimeo... Aguarde!');
-
-    vimeo.download(q, KeyCog)
-      .then(async (result) => {
-        if (!result.ok) {
-          if (result.msg.includes('API key inválida')) {
-            vimeo.notifyOwnerAboutApiKey(nazu, numerodono, result.msg, command);
-            return reply('🤖 *Sistema de Vimeo temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!');
-          }
-          return reply(`❌ Erro: ${result.msg}`);
-        }
-
-        const formatDuration = (seconds) => {
-          const mins = Math.floor(seconds / 60);
-          const secs = seconds % 60;
-          return `${mins}:${secs.toString().padStart(2, '0')}`;
-        };
-
-        const formatNumber = (num) => {
-          if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-          if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-          return num.toString();
-        };
-
-        const caption = `🎬 *Vídeo Baixado com Sucesso!* 🎬\n\n` +
-          `📌 *Título:* ${result.title}\n` +
-          `👤 *Autor:* ${result.author}\n` +
-          `⏱️ *Duração:* ${formatDuration(result.duration)}\n` +
-          `📊 *Qualidade:* ${result.quality} (${result.width}x${result.height})\n` +
-          `👀 *Visualizações:* ${formatNumber(result.views)}\n` +
-          `❤️ *Curtidas:* ${formatNumber(result.likes)}\n` +
-          (result.description ? `\n📝 *Descrição:* ${result.description.slice(0, 100)}${result.description.length > 100 ? '...' : ''}\n` : '') +
-          `\n📥 *Enviando vídeo...*`;
-
-        try {
-          await nazu.sendMessage(from, {
-            image: { url: result.thumbnail },
-            caption
-          }, { quoted: info });
-        } catch (imgErr) {
-          console.error('Erro ao enviar thumbnail do Vimeo:', imgErr);
-        }
-
-        try {
-          await nazu.sendMessage(from, {
-            video: result.buffer,
-            mimetype: 'video/mp4',
-            fileName: result.filename
-          }, { quoted: info });
-        } catch (videoError) {
-          if (String(videoError).includes("ENOSPC") || String(videoError).includes("size")) {
-            await reply('📦 Vídeo muito grande, enviando como documento...');
-            await nazu.sendMessage(from, {
-              document: result.buffer,
-              fileName: result.filename,
-              mimetype: 'video/mp4'
-            }, { quoted: info });
-          } else {
-            console.error('Erro ao enviar vídeo do Vimeo:', videoError);
-            reply('❌ Ocorreu um erro ao enviar o vídeo.');
-          }
-        }
-      })
-      .catch((error) => {
-        console.error('Erro no download do Vimeo:', error);
-        if (error.message?.includes('API key inválida')) {
-          vimeo.notifyOwnerAboutApiKey(nazu, numerodono, error.message, command);
-          reply('🤖 *Sistema de Vimeo temporariamente indisponível*');
-        } else {
-          reply(`❌ Erro ao baixar do Vimeo: ${error.message}`);
-        }
-      });
-
-  } catch (error) {
-    console.error('Erro no comando vimeo:', error);
-    reply("❌ Ocorreu um erro ao processar sua solicitação.");
-  }
-  break;
-
-case 'twitch':
-case 'twitchdl':
-  try {
-    if (!q) return reply(`Digite um link do Twitch (clip ou VOD).\n> Ex: ${prefix}${command} https://www.twitch.tv/videos/12345678\n> Ex: ${prefix}${command} https://clips.twitch.tv/AbcdEfgh`);
-    
-    // Verificar se tem API key
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
-    // Verificar se é um link válido do Twitch
-    if (!q.includes('twitch.tv')) {
-      return reply('❌ Por favor, forneça um link válido do Twitch (clips ou VODs).');
-    }
-
-    reply('Aguarde um momentinho... ☀️');
-
-    // Helpers para formatação
-    const formatDuration = (seconds) => {
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const formatNumber = (num) => {
-      if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-      if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-      return num.toString();
-    };
-
-    twitch.download(q, KeyCog).then(result => {
-      if (!result.ok) {
-        return reply(result.message || '❌ Erro ao baixar o vídeo do Twitch.');
-      }
-
-      const {
-        title,
-        streamer,
-        thumbnail,
-        duration,
-        views,
-        game,
-        type,
-        timestamp,
-        buffer,
-        filename
-      } = result;
-
-      // Preparar a mensagem com informações do vídeo
-      let caption = `╭━━━⊱🎮 TWITCH ${type === 'clip' ? 'CLIP' : 'VOD'} ⊱━━━╮\n\n`;
-      caption += `📺 *Título:* ${title}\n`;
-      caption += `👤 *Streamer:* ${streamer}\n`;
-      
-      if (duration) {
-        caption += `⏱️ *Duração:* ${formatDuration(duration)}\n`;
-      }
-      
-      if (views) {
-        caption += `👁️ *Visualizações:* ${formatNumber(views)}\n`;
-      }
-      
-      if (game) {
-        caption += `🎮 *Jogo:* ${game}\n`;
-      }
-      
-      if (timestamp) {
-        const date = new Date(timestamp);
-        caption += `📅 *Data:* ${date.toLocaleDateString('pt-BR')}\n`;
-      }
-      
-      caption += `\n╰━━━━━━━━━━━━━━━━━━━╯`;
-
-      // Enviar thumbnail primeiro
-      if (thumbnail) {
-        nazu.sendMessage(from, {
-          image: { url: thumbnail },
-          caption: caption
-        }).catch(err => {
-          console.error('Erro ao enviar thumbnail do Twitch:', err);
-        });
-      }
-
-      // Enviar o vídeo
-      const fileSize = buffer.length;
-      const fileSizeMB = (fileSize / (1024 * 1024)).toFixed(2);
-
-      if (fileSize > 100 * 1024 * 1024) { // > 100MB
-        nazu.sendMessage(from, {
-          document: buffer,
-          mimetype: 'video/mp4',
-          fileName: filename
-        }, { quoted: info }).then(() => {
-          reply(`✅ Vídeo enviado como documento (${fileSizeMB}MB).`);
-        }).catch(err => {
-          console.error('Erro ao enviar documento do Twitch:', err);
-          reply('❌ Erro ao enviar o vídeo. O arquivo pode ser muito grande.');
-        });
-      } else {
-        nazu.sendMessage(from, {
-          video: buffer,
-          mimetype: 'video/mp4',
-          fileName: filename
-        }, { quoted: info }).then(() => {
-          reply(`✅ Vídeo do Twitch baixado com sucesso! (${fileSizeMB}MB)`);
-        }).catch(err => {
-          console.error('Erro ao enviar vídeo do Twitch:', err);
-          reply('❌ Erro ao enviar o vídeo. Tente novamente.');
-        });
-      }
-    }).catch(error => {
-      console.error('Erro ao baixar do Twitch:', error);
-      
-      if (error.message?.includes('401') || error.message?.includes('403')) {
-        ia.notifyOwnerAboutApiKey(nazu, nmrdn, `Erro de autenticação na API: ${error.message}`);
-        return reply('❌ Erro de autenticação da API. O dono foi notificado.');
-      }
-      
-      if (error.message?.includes('404')) {
-        return reply('❌ Vídeo não encontrado. Verifique se o link está correto e se o vídeo ainda está disponível.');
-      }
-      
-      if (error.message?.includes('timeout')) {
-        return reply('❌ O download demorou muito tempo. Tente novamente com um vídeo mais curto.');
-      }
-      
-      reply('❌ Erro ao baixar o vídeo do Twitch. Tente novamente mais tarde.');
-    });
-  } catch (error) {
-    console.error('Erro no comando twitch:', error);
-    reply("❌ Ocorreu um erro ao processar sua solicitação.");
-  }
-  break;
-
-case 'reddit':
-case 'redditdl':
-  try {
-    if (!q) return reply(`Digite um link de um post do Reddit.\n> Ex: ${prefix}${command} https://www.reddit.com/r/videos/comments/abc123/...`);
-    
-    // Verificar se tem API key
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
-    // Verificar se é um link válido do Reddit
-    if (!q.includes('reddit.com')) {
-      return reply('❌ Por favor, forneça um link válido do Reddit.');
-    }
-
-    reply('Aguarde um momentinho... ☀️');
-
-    // Helpers para formatação
-    const formatDuration = (seconds) => {
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const formatNumber = (num) => {
-      if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-      if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-      return num.toString();
-    };
-
-    reddit.download(q, KeyCog).then(result => {
-      if (!result.ok) {
-        return reply(result.message || '❌ Erro ao baixar o post do Reddit.');
-      }
-
-      const {
-        title,
-        author,
-        subreddit,
-        thumbnail,
-        duration,
-        isVideo,
-        upvotes,
-        comments,
-        buffer,
-        filename
-      } = result;
-
-      // Preparar a mensagem com informações do post
-      let caption = `╭━━━⊱🔴 REDDIT POST ⊱━━━╮\n\n`;
-      caption += `📝 *Título:* ${title}\n`;
-      caption += `👤 *Autor:* u/${author}\n`;
-      caption += `📁 *Subreddit:* r/${subreddit}\n`;
-      
-      if (duration) {
-        caption += `⏱️ *Duração:* ${formatDuration(duration)}\n`;
-      }
-      
-      caption += `⬆️ *Upvotes:* ${formatNumber(upvotes)}\n`;
-      caption += `💬 *Comentários:* ${formatNumber(comments)}\n`;
-      caption += `${isVideo ? '🎥' : '🖼️'} *Tipo:* ${isVideo ? 'Vídeo' : 'Imagem'}\n`;
-      
-      caption += `\n╰━━━━━━━━━━━━━━━━━━━╯`;
-
-      // Enviar thumbnail primeiro (se tiver e for vídeo)
-      if (thumbnail && isVideo) {
-        nazu.sendMessage(from, {
-          image: { url: thumbnail },
-          caption: caption
-        }).catch(err => {
-          console.error('Erro ao enviar thumbnail do Reddit:', err);
-        });
-      }
-
-      // Enviar o arquivo (vídeo ou imagem)
-      const fileSize = buffer.length;
-      const fileSizeMB = (fileSize / (1024 * 1024)).toFixed(2);
-
-      if (isVideo) {
-        // É vídeo
-        if (fileSize > 100 * 1024 * 1024) { // > 100MB
-          nazu.sendMessage(from, {
-            document: buffer,
-            mimetype: 'video/mp4',
-            fileName: filename
-          }, { quoted: info }).then(() => {
-            reply(`✅ Vídeo enviado como documento (${fileSizeMB}MB).`);
-          }).catch(err => {
-            console.error('Erro ao enviar documento do Reddit:', err);
-            reply('❌ Erro ao enviar o vídeo. O arquivo pode ser muito grande.');
-          });
-        } else {
-          nazu.sendMessage(from, {
-            video: buffer,
-            mimetype: 'video/mp4',
-            fileName: filename,
-            caption: !thumbnail ? caption : undefined
-          }, { quoted: info }).then(() => {
-            reply(`✅ Vídeo do Reddit baixado com sucesso! (${fileSizeMB}MB)`);
-          }).catch(err => {
-            console.error('Erro ao enviar vídeo do Reddit:', err);
-            reply('❌ Erro ao enviar o vídeo. Tente novamente.');
-          });
-        }
-      } else {
-        // É imagem
-        nazu.sendMessage(from, {
-          image: buffer,
-          caption: caption
-        }, { quoted: info }).then(() => {
-          reply(`✅ Imagem do Reddit baixada com sucesso! (${fileSizeMB}MB)`);
-        }).catch(err => {
-          console.error('Erro ao enviar imagem do Reddit:', err);
-          reply('❌ Erro ao enviar a imagem. Tente novamente.');
-        });
-      }
-    }).catch(error => {
-      console.error('Erro ao baixar do Reddit:', error);
-      
-      if (error.message?.includes('401') || error.message?.includes('403')) {
-        ia.notifyOwnerAboutApiKey(nazu, nmrdn, `Erro de autenticação na API: ${error.message}`);
-        return reply('❌ Erro de autenticação da API. O dono foi notificado.');
-      }
-      
-      if (error.message?.includes('404')) {
-        return reply('❌ Post não encontrado. Verifique se o link está correto e se o post ainda está disponível.');
-      }
-      
-      if (error.message?.includes('timeout')) {
-        return reply('❌ O download demorou muito tempo. Tente novamente.');
-      }
-      
-      reply('❌ Erro ao baixar o post do Reddit. Tente novamente mais tarde.');
-    });
-  } catch (error) {
-    console.error('Erro no comando reddit:', error);
-    reply("❌ Ocorreu um erro ao processar sua solicitação.");
-  }
-  break;
-
-case 'dailymotion':
-case 'dailymotiondl':
-  try {
-    if (!q) return reply(`Digite um link do Dailymotion.\n> Ex: ${prefix}${command} https://www.dailymotion.com/video/x8abc123`);
-    
-    // Verificar se tem API key
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
-    // Verificar se é um link válido do Dailymotion
-    if (!q.includes('dailymotion.com')) {
-      return reply('❌ Por favor, forneça um link válido do Dailymotion.');
-    }
-
-    reply('Aguarde um momentinho... ☀️');
-
-    // Helpers para formatação
-    const formatDuration = (seconds) => {
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const formatNumber = (num) => {
-      if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-      if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-      return num.toString();
-    };
-
-    dailymotion.download(q, KeyCog).then(result => {
-      if (!result.ok) {
-        return reply(result.message || '❌ Erro ao baixar o vídeo do Dailymotion.');
-      }
-
-      const {
-        title,
-        author,
-        thumbnail,
-        duration,
-        views,
-        quality,
-        width,
-        height,
-        timestamp,
-        buffer,
-        filename
-      } = result;
-
-      // Preparar a mensagem com informações do vídeo
-      let caption = `╭━━━⊱📺 DAILYMOTION ⊱━━━╮\n\n`;
-      caption += `📝 *Título:* ${title}\n`;
-      caption += `👤 *Autor:* ${author}\n`;
-      
-      if (duration) {
-        caption += `⏱️ *Duração:* ${formatDuration(duration)}\n`;
-      }
-      
-      if (views) {
-        caption += `👁️ *Visualizações:* ${formatNumber(views)}\n`;
-      }
-      
-      if (quality) {
-        caption += `🎬 *Qualidade:* ${quality}\n`;
-      }
-      
-      if (width && height) {
-        caption += `📐 *Resolução:* ${width}x${height}\n`;
-      }
-      
-      if (timestamp) {
-        const date = new Date(timestamp * 1000);
-        caption += `📅 *Data:* ${date.toLocaleDateString('pt-BR')}\n`;
-      }
-      
-      caption += `\n╰━━━━━━━━━━━━━━━━━━━╯`;
-
-      // Enviar thumbnail primeiro
-      if (thumbnail) {
-        nazu.sendMessage(from, {
-          image: { url: thumbnail },
-          caption: caption
-        }).catch(err => {
-          console.error('Erro ao enviar thumbnail do Dailymotion:', err);
-        });
-      }
-
-      // Enviar o vídeo
-      const fileSize = buffer.length;
-      const fileSizeMB = (fileSize / (1024 * 1024)).toFixed(2);
-
-      if (fileSize > 100 * 1024 * 1024) { // > 100MB
-        nazu.sendMessage(from, {
-          document: buffer,
-          mimetype: 'video/mp4',
-          fileName: filename
-        }, { quoted: info }).then(() => {
-          reply(`✅ Vídeo enviado como documento (${fileSizeMB}MB).`);
-        }).catch(err => {
-          console.error('Erro ao enviar documento do Dailymotion:', err);
-          reply('❌ Erro ao enviar o vídeo. O arquivo pode ser muito grande.');
-        });
-      } else {
-        nazu.sendMessage(from, {
-          video: buffer,
-          mimetype: 'video/mp4',
-          fileName: filename
-        }, { quoted: info }).then(() => {
-          reply(`✅ Vídeo do Dailymotion baixado com sucesso! (${fileSizeMB}MB)`);
-        }).catch(err => {
-          console.error('Erro ao enviar vídeo do Dailymotion:', err);
-          reply('❌ Erro ao enviar o vídeo. Tente novamente.');
-        });
-      }
-    }).catch(error => {
-      console.error('Erro ao baixar do Dailymotion:', error);
-      
-      if (error.message?.includes('401') || error.message?.includes('403')) {
-        ia.notifyOwnerAboutApiKey(nazu, nmrdn, `Erro de autenticação na API: ${error.message}`);
-        return reply('❌ Erro de autenticação da API. O dono foi notificado.');
-      }
-      
-      if (error.message?.includes('404')) {
-        return reply('❌ Vídeo não encontrado. Verifique se o link está correto e se o vídeo ainda está disponível.');
-      }
-      
-      if (error.message?.includes('timeout')) {
-        return reply('❌ O download demorou muito tempo. Tente novamente com um vídeo mais curto.');
-      }
-      
-      reply('❌ Erro ao baixar o vídeo do Dailymotion. Tente novamente mais tarde.');
-    });
-  } catch (error) {
-    console.error('Erro no comando dailymotion:', error);
-    reply("❌ Ocorreu um erro ao processar sua solicitação.");
-  }
-  break;
-
-case 'streamable':
-case 'streamabledl':
-  try {
-    if (!q) return reply(`Digite um link do Streamable.\n> Ex: ${prefix}${command} https://streamable.com/abc123`);
-    
-    // Verificar se tem API key
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
-    // Verificar se é um link válido do Streamable
-    if (!q.includes('streamable.com')) {
-      return reply('❌ Por favor, forneça um link válido do Streamable.');
-    }
-
-    reply('Aguarde um momentinho... ☀️');
-
-    // Helpers para formatação
-    const formatDuration = (seconds) => {
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const formatFileSize = (bytes) => {
-      if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + 'MB';
-      if (bytes >= 1024) return (bytes / 1024).toFixed(2) + 'KB';
-      return bytes + 'B';
-    };
-
-    streamable.download(q, KeyCog).then(result => {
-      if (!result.ok) {
-        return reply(result.message || '❌ Erro ao baixar o vídeo do Streamable.');
-      }
-
-      const {
-        title,
-        thumbnail,
-        duration,
-        quality,
-        width,
-        height,
-        filesize,
-        timestamp,
-        buffer,
-        filename
-      } = result;
-
-      // Preparar a mensagem com informações do vídeo
-      let caption = `╭━━━⊱🎬 STREAMABLE ⊱━━━╮\n\n`;
-      caption += `📝 *Título:* ${title}\n`;
-      
-      if (duration) {
-        caption += `⏱️ *Duração:* ${formatDuration(duration)}\n`;
-      }
-      
-      if (quality) {
-        caption += `🎬 *Qualidade:* ${quality}\n`;
-      }
-      
-      if (width && height) {
-        caption += `📐 *Resolução:* ${width}x${height}\n`;
-      }
-      
-      if (filesize) {
-        caption += `💾 *Tamanho:* ${formatFileSize(filesize)}\n`;
-      }
-      
-      if (timestamp) {
-        const date = new Date(timestamp * 1000);
-        caption += `📅 *Data:* ${date.toLocaleDateString('pt-BR')}\n`;
-      }
-      
-      caption += `\n╰━━━━━━━━━━━━━━━━━━━╯`;
-
-      // Enviar thumbnail primeiro
-      if (thumbnail) {
-        nazu.sendMessage(from, {
-          image: { url: thumbnail },
-          caption: caption
-        }).catch(err => {
-          console.error('Erro ao enviar thumbnail do Streamable:', err);
-        });
-      }
-
-      // Enviar o vídeo
-      const bufferSize = buffer.length;
-      const bufferSizeMB = (bufferSize / (1024 * 1024)).toFixed(2);
-
-      if (bufferSize > 100 * 1024 * 1024) { // > 100MB
-        nazu.sendMessage(from, {
-          document: buffer,
-          mimetype: 'video/mp4',
-          fileName: filename
-        }, { quoted: info }).then(() => {
-          reply(`✅ Vídeo enviado como documento (${bufferSizeMB}MB).`);
-        }).catch(err => {
-          console.error('Erro ao enviar documento do Streamable:', err);
-          reply('❌ Erro ao enviar o vídeo. O arquivo pode ser muito grande.');
-        });
-      } else {
-        nazu.sendMessage(from, {
-          video: buffer,
-          mimetype: 'video/mp4',
-          fileName: filename
-        }, { quoted: info }).then(() => {
-          reply(`✅ Vídeo do Streamable baixado com sucesso! (${bufferSizeMB}MB)`);
-        }).catch(err => {
-          console.error('Erro ao enviar vídeo do Streamable:', err);
-          reply('❌ Erro ao enviar o vídeo. Tente novamente.');
-        });
-      }
-    }).catch(error => {
-      console.error('Erro ao baixar do Streamable:', error);
-      
-      if (error.message?.includes('401') || error.message?.includes('403')) {
-        ia.notifyOwnerAboutApiKey(nazu, nmrdn, `Erro de autenticação na API: ${error.message}`);
-        return reply('❌ Erro de autenticação da API. O dono foi notificado.');
-      }
-      
-      if (error.message?.includes('404')) {
-        return reply('❌ Vídeo não encontrado. Verifique se o link está correto e se o vídeo ainda está disponível.');
-      }
-      
-      if (error.message?.includes('timeout')) {
-        return reply('❌ O download demorou muito tempo. Tente novamente com um vídeo mais curto.');
-      }
-      
-      reply('❌ Erro ao baixar o vídeo do Streamable. Tente novamente mais tarde.');
-    });
-  } catch (error) {
-    console.error('Erro no comando streamable:', error);
     reply("❌ Ocorreu um erro ao processar sua solicitação.");
   }
   break;
@@ -21238,13 +19179,10 @@ case 'streamabledl':
           if (!q) return reply(`Digite um link do Instagram.\n> Ex: ${prefix}${command} https://www.instagram.com/reel/DFaq_X7uoiT/?igsh=M3Q3N2ZyMWU1M3Bo`);
           
           // Verificar se tem API key
-          if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
+          
 
           reply('Aguarde um momentinho... ☀️');
-          igdl.dl(q, KeyCog)
+          igdl.dl(q)
             .then(async (datinha) => {
               if (!datinha.ok) return reply(datinha.msg);
 
@@ -21258,22 +19196,11 @@ case 'streamabledl':
             })
             .catch(async (e) => {
               console.error('Erro no comando Instagram (promise):', e);
-              if (e.message && e.message.includes('API key inválida')) {
-                await notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "Instagram", prefix);
-                return reply('🤖 *Sistema de Instagram temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-              }
               reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
             });
           return;
         } catch (e) {
           console.error('Erro no comando Instagram:', e);
-          
-          // Verificar se é erro de API key e notificar o dono
-          if (e.message && e.message.includes('API key inválida')) {
-            await notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "Instagram", prefix);
-            return reply('🤖 *Sistema de Instagram temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          }
-          
           reply("❌ Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente mais tarde.");
         }
         break;
@@ -21290,26 +19217,16 @@ case 'streamabledl':
             return reply('❌ Link inválido! Por favor, envie um link válido do Google Drive.');
           }
           
-          if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-          
           await reply('⏳ Buscando informações do arquivo...');
           
-          // Fazer requisição para a API
-          const gdriveResponse = await axios.get('https://cog.api.br/api/v1/gdrive/info', {
-            params: { url: q },
-            headers: { 'X-API-Key': KeyCog },
-            timeout: 120000
-          });
+          // Usar implementação local do gdrive
+          const gdriveResult = await gdriveGetInfo(q);
           
-          if (!gdriveResponse.data.success || !gdriveResponse.data.data) {
-            return reply('❌ Não foi possível obter informações do arquivo. Verifique se o link está correto e se o arquivo é público.');
+          if (!gdriveResult.ok) {
+            return reply(`❌ ${gdriveResult.msg || 'Erro ao obter informações do arquivo'}`);
           }
           
-          const fileData = gdriveResponse.data.data;
-          const { fileName, fileSize, fileSizeBytes, downloadUrl, mimetype } = fileData;
+          const { fileName, fileSize, fileSizeBytes, downloadUrl, mimetype } = gdriveResult;
           
           // Verificar tamanho do arquivo (limite de 100MB para envio no WhatsApp)
           const maxSize = 100 * 1024 * 1024; // 100MB
@@ -21368,15 +19285,6 @@ case 'streamabledl':
         } catch (e) {
           console.error('Erro no comando gdrive:', e);
           
-          if (e.response?.status === 401 || (e.message && e.message.includes('API key'))) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida ou expirada');
-            return reply('🤖 *Sistema temporariamente indisponível*\n\n😅 Estou com problemas técnicos. O administrador já foi notificado!');
-          }
-          
-          if (e.response?.status === 404) {
-            return reply('❌ Arquivo não encontrado ou não é público.');
-          }
-          
           if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
             return reply('⏰ Tempo esgotado! O arquivo pode ser muito grande ou a conexão está lenta.');
           }
@@ -21395,26 +19303,16 @@ case 'streamabledl':
             return reply('❌ Link inválido! Por favor, envie um link válido do MediaFire.');
           }
           
-          if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-          
           await reply('⏳ Buscando informações do arquivo...');
           
-          // Fazer requisição para a API
-          const mfResponse = await axios.get('https://cog.api.br/api/v1/mediafire/info', {
-            params: { url: q },
-            headers: { 'X-API-Key': KeyCog },
-            timeout: 120000
-          });
+          // Usar implementação local do mediafire
+          const mfResult = await mediafireGetInfo(q);
           
-          if (!mfResponse.data.success || !mfResponse.data.data) {
-            return reply('❌ Não foi possível obter informações do arquivo. Verifique se o link está correto.');
+          if (!mfResult.ok) {
+            return reply(`❌ ${mfResult.msg || 'Erro ao obter informações do arquivo'}`);
           }
           
-          const fileData = mfResponse.data.data;
-          const { fileName, fileSize, uploadDate, mimetype, extension, downloadUrl } = fileData;
+          const { fileName, fileSize, uploadDate, mimetype, extension, downloadUrl } = mfResult;
           
           // Converter tamanho para bytes para verificação
           const sizeMatch = fileSize.match(/([\d.]+)\s*(KB|MB|GB)/i);
@@ -21485,15 +19383,6 @@ case 'streamabledl':
         } catch (e) {
           console.error('Erro no comando mediafire:', e);
           
-          if (e.response?.status === 401 || (e.message && e.message.includes('API key'))) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida ou expirada');
-            return reply('🤖 *Sistema temporariamente indisponível*\n\n😅 Estou com problemas técnicos. O administrador já foi notificado!');
-          }
-          
-          if (e.response?.status === 404) {
-            return reply('❌ Arquivo não encontrado ou foi removido.');
-          }
-          
           if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
             return reply('⏰ Tempo esgotado! O arquivo pode ser muito grande ou a conexão está lenta.');
           }
@@ -21515,26 +19404,16 @@ case 'streamabledl':
             return reply('❌ Link inválido! Por favor, envie um link válido do Twitter/X.');
           }
           
-          if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-          
           await reply('⏳ Buscando informações do tweet...');
           
-          // Fazer requisição para a API
-          const twtResponse = await axios.get('https://cog.api.br/api/v1/twitter/info', {
-            params: { url: q },
-            headers: { 'X-API-Key': KeyCog },
-            timeout: 120000
-          });
+          // Usar implementação local do twitter
+          const twitterResult = await twitterGetInfo(q);
           
-          if (!twtResponse.data.success || !twtResponse.data.data) {
-            return reply('❌ Não foi possível obter informações do tweet. Verifique se o link está correto.');
+          if (!twitterResult.ok) {
+            return reply(`❌ ${twitterResult.msg || 'Erro ao obter informações do tweet'}`);
           }
           
-          const tweetData = twtResponse.data.data;
-          const { text, author, stats, media, hasMedia, type } = tweetData;
+          const { text, author, stats, media, hasMedia, type } = twitterResult;
           
           // Formatar caption
           const caption = `🐦 *Twitter/X Download*\n\n👤 *${author?.name || 'Usuário'}* (@${author?.username || 'unknown'})\n\n💬 ${text || ''}\n\n❤️ ${stats?.likes || 0} • 🔁 ${stats?.retweets || 0} • 💬 ${stats?.replies || 0}`;
@@ -21578,15 +19457,6 @@ case 'streamabledl':
         } catch (e) {
           console.error('Erro no comando twitter:', e);
           
-          if (e.response?.status === 401 || (e.message && e.message.includes('API key'))) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida ou expirada');
-            return reply('🤖 *Sistema temporariamente indisponível*\n\n😅 Estou com problemas técnicos. O administrador já foi notificado!');
-          }
-          
-          if (e.response?.status === 404) {
-            return reply('❌ Tweet não encontrado ou foi deletado.');
-          }
-          
           if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
             return reply('⏰ Tempo esgotado! Tente novamente.');
           }
@@ -21601,24 +19471,16 @@ case 'streamabledl':
         try {
           if (!q) return reply(`🔍 *Pesquisa Web*\n\n❌ Digite o que deseja pesquisar.\n\n📝 *Uso:* ${prefix}${command} <termo>\n\n📌 *Exemplo:*\n${prefix}${command} inteligência artificial`);
           
-          if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-          
           await reply('🔍 Pesquisando...');
           
-          const searchResponse = await axios.get('https://cog.api.br/api/v1/search', {
-            params: { q: q, max: 10 },
-            headers: { 'X-API-Key': KeyCog },
-            timeout: 120000
-          });
+          // Usar implementação local de search
+          const searchResult = await search(q, 10);
           
-          if (!searchResponse.data.success || !searchResponse.data.data?.results) {
+          if (!searchResult.ok) {
             return reply('❌ Nenhum resultado encontrado.');
           }
           
-          const { query, results } = searchResponse.data.data;
+          const { query, results } = searchResult;
           
           let response = `🔍 *Resultados para:* "${query}"\n\n`;
           
@@ -21631,12 +19493,6 @@ case 'streamabledl':
           reply(response.trim());
         } catch (e) {
           console.error('Erro no comando google:', e);
-          
-          if (e.response?.status === 401) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida');
-            return reply('🤖 *Sistema temporariamente indisponível*');
-          }
-          
           reply('❌ Ocorreu um erro na pesquisa. Tente novamente.');
         }
         break;
@@ -21646,24 +19502,16 @@ case 'streamabledl':
         try {
           if (!q) return reply(`📰 *Pesquisa de Notícias*\n\n❌ Digite o que deseja pesquisar.\n\n📝 *Uso:* ${prefix}${command} <termo>\n\n📌 *Exemplo:*\n${prefix}${command} tecnologia brasil`);
           
-          if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-          
           await reply('📰 Buscando notícias...');
           
-          const newsResponse = await axios.get('https://cog.api.br/api/v1/search/news', {
-            params: { q: q, max: 10 },
-            headers: { 'X-API-Key': KeyCog },
-            timeout: 120000
-          });
+          // Usar implementação local de searchNews
+          const newsResult = await searchNews(q, 10);
           
-          if (!newsResponse.data.success || !newsResponse.data.data?.results) {
+          if (!newsResult.ok) {
             return reply('❌ Nenhuma notícia encontrada.');
           }
           
-          const { query: newsQuery, results: newsResults } = newsResponse.data.data;
+          const { query: newsQuery, results: newsResults } = newsResult;
           
           let newsText = `📰 *Notícias sobre:* "${newsQuery}"\n\n`;
           
@@ -21676,80 +19524,6 @@ case 'streamabledl':
           reply(newsText.trim());
         } catch (e) {
           console.error('Erro no comando noticias:', e);
-          
-          if (e.response?.status === 401) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida');
-            return reply('🤖 *Sistema temporariamente indisponível*');
-          }
-          
-          reply('❌ Ocorreu um erro na pesquisa. Tente novamente.');
-        }
-        break;
-      case 'app':
-      case 'apps':
-      case 'playstore':
-      case 'appstore':
-      case 'buscarapp':
-        try {
-          if (!q) return reply(`📱 *Pesquisa de Apps*\n\n❌ Digite o nome do aplicativo.\n\n📝 *Uso:* ${prefix}${command} <nome do app>\n\n📌 *Exemplo:*\n${prefix}${command} whatsapp`);
-          
-          if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-          
-          await reply('📱 Buscando aplicativos...');
-          
-          const appResponse = await axios.get('https://cog.api.br/api/v1/apps/search', {
-            params: { q: q, num: 5, country: 'br', lang: 'pt' },
-            headers: { 'X-API-Key': KeyCog },
-            timeout: 120000
-          });
-          
-          if (!appResponse.data.success || !appResponse.data.data) {
-            return reply('❌ Nenhum aplicativo encontrado.');
-          }
-          
-          const { playStore, appStore } = appResponse.data.data;
-          
-          let appText = `📱 *Resultados para:* "${q}"\n\n`;
-          
-          // Play Store
-          if (playStore && playStore.length > 0) {
-            appText += `🤖 *Google Play Store*\n\n`;
-            playStore.slice(0, 3).forEach((app, index) => {
-              appText += `*${index + 1}. ${app.title}*\n`;
-              appText += `👨‍💻 ${app.developer}\n`;
-              appText += `⭐ ${app.score?.toFixed(1) || 'N/A'} • ${app.price || 'Grátis'}\n`;
-              appText += `📥 ${app.installs || 'N/A'}\n`;
-              appText += `🔗 ${app.url}\n\n`;
-            });
-          }
-          
-          // App Store
-          if (appStore && appStore.length > 0) {
-            appText += `🍎 *Apple App Store*\n\n`;
-            appStore.slice(0, 3).forEach((app, index) => {
-              appText += `*${index + 1}. ${app.title}*\n`;
-              appText += `👨‍💻 ${app.developer}\n`;
-              appText += `⭐ ${app.score?.toFixed(1) || 'N/A'} • ${app.free ? 'Grátis' : `R$ ${app.price}`}\n`;
-              appText += `🔗 ${app.url}\n\n`;
-            });
-          }
-          
-          if ((!playStore || playStore.length === 0) && (!appStore || appStore.length === 0)) {
-            return reply('❌ Nenhum aplicativo encontrado com esse nome.');
-          }
-          
-          reply(appText.trim());
-        } catch (e) {
-          console.error('Erro no comando apps:', e);
-          
-          if (e.response?.status === 401) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key inválida');
-            return reply('🤖 *Sistema temporariamente indisponível*');
-          }
-          
           reply('❌ Ocorreu um erro na pesquisa. Tente novamente.');
         }
         break;
@@ -21778,11 +19552,8 @@ case 'streamabledl':
 
           const isPinUrl = PIN_URL_REGEX.test(searchTerm);
           // Ensure API key is configured
-          if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
-          const pinPromise = isPinUrl ? pinterest.dl(searchTerm, KeyCog) : pinterest.search(searchTerm, KeyCog);
+          
+          const pinPromise = isPinUrl ? pinterest.dl(searchTerm) : pinterest.search(searchTerm);
 
           pinPromise
             .then(async (datinha) => {
@@ -21800,19 +19571,11 @@ case 'streamabledl':
             })
             .catch((e) => {
               console.error('Erro no comando pinterest (promise):', e);
-              if (e.message && e.message.includes('API key inválida')) {
-                ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "Pinterest", prefix);
-                return reply('🤖 *Sistema de Pinterest temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-              }
               reply("Ocorreu um erro ao processar o Pinterest 💔");
             });
           return;
         } catch (e) {
           console.error('Erro no comando pinterest:', e);
-          if (e.message && e.message.includes('API key inválida')) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.message, "Pinterest", prefix);
-            return reply('🤖 *Sistema de Pinterest temporariamente indisponível*\n\n😅 Estou com problemas técnicos no momento. O administrador já foi notificado!\n\n⏰ Tente novamente em alguns minutos.');
-          }
           reply("Ocorreu um erro ao processar o Pinterest 💔");
         }
         break;
@@ -22094,31 +19857,6 @@ case 'streamabledl':
           await reply("❌ Ocorreu um erro ao carregar o menu de ferramentas");
         }
         break;
-      case 'buscas':
-      case 'menubuscas':
-      case 'menubusca':
-      case 'searchmenu':
-      case 'consultas':
-      case 'menuconsultas':
-        try {
-          await sendMenuWithMedia('buscas', menuBuscas);
-        } catch (error) {
-          console.error('Erro ao enviar menu de buscas:', error);
-          await reply("❌ Ocorreu um erro ao carregar o menu de buscas");
-        }
-        break;
-      case 'menubs':
-      case 'menubrawl':
-      case 'menubrawlstars':
-      case 'bsmenu':
-      case 'brawlmenu':
-        try {
-          await sendMenuWithMedia('brawl', menuBrawlStars);
-        } catch (error) {
-          console.error('Erro ao enviar menu de Brawl Stars:', error);
-          await reply("❌ Ocorreu um erro ao carregar o menu de Brawl Stars");
-        }
-        break;
       case 'menuadm':
       case 'menuadmin':
       case 'menuadmins':
@@ -22318,12 +20056,6 @@ Use: ${prefix}numerodono <número>
 Exemplo: ${prefix}numerodono 5511999999999
 • Formato: DDI + DDD + número
 • Usado para permissões de dono
-
-🔹 *API Key (IA e Recursos)*
-Use: ${prefix}apikey <tipo> <chave>
-Tipos: gemini, openai, cognimax
-• Necessário para comandos de IA
-• Obtenha em: cog.api.br/plans
 
 🔹 *Mensagem de Comando Não Encontrado*
 Use: ${prefix}configcmdnotfound <ação>
@@ -23625,21 +21357,6 @@ Precisa de ajuda? Entre em contato:
           config.nomebot = q;
           writeJsonFile(CONFIG_FILE, config);
           await reply(`Nome do bot alterado com sucesso para "${q}"!`);
-        } catch (e) {
-          console.error(e);
-          await reply("🐝 Ops! Ocorreu um erro inesperado. Tente novamente em alguns instantes, por favor! 🥺");
-        }
-        break;
-      case 'apikey':
-      case 'api-key':
-        try {
-          if (!isOwner) return reply("Este comando é exclusivo para o meu dono!");
-          if (!q) return reply(`Por favor, digite a nova API key.\nExemplo: ${prefix}${command} abc123xyz`);
-          let config = JSON.parse(fs.readFileSync(CONFIG_FILE));
-          config.apikey = q;
-          writeJsonFile(CONFIG_FILE, config);
-          KeyCog = q; // Atualiza a variável global imediatamente
-          await reply(`✅ API key alterada com sucesso!\n\n🔄 A chave foi atualizada e já está ativa.`);
         } catch (e) {
           console.error(e);
           await reply("🐝 Ops! Ocorreu um erro inesperado. Tente novamente em alguns instantes, por favor! 🥺");
@@ -25762,63 +23479,6 @@ ${prefix}togglecmdvip premium_ia off`);
           await reply("❌ Ocorreu um erro interno. Tente novamente em alguns minutos.");
         }
         break;
-      case 'iastatus':
-      case 'apikeyinfo':
-      case 'statusia':
-        if (!isOwnerOrSub) return reply("🚫 Apenas donos e subdonos podem verificar o status da API key!");
-        try {
-          const apiStatus = ia.getApiKeyStatus();
-          const historicoStats = ia.getHistoricoStats();
-          
-          let statusEmoji = '✅';
-          let statusText = 'Válida e funcionando';
-          let statusColor = '🟢';
-          
-          if (!apiStatus.isValid) {
-            statusEmoji = '❌';
-            statusText = 'Inválida ou com problemas';
-            statusColor = '🔴';
-          }
-          
-          const lastCheckTime = new Date(apiStatus.lastCheck).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-          const keyPreview = KeyCog ? `${KeyCog.substring(0, 8)}...` : 'Não configurada';
-          
-          const statusMessage = [
-            "╭───🔑 STATUS API COGNIMA ───╮",
-            `┊ ${statusColor} Status: ${statusEmoji} ${statusText}`,
-            `┊ 🗝️ Key: ${keyPreview}`,
-            `┊ 🕐 Última verificação: ${lastCheckTime}`,
-            apiStatus.lastError ? `┊ ⚠️ Último erro: ${apiStatus.lastError}` : '',
-            `┊ 📧 Notificação enviada: ${apiStatus.notificationSent ? 'Sim' : 'Não'}`,
-            "┊",
-            "┊ 📊 *Estatísticas do Assistente:*",
-            `┊ • 💬 Conversas ativas: ${historicoStats.conversasAtivas}`,
-            `┊ • 📈 Total conversas: ${historicoStats.totalConversas}`,
-            `┊ • 💭 Total mensagens: ${historicoStats.totalMensagens}`,
-            "┊",
-            "┊ 🛠️ *Comandos úteis:*",
-            `┊ • ${prefix}iarecovery - Forçar reset da API`,
-            `┊ • ${prefix}iaclear - Limpar histórico antigo`,
-            "╰─────────────────╯"
-          ].filter(line => line !== '').join('\n');
-          
-          reply(statusMessage);
-        } catch (e) {
-          console.error("Erro em iastatus:", e);
-          reply("❌ Erro ao verificar status da API key.");
-        }
-        break;
-      case 'iarecovery':
-      case 'resetapikey':
-        if (!isOwnerOrSub) return reply("🚫 Apenas donos e subdonos podem fazer reset da API key!");
-        try {
-          ia.updateApiKeyStatus();
-          reply("✅ *Reset da API key realizado!*\n\n🔄 O sistema de IA foi reativado e irá tentar usar a API key novamente.\n\n⚠️ Certifique-se de que a key no config.json está correta e válida!");
-        } catch (e) {
-          console.error("Erro em iarecovery:", e);
-          reply("❌ Erro ao fazer reset da API key.");
-        }
-        break;
       case 'iaclear':
       case 'limparhist':
         if (!isOwnerOrSub) return reply("🚫 Apenas donos e subdonos podem limpar o histórico!");
@@ -26173,102 +23833,84 @@ ${prefix}togglecmdvip premium_ia off`);
       case 'rmbg':
       case 'sbg':
       case 'sfundo':
-        if (!KeyCog) {
-          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'RM BG', prefix);
-          return reply('⚠️ API key não configurada. Use o comando apikey.');
-        }
+        try {
+          const imgMsg = quotedMessageContent?.imageMessage ||
+            quotedMessageContent?.viewOnceMessage?.message?.imageMessage ||
+            quotedMessageContent?.viewOnceMessageV2?.message?.imageMessage ||
+            info.message?.imageMessage ||
+            info.message?.viewOnceMessage?.message?.imageMessage ||
+            info.message?.viewOnceMessageV2?.message?.imageMessage;
 
-        const imgMsg = quotedMessageContent?.imageMessage ||
-          quotedMessageContent?.viewOnceMessage?.message?.imageMessage ||
-          quotedMessageContent?.viewOnceMessageV2?.message?.imageMessage ||
-          info.message?.imageMessage ||
-          info.message?.viewOnceMessage?.message?.imageMessage ||
-          info.message?.viewOnceMessageV2?.message?.imageMessage;
+          if (!imgMsg) {
+            return reply(`❌ Marque uma imagem para remover o fundo.\n\n💡 Uso: ${prefix}${command}`);
+          }
 
-        if (!imgMsg) {
-          return reply(`❌ Marque uma imagem para remover o fundo.\n\n💡 Uso: ${prefix}${command}`);
-        }
+          reply('⏳ Removendo fundo, aguarde...');
 
-        reply('⏳ Removendo fundo, aguarde...');
+          const imageBuffer = await getFileBuffer(imgMsg, 'image');
+          const imageUrl = await upload(imageBuffer, true);
+          
+          if (!imageUrl) throw new Error('Falha ao fazer upload da imagem.');
+          
+          const bgResult = await removeBg(imageUrl);
+          
+          if (!bgResult.ok) {
+            throw new Error(bgResult.msg || 'Não foi possível remover o fundo da imagem.');
+          }
+          
+          const resultUrl = bgResult.result?.download;
 
-        return getFileBuffer(imgMsg, 'image')
-          .then((imageBuffer) => upload(imageBuffer, true))
-          .then((imageUrl) => {
-            if (!imageUrl) throw new Error('Falha ao fazer upload da imagem.');
-            return axios.post('https://cog.api.br/api/v1/image/remove-bg', { url: imageUrl }, {
-              headers: { 'X-API-Key': KeyCog }
+          if (command === 'sbg' || command === 'sfundo') {
+            return sendSticker(nazu, from, {
+              sticker: { url: resultUrl },
+              author: `${pushname}\n${nomebot}\n${nomedono}`,
+              packname: 'Nazuna Bot - Stickers',
+              type: 'image'
+            }, {
+              quoted: info
             });
-          })
-          .then((response) => {
-            const resultUrl = response?.data?.result?.download;
-            if (!response?.data?.status || !resultUrl) {
-              throw new Error('Não foi possível remover o fundo da imagem.');
-            }
+          }
 
-            if (command === 'sbg' || command === 'sfundo') {
-              return sendSticker(nazu, from, {
-                sticker: { url: resultUrl },
-                author: `『${pushname}』\n『${nomebot}』\n『${nomedono}』\n『cognima.com.br』`,
-                packname: '👤 Usuario(a)ᮀ۟❁’￫\n🤖 Botᮀ۟❁’￫\n👑 Donoᮀ۟❁’￫\n🌐 Siteᮀ۟❁’￫',
-                type: 'image'
-              }, {
-                quoted: info
-              });
-            }
-
-            return nazu.sendMessage(from, { image: { url: resultUrl } }, { quoted: info });
-          })
-          .catch((e) => {
-            if (isApiKeyError(e)) {
-              notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'RM BG', prefix);
-              return reply('⚠️ Problema com a API key da Cognima.');
-            }
-            console.error(e);
-            return reply('❌ Ocorreu um erro interno. Tente novamente em alguns minutos.');
-          });
+          return nazu.sendMessage(from, { image: { url: resultUrl } }, { quoted: info });
+        } catch (e) {
+          console.error(e);
+          return reply('❌ Ocorreu um erro interno. Tente novamente em alguns minutos.');
+        }
+        break;
       case 'upscale':
-        if (!KeyCog) {
-          notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'UPSCALE', prefix);
-          return reply('⚠️ API key não configurada. Use o comando apikey.');
+        try {
+          const upscaleImgMsg = quotedMessageContent?.imageMessage ||
+            quotedMessageContent?.viewOnceMessage?.message?.imageMessage ||
+            quotedMessageContent?.viewOnceMessageV2?.message?.imageMessage ||
+            info.message?.imageMessage ||
+            info.message?.viewOnceMessage?.message?.imageMessage ||
+            info.message?.viewOnceMessageV2?.message?.imageMessage;
+
+          if (!upscaleImgMsg) {
+            return reply(`❌ Marque uma imagem para melhorar a qualidade.\n\n💡 Uso: ${prefix}${command}`);
+          }
+
+          reply('⏳ Melhorando a imagem, aguarde...');
+
+          const imageBuffer = await getFileBuffer(upscaleImgMsg, 'image');
+          const imageUrl = await upload(imageBuffer, true);
+          
+          if (!imageUrl) throw new Error('Falha ao fazer upload da imagem.');
+          
+          const upscaleResult = await upscale(imageUrl, 2);
+          
+          if (!upscaleResult.ok) {
+            throw new Error(upscaleResult.msg || 'Não foi possível melhorar a imagem.');
+          }
+          
+          const resultUrl = upscaleResult.result?.download;
+
+          return nazu.sendMessage(from, { image: { url: resultUrl } }, { quoted: info });
+        } catch (e) {
+          console.error(e);
+          return reply('❌ Ocorreu um erro interno. Tente novamente em alguns minutos.');
         }
-
-        const upscaleImgMsg = quotedMessageContent?.imageMessage ||
-          quotedMessageContent?.viewOnceMessage?.message?.imageMessage ||
-          quotedMessageContent?.viewOnceMessageV2?.message?.imageMessage ||
-          info.message?.imageMessage ||
-          info.message?.viewOnceMessage?.message?.imageMessage ||
-          info.message?.viewOnceMessageV2?.message?.imageMessage;
-
-        if (!upscaleImgMsg) {
-          return reply(`❌ Marque uma imagem para melhorar a qualidade.\n\n💡 Uso: ${prefix}${command}`);
-        }
-
-        reply('⏳ Melhorando a imagem, aguarde...');
-
-        return getFileBuffer(upscaleImgMsg, 'image')
-          .then((imageBuffer) => upload(imageBuffer, true))
-          .then((imageUrl) => {
-            if (!imageUrl) throw new Error('Falha ao fazer upload da imagem.');
-            return axios.post('https://cog.api.br/api/v1/image/upscale', { url: imageUrl }, {
-              headers: { 'X-API-Key': KeyCog }
-            });
-          })
-          .then((response) => {
-            const resultUrl = response?.data?.result?.download;
-            if (!response?.data?.status || !resultUrl) {
-              throw new Error('Não foi possível melhorar a imagem.');
-            }
-
-            return nazu.sendMessage(from, { image: { url: resultUrl } }, { quoted: info });
-          })
-          .catch((e) => {
-            if (isApiKeyError(e)) {
-              notifyOwnerAboutApiKey(nazu, nmrdn, e.message, 'UPSCALE', prefix);
-              return reply('⚠️ Problema com a API key da Cognima.');
-            }
-            console.error(e);
-            return reply('❌ Ocorreu um erro interno. Tente novamente em alguns minutos.');
-          });
+        break;
       case 'qc':
         try {
           if (!q) return reply('Falta o texto.');
@@ -28545,13 +26187,7 @@ case 'divulgar':
             '📘 Facebook',
             '📌 Pinterest',
             '🎵 Spotify',
-            '🔊 SoundCloud',
-            '🎮 Twitch',
-            '🎬 Vimeo',
-            '📹 Dailymotion',
-            '🎞️ Streamable',
-            '🗨️ Reddit',
-            '🎸 Bandcamp'
+            '🔊 SoundCloud'
           ];
           
           const statusMsg = groupData.autodl 
@@ -29749,10 +27385,7 @@ Exemplos:
       case 'assistente':
       case 'assistent':
         try {
-          if (!KeyCog) {
-            ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-            return reply(API_KEY_REQUIRED_MESSAGE);
-          }
+          
           if (!isGroup) return reply("Isso só pode ser usado em grupo 💔");
           if (!isGroupAdmin) return reply("Você precisa ser administrador 💔");
           
@@ -30792,7 +28425,7 @@ ${prefix}horoscopo <signo>
         
         // Função wrapper para a IA
         const aiFunctionHoroscope = (prompt) => {
-          return ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog)
+          return ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null)
             .then(response => response?.data?.choices?.[0]?.message?.content || '');
         };
         
@@ -30835,7 +28468,7 @@ Use ${prefix}horoscopo <signo> para ver a previsão!`);
         
         // Função wrapper para a IA
         const aiFunctionDebate = (prompt) => {
-          return ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog)
+          return ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null)
             .then(response => response?.data?.choices?.[0]?.message?.content || '');
         };
         
@@ -30859,7 +28492,7 @@ Use ${prefix}horoscopo <signo> para ver a previsão!`);
         
         // Função wrapper para a IA
         const aiFunctionStory = (prompt) => {
-          return ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null, KeyCog)
+          return ia.makeCognimaRequest('qwen/qwen3-235b-a22b', prompt, null)
             .then(response => response?.data?.choices?.[0]?.message?.content || '');
         };
         
@@ -32849,1460 +30482,6 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
   }
   break;
   
-  // APIKEY FORNECIDA POR "Lipe NTJ" (+55 73 9867-6116)
-  // Mandem agradecimentos a ele 🫶🏻
-  case 'likeff':
-  case 'likes':
-  case 'likesff':
-  try {
-    // Verificar API key
-    if (!KeyCog) {
-      await notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'Envio de Likes Free Fire');
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
-    if (!q) {
-      return reply(`⭐ *ENVIAR LIKES - FREE FIRE*\n\n📝 *Como usar:*\n• Digite o ID do Free Fire após o comando\n• Exemplo: ${prefix}likes 1033857091\n\n💡 *Formato:* Apenas números do seu ID`);
-    }
-
-    const playerId = q.replace(/\D/g, '');
-    if (!playerId) {
-      return reply(`❌ *ID inválido!*\n\n📝 Digite um ID válido do Free Fire.\n💡 Exemplo: ${prefix}likes 1033857091`);
-    }
-
-    await reply(`⭐ *Enviando likes...*\n⏳ Aguarde um momento...`);
-
-    try {
-      const response = await axios.get(`https://cog.api.br/api/v1/freefire/sendlikes`, {
-        params: {
-          playerId: playerId
-        },
-        headers: {
-          'Authorization': `Bearer ${KeyCog}`
-        },
-        timeout: 120000
-      });
-
-      // Verificar se a resposta indica erro de limite
-      if (response.data && response.data.success === false && response.data.error === "Acesso negado") {
-        const errorData = response.data;
-        if (errorData.required_limit && errorData.required_limit > 500) {
-          // Notificar dono sobre necessidade de plano ilimitado
-          const ownerMessage = `🚨 *ALERTA - PLANO INSUFICIENTE PARA LIKES FF* 🚨
-
-⚠️ *Problema detectado:*
-• *Tipo de requisição:* Envio de Likes Free Fire
-• *Limite necessário:* ${errorData.required_limit} requisições diárias
-• *Limite atual:* ${errorData.current_limit || 'N/A'} requisições diárias
-
-📋 *Solução:*
-O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
-
-💳 *Como fazer upgrade:*
-• Acesse: https://cog.api.br/plans
-• Entre em contato para fazer upgrade do seu plano
-• Configure a nova API key após o upgrade
-
-⚙️ *Como atualizar API key:*
-• Use o comando: !apikey suachave
-• Reinicie o bot após configurar`;
-
-          try {
-            await nazu.sendMessage(nmrdn, { text: ownerMessage });
-          } catch (notifyErr) {
-            console.error('Erro ao notificar dono:', notifyErr.message);
-          }
-
-          return reply(`❌ *Plano insuficiente*\n\n⚠️ O envio de likes está disponível apenas no plano ilimitado.\n\n📞 O dono do bot foi notificado sobre a necessidade de fazer upgrade do plano.`);
-        }
-      }
-
-      // Verifica se tem dados mesmo com success=false (caso de menos de 100 likes)
-      const hasData = response.data && response.data.data;
-      const isPartialSuccess = response.data && response.data.success === false && 
-                               response.data.message && 
-                               response.data.message.includes('100 likes');
-
-      if (hasData || isPartialSuccess) {
-        const data = response.data.data || {};
-        const likesAdded = data.likesAdded || 0;
-        
-        let msg = `${likesAdded >= 100 ? '✅' : '⚠️'} *${likesAdded >= 100 ? 'Likes enviados com sucesso!' : 'Likes enviados parcialmente'}*\n\n`;
-        msg += `👤 *Jogador:* ${data.player || 'N/A'}\n`;
-        msg += `🆔 *UID:* ${data.uid || playerId}\n`;
-        msg += `🌍 *Região:* ${data.region || 'N/A'}\n`;
-        msg += `📈 *Nível:* ${data.level || 'N/A'}\n`;
-        msg += `⭐ *Likes iniciais:* ${data.initialLikes?.toLocaleString() || '0'}\n`;
-        msg += `⭐ *Likes finais:* ${data.finalLikes?.toLocaleString() || '0'}\n`;
-        msg += `📤 *Likes adicionados:* ${likesAdded}\n\n`;
-        
-        if (likesAdded < 100) {
-          msg += `💡 *Aviso:* Você pode ter atingido o limite diário de likes da sua conta Free Fire.\n`;
-          msg += `🕐 *Tente novamente amanhã para receber mais likes!*\n\n`;
-        }
-        
-        msg += `⏰ *Timestamp:* ${data.timestamp || new Date().toLocaleString('pt-BR')}`;
-        
-        await reply(msg);
-      } else if (response.data && response.data.success) {
-        const data = response.data.data;
-        const likesAdded = data.likesAdded || 0;
-        
-        let msg = `${likesAdded >= 100 ? '✅' : '⚠️'} *${likesAdded >= 100 ? 'Likes enviados com sucesso!' : 'Likes enviados parcialmente'}*\n\n`;
-        msg += `👤 *Jogador:* ${data.player || 'N/A'}\n`;
-        msg += `🆔 *UID:* ${data.uid || playerId}\n`;
-        msg += `🌍 *Região:* ${data.region || 'N/A'}\n`;
-        msg += `📈 *Nível:* ${data.level || 'N/A'}\n`;
-        msg += `⭐ *Likes iniciais:* ${data.initialLikes?.toLocaleString() || '0'}\n`;
-        msg += `⭐ *Likes finais:* ${data.finalLikes?.toLocaleString() || '0'}\n`;
-        msg += `📤 *Likes adicionados:* ${likesAdded}\n\n`;
-        
-        if (likesAdded < 100) {
-          msg += `💡 *Aviso:* Você pode ter atingido o limite diário de likes da sua conta Free Fire.\n`;
-          msg += `🕐 *Tente novamente amanhã para receber mais likes!*\n\n`;
-        }
-        
-        msg += `⏰ *Timestamp:* ${data.timestamp || 'N/A'}`;
-        
-        await reply(msg);
-      } else {
-        await reply(`❌ *Erro ao enviar likes*\n\n🔍 Não foi possível enviar likes para este ID.\n\n💡 *Possíveis motivos:*\n• ID não encontrado\n• Jogador já recebeu likes hoje\n• Servidor indisponível\n\n🔄 Tente novamente mais tarde.`);
-      }
-    } catch (apiError) {
-      console.error('Erro no comando likes:', apiError.message);
-      console.error('Response data:', apiError.response?.data);
-
-      // Verificar se é erro de API key
-      if (isApiKeyError(apiError)) {
-        await notifyOwnerAboutApiKey(nazu, nmrdn, apiError.response?.data?.message || apiError.message, 'Envio de Likes Free Fire');
-        return reply(`❌ *Erro na API Key*\n\n⚠️ Problema com a API key da Cognima. O dono do bot foi notificado.\n\n💡 Tente novamente mais tarde ou entre em contato com o dono do bot.`);
-      }
-
-      // Verificar se é o caso de menos de 100 likes (mesmo vindo como erro HTTP)
-      const errorData = apiError.response?.data;
-      if (errorData && errorData.data) {
-        const data = errorData.data;
-        const likesAdded = data.likesAdded || 0;
-        
-        let msg = `⚠️ *Likes enviados parcialmente*\n\n`;
-        msg += `👤 *Jogador:* ${data.player || 'N/A'}\n`;
-        msg += `🆔 *UID:* ${data.uid || playerId}\n`;
-        msg += `🌍 *Região:* ${data.region || 'N/A'}\n`;
-        msg += `📈 *Nível:* ${data.level || 'N/A'}\n`;
-        msg += `⭐ *Likes iniciais:* ${data.initialLikes?.toLocaleString() || '0'}\n`;
-        msg += `⭐ *Likes finais:* ${data.finalLikes?.toLocaleString() || '0'}\n`;
-        msg += `📤 *Likes adicionados:* ${likesAdded}\n\n`;
-        msg += `💡 *Aviso:* Você pode ter atingido o limite diário de likes da sua conta Free Fire.\n`;
-        msg += `🕐 *Tente novamente amanhã para receber mais likes!*\n\n`;
-        msg += `⏰ *Timestamp:* ${data.timestamp || new Date().toLocaleString('pt-BR')}`;
-        
-        return reply(msg);
-      }
-
-      // Outros erros
-      return reply(`❌ *Erro ao enviar likes*\n\n⚠️ ${apiError.response?.data?.message || apiError.message || 'Erro desconhecido'}\n\n🔄 Tente novamente mais tarde.`);
-    }
-  } catch (e) {
-    console.error('Erro geral no comando likes:', e);
-    reply('❌ Ocorreu um erro ao processar sua solicitação.');
-  }
-  break;
-
-  // ═══════════════════════════════════════════════════════════════
-  // 🎮 BRAWL STARS - COMANDOS DE CONSULTA
-  // ═══════════════════════════════════════════════════════════════
-  
-  case 'bsplayer':
-  case 'bsjogador':
-  case 'bsperfil':
-  {
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
-    if (!q) {
-      return reply(`🎮 *BRAWL STARS - PERFIL DE JOGADOR*\n\n📝 *Como usar:*\n• Digite a TAG do jogador após o comando\n• Exemplo: ${prefix}bsplayer #2PP\n\n💡 *Dica:* Você pode copiar sua tag do jogo`);
-    }
-
-    let playerTag = q.trim().toUpperCase();
-    if (!playerTag.startsWith('#')) playerTag = '#' + playerTag;
-    const encodedTag = encodeURIComponent(playerTag);
-
-    reply('🔍 Buscando informações do jogador...');
-
-    Promise.all([
-      axios.get(`https://cog.api.br/api/v1/brawlstars/players/${encodedTag}`, {
-        headers: { 'X-API-Key': KeyCog },
-        timeout: 120000
-      }),
-      axios.get('https://api.brawlify.com/v1/icons', { timeout: 30000 }).catch(() => null)
-    ]).then(([playerRes, iconsRes]) => {
-      if (!playerRes.data || !playerRes.data.tag) {
-        return reply('❌ Jogador não encontrado. Verifique a TAG e tente novamente.');
-      }
-
-      const player = playerRes.data;
-      const icons = iconsRes?.data?.player || {};
-      
-      // Calcular estatísticas extras
-      const totalVictories = (player['3vs3Victories'] || 0) + (player.soloVictories || 0) + (player.duoVictories || 0);
-      const brawlersAtMax = player.brawlers?.filter(b => b.power === 11).length || 0;
-      const brawlersAtRank25 = player.brawlers?.filter(b => b.rank >= 25).length || 0;
-      const brawlersAtRank30 = player.brawlers?.filter(b => b.rank >= 30).length || 0;
-      const brawlersAtRank35 = player.brawlers?.filter(b => b.rank >= 35).length || 0;
-      const totalStarPowers = player.brawlers?.reduce((sum, b) => sum + (b.starPowers?.length || 0), 0) || 0;
-      const totalGadgets = player.brawlers?.reduce((sum, b) => sum + (b.gadgets?.length || 0), 0) || 0;
-      const totalGears = player.brawlers?.reduce((sum, b) => sum + (b.gears?.length || 0), 0) || 0;
-      
-      let msg = `🎮 *BRAWL STARS - PERFIL COMPLETO*\n${'═'.repeat(30)}\n\n`;
-      
-      msg += `👤 *INFORMAÇÕES BÁSICAS*\n`;
-      msg += `┣ 📛 Nome: ${player.name}\n`;
-      msg += `┣ 🏷️ TAG: ${player.tag}\n`;
-      msg += `┣ 🎨 Cor do Nome: ${player.nameColor || 'Padrão'}\n`;
-      msg += `┗ 📈 Nível: ${player.expLevel || 1} (${player.expPoints?.toLocaleString() || 0} XP)\n\n`;
-      
-      msg += `🏆 *TROFÉUS*\n`;
-      msg += `┣ 🥇 Atual: ${player.trophies?.toLocaleString() || 0}\n`;
-      msg += `┗ 🌟 Recorde: ${player.highestTrophies?.toLocaleString() || 0}\n\n`;
-      
-      msg += `⚔️ *VITÓRIAS*\n`;
-      msg += `┣ 📊 Total: ${totalVictories.toLocaleString()}\n`;
-      msg += `┣ 🎯 3v3: ${(player['3vs3Victories'] || 0).toLocaleString()}\n`;
-      msg += `┣ 🥇 Solo: ${(player.soloVictories || 0).toLocaleString()}\n`;
-      msg += `┗ 👥 Dupla: ${(player.duoVictories || 0).toLocaleString()}\n\n`;
-      
-      if (player.club && player.club.name) {
-        msg += `🛡️ *CLUBE*\n`;
-        msg += `┣ 📛 ${player.club.name}\n`;
-        msg += `┗ 🏷️ ${player.club.tag}\n\n`;
-      } else {
-        msg += `🛡️ *CLUBE:* Sem clube\n\n`;
-      }
-      
-      msg += `👾 *BRAWLERS (${player.brawlers?.length || 0})*\n`;
-      msg += `┣ ⭐ Power 11: ${brawlersAtMax}\n`;
-      msg += `┣ 🔮 Star Powers: ${totalStarPowers}\n`;
-      msg += `┣ 🔧 Gadgets: ${totalGadgets}\n`;
-      msg += `┣ ⚙️ Gears: ${totalGears}\n`;
-      msg += `┣ 🏅 Rank 25+: ${brawlersAtRank25}\n`;
-      msg += `┣ 💎 Rank 30+: ${brawlersAtRank30}\n`;
-      msg += `┗ 🔥 Rank 35: ${brawlersAtRank35}\n\n`;
-      
-      if (player.brawlers && player.brawlers.length > 0) {
-        const ranked = player.brawlers
-          .sort((a, b) => (b.trophies || 0) - (a.trophies || 0))
-          .slice(0, 10);
-        
-        msg += `🏆 *TOP 10 BRAWLERS*\n`;
-        ranked.forEach((b, i) => {
-          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-          const rankBadge = b.rank >= 35 ? '🔥' : b.rank >= 30 ? '💎' : b.rank >= 25 ? '🏅' : '⭐';
-          msg += `${medal} ${b.name} - 🏆${b.trophies} | ${rankBadge}R${b.rank} | P${b.power || 1}\n`;
-        });
-      }
-
-      // Buscar imagem completa do perfil (com todos os brawlers)
-      const tagWithoutHash = player.tag.replace('#', '');
-      const profileImageUrl = `https://img.sltbot.com/player/${tagWithoutHash}/brawlers?o=h`;
-
-      axios.get(profileImageUrl, { responseType: 'arraybuffer', timeout: 15000 })
-        .then(imageBuffer => {
-          nazu.sendMessage(from, {
-            image: Buffer.from(imageBuffer.data),
-            caption: msg
-          }, { quoted: info });
-        })
-        .catch(() => reply(msg));
-    }).catch(e => {
-      console.error('Erro no bsplayer:', e);
-      if (e.response?.status === 404) {
-        return reply('❌ Jogador não encontrado. Verifique a TAG e tente novamente.');
-      }
-      if (isApiKeyError(e)) {
-        ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
-        return reply(`❌ Erro na API. O dono foi notificado.`);
-      }
-      reply('❌ Erro ao buscar informações do jogador.');
-    });
-  }
-  break;
-
-  case 'bsclub':
-  case 'bscla':
-  case 'bsclube':
-  {
-    if (!KeyCog) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-      return reply(API_KEY_REQUIRED_MESSAGE);
-    }
-
-    if (!q) {
-      return reply(`⚔️ *BRAWL STARS - INFORMAÇÕES DO CLUBE*\n\n📝 *Como usar:*\n• Digite a TAG do clube após o comando\n• Exemplo: ${prefix}bsclub #2PP\n\n💡 *Dica:* Você pode copiar a tag do clube no jogo`);
-    }
-
-    let clubTag = q.trim().toUpperCase();
-    if (!clubTag.startsWith('#')) clubTag = '#' + clubTag;
-    const encodedTag = encodeURIComponent(clubTag);
-
-    reply('🔍 Buscando informações do clube...');
-
-    axios.get(`https://cog.api.br/api/v1/brawlstars/clubs/${encodedTag}`, {
-      headers: { 'X-API-Key': KeyCog },
-      timeout: 120000
-    }).then(response => {
-
-    if (!response.data || !response.data.tag) {
-      return reply('❌ Clube não encontrado. Verifique a TAG e tente novamente.');
-    }
-
-    const club = response.data;
-    
-    // Calcular estatísticas do clube
-    const totalTrophies = club.members?.reduce((sum, m) => sum + (m.trophies || 0), 0) || 0;
-    const avgTrophies = club.members?.length ? Math.round(totalTrophies / club.members.length) : 0;
-    const president = club.members?.find(m => m.role === 'president');
-    const viceCount = club.members?.filter(m => m.role === 'vicePresident').length || 0;
-    const seniorCount = club.members?.filter(m => m.role === 'senior').length || 0;
-    
-    const typeEmoji = { open: '🟢', inviteOnly: '🟡', closed: '🔴' };
-    const typeText = { open: 'Aberto', inviteOnly: 'Apenas Convite', closed: 'Fechado' };
-    
-    let msg = `🛡️ *BRAWL STARS - CLUBE*\n${'═'.repeat(30)}\n\n`;
-    
-    msg += `📋 *INFORMAÇÕES GERAIS*\n`;
-    msg += `┣ 📛 Nome: ${club.name}\n`;
-    msg += `┣ 🏷️ TAG: ${club.tag}\n`;
-    msg += `┣ ${typeEmoji[club.type] || '⚪'} Tipo: ${typeText[club.type] || club.type}\n`;
-    msg += `┗ 🎯 Troféus Mínimos: ${club.requiredTrophies?.toLocaleString() || 0}\n\n`;
-    
-    if (club.description) {
-      msg += `📝 *DESCRIÇÃO*\n${club.description}\n\n`;
-    }
-    
-    msg += `📊 *ESTATÍSTICAS*\n`;
-    msg += `┣ 🏆 Troféus Totais: ${club.trophies?.toLocaleString() || 0}\n`;
-    msg += `┣ 📈 Média por Membro: ${avgTrophies.toLocaleString()}\n`;
-    msg += `┗ 👥 Membros: ${club.members?.length || 0}/30\n\n`;
-    
-    msg += `👑 *HIERARQUIA*\n`;
-    if (president) {
-      msg += `┣ 👑 Presidente: ${president.name}\n`;
-    }
-    msg += `┣ ⭐ Vice-Presidentes: ${viceCount}\n`;
-    msg += `┗ 🎖️ Veteranos: ${seniorCount}\n\n`;
-    
-    if (club.members && club.members.length > 0) {
-      const sorted = club.members
-        .sort((a, b) => (b.trophies || 0) - (a.trophies || 0));
-      
-      msg += `🏆 *RANKING DE MEMBROS*\n`;
-      sorted.slice(0, 15).forEach((m, i) => {
-        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-        const role = m.role === 'president' ? '👑' : m.role === 'vicePresident' ? '⭐' : m.role === 'senior' ? '🎖️' : '👤';
-        msg += `${medal} ${role} ${m.name}\n    🏆 ${m.trophies?.toLocaleString()} | 🏷️ ${m.tag}\n`;
-      });
-      
-      if (sorted.length > 15) {
-        msg += `\n... e mais ${sorted.length - 15} membros`;
-      }
-    }
-
-    // Buscar badge do clube
-    let badgeUrl = null;
-    if (club.badgeId) {
-      badgeUrl = `https://cdn.brawlify.com/club-badges/regular/${club.badgeId}.png`;
-    }
-
-    if (badgeUrl) {
-      axios.get(badgeUrl, { responseType: 'arraybuffer', timeout: 15000 })
-        .then(imageBuffer => {
-          nazu.sendMessage(from, {
-            image: Buffer.from(imageBuffer.data),
-            caption: msg
-          }, { quoted: info });
-        })
-        .catch(() => reply(msg));
-    } else {
-      reply(msg);
-    }
-    }).catch(e => {
-      console.error('Erro no bsclub:', e);
-      if (e.response?.status === 404) {
-        return reply('❌ Clube não encontrado. Verifique a TAG e tente novamente.');
-      }
-      if (isApiKeyError(e)) {
-        ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
-        return reply(`❌ Erro na API. O dono foi notificado.`);
-      }
-      reply('❌ Erro ao buscar informações do clube.');
-    });
-  }
-  break;
-
-  case 'bsbrawlers':
-  case 'bslista':
-  try {
-    reply('🔍 Buscando lista de brawlers...');
-
-    // Usar API Brawlify (gratuita e com mais dados)
-    axios.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 }).then(response => {
-
-    if (!response.data || !response.data.list) {
-      return reply('❌ Erro ao buscar lista de brawlers.');
-    }
-
-    const brawlers = response.data.list;
-    
-    // Agrupar por raridade
-    const byRarity = {};
-    brawlers.forEach(b => {
-      const rarity = b.rarity?.name || 'Comum';
-      if (!byRarity[rarity]) byRarity[rarity] = [];
-      byRarity[rarity].push(b);
-    });
-
-    let msg = `👾 *BRAWL STARS - TODOS OS BRAWLERS*\n${'═'.repeat(30)}\n\n`;
-    msg += `📊 *Total:* ${brawlers.length} brawlers disponíveis\n\n`;
-
-    const rarityOrder = ['Legendary', 'Mythic', 'Epic', 'Super Rare', 'Rare', 'Trophy Road', 'Common', 'Starting'];
-    const rarityEmoji = {
-      'Legendary': '💛',
-      'Mythic': '❤️',
-      'Epic': '💜',
-      'Super Rare': '💙',
-      'Rare': '💚',
-      'Trophy Road': '🏆',
-      'Common': '⬜',
-      'Starting': '⭐'
-    };
-    const rarityPT = {
-      'Legendary': 'Lendário',
-      'Mythic': 'Mítico',
-      'Epic': 'Épico',
-      'Super Rare': 'Super Raro',
-      'Rare': 'Raro',
-      'Trophy Road': 'Estrada de Troféus',
-      'Common': 'Comum',
-      'Starting': 'Inicial'
-    };
-
-    rarityOrder.forEach(rarity => {
-      if (byRarity[rarity] && byRarity[rarity].length > 0) {
-        msg += `${rarityEmoji[rarity] || '•'} *${rarityPT[rarity] || rarity}* (${byRarity[rarity].length})\n`;
-        byRarity[rarity].forEach(b => {
-          const classEmoji = {
-            'Damage Dealer': '⚔️',
-            'Tank': '🛡️',
-            'Support': '💚',
-            'Assassin': '🗡️',
-            'Controller': '🎯',
-            'Marksman': '🎯',
-            'Artillery': '💥'
-          };
-          msg += `  ${classEmoji[b.class?.name] || '•'} ${b.name}\n`;
-        });
-        msg += `\n`;
-      }
-    });
-
-    msg += `💡 *Dica:* Use ${prefix}bsbrawler <nome> para detalhes`;
-
-    reply(msg);
-    }).catch(e => {
-      console.error('Erro no bsbrawlers:', e);
-      reply('❌ Erro ao buscar lista de brawlers.');
-    });
-  } catch (e) {
-    console.error('Erro no bsbrawlers:', e);
-    reply('❌ Erro ao processar comando.');
-  }
-  break;
-
-  case 'bsbrawler':
-  case 'bspersonagem':
-  {
-    if (!q) {
-      return reply(`👾 *BRAWL STARS - INFO DO BRAWLER*\n\n📝 *Como usar:*\n• Digite o nome do brawler\n• Exemplo: ${prefix}bsbrawler shelly\n• Exemplo: ${prefix}bsbrawler leon\n\n💡 Use ${prefix}bsbrawlers para ver a lista completa`);
-    }
-
-    const brawlerName = q.trim().toLowerCase();
-    
-    reply('🔍 Buscando informações do brawler...');
-    
-    // Usar API Brawlify com dados completos
-    axios.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 }).then(listResponse => {
-
-    if (!listResponse.data || !listResponse.data.list) {
-      return reply('❌ Erro ao buscar informações.');
-    }
-
-    const brawlers = listResponse.data.list;
-    const found = brawlers.find(b => 
-      b.name.toLowerCase() === brawlerName || 
-      b.name.toLowerCase().includes(brawlerName) ||
-      b.hash?.toLowerCase() === brawlerName
-    );
-    
-    if (!found) {
-      // Tentar busca parcial
-      const partial = brawlers.filter(b => 
-        b.name.toLowerCase().includes(brawlerName)
-      );
-      if (partial.length > 0) {
-        let suggestions = `❌ Brawler "${q}" não encontrado.\n\n🔎 *Você quis dizer:*\n`;
-        partial.slice(0, 5).forEach(b => {
-          suggestions += `• ${b.name}\n`;
-        });
-        return reply(suggestions);
-      }
-      return reply(`❌ Brawler "${q}" não encontrado.\n\n💡 Use ${prefix}bsbrawlers para ver a lista completa`);
-    }
-
-    const brawler = found;
-    
-    // Classificações
-    const rarityPT = {
-      'Legendary': 'Lendário 💛',
-      'Mythic': 'Mítico ❤️',
-      'Epic': 'Épico 💜',
-      'Super Rare': 'Super Raro 💙',
-      'Rare': 'Raro 💚',
-      'Trophy Road': 'Estrada de Troféus 🏆',
-      'Common': 'Comum ⬜',
-      'Starting': 'Inicial ⭐'
-    };
-    
-    const classPT = {
-      'Damage Dealer': 'Atacante ⚔️',
-      'Tank': 'Tanque 🛡️',
-      'Support': 'Suporte 💚',
-      'Assassin': 'Assassino 🗡️',
-      'Controller': 'Controlador 🎯',
-      'Marksman': 'Atirador 🎯',
-      'Artillery': 'Artilheiro 💥',
-      'Thrower': 'Arremessador 💣'
-    };
-    
-    let msg = `👾 *${brawler.name.toUpperCase()}*\n${'═'.repeat(30)}\n\n`;
-    
-    msg += `📋 *INFORMAÇÕES BÁSICAS*\n`;
-    msg += `┣ 🆔 ID: ${brawler.id}\n`;
-    msg += `┣ 💎 Raridade: ${rarityPT[brawler.rarity?.name] || brawler.rarity?.name || 'N/A'}\n`;
-    msg += `┣ ⚔️ Classe: ${classPT[brawler.class?.name] || brawler.class?.name || 'N/A'}\n`;
-    msg += `┗ 🔗 Link: ${brawler.link || 'N/A'}\n\n`;
-    
-    if (brawler.description) {
-      msg += `📝 *DESCRIÇÃO*\n${brawler.description}\n\n`;
-    }
-
-    if (brawler.starPowers && brawler.starPowers.length > 0) {
-      msg += `⭐ *STAR POWERS (${brawler.starPowers.length})*\n`;
-      brawler.starPowers.forEach((sp, i) => {
-        msg += `\n${i + 1}. *${sp.name}*\n`;
-        if (sp.description) {
-          msg += `   ${sp.description.replace(/<[^>]*>/g, '')}\n`;
-        }
-      });
-      msg += `\n`;
-    }
-
-    if (brawler.gadgets && brawler.gadgets.length > 0) {
-      msg += `🔧 *GADGETS (${brawler.gadgets.length})*\n`;
-      brawler.gadgets.forEach((g, i) => {
-        msg += `\n${i + 1}. *${g.name}*\n`;
-        if (g.description) {
-          msg += `   ${g.description.replace(/<[^>]*>/g, '')}\n`;
-        }
-      });
-    }
-
-    // Imagens disponíveis
-    const imageUrl = brawler.imageUrl2 || brawler.imageUrl || brawler.imageUrl3;
-
-    if (imageUrl) {
-        axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 15000 })
-          .then(imageBuffer => {
-            nazu.sendMessage(from, {
-              image: Buffer.from(imageBuffer.data),
-              caption: msg
-            }, { quoted: info });
-          })
-          .catch(() => reply(msg));
-      } else {
-        reply(msg);
-      }
-    }).catch(e => {
-      console.error('Erro no bsbrawler:', e);
-      reply('❌ Erro ao buscar informações do brawler.');
-    });
-  }
-  break;
-
-  case 'bsrankings':
-  case 'bsrank':
-  case 'bstop': {
-  if (!KeyCog) {
-    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-    return reply(API_KEY_REQUIRED_MESSAGE);
-  }
-
-  const argsRank = q ? q.trim().toLowerCase().split(/\s+/) : [];
-  const country = argsRank[0] || 'global';
-  const type = argsRank[1] || 'players';
-  const brawlerId = argsRank[2] || null;
-
-  const validTypes = ['players', 'clubs', 'brawlers'];
-  if (!validTypes.includes(type)) {
-    return reply(`🏆 *BRAWL STARS - RANKINGS*\n${'═'.repeat(30)}\n\n📝 *Como usar:*\n• ${prefix}bsrank [país] [tipo]\n\n*Tipos disponíveis:*\n• players - Top jogadores\n• clubs - Top clubes\n• brawlers - Top por brawler\n\n*Países:*\n• global - Mundial\n• br - Brasil\n• us - Estados Unidos\n• pt - Portugal\n• mx - México\n\n*Exemplos:*\n• ${prefix}bsrank global players\n• ${prefix}bsrank br clubs\n• ${prefix}bsrank br brawlers shelly`);
-  }
-
-  reply('🔍 Buscando ranking...');
-
-  let url;
-  if (country === 'global') {
-    url = `https://cog.api.br/api/v1/brawlstars/rankings/global/${type}`;
-  } else {
-    url = `https://cog.api.br/api/v1/brawlstars/rankings/${country}/${type}`;
-  }
-  
-  // Se for ranking de brawler específico
-  if (type === 'brawlers' && brawlerId) {
-    // Buscar ID do brawler pelo nome
-    axios.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 }).then(brawlersRes => {
-      const found = brawlersRes.data.list.find(b => b.name.toLowerCase() === brawlerId.toLowerCase());
-      if (found) {
-        url = country === 'global' 
-          ? `https://cog.api.br/api/v1/brawlstars/rankings/global/brawlers/${found.id}`
-          : `https://cog.api.br/api/v1/brawlstars/rankings/${country}/brawlers/${found.id}`;
-      }
-
-      axios.get(url, {
-        headers: { 'X-API-Key': KeyCog },
-        timeout: 120000
-      }).then(response => {
-        if (!response.data || !response.data.items) {
-          return reply('❌ Erro ao buscar ranking.');
-        }
-
-        const items = response.data.items.slice(0, 25);
-        const typeNames = {
-          players: '👤 JOGADORES',
-          clubs: '🛡️ CLUBES',
-          brawlers: '👾 BRAWLERS'
-        };
-        
-        const countryNames = {
-          global: '🌍 Global',
-          br: '🇧🇷 Brasil',
-          us: '🇺🇸 Estados Unidos',
-          pt: '🇵🇹 Portugal',
-          mx: '🇲🇽 México',
-          ar: '🇦🇷 Argentina',
-          es: '🇪🇸 Espanha',
-          de: '🇩🇪 Alemanha',
-          fr: '🇫🇷 França',
-          uk: '🇬🇧 Reino Unido',
-          jp: '🇯🇵 Japão',
-          kr: '🇰🇷 Coreia do Sul',
-          cn: '🇨🇳 China',
-          in: '🇮🇳 Índia',
-          ru: '🇷🇺 Rússia'
-        };
-
-        let msg = `🏆 *BRAWL STARS - RANKING*\n${'═'.repeat(30)}\n\n`;
-        msg += `📊 *Tipo:* ${typeNames[type]}\n`;
-        msg += `🌍 *Região:* ${countryNames[country] || country.toUpperCase()}\n`;
-        msg += `📋 *Mostrando:* Top ${items.length}\n\n`;
-
-        items.forEach((item, i) => {
-          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-          
-          if (type === 'players') {
-            msg += `${medal} *${item.name}*\n`;
-            msg += `   🏷️ ${item.tag}\n`;
-            msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
-            if (item.club?.name) msg += `   🛡️ ${item.club.name}\n`;
-            msg += `\n`;
-          } else if (type === 'clubs') {
-            msg += `${medal} *${item.name}*\n`;
-            msg += `   🏷️ ${item.tag}\n`;
-            msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
-            msg += `   👥 ${item.memberCount || 0}/30 membros\n`;
-            msg += `\n`;
-          } else if (type === 'brawlers') {
-            msg += `${medal} *${item.name}*\n`;
-            msg += `   🏷️ ${item.tag}\n`;
-            msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
-            if (item.brawler?.name) msg += `   👾 ${item.brawler.name}\n`;
-            msg += `\n`;
-          }
-        });
-
-        reply(msg);
-      }).catch(e => {
-        console.error('Erro no bsrankings:', e);
-        if (e.response?.status === 404) {
-          return reply('❌ País ou tipo de ranking não encontrado.');
-        }
-        if (isApiKeyError(e)) {
-          ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
-          return reply(`❌ Erro na API. O dono foi notificado.`);
-        }
-        reply('❌ Erro ao buscar ranking.');
-      });
-    }).catch(e => {
-      console.error('Erro ao buscar brawler:', e);
-      reply('❌ Erro ao buscar informações do brawler.');
-    });
-  } else {
-    axios.get(url, {
-      headers: { 'X-API-Key': KeyCog },
-      timeout: 120000
-    }).then(response => {
-      if (!response.data || !response.data.items) {
-        return reply('❌ Erro ao buscar ranking.');
-      }
-
-      const items = response.data.items.slice(0, 25);
-      const typeNames = {
-        players: '👤 JOGADORES',
-        clubs: '🛡️ CLUBES',
-        brawlers: '👾 BRAWLERS'
-      };
-      
-      const countryNames = {
-        global: '🌍 Global',
-        br: '🇧🇷 Brasil',
-        us: '🇺🇸 Estados Unidos',
-        pt: '🇵🇹 Portugal',
-        mx: '🇲🇽 México',
-        ar: '🇦🇷 Argentina',
-        es: '🇪🇸 Espanha',
-        de: '🇩🇪 Alemanha',
-        fr: '🇫🇷 França',
-        uk: '🇬🇧 Reino Unido',
-        jp: '🇯🇵 Japão',
-        kr: '🇰🇷 Coreia do Sul',
-        cn: '🇨🇳 China',
-        in: '🇮🇳 Índia',
-        ru: '🇷🇺 Rússia'
-      };
-
-      let msg = `🏆 *BRAWL STARS - RANKING*\n${'═'.repeat(30)}\n\n`;
-      msg += `📊 *Tipo:* ${typeNames[type]}\n`;
-      msg += `🌍 *Região:* ${countryNames[country] || country.toUpperCase()}\n`;
-      msg += `📋 *Mostrando:* Top ${items.length}\n\n`;
-
-      items.forEach((item, i) => {
-        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-        
-        if (type === 'players') {
-          msg += `${medal} *${item.name}*\n`;
-          msg += `   🏷️ ${item.tag}\n`;
-          msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
-          if (item.club?.name) msg += `   🛡️ ${item.club.name}\n`;
-          msg += `\n`;
-        } else if (type === 'clubs') {
-          msg += `${medal} *${item.name}*\n`;
-          msg += `   🏷️ ${item.tag}\n`;
-          msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
-          msg += `   👥 ${item.memberCount || 0}/30 membros\n`;
-          msg += `\n`;
-        } else if (type === 'brawlers') {
-          msg += `${medal} *${item.name}*\n`;
-          msg += `   🏷️ ${item.tag}\n`;
-          msg += `   🏆 ${item.trophies?.toLocaleString()} troféus\n`;
-          if (item.brawler?.name) msg += `   👾 ${item.brawler.name}\n`;
-          msg += `\n`;
-        }
-      });
-
-      reply(msg);
-    }).catch(e => {
-      console.error('Erro no bsrankings:', e);
-      if (e.response?.status === 404) {
-        return reply('❌ País ou tipo de ranking não encontrado.');
-      }
-      if (isApiKeyError(e)) {
-        ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
-        return reply(`❌ Erro na API. O dono foi notificado.`);
-      }
-      reply('❌ Erro ao buscar ranking.');
-    });
-  }
-  }
-  break;
-
-  case 'bsevents':
-  case 'bseventos':
-  case 'bsrotacao':
-  reply('🔍 Buscando eventos atuais...');
-
-  // Usar API Brawlify com dados completos dos eventos
-  axios.get('https://api.brawlify.com/v1/events', { timeout: 30000 }).then(response => {
-    if (!response.data) {
-      return reply('❌ Erro ao buscar eventos.');
-    }
-
-    const { active, upcoming } = response.data;
-    
-    let msg = `🎮 *BRAWL STARS - EVENTOS*\n${'═'.repeat(30)}\n\n`;
-
-    // Eventos ativos
-    if (active && active.length > 0) {
-      msg += `🟢 *EVENTOS ATIVOS*\n\n`;
-      
-      active.forEach((event, i) => {
-        if (event.map) {
-          const endTime = event.endTime ? new Date(event.endTime) : null;
-          const timeLeft = endTime ? Math.max(0, Math.floor((endTime - Date.now()) / 1000 / 60 / 60)) : 0;
-          
-          msg += `${event.slot?.emoji || '🎯'} *${event.slot?.name || `Slot ${i + 1}`}*\n`;
-          msg += `┣ 🗺️ Mapa: ${event.map.name}\n`;
-          msg += `┣ 🎮 Modo: ${event.map.gameMode?.name || 'N/A'}\n`;
-          if (event.modifier) {
-            msg += `┣ ⚡ Modificador: ${event.modifier.name || 'Especial'}\n`;
-          }
-          msg += `┗ ⏰ Tempo restante: ${timeLeft}h\n\n`;
-        }
-      });
-    }
-
-    // Próximos eventos
-    if (upcoming && upcoming.length > 0) {
-      msg += `🟡 *PRÓXIMOS EVENTOS*\n\n`;
-      
-      upcoming.slice(0, 5).forEach((event, i) => {
-        if (event.map) {
-          const startTime = event.startTime ? new Date(event.startTime) : null;
-          const timeUntil = startTime ? Math.max(0, Math.floor((startTime - Date.now()) / 1000 / 60 / 60)) : 0;
-          
-          msg += `${event.slot?.emoji || '🎯'} *${event.slot?.name || `Slot ${i + 1}`}*\n`;
-          msg += `┣ 🗺️ Mapa: ${event.map.name}\n`;
-          msg += `┣ 🎮 Modo: ${event.map.gameMode?.name || 'N/A'}\n`;
-          msg += `┗ ⏳ Começa em: ${timeUntil}h\n\n`;
-        }
-      });
-    }
-
-    if ((!active || active.length === 0) && (!upcoming || upcoming.length === 0)) {
-      msg = '⚠️ Nenhum evento encontrado no momento.';
-    }
-
-    msg += `💡 Use ${prefix}bsmapa <nome> para detalhes de um mapa`;
-
-    reply(msg);
-  }).catch(e => {
-    console.error('Erro no bsevents:', e);
-    reply('❌ Erro ao buscar eventos.');
-  });
-  break;
-
-  // ═══════════════════════════════════════════════════════════════
-  // 🆕 NOVOS COMANDOS BRAWL STARS
-  // ═══════════════════════════════════════════════════════════════
-
-  case 'bsbattlelog':
-  case 'bshistorico':
-  case 'bspartidas':
-  {
-  if (!KeyCog) {
-    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-    return reply(API_KEY_REQUIRED_MESSAGE);
-  }
-
-  if (!q) {
-    return reply(`📜 *BRAWL STARS - HISTÓRICO DE BATALHAS*\n\n📝 *Como usar:*\n• Digite a TAG do jogador\n• Exemplo: ${prefix}bsbattlelog #2PP\n\n💡 Mostra as últimas 25 partidas`);
-  }
-
-  let playerTag = q.trim().toUpperCase();
-  if (!playerTag.startsWith('#')) playerTag = '#' + playerTag;
-  const encodedTag = encodeURIComponent(playerTag);
-
-  reply('🔍 Buscando histórico de batalhas...');
-
-  axios.get(`https://cog.api.br/api/v1/brawlstars/players/${encodedTag}/battlelog`, {
-    headers: { 'X-API-Key': KeyCog },
-    timeout: 120000
-  }).then(response => {
-    if (!response.data || !response.data.items) {
-      return reply('❌ Histórico não encontrado. Verifique a TAG.');
-    }
-
-    const battles = response.data.items.slice(0, 15);
-    
-    // Estatísticas
-    const victories = battles.filter(b => b.battle?.result === 'victory').length;
-    const defeats = battles.filter(b => b.battle?.result === 'defeat').length;
-    const draws = battles.filter(b => b.battle?.result === 'draw').length;
-    
-    let msg = `📜 *HISTÓRICO DE BATALHAS*\n${'═'.repeat(30)}\n\n`;
-    msg += `🏷️ *Jogador:* ${playerTag}\n`;
-    msg += `📊 *Últimas ${battles.length} partidas:*\n`;
-    msg += `┣ ✅ Vitórias: ${victories}\n`;
-    msg += `┣ ❌ Derrotas: ${defeats}\n`;
-    msg += `┗ 🤝 Empates: ${draws}\n\n`;
-    
-    msg += `📋 *PARTIDAS RECENTES*\n\n`;
-    
-    battles.forEach((battle, i) => {
-      const b = battle.battle;
-      const event = battle.event;
-      
-      const resultEmoji = b?.result === 'victory' ? '✅' : b?.result === 'defeat' ? '❌' : '🤝';
-      const resultText = b?.result === 'victory' ? 'Vitória' : b?.result === 'defeat' ? 'Derrota' : 'Empate';
-      
-      const battleTime = battle.battleTime ? new Date(battle.battleTime.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6')) : null;
-      const timeAgo = battleTime ? Math.floor((Date.now() - battleTime) / 1000 / 60) : 0;
-      const timeText = timeAgo < 60 ? `${timeAgo}min` : timeAgo < 1440 ? `${Math.floor(timeAgo/60)}h` : `${Math.floor(timeAgo/1440)}d`;
-      
-      msg += `${i + 1}. ${resultEmoji} *${resultText}*\n`;
-      msg += `   🎮 ${event?.mode || b?.mode || 'N/A'}`;
-      if (event?.map) msg += ` - ${event.map}`;
-      msg += `\n`;
-      
-      // Brawler usado pelo jogador
-      if (b?.teams || b?.players) {
-        const players = b.teams ? b.teams.flat() : b.players;
-        const playerData = players?.find(p => p.tag === playerTag);
-        if (playerData?.brawler) {
-          msg += `   👾 ${playerData.brawler.name} (P${playerData.brawler.power || 1})`;
-          if (playerData.brawler.trophies !== undefined) {
-            const change = b?.trophyChange || 0;
-            msg += ` | ${change >= 0 ? '+' : ''}${change}🏆`;
-          }
-          msg += `\n`;
-        }
-      }
-      
-      msg += `   ⏰ ${timeText} atrás\n\n`;
-    });
-
-    reply(msg);
-  }).catch(e => {
-    console.error('Erro no bsbattlelog:', e);
-    if (e.response?.status === 404) {
-      return reply('❌ Jogador não encontrado.');
-    }
-    if (isApiKeyError(e)) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
-      return reply(`❌ Erro na API. O dono foi notificado.`);
-    }
-    reply('❌ Erro ao buscar histórico de batalhas.');
-  });
-  }
-  break;
-
-  case 'bsmapa':
-  case 'bsmap':
-  if (!q) {
-    return reply(`🗺️ *BRAWL STARS - INFO DO MAPA*\n\n📝 *Como usar:*\n• Digite o nome do mapa\n• Exemplo: ${prefix}bsmapa skull creek\n\n💡 Use ${prefix}bsmapas para ver todos`);
-  }
-
-  const mapName = q.trim().toLowerCase();
-  
-  reply('🔍 Buscando informações do mapa...');
-  
-  axios.get('https://api.brawlify.com/v1/maps', { timeout: 30000 }).then(response => {
-    if (!response.data || !response.data.list) {
-      return reply('❌ Erro ao buscar mapas.');
-    }
-
-    const maps = response.data.list;
-    const found = maps.find(m => 
-      m.name.toLowerCase() === mapName || 
-      m.name.toLowerCase().includes(mapName) ||
-      m.hash?.toLowerCase().replace(/-/g, ' ') === mapName
-    );
-    
-    if (!found) {
-      const partial = maps.filter(m => m.name.toLowerCase().includes(mapName)).slice(0, 5);
-      if (partial.length > 0) {
-        let suggestions = `❌ Mapa "${q}" não encontrado.\n\n🔎 *Você quis dizer:*\n`;
-        partial.forEach(m => { suggestions += `• ${m.name}\n`; });
-        return reply(suggestions);
-      }
-      return reply(`❌ Mapa "${q}" não encontrado.`);
-    }
-
-    const map = found;
-    
-    let msg = `🗺️ *${map.name.toUpperCase()}*\n${'═'.repeat(30)}\n\n`;
-    
-    msg += `📋 *INFORMAÇÕES*\n`;
-    msg += `┣ 🆔 ID: ${map.id}\n`;
-    msg += `┣ 🎮 Modo: ${map.gameMode?.name || 'N/A'}\n`;
-    msg += `┣ 🌍 Ambiente: ${map.environment?.name || 'N/A'}\n`;
-    if (map.credit) msg += `┣ 👤 Criador: ${map.credit}\n`;
-    msg += `┣ 🆕 Novo: ${map.new ? 'Sim' : 'Não'}\n`;
-    msg += `┗ ❌ Desativado: ${map.disabled ? 'Sim' : 'Não'}\n\n`;
-    
-    // Melhores brawlers no mapa
-    if (map.stats && map.stats.length > 0) {
-      axios.get('https://api.brawlify.com/v1/brawlers', { timeout: 30000 }).then(brawlersRes => {
-        const brawlersList = brawlersRes?.data?.list || [];
-        
-        const topStats = map.stats
-          .sort((a, b) => b.winRate - a.winRate)
-          .slice(0, 5);
-        
-        msg += `🏆 *MELHORES BRAWLERS*\n`;
-        topStats.forEach((stat, i) => {
-          const brawler = brawlersList.find(b => b.id === stat.brawler);
-          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-          msg += `${medal} ${brawler?.name || `ID:${stat.brawler}`}\n`;
-          msg += `   📈 Win Rate: ${stat.winRate.toFixed(1)}%\n`;
-          msg += `   📊 Pick Rate: ${stat.useRate.toFixed(1)}%\n\n`;
-        });
-        
-        // Melhor composição de time
-        if (map.teamStats && map.teamStats.length > 0) {
-          const bestTeam = map.teamStats[0];
-          msg += `👥 *MELHOR COMPOSIÇÃO*\n`;
-          msg += `${bestTeam.name}\n`;
-          msg += `📈 Win Rate: ${bestTeam.data.winRate.toFixed(1)}%\n\n`;
-        }
-
-        // Imagem do mapa
-        if (map.imageUrl) {
-          axios.get(map.imageUrl, { responseType: 'arraybuffer', timeout: 15000 }).then(imageBuffer => {
-            nazu.sendMessage(from, {
-              image: Buffer.from(imageBuffer.data),
-              caption: msg
-            }, { quoted: info });
-          }).catch(() => {
-            reply(msg);
-          });
-        } else {
-          reply(msg);
-        }
-      }).catch(() => {
-        // Se falhou ao buscar brawlers, continua sem eles
-        // Melhor composição de time
-        if (map.teamStats && map.teamStats.length > 0) {
-          const bestTeam = map.teamStats[0];
-          msg += `👥 *MELHOR COMPOSIÇÃO*\n`;
-          msg += `${bestTeam.name}\n`;
-          msg += `📈 Win Rate: ${bestTeam.data.winRate.toFixed(1)}%\n\n`;
-        }
-
-        // Imagem do mapa
-        if (map.imageUrl) {
-          axios.get(map.imageUrl, { responseType: 'arraybuffer', timeout: 15000 }).then(imageBuffer => {
-            nazu.sendMessage(from, {
-              image: Buffer.from(imageBuffer.data),
-              caption: msg
-            }, { quoted: info });
-          }).catch(() => {
-            reply(msg);
-          });
-        } else {
-          reply(msg);
-        }
-      });
-    } else {
-      // Sem stats, vai direto para composição e imagem
-      // Melhor composição de time
-      if (map.teamStats && map.teamStats.length > 0) {
-        const bestTeam = map.teamStats[0];
-        msg += `👥 *MELHOR COMPOSIÇÃO*\n`;
-        msg += `${bestTeam.name}\n`;
-        msg += `📈 Win Rate: ${bestTeam.data.winRate.toFixed(1)}%\n\n`;
-      }
-
-      // Imagem do mapa
-      if (map.imageUrl) {
-        axios.get(map.imageUrl, { responseType: 'arraybuffer', timeout: 15000 }).then(imageBuffer => {
-          nazu.sendMessage(from, {
-            image: Buffer.from(imageBuffer.data),
-            caption: msg
-          }, { quoted: info });
-        }).catch(() => {
-          reply(msg);
-        });
-      } else {
-        reply(msg);
-      }
-    }
-  }).catch(e => {
-    console.error('Erro no bsmapa:', e);
-    reply('❌ Erro ao buscar informações do mapa.');
-  });
-  break;
-
-  case 'bsmapas':
-  case 'bsmaps':
-  reply('🔍 Buscando lista de mapas...');
-  
-  axios.get('https://api.brawlify.com/v1/maps', { timeout: 30000 }).then(response => {
-    if (!response.data || !response.data.list) {
-      return reply('❌ Erro ao buscar mapas.');
-    }
-
-    const maps = response.data.list.filter(m => !m.disabled);
-    
-    // Agrupar por modo de jogo
-    const byMode = {};
-    maps.forEach(m => {
-      const mode = m.gameMode?.name || 'Outro';
-      if (!byMode[mode]) byMode[mode] = [];
-      byMode[mode].push(m);
-    });
-
-    let msg = `🗺️ *BRAWL STARS - MAPAS*\n${'═'.repeat(30)}\n\n`;
-    msg += `📊 *Total:* ${maps.length} mapas ativos\n\n`;
-
-    const modeEmoji = {
-      'Gem Grab': '💎',
-      'Brawl Ball': '⚽',
-      'Bounty': '⭐',
-      'Heist': '🔒',
-      'Siege': '🤖',
-      'Hot Zone': '🔥',
-      'Knockout': '💀',
-      'Solo Showdown': '🎯',
-      'Duo Showdown': '👥',
-      'Showdown': '🎯'
-    };
-
-    Object.keys(byMode).sort().forEach(mode => {
-      const mapsInMode = byMode[mode];
-      msg += `${modeEmoji[mode] || '🎮'} *${mode}* (${mapsInMode.length})\n`;
-      mapsInMode.slice(0, 5).forEach(m => {
-        msg += `  • ${m.name}\n`;
-      });
-      if (mapsInMode.length > 5) {
-        msg += `  ... e mais ${mapsInMode.length - 5}\n`;
-      }
-      msg += `\n`;
-    });
-
-    msg += `💡 Use ${prefix}bsmapa <nome> para detalhes`;
-
-    reply(msg);
-  }).catch(e => {
-    console.error('Erro no bsmapas:', e);
-    reply('❌ Erro ao buscar lista de mapas.');
-  });
-  break;
-
-  case 'bsmodos':
-  case 'bsmodes':
-  case 'bsgamemodes':
-  reply('🔍 Buscando modos de jogo...');
-  
-  axios.get('https://api.brawlify.com/v1/gamemodes', { timeout: 30000 }).then(response => {
-    if (!response.data || !response.data.list) {
-      return reply('❌ Erro ao buscar modos de jogo.');
-    }
-
-    const modes = response.data.list;
-    
-    let msg = `🎮 *BRAWL STARS - MODOS DE JOGO*\n${'═'.repeat(30)}\n\n`;
-    msg += `📊 *Total:* ${modes.length} modos\n\n`;
-
-    modes.forEach((mode, i) => {
-      msg += `${i + 1}. *${mode.name}*\n`;
-      if (mode.description) {
-        msg += `   ${mode.description.substring(0, 100)}${mode.description.length > 100 ? '...' : ''}\n`;
-      }
-      msg += `   🎨 Cor: ${mode.color || 'N/A'}\n\n`;
-    });
-
-    reply(msg);
-  }).catch(e => {
-    console.error('Erro no bsmodos:', e);
-    reply('❌ Erro ao buscar modos de jogo.');
-  });
-  break;
-
-  case 'bsicons':
-  case 'bsicones':
-  reply('🔍 Buscando ícones disponíveis...');
-  
-  axios.get('https://api.brawlify.com/v1/icons', { timeout: 30000 }).then(response => {
-    if (!response.data) {
-      return reply('❌ Erro ao buscar ícones.');
-    }
-
-    const playerIcons = Object.values(response.data.player || {});
-    const clubIcons = Object.values(response.data.club || {});
-    
-    let msg = `🖼️ *BRAWL STARS - ÍCONES*\n${'═'.repeat(30)}\n\n`;
-    
-    msg += `👤 *ÍCONES DE JOGADOR*\n`;
-    msg += `📊 Total: ${playerIcons.length} ícones\n\n`;
-    
-    // Agrupar por brawler
-    const byBrawler = playerIcons.filter(i => i.brawler);
-    const special = playerIcons.filter(i => !i.brawler && i.isReward);
-    const regular = playerIcons.filter(i => !i.brawler && !i.isReward);
-    
-    msg += `┣ 👾 De Brawlers: ${byBrawler.length}\n`;
-    msg += `┣ ⭐ Especiais/Recompensa: ${special.length}\n`;
-    msg += `┗ 🎨 Regulares: ${regular.length}\n\n`;
-    
-    msg += `🛡️ *BADGES DE CLUBE*\n`;
-    msg += `📊 Total: ${clubIcons.length} badges\n\n`;
-
-    msg += `💡 *Dica:* Ícones podem ser vistos no perfil dos jogadores`;
-
-    reply(msg);
-  }).catch(e => {
-    console.error('Erro no bsicons:', e);
-    reply('❌ Erro ao buscar ícones.');
-  });
-  break;
-
-  case 'bsclubmembers':
-  case 'bsmembros': {
-  if (!KeyCog) {
-    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-    return reply(API_KEY_REQUIRED_MESSAGE);
-  }
-
-  if (!q) {
-    return reply(`👥 *BRAWL STARS - MEMBROS DO CLUBE*\n\n📝 *Como usar:*\n• Digite a TAG do clube\n• Exemplo: ${prefix}bsmembros #2PP\n\n💡 Lista completa de todos os membros`);
-  }
-
-  let clubTag = q.trim().toUpperCase();
-  if (!clubTag.startsWith('#')) clubTag = '#' + clubTag;
-  const encodedTag = encodeURIComponent(clubTag);
-
-  reply('🔍 Buscando membros do clube...');
-
-  axios.get(`https://cog.api.br/api/v1/brawlstars/clubs/${encodedTag}/members`, {
-    headers: { 'X-API-Key': KeyCog },
-    timeout: 120000
-  }).then(response => {
-    if (!response.data || !response.data.items) {
-      return reply('❌ Clube não encontrado.');
-    }
-
-    const members = response.data.items;
-    
-    let msg = `👥 *MEMBROS DO CLUBE*\n${'═'.repeat(30)}\n\n`;
-    msg += `🏷️ *TAG:* ${clubTag}\n`;
-    msg += `📊 *Total:* ${members.length}/30 membros\n\n`;
-    
-    const roleOrder = { president: 1, vicePresident: 2, senior: 3, member: 4 };
-    const sorted = members.sort((a, b) => {
-      if (roleOrder[a.role] !== roleOrder[b.role]) {
-        return roleOrder[a.role] - roleOrder[b.role];
-      }
-      return (b.trophies || 0) - (a.trophies || 0);
-    });
-    
-    sorted.forEach((m, i) => {
-      const roleEmoji = {
-        president: '👑',
-        vicePresident: '⭐',
-        senior: '🎖️',
-        member: '👤'
-      };
-      const roleName = {
-        president: 'Presidente',
-        vicePresident: 'Vice',
-        senior: 'Veterano',
-        member: 'Membro'
-      };
-      
-      msg += `${i + 1}. ${roleEmoji[m.role] || '👤'} *${m.name}*\n`;
-      msg += `   🏷️ ${m.tag}\n`;
-      msg += `   🏆 ${m.trophies?.toLocaleString() || 0} troféus\n`;
-      msg += `   📌 ${roleName[m.role] || m.role}\n\n`;
-    });
-
-    reply(msg);
-  }).catch(e => {
-    console.error('Erro no bsclubmembers:', e);
-    if (e.response?.status === 404) {
-      return reply('❌ Clube não encontrado.');
-    }
-    if (isApiKeyError(e)) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
-      return reply(`❌ Erro na API. O dono foi notificado.`);
-    }
-    reply('❌ Erro ao buscar membros do clube.');
-  });
-  }
-  break;
-
-  case 'bscompare':
-  case 'bscomparar':
-  if (!KeyCog) {
-    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-    return reply(API_KEY_REQUIRED_MESSAGE);
-  }
-
-  const tags = q ? q.trim().split(/\s+/) : [];
-  if (tags.length < 2) {
-    return reply(`⚖️ *BRAWL STARS - COMPARAR JOGADORES*\n\n📝 *Como usar:*\n• Digite duas TAGs separadas por espaço\n• Exemplo: ${prefix}bscompare #TAG1 #TAG2\n\n💡 Compara estatísticas de dois jogadores`);
-  }
-
-  reply('🔍 Comparando jogadores...');
-
-  const [tag1, tag2] = tags.map(t => {
-    let tag = t.toUpperCase();
-    if (!tag.startsWith('#')) tag = '#' + tag;
-    return encodeURIComponent(tag);
-  });
-
-  Promise.all([
-    axios.get(`https://cog.api.br/api/v1/brawlstars/players/${tag1}`, { headers: { 'X-API-Key': KeyCog }, timeout: 120000 }),
-    axios.get(`https://cog.api.br/api/v1/brawlstars/players/${tag2}`, { headers: { 'X-API-Key': KeyCog }, timeout: 120000 })
-  ]).then(([res1, res2]) => {
-    if (!res1.data?.tag || !res2.data?.tag) {
-      return reply('❌ Um ou ambos os jogadores não foram encontrados.');
-    }
-
-    const p1 = res1.data;
-    const p2 = res2.data;
-    
-    // Funções auxiliares
-    const better = (v1, v2) => v1 > v2 ? '✅' : v1 < v2 ? '❌' : '🤝';
-    const format = (v) => (v || 0).toLocaleString();
-    
-    let msg = `⚖️ *COMPARAÇÃO DE JOGADORES*\n${'═'.repeat(30)}\n\n`;
-    
-    msg += `👤 *${p1.name}* vs *${p2.name}*\n`;
-    msg += `🏷️ ${p1.tag} vs ${p2.tag}\n\n`;
-    
-    msg += `📊 *ESTATÍSTICAS*\n\n`;
-    
-    msg += `🏆 *Troféus Atuais*\n`;
-    msg += `${better(p1.trophies, p2.trophies)} ${format(p1.trophies)} vs ${format(p2.trophies)}\n\n`;
-    
-    msg += `🌟 *Troféus Máximos*\n`;
-    msg += `${better(p1.highestTrophies, p2.highestTrophies)} ${format(p1.highestTrophies)} vs ${format(p2.highestTrophies)}\n\n`;
-    
-    msg += `📈 *Nível*\n`;
-    msg += `${better(p1.expLevel, p2.expLevel)} ${p1.expLevel || 1} vs ${p2.expLevel || 1}\n\n`;
-    
-    msg += `⚔️ *Vitórias 3v3*\n`;
-    msg += `${better(p1['3vs3Victories'], p2['3vs3Victories'])} ${format(p1['3vs3Victories'])} vs ${format(p2['3vs3Victories'])}\n\n`;
-    
-    msg += `🥇 *Vitórias Solo*\n`;
-    msg += `${better(p1.soloVictories, p2.soloVictories)} ${format(p1.soloVictories)} vs ${format(p2.soloVictories)}\n\n`;
-    
-    msg += `👥 *Vitórias Dupla*\n`;
-    msg += `${better(p1.duoVictories, p2.duoVictories)} ${format(p1.duoVictories)} vs ${format(p2.duoVictories)}\n\n`;
-    
-    msg += `👾 *Brawlers*\n`;
-    msg += `${better(p1.brawlers?.length, p2.brawlers?.length)} ${p1.brawlers?.length || 0} vs ${p2.brawlers?.length || 0}\n\n`;
-    
-    // Brawlers Power 11
-    const p1Max = p1.brawlers?.filter(b => b.power === 11).length || 0;
-    const p2Max = p2.brawlers?.filter(b => b.power === 11).length || 0;
-    msg += `⭐ *Power 11*\n`;
-    msg += `${better(p1Max, p2Max)} ${p1Max} vs ${p2Max}\n`;
-
-    reply(msg);
-  }).catch(e => {
-    console.error('Erro no bscompare:', e);
-    if (e.response?.status === 404) {
-      return reply('❌ Um ou ambos os jogadores não foram encontrados.');
-    }
-    if (isApiKeyError(e)) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
-      return reply(`❌ Erro na API. O dono foi notificado.`);
-    }
-    reply('❌ Erro ao comparar jogadores.');
-  });
-  break;
-
-  case 'bsplayerbrawlers':
-  case 'bsjogadorbrawlers':
-  case 'bsmeusbrawlers': {
-  if (!KeyCog) {
-    ia.notifyOwnerAboutApiKey(nazu, nmrdn, 'API key não configurada', 'IA', prefix);
-    return reply(API_KEY_REQUIRED_MESSAGE);
-  }
-
-  if (!q) {
-    return reply(`👾 *BRAWL STARS - BRAWLERS DO JOGADOR*\n\n📝 *Como usar:*\n• Digite a TAG do jogador\n• Exemplo: ${prefix}bsmeusbrawlers #2PP\n\n💡 Lista completa de brawlers com detalhes`);
-  }
-
-  let playerTag = q.trim().toUpperCase();
-  if (!playerTag.startsWith('#')) playerTag = '#' + playerTag;
-  const encodedTag = encodeURIComponent(playerTag);
-
-  reply('🔍 Buscando brawlers do jogador...');
-
-  axios.get(`https://cog.api.br/api/v1/brawlstars/players/${encodedTag}`, {
-    headers: { 'X-API-Key': KeyCog },
-    timeout: 120000
-  }).then(response => {
-    if (!response.data || !response.data.brawlers) {
-      return reply('❌ Jogador não encontrado.');
-    }
-
-    const player = response.data;
-    const brawlers = player.brawlers.sort((a, b) => (b.trophies || 0) - (a.trophies || 0));
-    
-    // Estatísticas gerais
-    const totalTrophies = brawlers.reduce((sum, b) => sum + (b.trophies || 0), 0);
-    const avgTrophies = Math.round(totalTrophies / brawlers.length);
-    const maxPower = brawlers.filter(b => b.power === 11).length;
-    const rank25 = brawlers.filter(b => b.rank >= 25).length;
-    const rank30 = brawlers.filter(b => b.rank >= 30).length;
-    const rank35 = brawlers.filter(b => b.rank >= 35).length;
-    
-    let msg = `👾 *BRAWLERS DE ${player.name}*\n${'═'.repeat(30)}\n\n`;
-    
-    msg += `📊 *ESTATÍSTICAS GERAIS*\n`;
-    msg += `┣ 👾 Total: ${brawlers.length}\n`;
-    msg += `┣ 🏆 Troféus: ${totalTrophies.toLocaleString()}\n`;
-    msg += `┣ 📈 Média: ${avgTrophies} por brawler\n`;
-    msg += `┣ ⭐ Power 11: ${maxPower}\n`;
-    msg += `┣ 🏅 Rank 25+: ${rank25}\n`;
-    msg += `┣ 💎 Rank 30+: ${rank30}\n`;
-    msg += `┗ 🔥 Rank 35: ${rank35}\n\n`;
-    
-    msg += `📋 *LISTA COMPLETA*\n\n`;
-    
-    brawlers.forEach((b, i) => {
-      const rankBadge = b.rank >= 35 ? '🔥' : b.rank >= 30 ? '💎' : b.rank >= 25 ? '🏅' : b.rank >= 20 ? '⭐' : '•';
-      const powerBadge = b.power === 11 ? '⭐' : b.power >= 9 ? '✨' : '';
-      
-      msg += `${i + 1}. ${rankBadge} *${b.name}* ${powerBadge}\n`;
-      msg += `   🏆 ${b.trophies} | R${b.rank} | P${b.power}\n`;
-      
-      // Star Powers e Gadgets
-      const sp = b.starPowers?.length || 0;
-      const gd = b.gadgets?.length || 0;
-      const gr = b.gears?.length || 0;
-      if (sp || gd || gr) {
-        msg += `   SP:${sp}/2 | Gd:${gd}/2 | Gr:${gr}/3\n`;
-      }
-      msg += `\n`;
-    });
-
-    // Dividir mensagem se muito grande
-    if (msg.length > 4000) {
-      const parts = msg.match(/.{1,4000}/gs) || [msg];
-      for (const part of parts) {
-        reply(part);
-      }
-    } else {
-      reply(msg);
-    }
-  }).catch(e => {
-    console.error('Erro no bsplayerbrawlers:', e);
-    if (e.response?.status === 404) {
-      return reply('❌ Jogador não encontrado.');
-    }
-    if (isApiKeyError(e)) {
-      ia.notifyOwnerAboutApiKey(nazu, nmrdn, e.response?.data?.message || e.message);
-      return reply(`❌ Erro na API. O dono foi notificado.`);
-    }
-    reply('❌ Erro ao buscar brawlers do jogador.');
-  });
-  }
-  break;
-  
   case 'nuke':
   try {
     if (!isOwner) return reply('Apenas o dono pode usar este comando.');
@@ -34314,55 +30493,6 @@ O envio de likes do Free Fire está disponível apenas no *plano ilimitado*.
   } catch (e) {
     console.error('Erro no nuke:', e);
     await reply('Ocorreu um erro ao banir 💔');
-  }
-  break;
-  
-  case 'infoff':
-  try {
-    if (!q) return reply('⚠️ Por favor, digite o UID do jogador Free Fire.\n\nEx: ' + prefix + command + ' 123456789');
-
-    const uid = q.trim();
-    const region = 'br';
-
-    const infoRes = await axios.get(`https://freefireapis.shardweb.app/api/info_player?uid=${uid}&region=${region}`);
-    const data = infoRes.data;
-
-    if (!data || !data.basicInfo) {
-      return reply('❌ Não foi possível obter as informações do jogador. Verifique o UID e tente novamente.');
-    }
-
-    const basic = data.basicInfo;
-    const social = data.socialInfo || {};
-    const pet = data.petInfo || {};
-    const clan = data.clanBasicInfo || {};
-
-    let msg = `🎮 *Informações do Jogador Free Fire* 🎮\n\n`;
-    msg += `👤 *Nickname:* ${basic.nickname || 'N/A'}\n`;
-    msg += `🆔 *ID da Conta:* ${basic.accountId || 'N/A'}\n`;
-    msg += `🌍 *Região:* ${basic.region || 'N/A'}\n`;
-    msg += `📈 *Nível:* ${basic.level || 'N/A'}\n`;
-    msg += `🔥 *EXP:* ${basic.exp || 'N/A'}\n`;
-    msg += `⭐ *Likes:* ${basic.liked || '0'}\n`;
-    msg += `🏆 *Rank Máximo:* ${basic.maxRank || 'N/A'}\n`;
-    msg += `📊 *Pontos de Rank:* ${basic.rankingPoints || '0'}\n`;
-    msg += `🏅 *Rank Atual:* ${basic.rank || 'N/A'}\n`;
-    msg += `🐾 *Pet:* ${pet.name || 'Nenhum'}\n`;
-    msg += `👥 *Clã:* ${clan.name || 'Nenhum'}\n`;
-    msg += `📅 *Criado em:* ${basic.createAt ? new Date(parseInt(basic.createAt) * 1000).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : 'N/A'}\n`;
-    msg += `🕒 *Último Login:* ${basic.lastLoginAt ? new Date(parseInt(basic.lastLoginAt) * 1000).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : 'N/A'}`;
-
-    if (basic.avatars && basic.avatars.png) {
-      const avatarUrl = basic.avatars.png;
-      try {
-        await nazu.sendMessage(from, {image: {url: avatarUrl}, caption: msg}, {quoted: info});
-      } catch (err) {
-        await reply(msg);
-      }
-    }
-
-  } catch (e) {
-    console.error('Erro no comando infoff:', e);
-    reply('❌ Ocorreu um erro ao processar sua solicitação. Tente novamente mais tarde.');
   }
   break;
   
@@ -34961,4 +31091,3 @@ function getDiskSpaceInfo() {
   }
 }
 export default NazuninhaBotExec;
-

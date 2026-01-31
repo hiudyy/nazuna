@@ -1,97 +1,185 @@
 /**
- * Download e Pesquisa TikTok usando API Cognima
- * Updated to use cog.api.br API
- * Otimizado com HTTP connection pooling
+ * TikTok Download - Implementação direta sem API externa
+ * Usa tikwm.com como fonte
  */
 
-import { apiClient } from '../../utils/httpClient.js';
-import { notifyOwnerAboutApiKey, isApiKeyError } from '../utils/apiKeyNotifier.js';
+import axios from 'axios';
 
-// Função para pesquisar vídeos no TikTok
-async function tiktokSearch(query, apiKey) {
+const BASE_URL = 'https://www.tikwm.com/api';
+
+// Cache simples
+const cache = new Map();
+const CACHE_TTL = 60 * 60 * 1000; // 1 hora
+
+function getCached(key) {
+  const item = cache.get(key);
+  if (!item) return null;
+  if (Date.now() - item.ts > CACHE_TTL) {
+    cache.delete(key);
+    return null;
+  }
+  return item.val;
+}
+
+function setCache(key, val) {
+  if (cache.size >= 1000) {
+    const oldestKey = cache.keys().next().value;
+    cache.delete(oldestKey);
+  }
+  cache.set(key, { val, ts: Date.now() });
+}
+
+// Headers para tikwm
+const TIKWM_HEADERS = {
+  'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+  'Cookie': 'current_language=pt-BR',
+  'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Encoding': 'gzip, deflate',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Referer': 'https://www.tikwm.com/'
+};
+
+/**
+ * Formata resposta de download
+ */
+function formatDownloadResponse(data) {
+  const response = {
+    criador: 'Hiudy'
+  };
+
+  if (data.music_info?.play) {
+    response.audio = data.music_info.play;
+  }
+
+  if (data.images) {
+    response.type = 'image';
+    response.mime = '';
+    response.urls = data.images;
+  } else {
+    response.type = 'video';
+    response.mime = 'video/mp4';
+    response.urls = [data.play];
+  }
+
+  if (data.title) {
+    response.title = data.title;
+  }
+
+  return response;
+}
+
+/**
+ * Faz download de vídeo do TikTok
+ * @param {string} url - URL do vídeo do TikTok
+ * @returns {Promise<Object>} Dados do download
+ */
+async function dl(url) {
   try {
-    if (!apiKey) {
-      throw new Error('API key não fornecida');
+    if (!url || typeof url !== 'string' || url.trim().length === 0) {
+      return {
+        ok: false,
+        msg: 'URL inválida'
+      };
     }
 
-    const response = await apiClient.post('https://cog.api.br/api/v1/tiktok/search', {
-      query: query
-    }, {
-      headers: { 'X-API-Key': apiKey },
+    // Verificar cache
+    const cached = getCached(`download:${url}`);
+    if (cached) return { ok: true, ...cached, cached: true };
+
+    const response = await axios.get(`${BASE_URL}/`, {
+      params: { url },
+      headers: TIKWM_HEADERS,
       timeout: 120000
     });
 
-    if (!response.data.success || !response.data.data) {
-      throw new Error('Resposta inválida da API');
+    if (!response.data?.data) {
+      return {
+        ok: false,
+        msg: 'Não foi possível obter dados do vídeo'
+      };
     }
+
+    const result = formatDownloadResponse(response.data.data);
+    setCache(`download:${url}`, result);
 
     return {
       ok: true,
-      criador: 'Hiudy',
-      title: response.data.data.title,
-      urls: response.data.data.urls,
-      type: response.data.data.type,
-      mime: response.data.data.mime,
-      audio: response.data.data.audio
+      ...result
     };
-
   } catch (error) {
-    console.error('Erro na pesquisa TikTok:', error.message);
-    
-    if (isApiKeyError(error)) {
-      throw new Error(`API key inválida ou expirada: ${error.response?.data?.message || error.message}`);
-    }
-    
-    return { 
-      ok: false, 
-      msg: 'Erro ao pesquisar vídeo: ' + (error.response?.data?.message || error.message) 
+    console.error('Erro no download TikTok:', error.message);
+    return {
+      ok: false,
+      msg: 'Erro ao baixar vídeo: ' + error.message
     };
   }
 }
 
-// Função para baixar vídeo do TikTok
-async function tiktokDownload(url, apiKey) {
+/**
+ * Pesquisa vídeos no TikTok
+ * @param {string} query - Termo de pesquisa
+ * @returns {Promise<Object>} Resultados da pesquisa
+ */
+async function search(query) {
   try {
-    if (!apiKey) {
-      throw new Error('API key não fornecida');
+    if (!query || typeof query !== 'string' || query.trim().length === 0) {
+      return {
+        ok: false,
+        msg: 'Termo de pesquisa inválido'
+      };
     }
 
-    const response = await apiClient.post('https://cog.api.br/api/v1/tiktok/download', {
-      url: url
+    // Verificar cache
+    const cached = getCached(`search:${query}`);
+    if (cached) return { ok: true, ...cached, cached: true };
+
+    const response = await axios.post(`${BASE_URL}/feed/search`, {
+      keywords: query,
+      count: 5,
+      cursor: 0,
+      HD: 1
     }, {
-      headers: { 'X-API-Key': apiKey },
+      headers: TIKWM_HEADERS,
       timeout: 120000
     });
 
-    if (!response.data.success || !response.data.data) {
-      throw new Error('Resposta inválida da API');
+    if (!response.data?.data?.videos?.length) {
+      return {
+        ok: false,
+        msg: 'Nenhum vídeo encontrado'
+      };
     }
+
+    // Pegar um vídeo aleatório dos resultados
+    const videos = response.data.data.videos;
+    const randomVideo = videos[Math.floor(Math.random() * videos.length)];
+
+    const result = {
+      criador: 'Hiudy',
+      title: randomVideo.title,
+      urls: [randomVideo.play],
+      type: 'video',
+      mime: 'video/mp4',
+      audio: randomVideo.music_info?.play
+    };
+
+    setCache(`search:${query}`, result);
 
     return {
       ok: true,
-      criador: 'Hiudy',
-      title: response.data.data.title,
-      urls: response.data.data.urls,
-      type: response.data.data.type,
-      mime: response.data.data.mime,
-      audio: response.data.data.audio
+      ...result
     };
-
   } catch (error) {
-    console.error('Erro no download TikTok:', error.message);
-    
-    if (isApiKeyError(error)) {
-      throw new Error(`API key inválida ou expirada: ${error.response?.data?.message || error.message}`);
-    }
-    
-    return { 
-      ok: false, 
-      msg: 'Erro ao baixar vídeo: ' + (error.response?.data?.message || error.message) 
+    console.error('Erro na pesquisa TikTok:', error.message);
+    return {
+      ok: false,
+      msg: 'Erro ao pesquisar vídeo: ' + error.message
     };
   }
 }
 
 export {
-  tiktokSearch as search,
-  tiktokDownload as dl
+  search,
+  dl
 };
