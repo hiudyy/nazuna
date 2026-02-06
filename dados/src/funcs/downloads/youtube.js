@@ -9,44 +9,31 @@
  * - OceanSaver
  * - Y2mate
  * - SaveTube
+ * - API Nodz (Principal para MP3)
  */
 
 import axios from 'axios';
 import { createDecipheriv } from 'crypto';
 import yts from 'yt-search';
 
-// ============================================
-// CONFIGURAÇÕES
-// ============================================
-
 const CONFIG = {
   TIMEOUT: 60000,
   DOWNLOAD_TIMEOUT: 180000,
-  PROVIDER_COOLDOWN_MS: 5 * 60 * 60 * 1000, // 5 horas
+  PROVIDER_COOLDOWN_MS: 5 * 60 * 60 * 1000,
   MAX_FAILURES_BEFORE_COOLDOWN: 3,
   USER_AGENT: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  // SaveTube config
   SAVETUBE_SECRET_KEY: 'C5D58EF67A7584E4A29F6C35BBC4EB12',
   SAVETUBE_ALGORITHM: 'aes-128-cbc'
 };
 
-// ============================================
-// ESTADO GLOBAL (Fila Rotativa)
-// ============================================
-
 const providerState = {
-  cooldowns: new Map(),      // provider -> timestamp até quando está em cooldown
-  failureCounts: new Map(),  // provider -> número de falhas consecutivas
-  methodOrder: ['nayan', 'adonix', 'oceansaver', 'y2mate', 'savetube'] // ordem dinâmica
+  cooldowns: new Map(),
+  failureCounts: new Map(),
+  methodOrder: ['nodzapi', 'nayan', 'adonix', 'oceansaver', 'y2mate', 'savetube']
 };
 
-// Cache simples
 const cache = new Map();
-const CACHE_TTL = 60 * 60 * 1000; // 1 hora
-
-// ============================================
-// FUNÇÕES AUXILIARES
-// ============================================
+const CACHE_TTL = 60 * 60 * 1000;
 
 function getCached(key) {
   const item = cache.get(key);
@@ -100,10 +87,6 @@ function formatDuration(seconds) {
   }
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
-
-// ============================================
-// GERENCIAMENTO DE PROVIDERS (Fila Rotativa)
-// ============================================
 
 function isProviderInCooldown(provider) {
   const until = providerState.cooldowns.get(provider);
@@ -168,9 +151,55 @@ function analyzeError(errorMessage) {
   };
 }
 
-// ============================================
-// PROVIDER: NAYAN VIDEO DOWNLOADER
-// ============================================
+async function DownloadNodz(url) {
+  try {
+    console.log(`🚀 [NodzAPI] Baixando mp3...`);
+    
+    const { data } = await axios.get('https://apisnodz.com.br/api/downloads/youtube/audio', {
+      params: { url: url },
+      timeout: CONFIG.TIMEOUT
+    });
+    
+    if (!data.success || !data.resultado || !data.resultado.url) {
+      throw new Error(data.message || 'API Nodz retornou erro');
+    }
+    
+    const resultado = data.resultado;
+    
+    console.log(`📥 [NodzAPI] Baixando arquivo...`);
+    const fileResponse = await axios.get(resultado.url, {
+      responseType: 'arraybuffer',
+      timeout: CONFIG.DOWNLOAD_TIMEOUT,
+      headers: {
+        'User-Agent': CONFIG.USER_AGENT
+      }
+    });
+    
+    const buffer = Buffer.from(fileResponse.data);
+    
+    console.log(`✅ [NodzAPI] Download concluído: ${resultado.titulo}`);
+    
+    return {
+      success: true,
+      buffer,
+      title: resultado.titulo || 'YouTube Audio',
+      thumbnail: null,
+      quality: resultado.qualidade || '128 kbps',
+      filename: resultado.filename || `${resultado.titulo}.mp3`,
+      tempo: resultado.tempo || 0,
+      source: 'nodzapi'
+    };
+    
+  } catch (error) {
+    console.error(`❌ [NodzAPI] Erro:`, error.message);
+    return { 
+      success: false, 
+      error: error.message, 
+      source: 'nodzapi',
+      isApiError: true
+    };
+  }
+}
 
 async function downloadWithNayan(url, format = 'mp3') {
   try {
@@ -233,10 +262,6 @@ async function downloadWithNayan(url, format = 'mp3') {
   }
 }
 
-// ============================================
-// PROVIDER: ADONIX (ytmp3.mobi)
-// ============================================
-
 async function downloadWithAdonix(url) {
   try {
     console.log(`🚀 [Adonix] Baixando mp3...`);
@@ -254,7 +279,6 @@ async function downloadWithAdonix(url) {
       "Referrer-Policy": "strict-origin-when-cross-origin"
     };
 
-    // 1. Obter configurações iniciais
     const initialResponse = await axios.get(`https://d.ymcdn.org/api/v1/init?p=y&23=1llum1n471&_=${Math.random()}`, {
       headers,
       timeout: CONFIG.TIMEOUT
@@ -262,18 +286,15 @@ async function downloadWithAdonix(url) {
 
     const init = initialResponse.data;
 
-    // 2. Extrair ID do vídeo
     const videoId = url.match(/(?:youtu\.be\/|youtube\.com\/(?:.*v=|.*\/|.*embed\/))([^&?/]+)/)?.[1];
     if (!videoId) {
       throw new Error('Não foi possível extrair ID do vídeo');
     }
 
-    // 3. Iniciar conversão MP3
     const mp3Url = init.convertURL + `&v=${videoId}&f=mp3&_=${Math.random()}`;
     const mp3Response = await axios.get(mp3Url, { headers, timeout: CONFIG.TIMEOUT });
     const mp3Data = mp3Response.data;
 
-    // 4. Aguardar processamento
     let info = {};
     let attempts = 0;
     const maxAttempts = 30;
@@ -292,7 +313,6 @@ async function downloadWithAdonix(url) {
       throw new Error('Timeout no processamento');
     }
 
-    // 5. Baixar arquivo
     const fileResponse = await axios.get(mp3Data.downloadURL, {
       responseType: 'arraybuffer',
       timeout: CONFIG.DOWNLOAD_TIMEOUT
@@ -316,10 +336,6 @@ async function downloadWithAdonix(url) {
   }
 }
 
-// ============================================
-// PROVIDER: OCEANSAVER
-// ============================================
-
 async function downloadWithOceanSaver(url, format = 'mp3') {
   try {
     console.log(`🚀 [OceanSaver] Baixando ${format}...`);
@@ -331,7 +347,6 @@ async function downloadWithOceanSaver(url, format = 'mp3') {
 
     const encodedUrl = encodeURIComponent(url);
 
-    // 1. Fazer requisição inicial
     const requestResponse = await axios.get(
       `https://p.oceansaver.in/ajax/download.php?format=${formatOrQuality}&url=${encodedUrl}`,
       { timeout: CONFIG.TIMEOUT }
@@ -343,7 +358,6 @@ async function downloadWithOceanSaver(url, format = 'mp3') {
       throw new Error('Falha ao obter task ID');
     }
 
-    // 2. Aguardar conversão
     let attempts = 0;
     const maxAttempts = 20;
 
@@ -356,7 +370,6 @@ async function downloadWithOceanSaver(url, format = 'mp3') {
       const progressData = progressResponse.data;
 
       if (progressData && progressData.download_url) {
-        // 3. Baixar arquivo
         const fileResponse = await axios.get(progressData.download_url, {
           responseType: 'arraybuffer',
           timeout: CONFIG.DOWNLOAD_TIMEOUT
@@ -388,10 +401,6 @@ async function downloadWithOceanSaver(url, format = 'mp3') {
   }
 }
 
-// ============================================
-// PROVIDER: Y2MATE
-// ============================================
-
 async function downloadWithY2mate(url, format = 'mp3') {
   try {
     console.log(`🚀 [Y2mate] Baixando ${format}...`);
@@ -402,7 +411,6 @@ async function downloadWithY2mate(url, format = 'mp3') {
       "user-agent": CONFIG.USER_AGENT
     };
 
-    // 1. Obter ID do YouTube
     const getYoutubeId = async (youtubeUrl) => {
       const response = await axios.head(youtubeUrl, { headers, timeout: CONFIG.TIMEOUT, maxRedirects: 5 });
       let videoId = new URL(response.request.res.responseUrl || youtubeUrl)?.searchParams?.get("v");
@@ -410,7 +418,6 @@ async function downloadWithY2mate(url, format = 'mp3') {
       if (!videoId) {
         videoId = (response.request.res.responseUrl || youtubeUrl).match(/https:\/\/www.youtube.com\/shorts\/(.*?)(?:\?|$)/)?.[1];
         if (!videoId) {
-          // Tentar extrair do URL original
           videoId = getYouTubeVideoId(youtubeUrl);
         }
       }
@@ -419,7 +426,6 @@ async function downloadWithY2mate(url, format = 'mp3') {
       return { videoId };
     };
 
-    // 2. Obter auth code
     const getAuthCode = async () => {
       console.log("[Y2mate] Baixando homepage");
       const homepageResponse = await axios.get("https://y2mate.nu", { headers, timeout: CONFIG.TIMEOUT });
@@ -482,7 +488,6 @@ async function downloadWithY2mate(url, format = 'mp3') {
       progressURL = redirectResponse.data.progressURL;
     }
 
-    // Aguardar processamento
     let progress = 0;
     let title = '';
 
@@ -500,7 +505,6 @@ async function downloadWithY2mate(url, format = 'mp3') {
       if (progress !== 3) await new Promise(resolve => setTimeout(resolve, 5000));
     }
 
-    // Baixar arquivo final
     const fileResponse = await axios.get(downloadURL, {
       responseType: 'arraybuffer',
       timeout: CONFIG.DOWNLOAD_TIMEOUT
@@ -524,10 +528,6 @@ async function downloadWithY2mate(url, format = 'mp3') {
   }
 }
 
-// ============================================
-// PROVIDER: SAVETUBE
-// ============================================
-
 async function downloadWithSavetube(url, format = 'mp3') {
   try {
     console.log(`🚀 [SaveTube] Baixando ${format}...`);
@@ -537,11 +537,9 @@ async function downloadWithSavetube(url, format = 'mp3') {
       'Referer': 'https://yt.savetube.me/'
     };
 
-    // 1. Obter CDN randômico
     const cdnResponse = await axios.get("https://media.savetube.me/api/random-cdn", { timeout: CONFIG.TIMEOUT });
     const cdn = cdnResponse.data.cdn;
 
-    // 2. Obter informações do vídeo
     const infoResponse = await axios.post(`https://${cdn}/v2/info`, { url }, {
       headers: { ...headers, 'Content-Type': 'application/json' },
       timeout: CONFIG.TIMEOUT
@@ -549,7 +547,6 @@ async function downloadWithSavetube(url, format = 'mp3') {
 
     const info = decodeSavetube(infoResponse.data.data);
 
-    // 3. Solicitar download
     const quality = format === 'mp3' ? 128 : 360;
     const downloadType = format === 'mp3' ? 'audio' : 'video';
 
@@ -566,7 +563,6 @@ async function downloadWithSavetube(url, format = 'mp3') {
       throw new Error('URL de download não recebida');
     }
 
-    // 4. Baixar arquivo
     const fileResponse = await axios.get(downloadResponse.data.data.downloadUrl, {
       responseType: 'arraybuffer',
       timeout: CONFIG.DOWNLOAD_TIMEOUT
@@ -592,14 +588,11 @@ async function downloadWithSavetube(url, format = 'mp3') {
   }
 }
 
-// ============================================
-// SISTEMA DE FILA ROTATIVA COM FALLBACKS
-// ============================================
-
 async function downloadWithFallbacks(url, format = 'mp3') {
   const providers = {
+    nodzapi: () => DownloadNodz(url),
     nayan: () => downloadWithNayan(url, format),
-    adonix: () => downloadWithAdonix(url), // Adonix só suporta mp3
+    adonix: () => downloadWithAdonix(url),
     oceansaver: () => downloadWithOceanSaver(url, format),
     y2mate: () => downloadWithY2mate(url, format),
     savetube: () => downloadWithSavetube(url, format)
@@ -609,14 +602,15 @@ async function downloadWithFallbacks(url, format = 'mp3') {
   let videoUnavailableCount = 0;
   let networkErrorCount = 0;
 
-  // Usar ordem atual dos providers
   for (const providerName of providerState.methodOrder) {
-    // Pular Adonix se não for mp3 (só suporta áudio)
     if (providerName === 'adonix' && format !== 'mp3') {
       continue;
     }
 
-    // Pular se estiver em cooldown
+    if (providerName === 'nodzapi' && format !== 'mp3') {
+      continue;
+    }
+
     if (isProviderInCooldown(providerName)) {
       console.log(`⏭️ Pulando ${providerName} (em cooldown)`);
       continue;
@@ -630,7 +624,6 @@ async function downloadWithFallbacks(url, format = 'mp3') {
       if (result?.success) {
         console.log(`✅ Sucesso com ${providerName}!`);
         
-        // Resetar falhas e promover provider
         resetProviderFailures(providerName);
         promoteProviderToFirst(providerName);
         
@@ -652,7 +645,6 @@ async function downloadWithFallbacks(url, format = 'mp3') {
         analysis: errorAnalysis
       });
 
-      // Registrar falha e rebaixar provider
       recordProviderFailure(providerName, errorMessage.slice(0, 120));
       demoteProviderToLast(providerName);
 
@@ -666,13 +658,11 @@ async function downloadWithFallbacks(url, format = 'mp3') {
 
       console.log(`❌ [${providerName}] Falhou: ${errorMessage.slice(0, 100)}...`);
 
-      // Se múltiplos erros de vídeo indisponível, parar
       if (videoUnavailableCount >= 2) {
         console.log('⚠️ Múltiplos erros de vídeo indisponível - possivelmente o vídeo não existe');
         break;
       }
 
-      // Se múltiplos erros de rede, aguardar
       if (networkErrorCount >= 2) {
         console.log('⚠️ Múltiplos erros de rede - aguardando antes da próxima tentativa');
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -680,7 +670,6 @@ async function downloadWithFallbacks(url, format = 'mp3') {
     }
   }
 
-  // Análise final dos erros
   console.log('\n📋 Relatório de falhas:');
   errors.forEach((err, idx) => {
     console.log(`  ${idx + 1}. ${err.provider}: ${err.error.slice(0, 80)}...`);
@@ -707,22 +696,12 @@ function getRecommendation(errors) {
   return 'Erro desconhecido - verifique a URL do vídeo';
 }
 
-// ============================================
-// FUNÇÕES PÚBLICAS (API)
-// ============================================
-
-/**
- * Pesquisa vídeos no YouTube
- * @param {string} query - Termo de pesquisa
- * @returns {Promise<Object>} Resultado da pesquisa
- */
 async function search(query) {
   try {
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       return { ok: false, msg: 'Termo de pesquisa inválido' };
     }
 
-    // Verificar cache
     const cached = getCached(`search:${query}`);
     if (cached) return { ok: true, ...cached, cached: true };
 
@@ -766,12 +745,6 @@ async function search(query) {
   }
 }
 
-/**
- * Download de áudio (MP3) com sistema de fila rotativa
- * @param {string} url - URL do vídeo
- * @param {string} quality - Qualidade (mp3)
- * @returns {Promise<Object>} Resultado do download
- */
 async function mp3(url, _quality = 'mp3') {
   try {
     const id = getYouTubeVideoId(url);
@@ -779,13 +752,11 @@ async function mp3(url, _quality = 'mp3') {
       return { ok: false, msg: 'URL inválida do YouTube' };
     }
 
-    // Verificar cache
     const cached = getCached(`mp3:${id}`);
     if (cached) return { ok: true, ...cached, cached: true };
 
     const videoUrl = `https://youtube.com/watch?v=${id}`;
     
-    // Usar sistema de fila rotativa
     const result = await downloadWithFallbacks(videoUrl, 'mp3');
     
     if (!result.success || !result.buffer) {
@@ -802,8 +773,9 @@ async function mp3(url, _quality = 'mp3') {
       title: result.title,
       thumbnail: result.thumbnail,
       quality: result.quality || 'mp3',
-      filename: `${result.title} (mp3).mp3`,
-      source: result.source
+      filename: result.filename || `${result.title} (mp3).mp3`,
+      source: result.source,
+      tempo: result.tempo || 0
     };
 
     setCache(`mp3:${id}`, downloadResult);
@@ -815,12 +787,6 @@ async function mp3(url, _quality = 'mp3') {
   }
 }
 
-/**
- * Download de vídeo (MP4) com sistema de fila rotativa
- * @param {string} url - URL do vídeo
- * @param {string} quality - Qualidade (360p, 720p, 1080p)
- * @returns {Promise<Object>} Resultado do download
- */
 async function mp4(url, quality = '360p') {
   try {
     const id = getYouTubeVideoId(url);
@@ -828,13 +794,11 @@ async function mp4(url, quality = '360p') {
       return { ok: false, msg: 'URL inválida do YouTube' };
     }
 
-    // Verificar cache
     const cached = getCached(`mp4:${id}:${quality}`);
     if (cached) return { ok: true, ...cached, cached: true };
 
     const videoUrl = `https://youtube.com/watch?v=${id}`;
     
-    // Usar sistema de fila rotativa
     const result = await downloadWithFallbacks(videoUrl, 'mp4');
     
     if (!result.success || !result.buffer) {
@@ -864,10 +828,6 @@ async function mp4(url, quality = '360p') {
   }
 }
 
-// ============================================
-// EXPORTS
-// ============================================
-
-export { search, mp3, mp4 };
+export { search, mp3, mp4, DownloadNodz };
 export const ytmp3 = mp3;
 export const ytmp4 = mp4;
