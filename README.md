@@ -6,8 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/STATUS-DESCONTINUADO-critical?style=for-the-badge" />
-  <img src="https://img.shields.io/github/stars/hiudyy/nazuna?style=for-the-badge&color=yellow&label=⭐%20Estrelas" />
-  <img src="https://img.shields.io/github/forks/hiudyy/nazuna?style=for-the-badge&color=blue&label=🍴%20Forks" />
+  <img src="https://img.shields.io/github/stars/hiudyy/nazuna?style=for-the-badge&color=yellow&label=Estrelas" />
+  <img src="https://img.shields.io/github/forks/hiudyy/nazuna?style=for-the-badge&color=blue&label=Forks" />
 </p>
 
 <p align="center"><i>Um projeto que marcou época. Obrigado por tudo.</i></p>
