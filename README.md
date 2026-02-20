@@ -58,8 +58,7 @@ Porém, o projeto continua vivo graças à comunidade. A manutenção está send
 |---------|-------|
 | ⭐ Estrelas | ![Stars](https://img.shields.io/github/stars/hiudyy/nazuna?style=flat-square&color=yellow) |
 | 🍴 Forks | ![Forks](https://img.shields.io/github/forks/hiudyy/nazuna?style=flat-square&color=blue) |
-| 📥 Downloads | ![Downloads](https://img.shields.io/github/downloads/hiudyy/nazuna/total?style=flat-square&color=green) |
-| 👥 Contribuidores | ![Contributors](https://img.shields.io/github/contributors/hiudyy/nazuna?style=flat-square&color=cyan) |
+
 | 📝 Commits | ![Commits](https://img.shields.io/github/commit-activity/t/hiudyy/nazuna?style=flat-square&color=purple) |
 | 💾 Tamanho do Repo | ![Size](https://img.shields.io/github/repo-size/hiudyy/nazuna?style=flat-square&color=orange) |
 | 🐞 Issues Resolvidas | ![Closed Issues](https://img.shields.io/github/issues-closed/hiudyy/nazuna?style=flat-square&color=red) |
@@ -73,6 +72,18 @@ Porém, o projeto continua vivo graças à comunidade. A manutenção está send
   <img src="https://count.getloli.com/@nazuninha-bot?name=nazuninha-bot&theme=booru-lewd&padding=8&offset=0&align=top&scale=2&pixelated=1&darkmode=1" alt="Visitas" />
   <br/>
   <sub>Total de visitas ao repositório</sub>
+</p>
+
+---
+
+## 👥 Contribuidores
+
+<p align="center">Essas são as pessoas que ajudaram a construir a nazuna.</p>
+
+<p align="center">
+  <a href="https://github.com/hiudyy/nazuna/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=hiudyy/nazuna&columns=10&anon=1" />
+  </a>
 </p>
 
 ---
