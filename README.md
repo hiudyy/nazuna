@@ -1,4 +1,4 @@
-# 🤖 nazuna Bot: Seu Assistente Completo para WhatsApp
+el# 🤖 nazuna Bot: Seu Assistente Completo para WhatsApp857630132
 
 ![nazuna Bot Banner](https://raw.githubusercontent.com/hiudyy/nazuna/main/dados/midias/menu.jpg)
 
