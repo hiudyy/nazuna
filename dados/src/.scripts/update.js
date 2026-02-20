@@ -12,7 +12,7 @@ const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const REPO_URL = 'https://github.com/hiudyy/nazuna.git';
+const REPO_URL = 'https://github.com/devcrician/nazuna.git';
 const BACKUP_DIR = path.join(process.cwd(), `backup_${new Date().toISOString().replace(/[:.]/g, '_').replace(/T/, '_')}`);
 const TEMP_DIR = path.join(process.cwd(), 'temp_nazuna');
 const isWindows = os.platform() === 'win32';
