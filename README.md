@@ -1,14 +1,14 @@
-el# 🤖 nazuna Bot: Seu Assistente Completo para WhatsApp857630132
+# 🤖 menorzinho Bot: Seu Assistente Completo para WhatsApp857630132
 
-![nazuna Bot Banner](https://raw.githubusercontent.com/hiudyy/nazuna/main/dados/midias/menu.jpg)
+![menorzinho Bot Bannr](https://raw.githubusercontent.com/hiudyy/nazuna/main/dados/midias/menu.jpg)
 
 Bem-vindo ao repositório oficial do **nazuna Bot**! Este projeto é um bot avançado e multifuncional para WhatsApp, desenvolvido com a robustez do **Node.js** e a flexibilidade da biblioteca **WaLib**. Criado para otimizar sua comunicação e gestão de grupos, o nazuna Bot oferece uma vasta gama de comandos, desde funcionalidades administrativas essenciais até opções de entretenimento interativas. É a solução perfeita tanto para desenvolvedores iniciantes que buscam uma ferramenta fácil de usar quanto para usuários avançados que desejam uma plataforma altamente personalizável.
 
-> ⚠️ **Aviso Importante**: O nazuna Bot é um projeto de código aberto, desenvolvido com paixão e dedicação. No entanto, ele é **protegido por direitos autorais**. Isso significa que, embora você tenha total liberdade para editar e distribuir o bot para uso pessoal ou em sua comunidade, a **venda** do nazuna Bot ou de suas versões modificadas é estritamente proibida, pois o projeto é oferecido gratuitamente. Além disso, a remoção total dos créditos do autor é vedada. Violações destas condições podem resultar em ações legais.
+> ⚠️ **Aviso Importante**: menorzinhoBot é um projeto de código aberto, desenvolvido com paixão e dedicação. No entanto, ele é **protegido por direitos autorais**. Isso significa que, embora você tenha total liberdade para editar e distribuir o bot para uso pessoal ou em sua comunidade, a **venda** do nazuna Bot ou de suas versões modificadas é estritamente proibida, pois o projeto é oferecido gratuitamente. Além disso, a remoção total dos créditos do autor é vedada. Violações destas condições podem resultar em ações legais.
 
 ---
 
-## ✨ Por que o nazuna Bot se Destaca?
+#✨ Por que o nazuna Bot se Destaca?
 
 <details>
 <summary><strong>🔍 Clique para ver as principais características</strong></summary>
@@ -29,7 +29,8 @@ O nazuna Bot foi projetado para ser mais do que um simples assistente; ele é um
 ## 📊 Estatísticas Detalhadas do Projeto
 
 <details>
-<summary><strong>📈 Métricas e números do projeto</strong></summary>
+<summary><strong>📈 Métricas e números do projeto</strong></summary>857630132
+
 
 Acompanhe o progresso e a vitalidade do nazuna Bot através de métricas em tempo real, que refletem o engajamento da comunidade e o desenvolvimento contínuo do projeto:
 
@@ -38,7 +39,7 @@ Acompanhe o progresso e a vitalidade do nazuna Bot através de métricas em temp
 | 🕒 | ![Última Atualização](https://img.shields.io/github/last-commit/hiudyy/nazuna?color=blue&style=flat-square) | **Última Atualização**: Indica a data do último commit realizado no repositório, mostrando a atividade recente de desenvolvimento. |
 | ⭐ | ![Estrelas](https://img.shields.io/github/stars/hiudyy/nazuna?color=yellow&label=Favoritos&style=flat-square) | **Favoritos (Estrelas)**: Representa o número de estrelas concedidas ao projeto no GitHub, um indicador direto da popularidade e do apreço da comunidade. |
 | 🍴 | ![Forks](https://img.shields.io/github/forks/hiudyy/nazuna?color=green&style=flat-square) | **Forks**: Contagem de cópias do projeto (forks) criadas por outros desenvolvedores, evidenciando o interesse em colaborar ou adaptar o bot. |
-| 🐞 | ![Issues](https://img.shields.io/github/issues/hiudyy/nazuna?color=red&style=flat-square) | **Issues**: Número de problemas reportados, sugestões de melhoria ou dúvidas levantadas pela comunidade, essenciais para o aprimoramento do bot. |
+| 🐞 | ![Issues](issues/hiudyy/nazuna?color=red&style=flat-square) | **Issues**: Número de problemas reportados, sugestões de melhoria ou dúvidas levantadas pela comunidade, essenciais para o aprimoramento do bot. |
 | 📝 | ![Commits](https://img.shields.io/github/commit-activity/m/hiudyy/nazuna?color=purple&style=flat-square) | **Commits**: Frequência de atualizações no código-fonte, refletindo a intensidade do trabalho de desenvolvimento e manutenção. |
 | 💾 | ![Tamanho do Repo](https://img.shields.io/github/repo-size/hiudyy/nazuna?color=orange&style=flat-square) | **Tamanho do Repositório**: O espaço total ocupado pelo projeto no GitHub, incluindo todos os arquivos e histórico de versões. |
 | 👥 | ![Contribuidores](https://img.shields.io/github/contributors/hiudyy/nazuna?color=cyan&style=flat-square) | **Contribuidores**: Lista de todas as pessoas que contribuíram ativamente com código ou documentação para o projeto. |
@@ -69,7 +70,7 @@ Mantenha-se sempre atualizado com as últimas notícias, receba dicas exclusivas
 
 ---
 
-## 📜 Índice Detalhado
+# 📜 Índice Detalhado
 
 <details>
 <summary><strong>📋 Navegue pelas seções do README</strong></summary>
@@ -94,7 +95,8 @@ Navegue facilmente por todas as seções deste README para encontrar as informa�
 12. [❔ FAQ Avançado e Dúvidas Frequentes](#-faq-avançado-e-dúvidas-frequentes)
 </details>
 
----
+---menorzino
+
 
 ## 🚀 Primeiros Passos: Guia Rápido
 
@@ -221,14 +223,15 @@ Este método é útil se você não consegue escanear o QR code diretamente (por
 - **Conexão Bem-Sucedida**: O bot será conectado ao seu WhatsApp e começará a funcionar.
 
 > ⚠️ **Observações Cruciais para uma Conexão Segura e Estável**:  
-> - **Número Secundário**: Reforçamos a importância de usar um número de telefone **secundário e exclusivo** para o bot. Isso minimiza o risco de banimento da sua conta principal do WhatsApp, que pode ocorrer devido às políticas de uso de automação.
-> - **QR Code Expirado**: Se o QR code exibido no terminal expirar antes que você consiga escanear o código, simplesmente execute `npm start` novamente para gerar um novo QR code.
+> - **Número Secundário**: 857630132Reforçamos a importância de usar um número de telefone **secundário e exclusivo** para o bot. Isso minimiza o risco de banimento da sua conta principal do WhatsApp, que pode ocorrer devido às políticas de uso de automação.
+> - **QR Code Expirado**: Se o QR code exibido no terminal expirar antes que você consiga escanear o código, simplesmente execute `npm start novamente para gerar um novo QR code.12345678
+> - 
 > - **Sessão Salva Automaticamente**: A sessão de conexão do bot é salva automaticamente em um arquivo. Isso garante que, em futuras execuções, o bot se reconecte ao WhatsApp sem a necessidade de um novo QR code ou código de pareamento, a menos que a sessão seja corrompida ou você a desconecte manualmente.
 </details>
 
 ---
 
-## 🔄 Atualizando o nazuna Bot
+## 🔄 Atualizando menorzinho Bot
 
 <details>
 <summary><strong>🔃 Como manter seu bot atualizado</strong></summary>
@@ -248,14 +251,14 @@ Este comando irá baixar as últimas alterações do repositório e atualizar as
 
 ---
 
-## 💻 Tutoriais de Instalação por Plataforma
+# 💻 Tutoriais de Instalação por Plataforma
 
 <details>
 <summary><strong>🖥️ Guias detalhados por sistema operacional</strong></summary>
 
 O nazuna Bot é incrivelmente versátil e pode ser executado em diversas plataformas. Escolha o tutorial que corresponde ao seu ambiente para um guia de instalação detalhado e otimizado:
 
-### 🖥️ Windows: Guia Completo
+# 🖥️ Windows: Guia Completo
 
 <details>
 <summary><strong>👨‍💻 Tutorial para Windows</strong></summary>
@@ -268,8 +271,7 @@ Este guia detalha a instalação do nazuna Bot em sistemas operacionais Windows,
    - **Git para Windows**: Faça o download e instale o Git a partir de [git-scm.com/downloads](https://git-scm.com/downloads). Este pacote inclui o Git Bash, um terminal que pode ser útil.
    - **Verificação**: Abra o Prompt de Comando (CMD) ou PowerShell e execute os seguintes comandos para verificar se o Node.js e o Git foram instalados corretamente:
      ```bash
-     node -v
-     git --version
+     node -n
      ```
      Você deverá ver as versões instaladas de cada um.
 
