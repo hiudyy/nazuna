@@ -58,7 +58,6 @@ Porém, o projeto continua vivo graças à comunidade. A manutenção está send
 |---------|-------|
 | ⭐ Estrelas | ![Stars](https://img.shields.io/github/stars/hiudyy/nazuna?style=flat-square&color=yellow) |
 | 🍴 Forks | ![Forks](https://img.shields.io/github/forks/hiudyy/nazuna?style=flat-square&color=blue) |
-
 | 📝 Commits | ![Commits](https://img.shields.io/github/commit-activity/t/hiudyy/nazuna?style=flat-square&color=purple) |
 | 💾 Tamanho do Repo | ![Size](https://img.shields.io/github/repo-size/hiudyy/nazuna?style=flat-square&color=orange) |
 | 🐞 Issues Resolvidas | ![Closed Issues](https://img.shields.io/github/issues-closed/hiudyy/nazuna?style=flat-square&color=red) |
