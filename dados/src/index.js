@@ -538,6 +538,7 @@ const {
   youtube,
   tiktok,
   totext,
+  tts,
   pinterest,
   igdl,
   kwai,
@@ -5784,6 +5785,9 @@ Entre em contato com o dono do bot:
         console.error('Erro ao verificar lista de comandos de subdonos:', e);
       }
     }
+    
+    
+
 
 
     switch (command) {
@@ -25383,6 +25387,71 @@ ${prefix}togglecmdvip premium_ia off`);
       }
         break;
 
+
+case 'tts':
+case 'tss': {
+  const MODELOS = ['masculino', 'feminino', 'robo', 'alien'];
+
+  const entrada = args.join(' ').trim();
+
+  if (!entrada) {
+    return reply(
+      '❌ Digite o texto que deseja transformar em áudio.\n\n' +
+      '📌 *Exemplos:*\n' +
+      `${prefix}${command} boa noite\n` +
+      `${prefix}${command} boa noite | masculino\n\n` +
+      `🎙️ *Vozes:* ${MODELOS.join(', ')}`
+    );
+  }
+
+  const idx = entrada.lastIndexOf('|');
+  let texto = entrada;
+  let modelo = 'feminino';
+
+  if (idx !== -1) {
+    const possivelModelo = entrada
+      .slice(idx + 1)
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    if (MODELOS.includes(possivelModelo)) {
+      texto = entrada.slice(0, idx).trim();
+      modelo = possivelModelo;
+    } else {
+      return reply(
+        `❌ Voz "${possivelModelo || 'vazia'}" inválida.\n\n` +
+        `🎙️ *Vozes disponíveis:* ${MODELOS.join(', ')}`
+      );
+    }
+  }
+
+  if (!texto) {
+    return reply('❌ Digite o texto antes do "|".');
+  }
+
+  reply(`🔊 Gerando áudio (voz ${modelo})...`);
+
+  const resultado = await tts.tts(texto, modelo);
+
+  if (!resultado?.ok) {
+    return reply(resultado?.msg || '❌ Erro ao gerar áudio.');
+  }
+
+  await nazu.sendMessage(
+    from,
+    {
+      audio: resultado.audio,
+      mimetype: resultado.contentType || 'audio/mpeg',
+      ptt: false
+    },
+    { quoted: info }
+  );
+}
+break;
+
+
       case 'removebg':
       case 'rmbg':
       case 'sbg':
@@ -33026,6 +33095,14 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
           await reply('Ocorreu um erro 💔');
         }
         break;
+        
+        
+        
+        
+                      
+
+
+
 
       case 'freetemu':
         try {
@@ -33384,6 +33461,12 @@ ${prefix}wl.add @usuario | antilink,antistatus`);
               rentalExpirationManager.config.enableAutoCleanup = value.toLowerCase() === 'on';
               await reply(`✅ Limpeza automática ${rentalExpirationManager.config.enableAutoCleanup ? 'ativada' : 'desativada'}`);
               break;
+              
+
+
+
+
+
 
             default:
               await reply(`❌ Opção inválida: ${option}\nUse ${prefix}rentalconfig para ver as opções disponíveis.`);

@@ -44,6 +44,7 @@ async function loadModules() {
             youtubeMod,
             tiktokMod,
             totextMod,
+            ttsMod,
             pinterestMod,
             igdlMod,
             lyricsMod,
@@ -59,6 +60,7 @@ async function loadModules() {
             import('./downloads/youtube.js'),
             import('./downloads/tiktok.js'),
             import('./ferramentas/totext.js'),
+            import('./ferramentas/tts.js'),
             import('./downloads/pinterest.js'),
             import('./downloads/igdl.js'),
             import('./downloads/lyrics.js'),
@@ -87,10 +89,21 @@ async function loadModules() {
 
 
         modules.totext = totextMod.default ?? totextMod;
+       
 
         if (modules.totext && typeof modules.totext.totext !== 'function') {
             console.warn('[EXPORTS] totext function not found');
         }
+        
+        
+        
+                modules.tts = ttsMod.default ?? ttsMod;
+       
+
+        if (modules.tts && typeof modules.tts.tts !== 'function') {
+            console.warn('[EXPORTS] TTS function not found');
+        }
+        
 
         modules.pinterest = pinterestMod.default ?? pinterestMod;
         if (modules.pinterest && typeof modules.pinterest.dl !== 'function') {
